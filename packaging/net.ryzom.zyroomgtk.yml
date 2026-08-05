@@ -1,0 +1,31 @@
+# Manifeste Flatpak de ZyRoom GTK.
+#
+# Construction :
+#   flatpak run org.flatpak.Builder --user --install --force-clean \
+#       build-dir packaging/net.ryzom.zyroomgtk.yml
+#
+# Prérequis — le runtime GNOME et son SDK :
+#   flatpak install flathub org.gnome.Platform//50 org.gnome.Sdk//50
+# et l'outil de construction, si la distribution ne fournit pas flatpak-builder :
+#   flatpak install --user flathub org.flatpak.Builder
+app-id: net.ryzom.zyroomgtk
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: zyroom-gtk
+
+finish-args:
+  - --share=network            # API Ryzom (icônes, inventaires, portraits)
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri               # accélération GTK4 (repli logiciel possible)
+  - --filesystem=home:ro       # lire string_client.pack et le dossier « save »
+
+modules:
+  - name: zyroom-gtk
+    buildsystem: simple
+    build-commands:
+      - make install PREFIX=/app
+    sources:
+      - type: dir
+        path: ..

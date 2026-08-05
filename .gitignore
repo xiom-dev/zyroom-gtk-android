@@ -1,0 +1,22 @@
+# Référence Delphi (clonée séparément, non redistribuée avec le portage)
+/reference/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Données locales de test
+*.local
+/scratch/
+
+# Artefacts de build / empaquetage
+*.deb
+/build-dir/
+/.flatpak-builder/
+/build-repo/
+/dist/
+*.flatpak
+zyroom/locale/*/LC_MESSAGES/*.mo

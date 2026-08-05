@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.ryzom.zyroomgtk</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>ZyRoom GTK</name>
+  <developer id="net.ryzom">
+    <name>ZyRoom GTK contributors</name>
+  </developer>
+  <summary>View your Ryzom inventories offline</summary>
+  <summary xml:lang="fr">Consultez vos inventaires Ryzom hors-ligne</summary>
+  <description>
+    <p>
+      ZyRoom GTK is a companion tool for the MMORPG Ryzom. It lets you view your
+      characters' and guilds' inventories offline through the Ryzom web API, with
+      an alert system (volume, durability, quantity, movement, sales, season),
+      readable item names, filtering and sorting, item details, chat-log analysis
+      and automatic backups.
+    </p>
+    <p xml:lang="fr">
+      ZyRoom GTK est un outil compagnon pour le MMORPG Ryzom. Il permet de
+      consulter hors-ligne les inventaires de vos personnages et guildes via
+      l'API web de Ryzom, avec un système d'alertes (volume, durabilité,
+      quantité, mouvement, ventes, saison), des noms d'items lisibles, des
+      filtres et tris, le détail des items, l'analyse de chatlog et des
+      sauvegardes automatiques.
+    </p>
+    <p>Portage GTK4 sous licence AGPLv3 du projet original de Misugi.</p>
+  </description>
+  <launchable type="desktop-id">net.ryzom.zyroomgtk.desktop</launchable>
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+  <url type="homepage">https://github.com/misugi/zyroom</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="6.0.0" date="2026-08-01"/>
+  </releases>
+</component>
