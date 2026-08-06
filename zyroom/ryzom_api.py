@@ -7,6 +7,7 @@ les appelants (voir icons.py, window.py).
 """
 from __future__ import annotations
 
+import unicodedata
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -29,6 +30,16 @@ KIND_GUILD = "guild"
 # par tranche de slot (cf. _CHEST_SEGMENT_SIZE du Delphi) : coffre i = slots
 # [i*500, i*500+499]. Chaque <chest> porte le nom et la capacité (bulkmax).
 _CHEST_SEGMENT_SIZE = 500
+
+# Coffres que l'application ne montre pas, par un fragment de leur nom.
+# C'est un masque d'affichage : leur contenu voyage toujours dans le flux de
+# l'API et dort dans le cache. Qui a la clé de la guilde peut l'y lire.
+#
+# La comparaison se fait sur le nom normalisé et par inclusion, car ces noms
+# sont saisis à la main par les joueurs : article en tête, espace en fin, casse
+# et accents variables, et l'API les tronque à 31 caractères. Une égalité
+# stricte laissait passer « Le petit coffre de Nizy ».
+_HIDDEN_CHESTS = ("petit coffre de nizy",)
 
 _USER_AGENT = "zyroom-gtk/0.1 (+https://github.com/misugi/zyroom)"
 _TIMEOUT = 30
@@ -107,6 +118,14 @@ def _http_get(url: str) -> bytes:
         raise ApiError(f"HTTP {exc.code} : {exc.reason}") from exc
     except urllib.error.URLError as exc:
         raise ApiError(f"Réseau : {exc.reason}") from exc
+
+
+def _is_hidden_chest(name: str) -> bool:
+    """Vrai si ce nom de coffre figure dans le masque d'affichage."""
+    decomposed = unicodedata.normalize("NFKD", name)
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c))
+    normalized = " ".join(plain.lower().split())
+    return any(fragment in normalized for fragment in _HIDDEN_CHESTS)
 
 
 def check_modules(modules: str, required) -> list[str]:
@@ -300,6 +319,8 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
         name, bulkmax = chest_meta[i] if i < len(chest_meta) else ("", 0)
         if not items and bulkmax <= 0:
             continue  # coffre inexistant
+        if _is_hidden_chest(name):
+            continue  # coffre masqué
         label = f"{_('Coffre')} {i + 1}"
         if name and name != ent.name:
             label += f" — {name}"
