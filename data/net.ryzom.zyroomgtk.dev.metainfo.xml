@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.ryzom.zyroomgtk.dev</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>ZyRoom GTK (dev)</name>
+  <developer id="net.ryzom">
+    <name>ZyRoom GTK contributors</name>
+  </developer>
+  <summary>Development build of ZyRoom GTK</summary>
+  <summary xml:lang="fr">Build de développement de ZyRoom GTK</summary>
+  <description>
+    <p>
+      Development build of ZyRoom GTK, installed alongside the regular one. It
+      shows the chests that the distributed build masks. Same code otherwise.
+    </p>
+    <p xml:lang="fr">
+      Build de développement de ZyRoom GTK, installable à côté de la version
+      ordinaire. Elle affiche les coffres que la build distribuée masque. Le
+      code est identique par ailleurs.
+    </p>
+  </description>
+  <launchable type="desktop-id">net.ryzom.zyroomgtk.dev.desktop</launchable>
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+  <url type="homepage">https://github.com/misugi/zyroom</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="6.0.0" date="2026-08-01"/>
+  </releases>
+</component>

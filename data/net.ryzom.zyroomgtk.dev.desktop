@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=ZyRoom GTK (dev)
+GenericName=Ryzom inventory viewer
+Comment=Build de développement : affiche les coffres masqués
+Comment[en]=Development build: shows the masked chests
+Comment[de]=Entwicklungsversion: zeigt die ausgeblendeten Truhen
+Exec=zyroom-gtk
+Icon=net.ryzom.zyroomgtk.dev
+Terminal=false
+Categories=Game;
+Keywords=Ryzom;inventory;inventaire;guild;dev;
+StartupWMClass=net.ryzom.zyroomgtk.dev

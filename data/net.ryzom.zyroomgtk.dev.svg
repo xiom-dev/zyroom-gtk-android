@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3f7a68"/>
+      <stop offset="1" stop-color="#2b5648"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b5793a"/>
+      <stop offset="1" stop-color="#8a531f"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c98a48"/>
+      <stop offset="1" stop-color="#a5682d"/>
+    </linearGradient>
+    <!-- Le bandeau « dev » doit épouser les coins arrondis de la vignette. -->
+    <clipPath id="rounded">
+      <rect x="4" y="4" width="120" height="120" rx="26"/>
+    </clipPath>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="26" fill="url(#bg)"/>
+  <!-- corps du coffre -->
+  <rect x="26" y="52" width="76" height="42" rx="6" fill="url(#wood)" stroke="#5f3813" stroke-width="3"/>
+  <!-- couvercle -->
+  <path d="M26 54 v-6 a38 38 0 0 1 76 0 v6 z" fill="url(#lid)" stroke="#5f3813" stroke-width="3"/>
+  <!-- ferrures -->
+  <rect x="40" y="28" width="6" height="66" fill="#e8c15a" opacity="0.9"/>
+  <rect x="82" y="28" width="6" height="66" fill="#e8c15a" opacity="0.9"/>
+  <rect x="24" y="60" width="80" height="6" fill="#e8c15a" opacity="0.9"/>
+  <!-- serrure -->
+  <rect x="58" y="60" width="12" height="16" rx="2" fill="#f4d675" stroke="#5f3813" stroke-width="2"/>
+  <circle cx="64" cy="66" r="2.5" fill="#5f3813"/>
+  <!-- éclat -->
+  <circle cx="98" cy="40" r="4" fill="#fff4c4" opacity="0.85"/>
+  <!-- bandeau « dev » : distingue la build du mainteneur de celle de la guilde.
+       Le libellé est tracé en formes géométriques plutôt qu'en <text>, pour ne
+       dépendre d'aucune police côté rendu d'icône. -->
+  <g clip-path="url(#rounded)">
+    <rect x="4" y="98" width="120" height="26" fill="#17332a"/>
+    <rect x="4" y="98" width="120" height="2" fill="#e8c15a" opacity="0.65"/>
+    <g fill="none" stroke="#f4d675" stroke-width="5" stroke-linecap="square">
+      <!-- D -->
+      <path d="M38 105 v13"/>
+      <path d="M38 105 h6 a7 6.5 0 0 1 0 13 h-6"/>
+      <!-- E -->
+      <path d="M58 105 v13"/>
+      <path d="M58 105 h11"/>
+      <path d="M58 111.5 h8"/>
+      <path d="M58 118 h11"/>
+      <!-- V -->
+      <path d="M79 105 l6 13 l6 -13"/>
+    </g>
+  </g>
+</svg>

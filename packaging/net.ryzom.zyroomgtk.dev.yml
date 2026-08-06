@@ -1,17 +1,22 @@
 # Manifeste Flatpak de ZyRoom GTK — build de développement (mainteneur).
 #
-# Identique au manifeste principal, à une variable près : ZYROOM_SHOW_ALL_CHESTS
-# lève le masque d'affichage des coffres (cf. _HIDDEN_CHESTS dans ryzom_api.py).
-# La build distribuée à la guilde masque le petit coffre ; celle-ci le montre.
+# Deux différences avec le manifeste principal :
+#   - app-id distinct, pour que les deux versions s'installent et se lancent
+#     côte à côte (nom, icône « DEV » et entrée de menu propres) ;
+#   - ZYROOM_SHOW_ALL_CHESTS lève le masque d'affichage des coffres (cf.
+#     _HIDDEN_CHESTS dans ryzom_api.py). La build distribuée à la guilde masque
+#     le petit coffre ; celle-ci le montre.
 #
-# Construction — noter le dépôt et le répertoire distincts, sans quoi cette
-# build écraserait la build de release dans build-repo (même app-id, même
-# branche) :
+# L'app-id étant distinct, Flatpak donne à cette build ses propres dossiers
+# ~/.var/app/net.ryzom.zyroomgtk.dev/{config,cache} : ses clés API et son cache
+# d'icônes sont indépendants de ceux de la build ordinaire.
+#
+# Construction — dépôt et répertoire distincts pour ne pas écraser la release :
 #   flatpak run org.flatpak.Builder --user --force-clean \
 #       --repo=build-repo-dev build-dir-dev packaging/net.ryzom.zyroomgtk.dev.yml
 #   flatpak build-bundle build-repo-dev \
-#       "dist/ZyRoom-GTK(dev)_6.0.0_x86_64.flatpak" net.ryzom.zyroomgtk master
-app-id: net.ryzom.zyroomgtk
+#       "dist/ZyRoom-GTK(dev)_6.0.0_x86_64.flatpak" net.ryzom.zyroomgtk.dev master
+app-id: net.ryzom.zyroomgtk.dev
 runtime: org.gnome.Platform
 runtime-version: '50'
 sdk: org.gnome.Sdk
@@ -29,7 +34,10 @@ modules:
   - name: zyroom-gtk
     buildsystem: simple
     build-commands:
-      - make install PREFIX=/app
+      # APP_ID pilote le nom des fichiers .desktop / .svg / .metainfo.xml
+      # installés (cf. Makefile) : ceux de la variante dev vivent à côté des
+      # autres dans data/.
+      - make install PREFIX=/app APP_ID=net.ryzom.zyroomgtk.dev
     sources:
       - type: dir
         path: ..
