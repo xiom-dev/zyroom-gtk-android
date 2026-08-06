@@ -41,8 +41,16 @@ CAP_ZIG = 150
 # --- Listes de noms (UnitRyzom.pas) ---------------------------------------
 _MAT_JOBS = {"lucky_flower.sitem", "protect_amber.sitem",
              "water_barrel.sitem", "tools_ticket.sitem"}
+# Matières de construction des coffres de guilde. **Écart assumé avec
+# l'original** : UnitRyzom.pas:1407 leur donne un coefficient de 0,1, mais le
+# jeu affiche un volume de 0,00 et un poids de 0 kg pour la générique dure et
+# pour la molle/liquide — elles ne comptent pas dans l'encombrement. Le 0,1
+# faisait déborder tout coffre qui en stockait beaucoup (un coffre de 5000 rempli
+# de 12 899 unités s'affichait à 118 %).
+# mp_socle valait déjà 0 dans l'original, mais par omission de cette liste ; il y
+# figure désormais pour que les six soient traitées ensemble et explicitement.
 _MAT_GUILD_CHEST = {"mp_hard.sitem", "mp_soft.sitem", "mp_colonne.sitem",
-                    "mp_ornement.sitem", "mp_revetement.sitem"}
+                    "mp_ornement.sitem", "mp_revetement.sitem", "mp_socle.sitem"}
 
 # --- Expressions régulières (identiques à _EXPR_* du Delphi) --------------
 _EXPR_NATURAL_MAT = re.compile(r"^m\d{4}dxa([pcdfljg])([a-f])01\.sitem")
@@ -209,7 +217,7 @@ def _classify(item: ItemInfo) -> tuple[ItemType, float]:
         if _EXPR_BANDIT_CHEST.search(name):
             coef = 0.5
         if name in _MAT_GUILD_CHEST:
-            coef = 0.1
+            coef = 0.0
         if name in ("icbm1sa_2.sitem", "icbm1bs.sitem"):
             itype = ItemType.EQUIPMENT
             item.ecosystem = ItemEcosystem.COMMON
