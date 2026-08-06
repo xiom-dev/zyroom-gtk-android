@@ -15,8 +15,10 @@ venv/
 # Artefacts de build / empaquetage
 *.deb
 /build-dir/
+/build-dir-dev/
 /.flatpak-builder/
 /build-repo/
+/build-repo-dev/
 /dist/
 *.flatpak
 zyroom/locale/*/LC_MESSAGES/*.mo

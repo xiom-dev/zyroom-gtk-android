@@ -1,0 +1,35 @@
+# Manifeste Flatpak de ZyRoom GTK — build de développement (mainteneur).
+#
+# Identique au manifeste principal, à une variable près : ZYROOM_SHOW_ALL_CHESTS
+# lève le masque d'affichage des coffres (cf. _HIDDEN_CHESTS dans ryzom_api.py).
+# La build distribuée à la guilde masque le petit coffre ; celle-ci le montre.
+#
+# Construction — noter le dépôt et le répertoire distincts, sans quoi cette
+# build écraserait la build de release dans build-repo (même app-id, même
+# branche) :
+#   flatpak run org.flatpak.Builder --user --force-clean \
+#       --repo=build-repo-dev build-dir-dev packaging/net.ryzom.zyroomgtk.dev.yml
+#   flatpak build-bundle build-repo-dev \
+#       "dist/ZyRoom-GTK(dev)_6.0.0_x86_64.flatpak" net.ryzom.zyroomgtk master
+app-id: net.ryzom.zyroomgtk
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: zyroom-gtk
+
+finish-args:
+  - --share=network            # API Ryzom (icônes, inventaires, portraits)
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri               # accélération GTK4 (repli logiciel possible)
+  - --filesystem=home:ro       # lire string_client.pack et le dossier « save »
+  - --env=ZYROOM_SHOW_ALL_CHESTS=1   # montre les coffres masqués (build dev)
+
+modules:
+  - name: zyroom-gtk
+    buildsystem: simple
+    build-commands:
+      - make install PREFIX=/app
+    sources:
+      - type: dir
+        path: ..

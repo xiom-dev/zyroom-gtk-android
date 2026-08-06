@@ -7,6 +7,7 @@ les appelants (voir icons.py, window.py).
 """
 from __future__ import annotations
 
+import os
 import unicodedata
 import urllib.error
 import urllib.request
@@ -40,6 +41,12 @@ _CHEST_SEGMENT_SIZE = 500
 # et accents variables, et l'API les tronque à 31 caractères. Une égalité
 # stricte laissait passer « Le petit coffre de Nizy ».
 _HIDDEN_CHESTS = ("petit coffre de nizy",)
+
+# Le masque se lève si ZYROOM_SHOW_ALL_CHESTS=1. C'est ce que positionne le
+# manifeste de la build de développement (packaging/…dev.yml) : la build
+# distribuée à la guilde masque, celle du mainteneur montre tout. La variable
+# est relue à chaque appel pour rester testable.
+_ENV_SHOW_ALL = "ZYROOM_SHOW_ALL_CHESTS"
 
 _USER_AGENT = "zyroom-gtk/0.1 (+https://github.com/misugi/zyroom)"
 _TIMEOUT = 30
@@ -122,6 +129,8 @@ def _http_get(url: str) -> bytes:
 
 def _is_hidden_chest(name: str) -> bool:
     """Vrai si ce nom de coffre figure dans le masque d'affichage."""
+    if os.environ.get(_ENV_SHOW_ALL) == "1":
+        return False
     decomposed = unicodedata.normalize("NFKD", name)
     plain = "".join(c for c in decomposed if not unicodedata.combining(c))
     normalized = " ".join(plain.lower().split())
