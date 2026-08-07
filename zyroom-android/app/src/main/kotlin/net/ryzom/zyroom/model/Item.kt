@@ -72,6 +72,13 @@ data class Inventory(
     val capacity: Int = 0,
     /** Ce qui les réunit sous un même bouton : « Mektoub », « Zig », « Coffres »… */
     val group: String = "",
+    /**
+     * Contenant montré vide (cf. HIDDEN_CHESTS). Il est exclu des instantanés,
+     * sans quoi le journal des mouvements trahirait ce qu'on masque : passer
+     * d'un état où le coffre était garni à un état vide produirait un retrait
+     * par objet, nommément.
+     */
+    val masked: Boolean = false,
 ) {
     val totalVolume: Double get() = items.sumOf { it.volume }
 }

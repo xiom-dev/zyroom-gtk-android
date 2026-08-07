@@ -8,25 +8,34 @@ personnages via l'API web officielle de Ryzom.
 
 > Licence **GNU AGPLv3** (comme le projet d'origine : https://github.com/misugi/zyroom).
 
-## État
+## Ce que l'application sait faire
 
-Fonctionnel :
-- Ajout de **personnages ET guildes** via clé API (persistés localement).
-- Synchronisation via `character.php` / `guild.php`, avec **cache hors-ligne**.
-- Inventaires : **Sac**, **Salle**, montures/packers/zig (perso) ; **Salle** et
-  **coffres** (guilde), en grille d'icônes téléchargées et mises en cache
-  (téléchargement concurrent).
-- **Noms d'items lisibles** via `string_client.pack` (bouton dossier), avec cache.
-- **Recherche** par nom (tolérante aux accents) et **filtres** qualité min/max +
-  « protégés seulement ».
-- **Calcul de volume** par item et par inventaire, avec **jauge de remplissage**
-  (capacités : sac 300, salle 2000, packer 500, monture 300, zig 150).
-- **Alertes** : volume au-dessus d'un seuil (défaut 90 %) et **mouvements**
-  d'objets entre deux synchronisations (cloche + notification).
-- Info-bulle par item (nom, fiche, qualité, quantité, volume, protection).
+- **Personnages et guildes**, ajoutés par clé API et conservés localement.
+- Synchronisation via `character.php` / `guild.php`, avec **cache hors-ligne** :
+  les inventaires restent consultables sans réseau.
+- Tous les contenants : sac, appartement, montures, mektoubs, zigs, ventes à
+  l'hôtel, et les **coffres de guilde**, en grille d'icônes mises en cache.
+- **Noms d'items lisibles** tirés de `string_client.pack`, avec cache.
+- **Recherche** tolérante aux accents, **filtres** (qualité, type, classe,
+  écosystème, équipement, protégés, avec bonus, en vente) et **tris**.
+- **Volume** par item et par contenant, avec jauge de remplissage.
+- **Journal des mouvements** : ce qui est entré et sorti des coffres, horodaté
+  et conservé d'une session à l'autre.
+- **Alertes** à la cloche : remplissage au-delà d'un seuil, mouvements,
+  durabilité et quantité des objets surveillés, ventes qui expirent, changement
+  de saison.
+- **Détail d'un item** : caractéristiques de craft, protections, résistances,
+  spécificités de matière.
+- **Analyse de chatlog** avec couleurs, filtres et export.
+- **Sauvegarde** du dossier `save` de Ryzom, à la demande ou à la fermeture.
+- **Mise à jour intégrée** quand l'application est installée en Flatpak depuis
+  le dépôt du projet.
 
-À venir : surveillance par item (durabilité d'un équipement, quantité d'une
-matière), analyse de chatlog, sauvegardes automatiques.
+## Deux variantes
+
+Le même code donne deux applications, aux identifiants distincts, installables
+côte à côte : celle distribuée à la guilde masque le contenu d'un coffre
+réservé, celle du mainteneur (`ZYROOM_SHOW_ALL_CHESTS=1`) montre tout.
 
 ## Installation
 

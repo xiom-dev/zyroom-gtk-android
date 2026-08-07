@@ -98,6 +98,32 @@ class MovementStoreTest {
         assertEquals(emptyList<MovementStore.Movement>(), mouvements)
     }
 
+    /**
+     * Le cas qui compte : on a d'abord relevé le coffre garni (variante dev, ou
+     * version antérieure au masquage), puis il devient masqué. Sans exclusion,
+     * la comparaison verrait un retrait par objet et recopierait dans le journal
+     * la liste même qu'on cherche à cacher.
+     */
+    @Test
+    fun `un coffre masqué ne fuit pas dans le journal`() = runBlocking {
+        val magasin = store()
+        val garni = Entity(
+            kind = Entity.Kind.GUILD, id = "105906237", name = "La Lune Eternelle",
+            inventories = listOf(Inventory("c1", "Coffre 1",
+                listOf(item("secret_a.sitem", 250, 99), item("secret_b.sitem", 250, 42)))))
+        magasin.record(suivie, garni)
+
+        val masque = Entity(
+            kind = Entity.Kind.GUILD, id = "105906237", name = "La Lune Eternelle",
+            inventories = listOf(Inventory("c1", "Coffre 1", emptyList(), masked = true)))
+        val mouvements = magasin.record(suivie, masque)
+
+        assertEquals(emptyList<MovementStore.Movement>(), mouvements)
+        val journal = magasin.history(suivie)
+        assertTrue("aucune fiche du coffre masqué ne doit apparaître",
+                   journal.none { "secret" in it.sheet })
+    }
+
     @Test
     fun `le journal ressort du plus récent au plus ancien`() = runBlocking {
         val magasin = store()

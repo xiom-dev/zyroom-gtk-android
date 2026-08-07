@@ -179,11 +179,12 @@ object EntityParser {
             // Un coffre ni déclaré ni garni n'existe pas.
             if (contenu.isEmpty() && capacite <= 0) return@mapNotNull null
             // Le coffre masqué garde sa place et son nom, mais se présente vide.
-            val montre = if (masquer && isHiddenChest(nom)) emptyList() else contenu
+            val estMasque = masquer && isHiddenChest(nom)
             val etiquette = if (nom.isEmpty() || nom == node.text("name"))
                 "Coffre ${rang + 1}" else "Coffre ${rang + 1} — $nom"
-            Inventory("chest${rang + 1}", etiquette, montre, capacite,
-                      group = "Coffres")
+            Inventory("chest${rang + 1}", etiquette,
+                      if (estMasque) emptyList() else contenu, capacite,
+                      group = "Coffres", masked = estMasque)
         }
 
         return Entity(

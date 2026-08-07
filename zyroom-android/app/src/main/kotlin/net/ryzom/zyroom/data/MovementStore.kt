@@ -91,9 +91,17 @@ class MovementStore(private val dir: File) {
 
     private fun snapFile(entry: EntityStore.Suivie) = File(dir, "${base(entry)}-etat.json")
 
-    /** `{clé du contenant: {fiche|qualité: quantité}}` */
+    /**
+     * `{clé du contenant: {fiche|qualité: quantité}}`
+     *
+     * Les contenants masqués en sont **exclus**, et pas seulement vidés : un
+     * instantané antérieur où le coffre était garni ferait sinon apparaître, au
+     * relevé suivant, un retrait par objet — soit exactement la liste qu'on
+     * masque, recopiée dans le journal. `diff` ne parcourant que les clés du
+     * nouvel instantané, l'absence suffit à les en tenir dehors.
+     */
     private fun snapshotOf(entity: Entity): Map<String, Map<String, Int>> =
-        entity.inventories.associate { inventaire ->
+        entity.inventories.filterNot { it.masked }.associate { inventaire ->
             val comptes = mutableMapOf<String, Int>()
             inventaire.items.forEach { item ->
                 val signature = WatchStore.signatureOf(item)
