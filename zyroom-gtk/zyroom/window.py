@@ -14,6 +14,7 @@ import unicodedata
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk
 
 from . import alerts, backup, chatlog, detail, i18n, movements, ryzom_api, sorting
+from .updater import Updater
 from .categorydb import CategoryDb
 from .i18n import _
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings, detect_pack,
@@ -109,6 +110,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._busy = False
 
         self._build_ui()
+        # Le portail décide lui-même quand vérifier : le bouton peut n'apparaître
+        # que plusieurs minutes après le lancement. Hors Flatpak, jamais.
+        self._updater = Updater(self._on_update_available, self._on_update_progress)
         self._reload_entities()
         self._refresh_season()
         GLib.timeout_add_seconds(180, self._refresh_season_tick)
@@ -156,6 +160,14 @@ class MainWindow(Gtk.ApplicationWindow):
             act = Gio.SimpleAction.new(name, None)
             act.connect("activate", handler)
             self.add_action(act)
+
+        # Bouton de mise à jour : caché tant qu'il n'y a rien à installer, pour
+        # ne pas encombrer la barre d'un bouton qui ne ferait rien.
+        self._update_btn = Gtk.Button(label="⬆ Mettre à jour")
+        self._update_btn.add_css_class("suggested-action")
+        self._update_btn.set_visible(False)
+        self._update_btn.connect("clicked", self._on_update_clicked)
+        header.pack_end(self._update_btn)
 
         self._bell = Gtk.Button(label="🔔")
         self._bell.set_tooltip_text(_("Alertes"))
@@ -823,7 +835,7 @@ class MainWindow(Gtk.ApplicationWindow):
             if ok:
                 visible += 1
 
-        self._update_status(visible)
+        self._update_status()
 
     def _on_reset_filter(self, _btn) -> None:
         self._search.set_text("")
@@ -868,7 +880,13 @@ class MainWindow(Gtk.ApplicationWindow):
         self._order_btn.set_label("↑" if self._sort_desc else "↓")
         self._redisplay_current()
 
-    def _update_status(self, visible: int) -> None:
+    def _update_status(self) -> None:
+        """Ligne du bas : qui, quel contenant, et de quand datent les données.
+
+        Les décomptes d'items en ont été retirés : la ligne devenait illisible,
+        et le nombre figure déjà dans le sélecteur d'inventaire, à côté de
+        chaque contenant.
+        """
         ent = self._entity
         if not ent:
             return
@@ -876,11 +894,8 @@ class MainWindow(Gtk.ApplicationWindow):
         inv_label = ""
         if 0 <= idx < len(ent.inventories):
             inv_label = ent.inventories[idx].label
-        total = len(self._rows)
-        shown = f"{visible}/{total}" if visible != total else f"{total}"
         extra = f" - {ent.guild}" if ent.guild else ""
-        line = (f"{ent.name}{extra} · {inv_label} : "
-                f"{shown} items affichés (total entité : {ent.item_count})")
+        line = f"{ent.name}{extra} · {inv_label}"
 
         # Dater les stocks affichés : sans cela, rien ne distingue une donnée
         # de l'instant d'une donnée vieille de plusieurs jours.
@@ -1372,6 +1387,27 @@ class MainWindow(Gtk.ApplicationWindow):
         ok, msg = backup.run_backup(folder)
         self._set_status(("Sauvegarde : " if ok else "") + msg)
 
+    # ------------------------------------------------- Mise à jour de l'app
+    def _on_update_available(self, version: str) -> None:
+        self._update_btn.set_visible(True)
+        self._update_btn.set_tooltip_text(
+            _("Une nouvelle version est disponible") + f" ({version})")
+        self._set_status(f"Une nouvelle version est disponible ({version}).")
+
+    def _on_update_clicked(self, _btn) -> None:
+        self._update_btn.set_sensitive(False)
+        self._set_status("Mise à jour demandée — le système va confirmer.")
+        self._updater.update()
+
+    def _on_update_progress(self, message: str, done: bool, failed: bool) -> None:
+        self._set_status(message)
+        if done:
+            # Réussie, le bouton n'a plus lieu d'être : la version installée
+            # n'est reprise qu'au prochain lancement. Échouée, on le rend pour
+            # permettre un second essai.
+            self._update_btn.set_visible(failed)
+            self._update_btn.set_sensitive(True)
+
     # ------------------------------------------------------------- États
     def _set_busy(self, busy: bool, message: str = "") -> None:
         self._busy = busy
@@ -1387,6 +1423,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_close(self, *_):
         self._icons.shutdown()
+        self._updater.close()
         if self._settings.backup_auto:
             folder = self._settings.save_folder or detect_save_folder()
             if folder:
