@@ -13,13 +13,13 @@ import unicodedata
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk
 
-from . import alerts, backup, chatlog, detail, i18n, ryzom_api, sorting
+from . import alerts, backup, chatlog, detail, i18n, movements, ryzom_api, sorting
 from .categorydb import CategoryDb
 from .i18n import _
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings, detect_pack,
                      detect_save_folder, entity_xml_path, format_last_sync,
-                     guard_path, last_sync, names_cache_path, portrait_path,
-                     snapshot_path)
+                     guard_path, last_sync, movements_path, names_cache_path,
+                     portrait_path, snapshot_path)
 from .icons import IconLoader
 from .options import OptionsWindow
 from .namedb import NameDb
@@ -84,6 +84,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._generation = 0                 # invalide les callbacks d'icônes obsolètes
         self._portrait_gen = 0               # invalide les portraits obsolètes
         self._alerts: list[alerts.Alert] = []
+        self._log_entries: list = []         # journal de l'entité affichée
         self._watch: WatchStore | None = None
         # État des filtres/tri
         self._sort_index = 0
@@ -185,10 +186,18 @@ class MainWindow(Gtk.ApplicationWindow):
         self._motd_lbl.set_visible(False)
         root.append(self._motd_lbl)
 
+        # Deux vues : la grille d'inventaire et le journal des mouvements.
+        # Le sélecteur d'entité reste au-dessus, il vaut pour les deux.
+        self._stack = Gtk.Stack()
+        self._stack.set_vexpand(True)
+        inv_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._stack.add_titled(inv_page, "inventory", _("Inventaire"))
+        root.append(self._stack)
+
         # Ligne volume : jauge de remplissage de l'inventaire courant
         barvol = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         barvol.props.margin_start = barvol.props.margin_end = 8
-        root.append(barvol)
+        inv_page.append(barvol)
         barvol.append(Gtk.Label(label=_("Volume :")))
         self._vol_bar = Gtk.LevelBar()
         self._vol_bar.set_min_value(0)
@@ -206,7 +215,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # Ligne 2 : recherche + filtres + tri
         bar2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._pad(bar2)
-        root.append(bar2)
+        inv_page.append(bar2)
         self._search = Gtk.SearchEntry()
         self._search.set_placeholder_text(_("Rechercher un item par nom…"))
         self._search.set_hexpand(True)
@@ -245,7 +254,12 @@ class MainWindow(Gtk.ApplicationWindow):
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
         scrolled.set_child(self._flow)
-        root.append(scrolled)
+        inv_page.append(scrolled)
+
+        # Onglet « Journal » + bascule dans la barre de titre
+        self._stack.add_titled(self._build_log_page(), "log", _("Journal"))
+        header.set_title_widget(Gtk.StackSwitcher(stack=self._stack))
+        self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
         # Barre d'état : portrait du personnage + texte
         statusbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -277,6 +291,164 @@ class MainWindow(Gtk.ApplicationWindow):
         if not self._names.loaded:
             self._set_status("Astuce : chargez string_client.pack (icône dossier) "
                              "pour afficher les noms d'items.")
+
+    # ------------------------------------------------ Journal des mouvements
+    #: Nombre de lignes construites d'un coup. Au-delà, on n'affiche pas tout :
+    #: un journal peut compter des milliers de lignes et une grille GTK de cette
+    #: taille se construit lentement pour rien — le filtre sert à chercher plus
+    #: loin.
+    _LOG_PAGE_SIZE = 400
+
+    def _build_log_page(self) -> Gtk.Widget:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._pad(bar)
+        page.append(bar)
+
+        self._log_search = Gtk.SearchEntry()
+        self._log_search.set_placeholder_text(_("Rechercher dans le journal…"))
+        self._log_search.set_hexpand(True)
+        self._log_search.connect("search-changed", lambda *a: self._refresh_log())
+        bar.append(self._log_search)
+
+        self._log_filter = Gtk.DropDown.new_from_strings(
+            [_("Tout"), _("Entrées"), _("Sorties")])
+        self._log_filter.connect("notify::selected", lambda *a: self._refresh_log())
+        bar.append(self._log_filter)
+
+        copy_btn = Gtk.Button(label=_("Copier"))
+        copy_btn.set_tooltip_text(_("Copier les lignes affichées"))
+        copy_btn.connect("clicked", self._on_log_copy)
+        bar.append(copy_btn)
+
+        clear_btn = Gtk.Button(label=_("Vider"))
+        clear_btn.set_tooltip_text(_("Effacer le journal de cette entité"))
+        clear_btn.connect("clicked", self._on_log_clear)
+        bar.append(clear_btn)
+
+        self._log_grid = Gtk.Grid(column_spacing=16, row_spacing=2)
+        self._pad(self._log_grid)
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+        scrolled.set_child(self._log_grid)
+        page.append(scrolled)
+
+        self._log_status = Gtk.Label(xalign=0.0)
+        self._log_status.add_css_class("dim-label")
+        self._log_status.props.margin_start = 8
+        self._log_status.props.margin_bottom = 6
+        page.append(self._log_status)
+        return page
+
+    def _load_log(self) -> None:
+        """Relit le journal de l'entité courante depuis le disque."""
+        entry = self._current_entry()
+        self._log_entries = []
+        if entry:
+            self._log_entries = movements.load(
+                movements_path(entry["kind"], entry["id"]))
+        self._refresh_log()
+
+    def _filtered_log(self) -> list:
+        needle = _norm(self._log_search.get_text().strip())
+        mode = self._log_filter.get_selected()
+        out = []
+        for mv in self._log_entries:
+            if mode == 1 and mv.delta <= 0:
+                continue
+            if mode == 2 and mv.delta >= 0:
+                continue
+            if needle:
+                hay = _norm(f"{self._names.name(mv.sheet)} {mv.sheet} {mv.inv_label}")
+                if needle not in hay:
+                    continue
+            out.append(mv)
+        return out
+
+    def _refresh_log(self) -> None:
+        child = self._log_grid.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            self._log_grid.remove(child)
+            child = nxt
+
+        shown = self._filtered_log()
+        for row, mv in enumerate(shown[:self._LOG_PAGE_SIZE]):
+            when = Gtk.Label(label=mv.when, xalign=0.0, selectable=True)
+            when.add_css_class("dim-label")
+            when.add_css_class("monospace")
+            self._log_grid.attach(when, 0, row, 1, 1)
+
+            where = Gtk.Label(label=mv.inv_label, xalign=0.0)
+            where.add_css_class("dim-label")
+            self._log_grid.attach(where, 1, row, 1, 1)
+
+            # Vert pour ce qui entre, rouge pour ce qui sort : la couleur est
+            # ce qu'on lit en premier en parcourant une colonne de chiffres.
+            qty = Gtk.Label(xalign=1.0)
+            qty.set_markup('<span foreground="{}"><tt>{:+d}</tt></span>'.format(
+                "#4caf50" if mv.delta > 0 else "#e05252", mv.delta))
+            self._log_grid.attach(qty, 2, row, 1, 1)
+
+            name = Gtk.Label(label=self._names.name(mv.sheet), xalign=0.0,
+                             selectable=True)
+            self._log_grid.attach(name, 3, row, 1, 1)
+
+            quality = Gtk.Label(label=f"Q{mv.quality}" if mv.quality else "",
+                                xalign=0.0)
+            quality.add_css_class("dim-label")
+            self._log_grid.attach(quality, 4, row, 1, 1)
+
+        total = len(self._log_entries)
+        if not total:
+            self._log_status.set_text(
+                "Aucun mouvement enregistré. Le journal se remplit à chaque "
+                "synchronisation où quelque chose a bougé.")
+        elif len(shown) > self._LOG_PAGE_SIZE:
+            self._log_status.set_text(
+                f"{self._LOG_PAGE_SIZE} lignes affichées sur {len(shown)} "
+                f"retenues ({total} au journal) — affinez la recherche.")
+        else:
+            self._log_status.set_text(f"{len(shown)} lignes sur {total} au journal")
+
+    def _on_page_changed(self, *_args) -> None:
+        if self._stack.get_visible_child_name() == "log":
+            self._load_log()
+
+    def _on_log_copy(self, _btn) -> None:
+        lines = [movements.describe(mv, self._names.name)
+                 for mv in self._filtered_log()]
+        if not lines:
+            return
+        self.get_clipboard().set("\n".join(lines))
+        self._log_status.set_text(f"{len(lines)} lignes copiées.")
+
+    def _on_log_clear(self, _btn) -> None:
+        entry = self._current_entry()
+        if not entry:
+            return
+        dlg = Gtk.AlertDialog()
+        dlg.set_message(_("Vider le journal ?"))
+        dlg.set_detail(
+            f"Les {len(self._log_entries)} mouvements enregistrés pour "
+            f"{entry['name']} seront perdus. L'API ne permet pas de les "
+            f"reconstruire.")
+        dlg.set_buttons([_("Annuler"), _("Vider")])
+        dlg.set_cancel_button(0)
+        dlg.set_default_button(0)
+
+        def done(source, result):
+            try:
+                if source.choose_finish(result) != 1:
+                    return
+            except GLib.Error:
+                return
+            movements.clear(movements_path(entry["kind"], entry["id"]))
+            self._load_log()
+
+        dlg.choose(self, None, done)
 
     @staticmethod
     def _pad(widget) -> None:
@@ -437,6 +609,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self._update_entity_header(ent, entry)
         self._populate_inventories()
         self._check_alerts(ent, entry, from_sync, time_data)
+        if self._stack.get_visible_child_name() == "log":
+            self._load_log()      # le journal suit l'entité sélectionnée
 
     # -------------------------------------------------------- Inventaires
     def _populate_inventories(self) -> None:
@@ -724,7 +898,13 @@ class MainWindow(Gtk.ApplicationWindow):
             old = alerts.load_snapshot(path)
             new = alerts.build_snapshot(ent)
             if old:
-                result.extend(alerts.diff_snapshots(old, new, ent, self._names.name))
+                moves = movements.diff(old, new, ent)
+                # Le journal garde la trace, les alertes ne signalent que le coup
+                # présent : les deux décrivent les mêmes faits.
+                movements.append(movements_path(entry["kind"], entry["id"]), moves)
+                result.extend(alerts.movement_alerts(moves, ent, self._names.name))
+                if self._stack.get_visible_child_name() == "log":
+                    self._load_log()
             alerts.save_snapshot(path, new)
             if time_data:
                 season = alerts.season_alert(time_data, self._settings.season_count)

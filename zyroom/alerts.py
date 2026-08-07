@@ -64,29 +64,34 @@ def _label(inv_key: str, entity) -> str:
     return inv_key
 
 
+def movement_alerts(moves, entity, name_fn) -> list[Alert]:
+    """Regroupe des mouvements par inventaire, une alerte par inventaire.
+
+    Les mouvements viennent de `movements.diff` : le journal et les alertes
+    décrivent ainsi exactement les mêmes faits.
+    """
+    by_inv: dict[str, list] = {}
+    for mv in moves:
+        by_inv.setdefault(mv.inv_key, []).append(mv)
+
+    out = []
+    for inv_key, group in by_inv.items():
+        lines = []
+        for mv in sorted(group, key=lambda m: -m.delta):
+            name = name_fn(mv.sheet) if name_fn else mv.sheet
+            lines.append(f"{'+' if mv.delta > 0 else ''}{mv.delta}  {name}")
+        out.append(Alert(
+            "movement",
+            f"{_label(inv_key, entity)} : {len(group)} mouvement(s)",
+            "\n".join(lines),
+        ))
+    return out
+
+
 def diff_snapshots(old: dict, new: dict, entity, name_fn) -> list[Alert]:
     """Compare deux instantanés et renvoie les mouvements détectés."""
-    out = []
-    for inv_key, new_counts in new.items():
-        old_counts = old.get(inv_key, {})
-        sigs = set(new_counts) | set(old_counts)
-        changes = []
-        for sig in sigs:
-            delta = new_counts.get(sig, 0) - old_counts.get(sig, 0)
-            if delta != 0:
-                sheet = sig.rsplit("|", 1)[0]
-                name = name_fn(sheet) if name_fn else sheet
-                changes.append((delta, name))
-        if changes:
-            # tri : ajouts d'abord (delta desc)
-            changes.sort(key=lambda c: -c[0])
-            lines = [f"{'+' if d > 0 else ''}{d}  {n}" for d, n in changes]
-            out.append(Alert(
-                "movement",
-                f"{_label(inv_key, entity)} : {len(changes)} mouvement(s)",
-                "\n".join(lines),
-            ))
-    return out
+    from . import movements
+    return movement_alerts(movements.diff(old, new, entity), entity, name_fn)
 
 
 # ------------------------------------------ Surveillance par item (guard)

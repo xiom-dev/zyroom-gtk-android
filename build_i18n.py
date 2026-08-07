@@ -100,6 +100,14 @@ EN = {
     "Analyse de chatlog": "Chat log analysis", "Filtrer les messages…": "Filter messages…",
     "Système": "System", "Tous les canaux": "All channels", "Copier HTML": "Copy HTML",
     "Copier BBCode": "Copy BBCode", "Copier texte": "Copy text",
+    # Onglets et journal des mouvements
+    "Inventaire": "Inventory", "Journal": "Log",
+    "Rechercher dans le journal…": "Search the log…",
+    "Tout": "All", "Entrées": "In", "Sorties": "Out",
+    "Copier": "Copy", "Vider": "Clear",
+    "Copier les lignes affichées": "Copy the displayed lines",
+    "Effacer le journal de cette entité": "Clear this entity's log",
+    "Vider le journal ?": "Clear the log?",
 }
 
 # --- Traductions français -> allemand (best-effort) ------------------------
@@ -161,6 +169,14 @@ DE = {
     "Analyse de chatlog": "Chatprotokoll-Analyse", "Filtrer les messages…": "Nachrichten filtern…",
     "Système": "System", "Tous les canaux": "Alle Kanäle", "Copier HTML": "HTML kopieren",
     "Copier BBCode": "BBCode kopieren", "Copier texte": "Text kopieren",
+    # Reiter und Bewegungsprotokoll
+    "Inventaire": "Inventar", "Journal": "Protokoll",
+    "Rechercher dans le journal…": "Im Protokoll suchen…",
+    "Tout": "Alle", "Entrées": "Zugänge", "Sorties": "Abgänge",
+    "Copier": "Kopieren", "Vider": "Leeren",
+    "Copier les lignes affichées": "Angezeigte Zeilen kopieren",
+    "Effacer le journal de cette entité": "Protokoll dieser Einheit löschen",
+    "Vider le journal ?": "Protokoll leeren?",
 }
 
 

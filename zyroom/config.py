@@ -128,6 +128,17 @@ def snapshot_path(kind: str, entity_id: str) -> str:
     return os.path.join(path, f"{kind}-{entity_id}.json")
 
 
+def movements_path(kind: str, entity_id: str) -> str:
+    """Emplacement du journal des mouvements d'une entité.
+
+    En données (et non en cache) : c'est un historique que l'API ne saura pas
+    reconstruire, vider le cache ne doit pas l'effacer.
+    """
+    path = os.path.join(data_dir(), "movements")
+    os.makedirs(path, exist_ok=True)
+    return os.path.join(path, f"{kind}-{entity_id}.jsonl")
+
+
 def guard_path(kind: str, entity_id: str) -> str:
     """Emplacement de la liste des objets surveillés (durabilité/quantité).
     Équivalent du guard.dat d'origine, stocké en config (choix utilisateur)."""
