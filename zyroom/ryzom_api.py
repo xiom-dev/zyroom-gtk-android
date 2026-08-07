@@ -32,8 +32,12 @@ KIND_GUILD = "guild"
 # [i*500, i*500+499]. Chaque <chest> porte le nom et la capacité (bulkmax).
 _CHEST_SEGMENT_SIZE = 500
 
-# Coffres que l'application ne montre pas, par un fragment de leur nom.
-# C'est un masque d'affichage : leur contenu voyage toujours dans le flux de
+# Coffres dont l'application ne montre pas le contenu, par un fragment de leur
+# nom. Le coffre reste dans la liste, avec son nom et sa capacité, mais il
+# apparaît **vide** : le faire disparaître amenait les joueurs à demander
+# pourquoi il manquait un coffre.
+#
+# C'est un masque d'affichage : le contenu voyage toujours dans le flux de
 # l'API et dort dans le cache. Qui a la clé de la guilde peut l'y lire.
 #
 # La comparaison se fait sur le nom normalisé et par inclusion, car ces noms
@@ -63,6 +67,11 @@ class Inventory:
     label: str                     # libellé affiché, ex "Sac", "Coffre 1"
     items: list[ItemInfo] = field(default_factory=list)
     capacity: int = 0              # volume max (0 = inconnu, pas de jauge)
+    # Contenant montré vide (cf. _HIDDEN_CHESTS). Il est exclu des instantanés,
+    # sans quoi le journal des mouvements trahirait ce qu'on masque : passer
+    # d'un état où le coffre était garni à un état vide produit un retrait par
+    # item, nommément.
+    masked: bool = False
 
     @property
     def total_volume(self) -> float:
@@ -328,12 +337,15 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
         name, bulkmax = chest_meta[i] if i < len(chest_meta) else ("", 0)
         if not items and bulkmax <= 0:
             continue  # coffre inexistant
-        if _is_hidden_chest(name):
-            continue  # coffre masqué
+        # Le coffre masqué garde sa place et son nom, mais se présente vide.
+        masked = _is_hidden_chest(name)
+        if masked:
+            items = []
         label = f"{_('Coffre')} {i + 1}"
         if name and name != ent.name:
             label += f" — {name}"
-        ent.inventories.append(Inventory(f"chest{i + 1}", label, items, bulkmax))
+        ent.inventories.append(
+            Inventory(f"chest{i + 1}", label, items, bulkmax, masked=masked))
 
     return ent
 

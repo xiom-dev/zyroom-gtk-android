@@ -46,9 +46,18 @@ def volume_alerts(entity, threshold: int) -> list[Alert]:
 # --------------------------------------------------------------- Mouvements
 def build_snapshot(entity) -> dict:
     """Instantané {clé_inventaire: {signature: quantité}}.
-    signature = 'sheet|qualité' ; quantité = somme des piles."""
+    signature = 'sheet|qualité' ; quantité = somme des piles.
+
+    Les contenants masqués en sont exclus, et pas seulement vidés : un
+    instantané antérieur où le coffre était garni ferait sinon apparaître, au
+    premier relevé suivant, un retrait par item — soit exactement la liste
+    qu'on masque. `movements.diff` ne parcourant que les clés du nouvel
+    instantané, l'absence suffit à les tenir hors du journal.
+    """
     snap: dict[str, dict[str, int]] = {}
     for inv in entity.inventories:
+        if getattr(inv, "masked", False):
+            continue
         counts: dict[str, int] = {}
         for it in inv.items:
             sig = item_sig(it)
