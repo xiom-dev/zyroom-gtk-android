@@ -1,0 +1,15 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+keystore.properties
+keystore/
+
+# Artefacts : ils vont dans les Releases GitHub, pas dans l'historique — un APK
+# pèse 8 Mo et un dépôt git conserve chaque version pour toujours.
+dist/
+*.apk
+
+# Bruit de l'outillage Kotlin
+.kotlin/

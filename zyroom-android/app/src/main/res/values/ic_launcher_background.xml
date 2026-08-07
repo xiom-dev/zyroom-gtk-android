@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Le sarcelle sombre du logo, sur quoi repose le coffre. -->
+    <color name="ic_launcher_background">#2B5648</color>
+</resources>

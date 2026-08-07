@@ -1,0 +1,263 @@
+package net.ryzom.zyroom.ui
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import net.ryzom.zyroom.api.ApiException
+import net.ryzom.zyroom.api.RyzomApi
+import net.ryzom.zyroom.data.EntityStore
+import net.ryzom.zyroom.data.Repository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import net.ryzom.zyroom.model.Entity
+
+/**
+ * Les personnages et guildes suivis.
+ *
+ * On ajoute une entité par sa clé d'API : c'est elle qui porte l'identité, le
+ * nom vient de l'API au premier rafraîchissement.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EntitiesScreen(
+    store: EntityStore,
+    repository: Repository,
+    onOpen: (EntityStore.Suivie) -> Unit,
+) {
+    var entrees by remember { mutableStateOf(store.all()) }
+    var ajout by remember { mutableStateOf(false) }
+    var occupe by remember { mutableStateOf(false) }
+    var erreur by remember { mutableStateOf<String?>(null) }
+    val contexte = LocalContext.current
+
+    // Import du `string_client.pack` : sur un téléphone, il n'y a pas
+    // d'installation de Ryzom où aller le chercher.
+    val portee = rememberCoroutineScope()
+    val importer = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) portee.launch {
+            val cible = File(contexte.filesDir, "string_client.pack")
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    contexte.contentResolver.openInputStream(uri)!!.use { entree ->
+                        cible.outputStream().use { entree.copyTo(it) }
+                    }
+                }
+            }
+            repository.loadNames(cible) { null }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("ZyRoom") },
+                actions = {
+                    TextButton(onClick = { importer.launch(arrayOf("*/*")) }) {
+                        Text(
+                            if (repository.names.isLoaded)
+                                "${repository.names.size} noms"
+                            else "Charger les noms"
+                        )
+                    }
+                },
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { ajout = true }) { Text("+") }
+        },
+    ) { marges ->
+        if (entrees.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(marges), Alignment.Center) {
+                Text(
+                    "Aucune entité.\nAjoutez un personnage ou une guilde par sa clé d'API.",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(marges).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(entrees, key = { "${it.kind}-${it.id}" }) { entree ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable { onOpen(entree) },
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(
+                                entree.label.ifEmpty { entree.id },
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                if (entree.kind == Entity.Kind.CHARACTER) "Personnage"
+                                else "Guilde",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (ajout) {
+        AddEntityDialog(
+            onDismiss = { ajout = false },
+            occupe = occupe,
+            erreur = erreur,
+            onAdd = { cles ->
+                portee.launch {
+                    occupe = true
+                    erreur = null
+                    try {
+                        // L'API rend le nom et l'identifiant : inutile de les
+                        // demander à l'utilisateur.
+                        val trouvees = repository.discover(cles)
+                        trouvees.forEach { (cle, entite) ->
+                            store.add(EntityStore.Suivie(
+                                id = entite.id, kind = entite.kind,
+                                apiKey = cle, label = entite.name))
+                        }
+                        entrees = store.all()
+                        if (trouvees.isEmpty()) {
+                            erreur = "Aucune clé n'a été acceptée."
+                        } else {
+                            ajout = false
+                        }
+                    } catch (echec: ApiException) {
+                        erreur = echec.message
+                    }
+                    occupe = false
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun AddEntityDialog(
+    onDismiss: () -> Unit,
+    onAdd: (List<String>) -> Unit,
+    occupe: Boolean,
+    erreur: String?,
+) {
+    val contexte = LocalContext.current
+    val presse = LocalClipboardManager.current
+    var saisie by remember { mutableStateOf("") }
+
+    // Une clé fait 41 caractères ; on en accepte plusieurs, séparées par ce
+    // qu'on veut — retour à la ligne, espace, virgule.
+    val cles = remember(saisie) {
+        saisie.split(Regex("[\\s,;]+")).map(String::trim).filter(String::isNotEmpty)
+    }
+    val bonnes = cles.filter(RyzomApi::isApiKey)
+    val mauvaises = cles - bonnes.toSet()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ajouter une clé d'API") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Une clé fait 41 caractères. Celles de personnage commencent " +
+                        "par « c », celles de guilde par « g ». On peut en coller " +
+                        "plusieurs d'un coup.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = saisie,
+                    onValueChange = { saisie = it },
+                    label = { Text("Clé(s) d'API") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row2 {
+                    TextButton(onClick = {
+                        presse.getText()?.text?.let { saisie = it.toString() }
+                    }) { Text("Coller") }
+                    TextButton(onClick = {
+                        contexte.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(RyzomApi.KEY_PAGE)))
+                    }) { Text("Obtenir ma clé") }
+                }
+                if (mauvaises.isNotEmpty()) {
+                    Text(
+                        "Ignorée${if (mauvaises.size > 1) "s" else ""} : " +
+                            mauvaises.joinToString(", ") { it.take(8) + "…" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                erreur?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.error)
+                }
+                if (occupe) {
+                    Text("Interrogation de l'API…",
+                         style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onAdd(bonnes) },
+                enabled = bonnes.isNotEmpty() && !occupe,
+            ) { Text(if (bonnes.size > 1) "Ajouter ${bonnes.size} clés" else "Ajouter") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+    )
+}
+
+/** Deux boutons côte à côte — une ligne, sans plus de cérémonie. */
+@Composable
+private fun Row2(content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) { content() }
+}
+
+/** Rappel : le bouton de retrait viendra avec l'appui long, écran suivant. */
+@Suppress("unused")
+@Composable
+private fun PlaceholderRemove(onClick: () -> Unit) {
+    IconButton(onClick = onClick) { Text("×") }
+}

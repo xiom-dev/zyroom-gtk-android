@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Remplace le nom de src/main pour la seule variante « dev » : les deux
+     applications s'installent côte à côte, il faut les distinguer au lanceur. -->
+<resources>
+    <string name="app_name">ZyRoom (dev)</string>
+</resources>
