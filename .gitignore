@@ -1,0 +1,6 @@
+
+# Sortie du site de mises à jour et clé de signature : publiés ailleurs,
+# et le dépôt OSTree grossit à chaque livraison.
+/pages/
+/zyroom-gtk/pages-repo/
+/.signing-key-id
