@@ -89,13 +89,14 @@ flatpak run --env=GSK_RENDERER=cairo net.ryzom.zyroomgtk
 
 ## 4. Premier démarrage
 
-**La guilde La Lune Eternelle est déjà configurée** : à la première ouverture,
-ses coffres s'affichent sans rien avoir à saisir.
+L'application démarre vide : rien n'est livré avec elle. Il y a deux choses à
+ajouter, par le bouton **+** de la barre de titre.
 
-Pour voir aussi vos propres sacs et votre appartement :
+**La guilde.** Choisissez **Guilde** et collez la clé d'API de La Lune Eternelle,
+que Xiom diffuse sur le Discord de la guilde. Ses coffres s'affichent aussitôt.
 
-1. Cliquez sur **+** puis choisissez **Personnage**.
-2. Renseignez votre **clé d'API**.
+**Votre personnage.** Choisissez **Personnage** et renseignez **votre** clé
+d'API, pour voir vos sacs, votre appartement et vos montures.
 
 Pour obtenir votre clé : connectez-vous sur https://api.ryzom.com, créez une clé
 pour votre personnage en cochant au minimum les modules `C01 C04 C05 C06 A01 A03`

@@ -21,9 +21,10 @@ _DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 SHEETID_CSV = os.path.join(_DATA_DIR, "sheetid.csv")
 CATEGORY_CSV = os.path.join(_DATA_DIR, "category.csv")
 
-# Entités pré-configurées, livrées avec l'application. Sert à distribuer une
-# version déjà prête : à la première ouverture, la guilde est déjà là et le
-# joueur n'a plus qu'à ajouter son propre personnage.
+# Entités pré-configurées, si le paquet en livre. Le mécanisme reste en place
+# mais **rien n'est livré** : y mettre la guilde revenait à donner sa clé d'API,
+# en clair, à quiconque installe le paquet — et donc à qui saurait l'en extraire.
+# La clé se transmet désormais de la main à la main, sur le Discord de la guilde.
 _DEFAULTS_DIR = os.path.join(_DATA_DIR, "default")
 
 
