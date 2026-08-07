@@ -31,6 +31,13 @@ from .watch import WatchStore, watch_kind, KIND_DURABILITY
 
 ICON_SIZE = 48
 
+# Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
+# Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
+# mais bien dans la liste des fenêtres et l'alternateur de tâches.
+APP_NAME = ("ZyRoom-GTK(dev)0.3"
+            if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
+            else "ZyRoom-GTK-0.3")
+
 #: Signature affichée en bas de la fenêtre principale.
 SIGNATURE = "Original by Misugi, fork by Xiom"
 
@@ -59,7 +66,7 @@ def _norm(text: str) -> str:
 class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application)
-        self.set_title("ZyRoom GTK")
+        self.set_title(APP_NAME)
         self.set_default_size(960, 680)
 
         self._char_store = EntityStore("characters.ini")
