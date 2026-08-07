@@ -15,7 +15,7 @@
 #   flatpak run org.flatpak.Builder --user --force-clean \
 #       --repo=build-repo-dev build-dir-dev packaging/net.ryzom.zyroomgtk.dev.yml
 #   flatpak build-bundle build-repo-dev \
-#       "dist/ZyRoom-GTK(dev)_6.0.0_x86_64.flatpak" net.ryzom.zyroomgtk.dev master
+#       "dist/ZyRoom-GTK(dev)0.3.flatpak" net.ryzom.zyroomgtk.dev master
 app-id: net.ryzom.zyroomgtk.dev
 runtime: org.gnome.Platform
 runtime-version: '50'

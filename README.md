@@ -37,7 +37,7 @@ sudo apt install ./ZyRoom-GTK_6.0.0_all.deb
 ```
 
 `apt` installe automatiquement les dépendances (`python3-gi`, `gir1.2-gtk-4.0`).
-L'application apparaît ensuite dans le menu (« ZyRoom GTK ») ou se lance avec
+L'application apparaît ensuite dans le menu (« ZyRoom-GTK-0.3 ») ou se lance avec
 `zyroom-gtk`.
 
 ### Flatpak (toutes distributions)
@@ -45,7 +45,7 @@ L'application apparaît ensuite dans le menu (« ZyRoom GTK ») ou se lance avec
 À partir du bundle distribué :
 
 ```bash
-flatpak install --user ZyRoom-GTK_6.0.0_x86_64.flatpak
+flatpak install --user ZyRoom-GTK-0.3.flatpak
 flatpak run net.ryzom.zyroomgtk
 ```
 
@@ -83,7 +83,7 @@ flatpak run org.flatpak.Builder --user --install --force-clean \
     --repo=build-repo build-dir packaging/net.ryzom.zyroomgtk.yml
 
 # bundle d'un seul fichier, à distribuer
-flatpak build-bundle build-repo ZyRoom-GTK_6.0.0_x86_64.flatpak \
+flatpak build-bundle build-repo ZyRoom-GTK-0.3.flatpak \
     net.ryzom.zyroomgtk master
 ```
 

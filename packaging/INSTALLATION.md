@@ -8,7 +8,7 @@ Deux formats sont fournis, au choix.
 | Vous êtes sous… | Prenez | Pourquoi |
 |---|---|---|
 | **Debian, Ubuntu, Mint** | `ZyRoom-GTK_6.0.0_all.deb` | le plus léger : 190 Ko, rien d'autre à télécharger |
-| **toute autre distribution** | `ZyRoom-GTK_6.0.0_x86_64.flatpak` | fonctionne partout, sans rien compiler |
+| **toute autre distribution** | `ZyRoom-GTK-0.3.flatpak` | fonctionne partout, sans rien compiler |
 
 ---
 
@@ -19,8 +19,7 @@ sudo apt install ./ZyRoom-GTK_6.0.0_all.deb
 ```
 
 `apt` installe au passage les deux dépendances nécessaires (`python3-gi` et
-`gir1.2-gtk-4.0`). L'application apparaît ensuite dans le menu sous « ZyRoom
-GTK », ou se lance par la commande `zyroom-gtk`.
+`gir1.2-gtk-4.0`). L'application apparaît ensuite dans le menu sous « ZyRoom-GTK-0.3 », ou se lance par la commande `zyroom-gtk`.
 
 Vos réglages vont dans `~/.config/zyroom-gtk/`, vos caches dans
 `~/.cache/zyroom-gtk/`.
@@ -62,7 +61,7 @@ flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/fl
 Placez-vous dans le dossier où se trouve le fichier, puis :
 
 ```sh
-flatpak install --user ZyRoom-GTK_6.0.0_x86_64.flatpak
+flatpak install --user ZyRoom-GTK-0.3.flatpak
 ```
 
 L'application elle-même ne pèse que 1 Mo. En revanche, si vous n'avez encore
