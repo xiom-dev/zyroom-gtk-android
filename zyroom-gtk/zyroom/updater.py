@@ -72,15 +72,33 @@ class Updater:
             self._on_progress(*_lire_progression(info))
 
     def update(self) -> None:
-        """Lance la mise à jour. Le système demande confirmation de son côté."""
+        """Lance la mise à jour. Le système demande confirmation de son côté.
+
+        L'appel est **asynchrone** : le portail ne rend la main qu'une fois sa
+        fenêtre de confirmation refermée, et un appel bloquant figeait l'interface
+        pendant tout ce temps — le gestionnaire de fenêtres finissait par
+        signaler une application qui ne répond plus.
+        """
         if self._monitor is None:
             return
+        self._monitor.call(
+            "Update", GLib.Variant("(sa{sv})", ("", {})),
+            Gio.DBusCallFlags.NONE, -1, None, self._update_done, None)
+
+    def _update_done(self, proxy, result, _data) -> None:
         try:
-            self._monitor.call_sync(
-                "Update", GLib.Variant("(sa{sv})", ("", {})),
-                Gio.DBusCallFlags.NONE, -1, None)
-        except Exception as echec:                      # noqa: BLE001
-            self._on_progress(f"Échec : {echec}", True, True)
+            proxy.call_finish(result)
+        except GLib.Error as echec:
+            # Le refus le plus courant : le portail n'ouvre sa fenêtre que pour
+            # l'application au premier plan. Le message brut ne dirait rien à un
+            # joueur.
+            if "focused" in echec.message:
+                self._on_progress(
+                    "Gardez la fenêtre au premier plan pendant la mise à jour.",
+                    True, True)
+            else:
+                self._on_progress(f"Mise à jour refusée : {echec.message}",
+                                  True, True)
 
     def close(self) -> None:
         if self._monitor is None:

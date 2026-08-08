@@ -60,6 +60,10 @@ android {
             dimension = "diffusion"
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
+            // La variante dev avance plus vite que celle de la guilde : elle a
+            // son propre numéro, sans quoi publier un essai obligerait à faire
+            // croître aussi celui que reçoivent les joueurs.
+            versionCode = 3
             // Le nom du lanceur est dans src/dev/res/ : une ressource de
             // variante remplace celle de src/main, là où un resValue() entrerait
             // en conflit avec elle.
