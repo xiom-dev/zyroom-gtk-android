@@ -71,7 +71,9 @@ import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.Skill
 import net.ryzom.zyroom.model.SkillPoints
 import net.ryzom.zyroom.model.SortOrder
+import net.ryzom.zyroom.model.skillTree
 import net.ryzom.zyroom.model.sortItems
+import net.ryzom.zyroom.model.visibleSkills
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -525,9 +527,14 @@ private fun JournalView(
  * de l'arbre. La profondeur compte les codes qui préfixent le nôtre, ce qui reste
  * juste même si l'API saute un échelon.
  *
- * Cent soixante-quatorze lignes sur un écran de téléphone : les branches sont
- * repliées au départ. Une recherche, elle, traverse tout — chercher « épée » et
- * ne rien voir parce que la branche est fermée serait absurde.
+ * Cent soixante-quatorze lignes sur un écran de téléphone : **toute compétence
+ * qui a des descendants se plie**, pas seulement les quatre racines. Ouvrir
+ * Artisanat d'un coup déversait cent sept lignes ; échelon par échelon, on
+ * descend où l'on veut. Tout est replié au départ, et une compétence n'apparaît
+ * que si tous ses parents sont ouverts.
+ *
+ * Une recherche, elle, traverse tout — chercher « épée » et ne rien voir parce
+ * que la branche est fermée serait absurde.
  */
 @Composable
 private fun SkillsView(
@@ -538,18 +545,7 @@ private fun SkillsView(
     nameOf: (String) -> String,
 ) {
     // L'arbre ne change pas d'une frappe à l'autre : il se calcule une fois.
-    val arbre = remember(skills) {
-        skills.sortedBy { it.code }.map { skill ->
-            Rang(
-                skill = skill,
-                racine = skills.filter { skill.code.startsWith(it.code) }
-                    .minByOrNull { it.code.length }?.code ?: skill.code,
-                profondeur = skills.count {
-                    it.code != skill.code && skill.code.startsWith(it.code)
-                },
-            )
-        }
-    }
+    val arbre = remember(skills) { skillTree(skills) }
     var depliees by remember(skills) { mutableStateOf(emptySet<String>()) }
     var enCoursSeulement by remember { mutableStateOf(false) }
 
@@ -559,12 +555,12 @@ private fun SkillsView(
     // repliable ne sert que la consultation, filtres au repos.
     val filtrant = cherche.isNotEmpty() || enCoursSeulement
     val visibles = if (filtrant) {
-        arbre.filter { rang ->
-            (!enCoursSeulement || rang.skill.progress > 0) &&
-                (cherche.isEmpty() || cherche in normalise(nameOf(rang.skill.code)))
+        arbre.filter { noeud ->
+            (!enCoursSeulement || noeud.skill.progress > 0) &&
+                (cherche.isEmpty() || cherche in normalise(nameOf(noeud.skill.code)))
         }
     } else {
-        arbre.filter { it.profondeur == 0 || it.racine in depliees }
+        visibleSkills(arbre, depliees)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -616,13 +612,13 @@ private fun SkillsView(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) {
             items(visibles, key = { it.skill.code }) { rang ->
-                if (!filtrant && rang.profondeur == 0) {
+                if (!filtrant && rang.depth == 0) {
                     Branche(
                         nom = nameOf(rang.skill.code),
                         // Le niveau d'une racine plafonne bas — Combat vaut 20 :
                         // c'est le plus haut de ses descendants qui dit où en est
                         // la branche.
-                        niveau = arbre.filter { it.racine == rang.racine }
+                        niveau = arbre.filter { it.root == rang.root }
                             .maxOf { it.skill.level },
                         points = points[rang.skill.code],
                         depliee = rang.skill.code in depliees,
@@ -635,17 +631,21 @@ private fun SkillsView(
                     Competence(
                         nom = nameOf(rang.skill.code),
                         skill = rang.skill,
-                        // En liste plate, tout est au même bord.
-                        profondeur = if (filtrant) 1 else rang.profondeur,
+                        // En liste plate, tout est au même bord et rien ne se
+                        // plie : la liste est déjà le résultat d'un filtre.
+                        profondeur = if (filtrant) 1 else rang.depth,
+                        pliable = !filtrant && rang.hasChildren,
+                        depliee = rang.skill.code in depliees,
+                        onBascule = {
+                            depliees = if (rang.skill.code in depliees)
+                                depliees - rang.skill.code else depliees + rang.skill.code
+                        },
                     )
                 }
             }
         }
     }
 }
-
-/** Une compétence et sa place dans l'arbre, calculées une fois pour toutes. */
-private class Rang(val skill: Skill, val racine: String, val profondeur: Int)
 
 @Composable
 private fun Branche(
@@ -681,13 +681,30 @@ private fun Branche(
 }
 
 @Composable
-private fun Competence(nom: String, skill: Skill, profondeur: Int) {
+private fun Competence(
+    nom: String,
+    skill: Skill,
+    profondeur: Int,
+    pliable: Boolean = false,
+    depliee: Boolean = false,
+    onBascule: () -> Unit = {},
+) {
     Column(
         Modifier.fillMaxWidth()
-            // Un cran par échelon, à partir du retrait de la flèche des branches.
-            .padding(start = 20.dp + 14.dp * (profondeur - 1), top = 5.dp, bottom = 5.dp),
+            .clickable(enabled = pliable, onClick = onBascule)
+            // Un cran de douze points par échelon, à partir du retrait de la
+            // flèche des racines. Douze et non vingt : l'arbre descend à cinq
+            // échelons, et les noms de l'artisanat sont longs.
+            .padding(start = 20.dp + 12.dp * (profondeur - 1), top = 5.dp, bottom = 5.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // La place de la flèche est tenue même pour une feuille : sans elle,
+            // les noms d'un même échelon ne s'aligneraient pas.
+            Text(
+                if (!pliable) "" else if (depliee) "▾" else "▸",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.width(14.dp),
+            )
             Text(nom, style = MaterialTheme.typography.bodyMedium,
                  modifier = Modifier.weight(1f))
             Text(

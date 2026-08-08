@@ -76,6 +76,14 @@ ceux-là.
 Le niveau d'une racine plafonne bas — Combat vaut 20 : c'est le plus haut de ses
 descendants qui dit où en est la branche, et c'est lui qu'on affiche en tête.
 
+**Toute compétence qui a des descendants se plie**, pas seulement les quatre
+racines : ouvrir Artisanat d'un coup déversait cent sept lignes. Une compétence
+n'apparaît que si tous ses parents sont ouverts, et replier un parent n'oublie
+pas l'état des échelons du dessous — le rouvrir les retrouve tels quels. Le
+calcul vit dans `model/SkillTree.kt`, hors de l'écran, pour être couvert par des
+tests : le parent est le plus proche des ancêtres, non la racine, sans quoi un
+échelon absent du flux décalerait tout l'affichage.
+
 Les noms français sortent du pack livré, par ces mêmes codes. Ils ne finissent
 pas en `.sitem` : la règle qui ne retenait que les items les laissait tomber, et
 l'écran n'aurait montré que des codes.
