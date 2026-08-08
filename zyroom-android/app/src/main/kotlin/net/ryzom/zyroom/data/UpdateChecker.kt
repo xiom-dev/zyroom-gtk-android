@@ -34,16 +34,35 @@ class UpdateChecker(private val context: Context) {
 
     data class Disponible(val versionName: String, val url: String)
 
-    /** Rend la version en ligne si elle est plus récente, `null` sinon. */
+    /**
+     * Rend la version en ligne si elle est plus récente, `null` sinon.
+     *
+     * La réponse est gardée une minute, et l'appel rend alors ce qu'il sait déjà
+     * sans toucher au réseau. L'écran d'accueil interroge à chaque retour au
+     * premier plan : sans ce garde-fou, une bascule d'application redemanderait
+     * le manifeste chaque fois. Une minute reste assez court pour qu'une version
+     * tout juste publiée se voie en refermant puis rouvrant l'application.
+     *
+     * Un échec réseau ne fait pas oublier ce qu'on savait : il retient la date
+     * pour ne pas s'acharner, mais laisse la dernière réponse connue en place.
+     */
     suspend fun check(): Disponible? = withContext(Dispatchers.IO) {
-        runCatching {
-            val texte = lire(MANIFESTE_URL) ?: return@runCatching null
+        val maintenant = System.currentTimeMillis()
+        if (maintenant - dernierAppel < FRAICHEUR_MS) return@withContext dernier
+        dernierAppel = maintenant
+
+        val texte = lire(MANIFESTE_URL) ?: return@withContext dernier
+        val reponse = runCatching {
             val entree = JSONObject(texte).optJSONObject(context.packageName)
                 ?: return@runCatching null
             val enLigne = entree.optInt("versionCode")
             if (enLigne <= versionInstallee()) null
             else Disponible(entree.optString("versionName"), entree.optString("url"))
-        }.getOrNull()
+        }
+        // Un manifeste illisible n'est pas une absence de mise à jour.
+        if (reponse.isFailure) return@withContext dernier
+        dernier = reponse.getOrNull()
+        dernier
     }
 
     /**
@@ -95,5 +114,14 @@ class UpdateChecker(private val context: Context) {
     companion object {
         const val MANIFESTE_URL =
             "https://xiom-dev.github.io/zyroom-gtk-android/version.json"
+
+        /** Durée pendant laquelle la dernière réponse tient lieu de réponse. */
+        const val FRAICHEUR_MS = 60_000L
+
+        // Au processus et non à l'écran : revenir d'un inventaire recompose
+        // l'accueil, et sans cela le bandeau disparaîtrait le temps d'un
+        // nouvel appel, ou en provoquerait un à chaque retour.
+        @Volatile private var dernier: Disponible? = null
+        @Volatile private var dernierAppel = 0L
     }
 }

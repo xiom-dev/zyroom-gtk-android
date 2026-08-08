@@ -166,6 +166,14 @@ livraison doit tenir d'accord quatre choses : le `versionCode` compilé, le nom
 du fichier, le `versionCode` publié dans `version.json` et l'URL qu'il annonce.
 Le script est le seul endroit où elles sont écrites ensemble.
 
+L'application interroge `version.json` **à chaque retour au premier plan**, pas
+une fois par lancement : un téléphone garde les applications en mémoire des
+jours durant, et une version publiée pendant ce temps restait invisible — il
+fallait balayer l'application hors des récentes pour la voir arriver, ce à quoi
+personne ne pense. `UpdateChecker` garde sa réponse une minute, une bascule
+d'application ne redemande donc pas le manifeste, et un échec réseau ne fait pas
+oublier ce qu'on savait déjà.
+
 Les numéros vivent dans `version.properties`, lu par `build.gradle.kts` ; le
 script les fait croître à partir du plus haut des deux — celui du dépôt et celui
 réellement en ligne. Les deux variantes ont leur propre suite : la dev avance au

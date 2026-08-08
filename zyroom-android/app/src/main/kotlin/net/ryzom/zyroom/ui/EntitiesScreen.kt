@@ -40,6 +40,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.EntityStore
@@ -73,9 +76,18 @@ fun EntitiesScreen(
     var apropos by remember { mutableStateOf(false) }
     val contexte = LocalContext.current
 
-    // Une seule interrogation par ouverture de l'application : inutile de
-    // solliciter le réseau davantage pour un fichier qui change rarement.
-    LaunchedEffect(Unit) { maj = UpdateChecker(contexte).check() }
+    // À chaque retour au premier plan, et non une seule fois par lancement.
+    // Un téléphone garde les applications en mémoire des jours durant : une
+    // version publiée pendant ce temps restait invisible, et il fallait balayer
+    // l'application hors des récentes pour la voir arriver. Personne n'y pense.
+    // UpdateChecker garde sa réponse une minute, une bascule d'application ne
+    // redemande donc pas le manifeste.
+    val cycle = LocalLifecycleOwner.current
+    LaunchedEffect(cycle) {
+        cycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            maj = UpdateChecker(contexte).check()
+        }
+    }
 
     // Import du `string_client.pack` : sur un téléphone, il n'y a pas
     // d'installation de Ryzom où aller le chercher.
