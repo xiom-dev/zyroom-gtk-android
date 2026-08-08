@@ -90,6 +90,8 @@ data class Entity(
     val name: String,
     val shard: String = "",
     val guild: String = "",
+    /** Message du jour, pour une guilde : ce que les officiers y ont écrit. */
+    val motd: String = "",
     val dappers: Long = 0,
     /** Date de création du document par l'API, en secondes Unix. */
     val created: Long = 0,

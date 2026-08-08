@@ -192,6 +192,7 @@ object EntityParser {
             id = node.text("gid").ifEmpty { node.text("id") },
             name = node.text("name"),
             shard = node.text("shard"),
+            motd = node.text("motd"),
             dappers = node.text("money").toLongOrNull() ?: 0,
             created = node.getAttribute("created").toLongOrNull() ?: 0,
             cachedUntil = node.getAttribute("cached_until").toLongOrNull() ?: 0,

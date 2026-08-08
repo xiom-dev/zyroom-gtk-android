@@ -120,6 +120,31 @@ class EntityParserTest {
         assertEquals(1000, guilde.inventories.first().capacity)
     }
 
+    @Test
+    fun `le message du jour de la guilde est lu, entités comprises`() {
+        val flux = """
+            <?xml version="1.0"?>
+            <ryzomapi>
+              <guild created="1" cached_until="2">
+                <gid>1</gid><name>La Lune Eternelle</name>
+                <motd>un salon Linux a &#xE9;t&#xE9; rajout&#xE9; avec les tutos Discord</motd>
+                <chests><chest><name>Matières</name><bulkmax>1000</bulkmax></chest></chests>
+                <room><item id="1" slot="1"><sheet>a.sitem</sheet></item></room>
+              </guild>
+            </ryzomapi>
+        """.trimIndent().toByteArray()
+
+        // L'API écrit les accents en entités numériques ; le lecteur DOM les
+        // résout, il n'y a rien à décoder à la main.
+        assertEquals("un salon Linux a été rajouté avec les tutos Discord",
+                     EntityParser.parseGuild(flux).motd)
+    }
+
+    @Test
+    fun `un personnage n'a pas de message du jour`() {
+        assertEquals("", EntityParser.parseCharacter(fluxPersonnage).motd)
+    }
+
     /**
      * Le nom porte l'article et l'espace de fin, tels que l'API les rend : une
      * égalité stricte sur le nom en minuscules n'y répondait pas, et le masque
@@ -185,6 +210,9 @@ class EntityParserTest {
         assertEquals(0, masque.items.size)
         assertTrue("le coffre devrait être garni côté dev", garni.items.isNotEmpty())
         assertEquals(masque.capacity, garni.capacity)
+
+        // Le message du jour, tel que les officiers l'ont écrit en jeu.
+        assertTrue("message du jour absent du vrai flux", guilde.motd.isNotBlank())
     }
 
     /**

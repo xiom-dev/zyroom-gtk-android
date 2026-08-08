@@ -1,6 +1,7 @@
 package net.ryzom.zyroom.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,6 +21,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
@@ -26,10 +30,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -45,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -130,7 +137,18 @@ fun InventoryScreen(
             TopAppBar(
                 title = { Text(courant?.name ?: entry.label.ifEmpty { entry.id }) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Symbole("←") }
+                    // Un vrai dessin plutôt qu'un caractère « ← » : le trait de
+                    // la police est fin, et la flèche se voyait à peine. Celle-ci
+                    // se retourne d'elle-même sur un téléphone en écriture de
+                    // droite à gauche, et porte enfin un nom pour la synthèse
+                    // vocale.
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Retour",
+                            modifier = Modifier.size(34.dp),
+                        )
+                    }
                 },
                 actions = {
                     // Zoom : le pas est de 16 points, de 48 à 160.
@@ -194,6 +212,12 @@ fun InventoryScreen(
                     }
                 }
             }
+
+            // Le message du jour de la guilde, entre la rangée des contenants et
+            // la recherche : sous ce qui sert à naviguer, au-dessus de ce qui
+            // sert à chercher. Un personnage n'en a pas — l'API ne le rend que
+            // pour une guilde.
+            courant?.motd?.takeIf { it.isNotBlank() }?.let { Motd(it) }
 
             when {
                 occupe && courant == null ->
@@ -538,7 +562,48 @@ private fun ItemCell(
 }
 
 /**
- * Les symboles de la barre du haut — retour, zoom, rafraîchir.
+ * Le message du jour de la guilde.
+ *
+ * Replié sur deux lignes, et déplié d'une tape : les officiers y écrivent
+ * parfois un paragraphe, qui mangerait la grille d'items sur un écran de
+ * téléphone. Le repli ne se signale que quand il coupe quelque chose — un
+ * message court n'a pas à porter de « ▾ » qui ne fait rien.
+ */
+@Composable
+private fun Motd(message: String) {
+    var deplie by remember(message) { mutableStateOf(false) }
+    var coupe by remember(message) { mutableStateOf(false) }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier.fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clickable(enabled = coupe || deplie) { deplie = !deplie },
+    ) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Text("📢", modifier = Modifier.padding(end = 8.dp))
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = if (deplie) Int.MAX_VALUE else 2,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { coupe = it.hasVisualOverflow || coupe },
+                modifier = Modifier.weight(1f),
+            )
+            if (coupe || deplie) {
+                Text(
+                    if (deplie) "▴" else "▾",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Les symboles de la barre du haut — zoom, rafraîchir.
  *
  * Ce sont des caractères, pas des dessins : à la taille du texte courant ils
  * étaient minuscules au bout du doigt.
