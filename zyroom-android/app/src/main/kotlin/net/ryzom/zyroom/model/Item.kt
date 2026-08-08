@@ -83,6 +83,29 @@ data class Inventory(
     val totalVolume: Double get() = items.sumOf { it.volume }
 }
 
+/**
+ * Une compétence de l'arbre, telle que l'API la rend.
+ *
+ * Le code est celui du pack de noms — `sfm` « Mêlée », `scahbem` « Maître en
+ * création de bottes lourdes ». C'est lui aussi qui porte la hiérarchie : une
+ * compétence préfixe toutes celles qui en descendent.
+ */
+data class Skill(
+    val code: String,
+    val level: Int,
+    /**
+     * Avancement dans le niveau en cours, en pourcents.
+     *
+     * L'API le donne dans la partie décimale du niveau — `164.52` : niveau 164
+     * atteint, un peu plus de la moitié du suivant. Une valeur entière ne dit
+     * rien de l'avancement, et vaut donc zéro ici.
+     */
+    val progress: Int = 0,
+)
+
+/** Points de compétence d'une branche : ce qui reste à dépenser, et le dépensé. */
+data class SkillPoints(val available: Int = 0, val spent: Int = 0)
+
 /** Un personnage ou une guilde, avec ses inventaires. */
 data class Entity(
     val kind: Kind,
@@ -98,6 +121,10 @@ data class Entity(
     /** Date jusqu'à laquelle l'API servira ce même document. */
     val cachedUntil: Long = 0,
     val inventories: List<Inventory> = emptyList(),
+    /** L'arbre des compétences, pour un personnage ; vide pour une guilde. */
+    val skills: List<Skill> = emptyList(),
+    /** Points par branche, indexés par le code de sa racine : sf, sm, sh, sc. */
+    val skillPoints: Map<String, SkillPoints> = emptyMap(),
 ) {
     enum class Kind { CHARACTER, GUILD }
 

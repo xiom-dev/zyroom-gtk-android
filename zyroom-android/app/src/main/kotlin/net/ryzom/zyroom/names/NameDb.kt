@@ -36,11 +36,28 @@ class NameDb private constructor(private val names: Map<String, String>) {
         private const val MAX_KEY = 200
         private const val MAX_VALUE = 100_000
 
+        /**
+         * Les codes de l'arbre des compétences : `sf`, `sfm`, `scahbem`…
+         *
+         * Le flux personnage ne nomme les compétences que par ces codes, et
+         * c'est le pack qui porte leur nom français. Ils ne finissent pas en
+         * `.sitem` : la règle des items les laissait tomber, et l'écran des
+         * compétences n'aurait affiché que des codes.
+         *
+         * La règle retient un peu plus large que l'arbre — quatre clés comme
+         * `sapalchemy` passent aussi. Sans conséquence : on ne cherche jamais
+         * qu'un code venu du flux, et une clé du pack n'a qu'une valeur.
+         */
+        private val SKILL_CODE = Regex("^s[a-z0-9]{1,9}$")
+
         val EMPTY = NameDb(emptyMap())
 
         fun read(file: File): NameDb = parse(file.readBytes())
 
-        /** N'extrait que les fiches d'items — le pack en contient bien d'autres. */
+        /**
+         * N'extrait que les fiches d'items et les codes de compétences — le
+         * pack en contient vingt-six mille, dialogues et missions compris.
+         */
         fun parse(data: ByteArray): NameDb {
             val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
             val names = HashMap<String, String>()
@@ -74,14 +91,35 @@ class NameDb private constructor(private val names: Map<String, String>) {
                     continue
                 }
 
+                // Une clé du pack est un identifiant : ni espace, ni octet de
+                // texte accentué, ni caractère de contrôle. Sans cette
+                // vérification, une suite d'octets quelconque tombant au bon
+                // endroit passait pour un enregistrement, et le vrai qui
+                // commençait à l'intérieur était sauté. Six codes de
+                // compétences y disparaissaient — dont « Expert en création de
+                // manches lourdes » —, et une fiche d'item avec eux.
+                if (!isIdentifier(data, index + 4, keyLength)) {
+                    index++
+                    continue
+                }
+
                 val key = String(data, index + 4, keyLength, Charsets.ISO_8859_1)
                 val raw = data.copyOfRange(valuePosition + 4,
                                            valuePosition + 4 + width * valueLength)
                 val value = String(raw, if (width == 2) Charsets.UTF_16LE else Charsets.UTF_8)
-                if (key.endsWith(".sitem")) names[key] = value
+                if (key.endsWith(".sitem") || SKILL_CODE.matches(key)) names[key] = value
                 index = valuePosition + 4 + width * valueLength
             }
             return NameDb(names)
+        }
+
+        /** Vrai si ces octets sont tous des caractères imprimables sans espace. */
+        private fun isIdentifier(data: ByteArray, from: Int, length: Int): Boolean {
+            for (index in from until from + length) {
+                val octet = data[index].toInt() and 0xFF
+                if (octet < 0x21 || octet > 0x7E) return false
+            }
+            return true
         }
     }
 }

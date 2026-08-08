@@ -4,12 +4,16 @@ import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.ItemColor
+import net.ryzom.zyroom.model.Skill
+import net.ryzom.zyroom.model.SkillPoints
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 import net.ryzom.zyroom.MASQUE_COFFRES
 import java.io.ByteArrayInputStream
 import java.text.Normalizer
 import javax.xml.parsers.DocumentBuilderFactory
+import kotlin.math.floor
+import kotlin.math.roundToInt
 
 /**
  * Lecture des flux `character.php` et `guild.php`, portée de `ryzom_api.py`.
@@ -143,8 +147,48 @@ object EntityParser {
             created = node.getAttribute("created").toLongOrNull() ?: 0,
             cachedUntil = node.getAttribute("cached_until").toLongOrNull() ?: 0,
             inventories = inventories,
+            skills = skills(node),
+            skillPoints = skillPoints(node),
         )
     }
+
+    /**
+     * L'arbre des compétences : une balise par compétence, nommée par son code,
+     * dont le texte est le niveau.
+     *
+     * Le niveau arrive décimal quand la compétence monte — `164.52` : la partie
+     * entière est le niveau atteint, la décimale l'avancement dans le suivant.
+     * Sur un personnage de longue date, la douzaine de compétences en cours sont
+     * les seules à porter une décimale ; les autres sont des entiers.
+     *
+     * Le bloc peut manquer : c'est un module de l'API, et toutes les clés ne
+     * l'accordent pas. L'écran des compétences s'efface alors de lui-même.
+     */
+    private fun skills(node: Element): List<Skill> =
+        node.child("skills")?.elements()?.mapNotNull { skill ->
+            val valeur = skill.textContent.trim().toDoubleOrNull() ?: return@mapNotNull null
+            val niveau = floor(valeur).toInt()
+            Skill(
+                code = skill.nodeName,
+                level = niveau,
+                // Coupé à 99 : un arrondi ne doit pas afficher « 100 % » d'un
+                // niveau qui n'est pas franchi.
+                progress = ((valeur - niveau) * 100).roundToInt().coerceIn(0, 99),
+            )
+        }.orEmpty()
+
+    /** Les quatre branches de l'API, sous le code de leur racine dans le pack. */
+    private val BRANCHES = mapOf(
+        "fight" to "sf", "magic" to "sm", "craft" to "sc", "harvest" to "sh")
+
+    private fun skillPoints(node: Element): Map<String, SkillPoints> =
+        node.child("skillpoints")?.elements()?.mapNotNull { branche ->
+            val code = BRANCHES[branche.nodeName] ?: return@mapNotNull null
+            code to SkillPoints(
+                available = branche.textContent.trim().toIntOrNull() ?: 0,
+                spent = branche.getAttribute("spent").toIntOrNull() ?: 0,
+            )
+        }?.toMap().orEmpty()
 
     @Throws(ApiException::class)
     fun parseGuild(xml: ByteArray, masquer: Boolean = MASQUE_COFFRES): Entity {
@@ -293,6 +337,17 @@ object EntityParser {
 
     private fun Element.child(name: String): Element? =
         children(name).firstOrNull()
+
+    /** Tous les enfants élément, quel que soit leur nom. */
+    private fun Element.elements(): List<Element> {
+        val out = mutableListOf<Element>()
+        val nodes = childNodes
+        for (index in 0 until nodes.length) {
+            val node = nodes.item(index)
+            if (node.nodeType == Node.ELEMENT_NODE) out += node as Element
+        }
+        return out
+    }
 
     private fun Element.children(name: String): List<Element> {
         val out = mutableListOf<Element>()

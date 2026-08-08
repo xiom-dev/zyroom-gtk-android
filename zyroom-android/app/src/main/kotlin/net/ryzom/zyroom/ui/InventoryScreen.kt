@@ -32,6 +32,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -67,11 +68,17 @@ import net.ryzom.zyroom.data.volumeAlerts
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Item
+import net.ryzom.zyroom.model.Skill
+import net.ryzom.zyroom.model.SkillPoints
 import net.ryzom.zyroom.model.SortOrder
 import net.ryzom.zyroom.model.sortItems
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+/** Ce que la rangée du haut donne à voir : un contenant, le journal, l'arbre. */
+private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES }
 
 /**
  * L'inventaire d'une entité : un choix de contenant, puis la grille d'items.
@@ -100,9 +107,11 @@ fun InventoryScreen(
     var alertes by remember { mutableStateOf(emptyList<Alert>()) }
     var voirAlertes by remember { mutableStateOf(false) }
     var surveiller by remember { mutableStateOf<Item?>(null) }
-    // Journal : un contenant de plus dans la rangée, mais qui montre l'histoire
-    // au lieu du contenu.
-    var journal by remember { mutableStateOf(false) }
+    // Journal et compétences prennent leur place dans la rangée des contenants,
+    // mais montrent autre chose que le contenu d'un coffre. Une seule vue à la
+    // fois : un état à trois valeurs, plutôt que deux booléens dont l'un pourrait
+    // contredire l'autre.
+    var vue by remember { mutableStateOf(Vue.INVENTAIRE) }
     var lignes by remember { mutableStateOf(emptyList<MovementStore.Movement>()) }
     var filtreJournal by remember { mutableStateOf(0) }   // 0 tout, 1 entrées, 2 sorties
     var viderJournal by remember { mutableStateOf(false) }
@@ -182,7 +191,9 @@ fun InventoryScreen(
             }
 
             val inventaires = courant?.inventories.orEmpty()
-            if (inventaires.isNotEmpty()) {
+            // La rangée reste là pour un personnage sans le moindre contenant :
+            // ses compétences, elles, sont consultables.
+            if (inventaires.isNotEmpty() || courant?.skills?.isNotEmpty() == true) {
                 // Un bouton par groupe — Personnage, Mektoub, Zig, Coffres —
                 // et un menu déroulant dès qu'un groupe compte plusieurs
                 // contenants : sept bêtes ne tiennent pas sur une ligne.
@@ -196,8 +207,8 @@ fun InventoryScreen(
                         GroupPicker(
                             titre = nom.ifEmpty { "Inventaires" },
                             membres = membres,
-                            choisi = if (journal) -1 else contenant,
-                            onChoisir = { contenant = it; journal = false },
+                            choisi = if (vue == Vue.INVENTAIRE) contenant else -1,
+                            onChoisir = { contenant = it; vue = Vue.INVENTAIRE },
                         )
                     }
                     // Le journal prend sa place au bout de la rangée, à côté du
@@ -205,10 +216,22 @@ fun InventoryScreen(
                     // entité, pas un autre écran.
                     item {
                         FilterChip(
-                            selected = journal,
-                            onClick = { journal = true },
+                            selected = vue == Vue.JOURNAL,
+                            onClick = { vue = Vue.JOURNAL },
                             label = { Text("🕘 Journal") },
                         )
+                    }
+                    // Les compétences ne concernent qu'un personnage, et encore
+                    // faut-il que la clé accorde le module de l'API : la puce ne
+                    // s'affiche que si le flux en a rendu.
+                    if (courant?.skills?.isNotEmpty() == true) {
+                        item {
+                            FilterChip(
+                                selected = vue == Vue.COMPETENCES,
+                                onClick = { vue = Vue.COMPETENCES },
+                                label = { Text("🎓 Compétences") },
+                            )
+                        }
                     }
                 }
             }
@@ -225,7 +248,7 @@ fun InventoryScreen(
                         CircularProgressIndicator()
                     }
 
-                journal -> JournalView(
+                vue == Vue.JOURNAL -> JournalView(
                     lignes = lignes,
                     filtre = filtreJournal,
                     onFiltre = { filtreJournal = it },
@@ -233,6 +256,14 @@ fun InventoryScreen(
                     onRecherche = { recherche = it },
                     nameOf = { repository.nameOf(it) },
                     onVider = { viderJournal = true },
+                )
+
+                vue == Vue.COMPETENCES -> SkillsView(
+                    skills = courant?.skills.orEmpty(),
+                    points = courant?.skillPoints.orEmpty(),
+                    recherche = recherche,
+                    onRecherche = { recherche = it },
+                    nameOf = { repository.nameOf(it) },
                 )
 
                 inventaires.isEmpty() ->
@@ -481,6 +512,199 @@ private fun JournalView(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * L'arbre des compétences : quatre branches dépliables, niveau et avancement.
+ *
+ * Le code d'une compétence contient celui de son parent — `sf` « Combat », `sfm`
+ * « Mêlée », `sfms` « Manier épée ». La hiérarchie n'a donc pas à être décrite :
+ * elle se déduit des préfixes, et l'ordre alphabétique des codes est déjà celui
+ * de l'arbre. La profondeur compte les codes qui préfixent le nôtre, ce qui reste
+ * juste même si l'API saute un échelon.
+ *
+ * Cent soixante-quatorze lignes sur un écran de téléphone : les branches sont
+ * repliées au départ. Une recherche, elle, traverse tout — chercher « épée » et
+ * ne rien voir parce que la branche est fermée serait absurde.
+ */
+@Composable
+private fun SkillsView(
+    skills: List<Skill>,
+    points: Map<String, SkillPoints>,
+    recherche: String,
+    onRecherche: (String) -> Unit,
+    nameOf: (String) -> String,
+) {
+    // L'arbre ne change pas d'une frappe à l'autre : il se calcule une fois.
+    val arbre = remember(skills) {
+        skills.sortedBy { it.code }.map { skill ->
+            Rang(
+                skill = skill,
+                racine = skills.filter { skill.code.startsWith(it.code) }
+                    .minByOrNull { it.code.length }?.code ?: skill.code,
+                profondeur = skills.count {
+                    it.code != skill.code && skill.code.startsWith(it.code)
+                },
+            )
+        }
+    }
+    var depliees by remember(skills) { mutableStateOf(emptySet<String>()) }
+    var enCoursSeulement by remember { mutableStateOf(false) }
+
+    val cherche = normalise(recherche.trim())
+    // Chercher ou ne garder que ce qui monte, c'est demander une réponse, pas un
+    // arbre : on passe alors en liste plate, sans branche ni retrait. L'arbre
+    // repliable ne sert que la consultation, filtres au repos.
+    val filtrant = cherche.isNotEmpty() || enCoursSeulement
+    val visibles = if (filtrant) {
+        arbre.filter { rang ->
+            (!enCoursSeulement || rang.skill.progress > 0) &&
+                (cherche.isEmpty() || cherche in normalise(nameOf(rang.skill.code)))
+        }
+    } else {
+        arbre.filter { it.profondeur == 0 || it.racine in depliees }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = recherche,
+            onValueChange = onRecherche,
+            label = { Text("Rechercher") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        )
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                FilterChip(
+                    selected = !enCoursSeulement,
+                    onClick = { enCoursSeulement = false },
+                    label = { Text("Tout") },
+                )
+            }
+            item {
+                FilterChip(
+                    selected = enCoursSeulement,
+                    onClick = { enCoursSeulement = true },
+                    label = { Text("En cours") },
+                )
+            }
+        }
+
+        if (visibles.isEmpty()) {
+            Box(Modifier.fillMaxSize(), Alignment.Center) {
+                Text(
+                    if (enCoursSeulement && cherche.isEmpty())
+                        "Aucune compétence en train de monter.\nL'API ne donne " +
+                            "l'avancement que des niveaux entamés."
+                    else "Rien ne correspond",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+            return@Column
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            items(visibles, key = { it.skill.code }) { rang ->
+                if (!filtrant && rang.profondeur == 0) {
+                    Branche(
+                        nom = nameOf(rang.skill.code),
+                        // Le niveau d'une racine plafonne bas — Combat vaut 20 :
+                        // c'est le plus haut de ses descendants qui dit où en est
+                        // la branche.
+                        niveau = arbre.filter { it.racine == rang.racine }
+                            .maxOf { it.skill.level },
+                        points = points[rang.skill.code],
+                        depliee = rang.skill.code in depliees,
+                        onBascule = {
+                            depliees = if (rang.skill.code in depliees)
+                                depliees - rang.skill.code else depliees + rang.skill.code
+                        },
+                    )
+                } else {
+                    Competence(
+                        nom = nameOf(rang.skill.code),
+                        skill = rang.skill,
+                        // En liste plate, tout est au même bord.
+                        profondeur = if (filtrant) 1 else rang.profondeur,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Une compétence et sa place dans l'arbre, calculées une fois pour toutes. */
+private class Rang(val skill: Skill, val racine: String, val profondeur: Int)
+
+@Composable
+private fun Branche(
+    nom: String,
+    niveau: Int,
+    points: SkillPoints?,
+    depliee: Boolean,
+    onBascule: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth()
+            .clickable(onClick = onBascule)
+            .padding(top = 10.dp, bottom = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (depliee) "▾" else "▸", modifier = Modifier.width(20.dp))
+            Text(
+                nom,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            Text(niveau.toString(), style = MaterialTheme.typography.titleSmall)
+        }
+        points?.let {
+            Text(
+                "%,d points · %,d dépensés".format(Locale.FRANCE, it.available, it.spent),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun Competence(nom: String, skill: Skill, profondeur: Int) {
+    Column(
+        Modifier.fillMaxWidth()
+            // Un cran par échelon, à partir du retrait de la flèche des branches.
+            .padding(start = 20.dp + 14.dp * (profondeur - 1), top = 5.dp, bottom = 5.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(nom, style = MaterialTheme.typography.bodyMedium,
+                 modifier = Modifier.weight(1f))
+            Text(
+                if (skill.progress > 0) "${skill.level} · ${skill.progress} %"
+                else skill.level.toString(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (skill.progress > 0) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        // La barre ne s'affiche que pour un niveau entamé : sur cent soixante-dix
+        // lignes, une barre vide partout n'apprendrait rien et alourdirait tout.
+        if (skill.progress > 0) {
+            LinearProgressIndicator(
+                progress = { skill.progress / 100f },
+                modifier = Modifier.fillMaxWidth().padding(top = 3.dp, end = 40.dp),
+            )
         }
     }
 }

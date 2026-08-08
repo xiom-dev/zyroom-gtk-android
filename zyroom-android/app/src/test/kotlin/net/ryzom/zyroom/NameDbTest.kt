@@ -53,13 +53,51 @@ class NameDbTest {
     }
 
     @Test
-    fun `ne retient que les fiches d'items`() {
+    fun `ne retient que les items et les codes de compétences`() {
         val data = "STR_PACK".toByteArray() +
             record("uxt_bidule.string", "Autre chose", 2) +
-            record("iasl.sitem", "Mektoub de monte", 2)
+            record("iasl.sitem", "Mektoub de monte", 2) +
+            record("sfms", "Manier épée", 2)
         val db = NameDb.parse(data)
-        assertEquals(1, db.size)
+        assertEquals(2, db.size)
         assertEquals("Mektoub de monte", db.nameOf("iasl.sitem"))
+        // Le flux personnage ne nomme les compétences que par ces codes.
+        assertEquals("Manier épée", db.nameOf("sfms"))
+    }
+
+    /**
+     * Un enregistrement fantôme ne doit pas avaler le vrai qui le suit.
+     *
+     * Le pack se lit en avançant d'enregistrement en enregistrement, et en
+     * cherchant octet par octet quand l'un ne se présente pas. Rien
+     * n'empêchait alors une suite d'octets quelconque de ressembler à un
+     * enregistrement : celui qui commençait à l'intérieur était perdu. Ici
+     * la fausse clé contient un octet accentué, ce qu'aucune clé n'a.
+     */
+    @Test
+    fun `un faux enregistrement ne fait pas perdre le suivant`() {
+        val leurre = byteArrayOf(4, 0, 0, 0) + byteArrayOf(0xE9.toByte(), 0x21, 0x21, 0x21) +
+            byteArrayOf(2) + intLE(200)     // annonce deux cents octets de valeur
+        val data = "STR_PACK".toByteArray() + leurre +
+            record("m0117dxajd01.sitem", "Ambre de choix", 2)
+        assertEquals("Ambre de choix", NameDb.parse(data).nameOf("m0117dxajd01.sitem"))
+    }
+
+    /**
+     * Le pack livré avec l'application : tout l'arbre des compétences doit s'y
+     * nommer, des quatre racines aux feuilles les plus profondes.
+     */
+    @Test
+    fun `le pack livré nomme les compétences`() {
+        val pack = File("src/main/assets/string_client.pack")
+        assumeTrue("pack livré absent", pack.isFile)
+        val db = NameDb.read(pack)
+        assertEquals("Combat", db.nameOf("sf"))
+        assertEquals("Magie", db.nameOf("sm"))
+        assertEquals("Artisanat", db.nameOf("sc"))
+        assertEquals("Extraire les matières premières", db.nameOf("sh"))
+        assertEquals("Expert en création de manches lourdes", db.nameOf("scahse"))
+        assertEquals("Maître en magie élémentaire", db.nameOf("smoeaem"))
     }
 
     /**

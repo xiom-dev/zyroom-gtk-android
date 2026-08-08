@@ -23,7 +23,7 @@ Android.
 | `data/EntityStore.kt` | les entités suivies et leurs clés, en JSON |
 | `data/Repository.kt` | va chercher, garde en cache, et n'appelle l'API que si `cached_until` est dépassé |
 | `data/MovementStore.kt` | le journal : ce qui est entré et sorti des contenants, déduit de deux relevés |
-| `ui/` | liste des entités, grille d'un inventaire, journal, détail d'un item |
+| `ui/` | liste des entités, grille d'un inventaire, journal, compétences, détail d'un item |
 
 ## Deux variantes
 
@@ -60,7 +60,30 @@ Le journal s'écrit dans les fichiers privés et non dans le cache : c'est le se
 historique qui existe, vider le cache ne doit pas l'effacer. Il s'élague au-delà
 de vingt mille lignes.
 
-Les tests de `app/src/test/` couvrent le lecteur de pack et celui des flux. Deux
+## Les compétences
+
+Le flux personnage porte l'arbre entier — cent soixante-quatorze compétences sur
+le personnage d'essai, en quatre branches. Une balise par compétence, nommée par
+son **code** : `sf` Combat, `sfm` Mêlée, `sfms` Manier épée. Le code contient
+celui de son parent, la hiérarchie n'a donc pas à être décrite ailleurs et
+l'ordre alphabétique des codes est déjà celui de l'arbre.
+
+Le niveau arrive **décimal quand la compétence monte** : `164.52` se lit niveau
+164, et 52 % du suivant. Une valeur entière ne dit rien de l'avancement, l'API ne
+le donne que des niveaux entamés — d'où le filtre « En cours », qui ne garde que
+ceux-là.
+
+Le niveau d'une racine plafonne bas — Combat vaut 20 : c'est le plus haut de ses
+descendants qui dit où en est la branche, et c'est lui qu'on affiche en tête.
+
+Les noms français sortent du pack livré, par ces mêmes codes. Ils ne finissent
+pas en `.sitem` : la règle qui ne retenait que les items les laissait tomber, et
+l'écran n'aurait montré que des codes.
+
+Le bloc peut manquer — c'est un module de l'API, et toutes les clés ne
+l'accordent pas. La puce « Compétences » ne s'affiche alors pas du tout.
+
+Les tests de `app/src/test/` couvrent le lecteur de pack et celui des flux. Trois
 d'entre eux se branchent sur les vraies données du poste quand elles sont là —
 le pack du client, le cache de la version GTK — et se désactivent sinon.
 

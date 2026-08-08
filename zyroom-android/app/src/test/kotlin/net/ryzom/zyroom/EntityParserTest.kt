@@ -120,6 +120,70 @@ class EntityParserTest {
         assertEquals(1000, guilde.inventories.first().capacity)
     }
 
+    /**
+     * L'avancement dans le niveau vit dans la partie décimale : `164.52` se lit
+     * « niveau 164, et 52 % du suivant ». Une valeur entière ne dit rien de
+     * l'avancement — l'API ne le donne que des niveaux entamés.
+     */
+    @Test
+    fun `le niveau décimal d'une compétence se lit niveau plus avancement`() {
+        val flux = """
+            <?xml version="1.0"?>
+            <ryzomapi>
+              <character created="1" cached_until="2">
+                <id>1</id><name>Xiom</name>
+                <skills><sf>20</sf><sfm>50</sfm><sfms>164.52</sfms><sfmd>159.06</sfmd></skills>
+                <skillpoints><fight spent="3660">5810</fight></skillpoints>
+              </character>
+            </ryzomapi>
+        """.trimIndent().toByteArray()
+
+        val skills = EntityParser.parseCharacter(flux).skills.associateBy { it.code }
+        assertEquals(4, skills.size)
+        assertEquals(164, skills["sfms"]!!.level)
+        assertEquals(52, skills["sfms"]!!.progress)
+        // 0.06 flottant ne vaut pas exactement 6 : c'est l'arrondi qui répond.
+        assertEquals(6, skills["sfmd"]!!.progress)
+        // Un entier n'apprend rien sur l'avancement.
+        assertEquals(50, skills["sfm"]!!.level)
+        assertEquals(0, skills["sfm"]!!.progress)
+
+        val points = EntityParser.parseCharacter(flux).skillPoints
+        assertEquals(5810, points["sf"]!!.available)
+        assertEquals(3660, points["sf"]!!.spent)
+    }
+
+    @Test
+    fun `une guilde n'a pas de compétences`() {
+        assertTrue(EntityParser.parseGuild(fluxAvecCoffreMasque).skills.isEmpty())
+    }
+
+    /**
+     * Sur le vrai flux : les cent soixante-quatorze compétences sont lues, leurs
+     * codes portent la hiérarchie par préfixe, et le pack livré avec
+     * l'application sait les nommer — sans quoi l'écran n'afficherait que des
+     * codes.
+     */
+    @Test
+    fun `sur le vrai flux, tout l'arbre est lu et nommé`() {
+        val flux = File(System.getProperty("user.home"),
+                        ".cache/zyroom-gtk/character/689325.xml")
+        assumeTrue("aucun flux personnage en cache", flux.isFile)
+        val pack = File("src/main/assets/string_client.pack")
+        assumeTrue("pack absent", pack.isFile)
+
+        val skills = EntityParser.parseCharacter(flux.readBytes()).skills
+        assertTrue("arbre trop court : ${skills.size}", skills.size > 150)
+        assertEquals(listOf("sc", "sf", "sh", "sm"),
+                     skills.filter { it.code.length == 2 }.map { it.code }.sorted())
+        assertTrue("aucune compétence en cours",
+                   skills.any { it.progress in 1..99 })
+
+        val noms = net.ryzom.zyroom.names.NameDb.read(pack)
+        val inconnus = skills.filter { noms.nameOf(it.code) == it.code }
+        assertTrue("codes non nommés par le pack : $inconnus", inconnus.isEmpty())
+    }
+
     @Test
     fun `le message du jour de la guilde est lu, entités comprises`() {
         val flux = """
