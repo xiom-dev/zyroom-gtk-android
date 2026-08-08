@@ -22,8 +22,11 @@ android {
         // Android 8 : ce que fait tourner à peu près tout téléphone encore vivant.
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        // versionCode doit croître à CHAQUE livraison : c'est le seul numéro
+        // qu'Android ordonne, et celui que la vérification de mise à jour
+        // compare. versionName n'est là que pour l'affichage.
+        versionCode = 2
+        versionName = "0.3"
     }
 
     signingConfigs {
@@ -95,6 +98,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
+    // FileProvider, pour présenter l'APK de mise à jour au système.
+    implementation("androidx.core:core-ktx:1.13.1")
     // Rafraîchissement en arrière-plan : quinze minutes est le plancher.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     // Icônes d'items : téléchargement et cache disque.

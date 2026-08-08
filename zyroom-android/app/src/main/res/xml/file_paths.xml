@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Le dossier d'où l'APK de mise à jour est présenté au système. Depuis
+     Android 7, livrer un file:// à une autre application lève une exception :
+     il faut passer par un content:// servi par le FileProvider. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

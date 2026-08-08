@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -26,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +44,7 @@ import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.Repository
+import net.ryzom.zyroom.data.UpdateChecker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,7 +68,13 @@ fun EntitiesScreen(
     var ajout by remember { mutableStateOf(false) }
     var occupe by remember { mutableStateOf(false) }
     var erreur by remember { mutableStateOf<String?>(null) }
+    var maj by remember { mutableStateOf<UpdateChecker.Disponible?>(null) }
+    var majEnCours by remember { mutableStateOf(false) }
     val contexte = LocalContext.current
+
+    // Une seule interrogation par ouverture de l'application : inutile de
+    // solliciter le réseau davantage pour un fichier qui change rarement.
+    LaunchedEffect(Unit) { maj = UpdateChecker(contexte).check() }
 
     // Import du `string_client.pack` : sur un téléphone, il n'y a pas
     // d'installation de Ryzom où aller le chercher.
@@ -104,8 +114,20 @@ fun EntitiesScreen(
             FloatingActionButton(onClick = { ajout = true }) { Text("+") }
         },
     ) { marges ->
+      Column(Modifier.fillMaxSize().padding(marges)) {
+        maj?.let { disponible ->
+            BandeauMiseAJour(disponible, majEnCours) {
+                majEnCours = true
+                portee.launch {
+                    val echec = UpdateChecker(contexte)
+                        .telechargerEtInstaller(disponible.url)
+                    majEnCours = false
+                    if (echec != null) erreur = echec
+                }
+            }
+        }
         if (entrees.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(marges), Alignment.Center) {
+            Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text(
                     "Aucune entité.\nAjoutez un personnage ou une guilde par sa clé d'API.",
                     textAlign = TextAlign.Center,
@@ -114,7 +136,7 @@ fun EntitiesScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(marges).padding(12.dp),
+                modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(entrees, key = { "${it.kind}-${it.id}" }) { entree ->
@@ -136,6 +158,7 @@ fun EntitiesScreen(
                 }
             }
         }
+      }
     }
 
     if (ajout) {
@@ -260,4 +283,38 @@ private fun Row2(content: @Composable () -> Unit) {
 @Composable
 private fun PlaceholderRemove(onClick: () -> Unit) {
     IconButton(onClick = onClick) { Text("×") }
+}
+
+/**
+ * L'annonce d'une nouvelle version, en tête de l'écran d'accueil.
+ *
+ * Elle ne s'affiche que s'il y a effectivement quelque chose de plus récent.
+ * Le bouton télécharge l'APK et le présente au système : c'est Android qui
+ * demande ensuite confirmation, rien ne s'installe sans l'accord du joueur.
+ */
+@Composable
+private fun BandeauMiseAJour(
+    disponible: UpdateChecker.Disponible,
+    occupe: Boolean,
+    onInstaller: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Une nouvelle version est disponible",
+                 style = MaterialTheme.typography.titleMedium)
+            Text("Version ${disponible.versionName}",
+                 style = MaterialTheme.typography.bodySmall)
+            Button(
+                onClick = onInstaller,
+                enabled = !occupe,
+                modifier = Modifier.padding(top = 10.dp),
+            ) {
+                Text(if (occupe) "Téléchargement…" else "Télécharger et installer")
+            }
+        }
+    }
 }
