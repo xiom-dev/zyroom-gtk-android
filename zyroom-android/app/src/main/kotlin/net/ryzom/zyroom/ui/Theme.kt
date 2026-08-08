@@ -4,6 +4,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import net.ryzom.zyroom.R
 
 /**
  * Thème sombre, dans les teintes du logo de ZyRoom : le sarcelle du coffre et
@@ -23,6 +26,11 @@ private val couleurs = darkColorScheme(
     onPrimaryContainer = Color(0xFFD6EDE4),
     secondary = Or,
     onSecondary = Color(0xFF231A05),
+    // Ce que Material peint quand une puce est sélectionnée. Non défini, il
+    // retombait sur le mauve de la palette par défaut, étranger au logo : les
+    // coffres choisis et le tri actif tranchaient avec le reste.
+    secondaryContainer = SarcelleSombre,
+    onSecondaryContainer = Color(0xFFD6EDE4),
     background = Fond,
     onBackground = Color(0xFFE2E8E6),
     surface = Surface,
@@ -31,6 +39,17 @@ private val couleurs = darkColorScheme(
     onSurfaceVariant = Color(0xFFBCC8C6),
     error = Color(0xFFE2696A),
 )
+
+/**
+ * Le lettrage du titre : Pirata One, une gothique de bois gravé.
+ *
+ * Police libre sous SIL Open Font License 1.1, dont le texte est dans
+ * `licenses/OFL-PirataOne.txt` — la licence oblige à la transmettre avec la
+ * police, ce que fait l'APK qui l'embarque. Le nom « Pirata » est un Reserved
+ * Font Name : le fichier ne doit pas être renommé pour désigner une version
+ * modifiée.
+ */
+val Titrage = FontFamily(Font(R.font.pirata_one))
 
 @Composable
 fun ZyRoomTheme(content: @Composable () -> Unit) {

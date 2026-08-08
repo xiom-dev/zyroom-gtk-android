@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Le vert de l'application, celui de « SarcelleSombre » dans Theme.kt.
+         Deux endroits, faute de mieux : la barre de navigation du système est
+         peinte par le thème XML, avant que Compose ne s'exécute. -->
+    <color name="vert_appli">#FF2B5648</color>
+</resources>

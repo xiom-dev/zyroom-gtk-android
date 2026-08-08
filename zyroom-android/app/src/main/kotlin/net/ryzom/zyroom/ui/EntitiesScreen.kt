@@ -16,10 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Icon
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import net.ryzom.zyroom.R
@@ -118,7 +122,14 @@ fun EntitiesScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("ZyRoom") },
+                title = {
+                    Text(
+                        "ZyRoom",
+                        fontFamily = Titrage,
+                        fontSize = 38.sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                },
                 actions = {
                     // Le nombre de noms chargés n'apprenait rien à personne : on
                     // ne charge un pack qu'une fois, et savoir qu'il y en a huit
@@ -126,7 +137,10 @@ fun EntitiesScreen(
                     // L'import reste joignable, dans le menu, pour le jour où une
                     // mise à jour du jeu ajoute des items.
                     Box {
-                        IconButton(onClick = { menu = true }) { Symbole("⋮") }
+                        IconButton(onClick = { menu = true }) {
+                            Icon(Icons.Filled.MoreVert, "Menu",
+                                 modifier = Modifier.size(30.dp))
+                        }
                         DropdownMenu(
                             expanded = menu,
                             onDismissRequest = { menu = false },

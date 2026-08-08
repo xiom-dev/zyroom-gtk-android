@@ -102,6 +102,15 @@ fun AboutDialog(onDismiss: () -> Unit) {
                         "Projet d'origine :\n$DEPOT_ORIGINE",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                // La SIL Open Font License veut que son texte et sa mention de
+                // droits voyagent avec la police : le fichier est dans l'APK
+                // (assets/OFL-PirataOne.txt) et dans le dépôt.
+                Text(
+                    "Lettrage : Pirata One, © Rodrigo Fuenzalida et Nicolas Massi, " +
+                        "sous SIL Open Font License 1.1.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text(
                     "ZyRoom n'est pas affilié à Winch Gate, éditeur de Ryzom.",
                     style = MaterialTheme.typography.bodySmall,

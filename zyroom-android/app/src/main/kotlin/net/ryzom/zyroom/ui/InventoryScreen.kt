@@ -1,6 +1,7 @@
 package net.ryzom.zyroom.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
@@ -33,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,6 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -163,21 +169,25 @@ fun InventoryScreen(
                 },
                 actions = {
                     // Zoom : le pas est de 16 points, de 48 à 160.
+                    // Des dessins et non des caractères : « − », « + » et « ⟳ »
+                    // n'ont pas la même encre dans leur case, et se retrouvaient
+                    // à des hauteurs différentes sur la même ligne. Un icône
+                    // Material est centré dans son cadre, par construction.
                     IconButton(
                         onClick = { preferences.zoom(-Preferences.STEP) },
                         enabled = preferences.canZoomOut,
-                    ) { Symbole("−") }
+                    ) { Moins() }
                     IconButton(
                         onClick = { preferences.zoom(Preferences.STEP) },
                         enabled = preferences.canZoomIn,
-                    ) { Symbole("+") }
+                    ) { Icon(Icons.Filled.Add, "Agrandir", Modifier.size(30.dp)) }
                     if (alertes.isNotEmpty()) {
                         TextButton(onClick = { voirAlertes = true }) {
                             Text("🔔 ${alertes.size}")
                         }
                     }
                     IconButton(onClick = { portee.launch { charger(force = true) } }) {
-                        Symbole("⟳")
+                        Icon(Icons.Filled.Refresh, "Rafraîchir", Modifier.size(30.dp))
                     }
                 },
             )
@@ -844,15 +854,21 @@ private fun Motd(message: String) {
 }
 
 /**
- * Les symboles des barres du haut — zoom, rafraîchir, menu.
+ * Le moins du zoom, dessiné.
  *
- * Ce sont des caractères, pas des dessins : à la taille du texte courant ils
- * étaient minuscules au bout du doigt. Trente-deux points les met au niveau de
- * la flèche de retour, qui est un vrai dessin à trente-quatre.
+ * Material fournit un plus et une flèche de rafraîchissement, mais aucun moins :
+ * un trait de deux points sur dix-sept, à l'encre du bouton, reprend exactement
+ * la barre horizontale de son plus. Il suit l'état désactivé, `LocalContentColor`
+ * portant déjà l'atténuation que le bouton applique à son contenu.
  */
 @Composable
-internal fun Symbole(caractere: String) {
-    Text(caractere, fontSize = 32.sp, fontWeight = FontWeight.Medium)
+private fun Moins() {
+    Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.width(17.dp).height(2.dp)
+                .background(LocalContentColor.current, RoundedCornerShape(1.dp)),
+        )
+    }
 }
 
 /**

@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.ZyRoom" parent="android:Theme.Material.NoActionBar" />
+    <style name="Theme.ZyRoom" parent="android:Theme.Material.NoActionBar">
+        <!-- La bande des touches carré / rond / triangle prend le vert de
+             l'application. Les touches y sont dessinées en clair, d'où
+             windowLightNavigationBar à false. -->
+        <item name="android:navigationBarColor">@color/vert_appli</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 </resources>
