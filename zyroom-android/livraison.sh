@@ -99,22 +99,27 @@ for v in "${variantes[@]}"; do
     # Pas de parenthèses dans les noms de fichiers : GitHub les réécrit en
     # points sur les pièces jointes des Releases, et les empreintes publiées ne
     # correspondent plus aux noms servis.
+    # Les deux variantes sont servies depuis la page, sous un nom fixe que
+    # version.json annonce une fois pour toutes. Une Release GitHub ferait
+    # aussi bien pour le joueur, mais elle demande un jeton d'API : la
+    # publication cesserait d'être faisable d'un seul geste, et il faudrait
+    # que la Release existe *avant* que version.json l'annonce, sinon les
+    # téléphones verraient un numéro neuf et un téléchargement mort.
+    # La copie datée dans dist/ reste, elle, ce qu'on joint à une Release.
     case $v in
         guilde)
             fichier=ZyRoom-Android_$nom.apk
             affiche=$nom
-            url=https://github.com/xiom-dev/zyroom-gtk-android/releases/latest/download/$fichier
+            servi=ZyRoom-Android.apk
             ;;
         dev)
             fichier=ZyRoom-Android-dev_$nom.apk
             affiche=$nom-dev          # ce que l'APK annonce vraiment : versionNameSuffix
-            url=https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Android-dev.apk
-            # La variante dev change trop souvent pour mériter une Release :
-            # elle est servie depuis la page, sous un nom fixe que version.json
-            # peut annoncer une fois pour toutes.
-            cp "$construit" "$racine/../pages/ZyRoom-Android-dev.apk"
+            servi=ZyRoom-Android-dev.apk
             ;;
     esac
+    url=https://xiom-dev.github.io/zyroom-gtk-android/$servi
+    cp "$construit" "$racine/../pages/$servi"
     cp "$construit" "$racine/dist/$fichier"
 
     tampon=$(mktemp)
