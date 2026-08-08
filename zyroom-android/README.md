@@ -34,7 +34,15 @@ le même téléphone.
 | variante | identifiant | nom au lanceur | petit coffre de Nizy |
 |---|---|---|---|
 | `guilde` | `net.ryzom.zyroom` | ZyRoom | présent dans la liste, mais **vide** |
-| `dev` | `net.ryzom.zyroom.dev` | ZyRoom (dev) | montré comme les autres |
+| `dev` | `net.ryzom.zyroom.dev` | ZyRoom (dev) 0.5 | montré comme les autres |
+
+Le nom au lanceur de la variante dev porte son numéro : les deux applications
+cohabitant sur le même téléphone, c'est le seul endroit qui dise du premier coup
+d'œil quelle version d'essai est en place. Il se déduit de `version.properties`
+par un `manifestPlaceholders`, donc il suit tout seul — écrit à la main, il
+aurait été un troisième endroit à tenir d'accord, et faux au premier oubli.
+Celui des joueurs reste nu : le bandeau de mise à jour leur dit le numéro quand
+il compte.
 
 Le coffre masqué garde sa place et son nom : le faire disparaître amenait les
 joueurs à demander pourquoi il manquait un coffre. Vide, il ne pose plus de

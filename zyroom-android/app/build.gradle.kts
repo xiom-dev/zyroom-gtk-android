@@ -43,6 +43,10 @@ android {
         // bas. Voir version.properties pour la règle qui les gouverne.
         versionCode = codeDe("guilde")
         versionName = nomDe("guilde")
+        // Nom au lanceur. Celui des joueurs reste nu : ils n'ont pas à lire un
+        // numéro pour lancer leur application, et le bandeau de mise à jour le
+        // leur dit quand il compte.
+        manifestPlaceholders["appLabel"] = "ZyRoom"
     }
 
     signingConfigs {
@@ -81,9 +85,15 @@ android {
             // croître aussi celui que reçoivent les joueurs.
             versionCode = codeDe("dev")
             versionName = nomDe("dev")
-            // Le nom du lanceur est dans src/dev/res/ : une ressource de
-            // variante remplace celle de src/main, là où un resValue() entrerait
-            // en conflit avec elle.
+            // Le nom du lanceur porte le numéro : sur un téléphone où les deux
+            // applications sont installées, c'est le seul endroit qui dise du
+            // premier coup d'œil quelle version d'essai est en place. Il se
+            // déduit de version.properties, donc il suit tout seul — un nom
+            // écrit à la main aurait été un troisième endroit à tenir d'accord,
+            // et il serait faux au premier oubli. Passe par le manifeste et non
+            // par une ressource : une ressource de variante et un resValue()
+            // sur le même nom entrent en conflit.
+            manifestPlaceholders["appLabel"] = "ZyRoom (dev) ${nomDe("dev")}"
             // Ce qui sépare les deux variantes est `MASQUE_COFFRES`, déclaré une
             // fois par variante dans src/<variante>/kotlin/. On aurait pu passer
             // par BuildConfig, mais l'activer fait générer du Java, donc appelle
