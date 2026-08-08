@@ -844,14 +844,15 @@ private fun Motd(message: String) {
 }
 
 /**
- * Les symboles de la barre du haut — zoom, rafraîchir.
+ * Les symboles des barres du haut — zoom, rafraîchir, menu.
  *
  * Ce sont des caractères, pas des dessins : à la taille du texte courant ils
- * étaient minuscules au bout du doigt.
+ * étaient minuscules au bout du doigt. Trente-deux points les met au niveau de
+ * la flèche de retour, qui est un vrai dessin à trente-quatre.
  */
 @Composable
-private fun Symbole(caractere: String) {
-    Text(caractere, fontSize = 24.sp, fontWeight = FontWeight.Medium)
+internal fun Symbole(caractere: String) {
+    Text(caractere, fontSize = 32.sp, fontWeight = FontWeight.Medium)
 }
 
 /**

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,12 +12,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -26,7 +31,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,10 +40,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import net.ryzom.zyroom.R
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -74,6 +80,7 @@ fun EntitiesScreen(
     var maj by remember { mutableStateOf<UpdateChecker.Disponible?>(null) }
     var majEnCours by remember { mutableStateOf(false) }
     var apropos by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
     val contexte = LocalContext.current
 
     // À chaque retour au premier plan, et non une seule fois par lancement.
@@ -110,15 +117,32 @@ fun EntitiesScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("ZyRoom") },
                 actions = {
-                    TextButton(onClick = { importer.launch(arrayOf("*/*")) }) {
-                        Text(
-                            if (repository.names.isLoaded)
-                                "${repository.names.size} noms"
-                            else "Charger les noms"
-                        )
+                    // Le nombre de noms chargés n'apprenait rien à personne : on
+                    // ne charge un pack qu'une fois, et savoir qu'il y en a huit
+                    // mille quatre cent trente ne se traduit par aucune décision.
+                    // L'import reste joignable, dans le menu, pour le jour où une
+                    // mise à jour du jeu ajoute des items.
+                    Box {
+                        IconButton(onClick = { menu = true }) { Symbole("⋮") }
+                        DropdownMenu(
+                            expanded = menu,
+                            onDismissRequest = { menu = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Charger les noms d'items…") },
+                                onClick = {
+                                    menu = false
+                                    importer.launch(arrayOf("*/*"))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("À propos") },
+                                onClick = { menu = false; apropos = true },
+                            )
+                        }
                     }
                 },
             )
@@ -148,13 +172,28 @@ fun EntitiesScreen(
                 )
             }
         } else {
+          // Le coffre en filigrane occupe le vide sous les cartes. Derrière la
+          // liste et non après elle : ainsi il reste au même endroit qu'on suive
+          // deux entités ou dix, et les cartes, opaques, passent devant.
+          Box(Modifier.weight(1f).fillMaxWidth()) {
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher_foreground),
+                contentDescription = null,
+                alpha = 0.18f,
+                modifier = Modifier.align(Alignment.Center).size(340.dp),
+            )
             LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(12.dp),
+                modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(entrees, key = { "${it.kind}-${it.id}" }) { entree ->
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable { onOpen(entree) },
+                        // Le vert de l'application, celui du bouton « + ».
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
                     ) {
                         Column(Modifier.padding(16.dp)) {
                             Text(
@@ -170,6 +209,7 @@ fun EntitiesScreen(
                     }
                 }
             }
+          }
         }
         // Le crédit reste sous les yeux, en dehors de la liste qui défile : la
         // licence veut que l'interface le porte, pas seulement le dépôt.
