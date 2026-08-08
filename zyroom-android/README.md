@@ -76,8 +76,8 @@ L'outillage est en place sur ce poste : JDK 21, SDK Android dans
 
 ```sh
 export ANDROID_HOME=~/Android/Sdk
-./gradlew assembleDebug   # app/build/outputs/apk/debug/app-debug.apk
-./gradlew test            # les tests, sans téléphone ni émulateur
+./gradlew assembleGuildeDebug   # app/build/outputs/apk/guilde/debug/app-guilde-debug.apk
+./gradlew test                  # les tests, sans téléphone ni émulateur
 ```
 
 Pour installer sur un téléphone branché en débogage USB :
@@ -109,16 +109,31 @@ que les mises à jour viennent de la même main** : la perdre oblige chacun à
 désinstaller avant de réinstaller.
 
 ```sh
-export ANDROID_HOME=~/Android/Sdk
-./gradlew assembleGuildeRelease assembleDevRelease
-cp app/build/outputs/apk/guilde/release/app-guilde-release.apk dist/ZyRoom-Android_0.3.apk
-cp app/build/outputs/apk/dev/release/app-dev-release.apk "dist/ZyRoom-Android(dev)_0.3.apk"
+./livraison.sh dev          # variante du mainteneur, numéro d'affichage inchangé
+./livraison.sh guilde 0.4   # variante des joueurs, renumérotée 0.4
+./livraison.sh tout 0.4     # les deux
 ```
 
-`versionName` et `versionCode` ne bougent pas d'une livraison à l'autre : c'est
-le nom du fichier qui porte le numéro. Android accepte de réinstaller par-dessus
-à `versionCode` égal, mais refusera un jour une vraie mise à jour si on veut
-passer par un magasin — le passer à 2 est une décision à prendre.
+Le script construit, signe, nomme le fichier et met à jour le `version.json`
+que les téléphones interrogent. Il n'envoie rien : il affiche les commandes de
+publication qui restent.
+
+**Pourquoi ne pas le faire à la main.** `versionCode` est le seul numéro
+qu'Android ordonne, donc le seul que la vérification de mise à jour compare
+(`UpdateChecker`). L'oublier ne casse rien de visible : l'APK se construit,
+s'installe, se lance — et aucun téléphone ne verra jamais la mise à jour. Une
+livraison doit tenir d'accord quatre choses : le `versionCode` compilé, le nom
+du fichier, le `versionCode` publié dans `version.json` et l'URL qu'il annonce.
+Le script est le seul endroit où elles sont écrites ensemble.
+
+Les numéros vivent dans `version.properties`, lu par `build.gradle.kts` ; le
+script les fait croître à partir du plus haut des deux — celui du dépôt et celui
+réellement en ligne. Les deux variantes ont leur propre suite : la dev avance au
+rythme des essais sans entraîner celle des joueurs.
+
+Pas de parenthèses dans les noms de fichiers : GitHub les réécrit en points sur
+les pièces jointes des Releases, et les empreintes publiées ne correspondent
+plus aux noms servis.
 
 Pour l'installer, un téléphone doit autoriser les applications d'origine
 inconnue — Android le propose au moment de l'ouverture du fichier. L'application

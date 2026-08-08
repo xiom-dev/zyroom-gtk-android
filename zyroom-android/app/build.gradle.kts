@@ -13,6 +13,23 @@ val signature = Properties().apply {
     if (fichier.exists()) fichier.inputStream().use { load(it) }
 }
 
+// Les numéros de version, eux, sont dans le dépôt : c'est `livraison.sh` qui
+// les fait croître, et lui seul, pour que l'APK construit et le version.json
+// que les téléphones interrogent ne puissent pas divorcer.
+val versions = Properties().apply {
+    val fichier = rootProject.file("version.properties")
+    if (!fichier.exists()) error("version.properties manquant à la racine du projet Android")
+    fichier.inputStream().use { load(it) }
+}
+
+fun codeDe(variante: String): Int =
+    versions.getProperty("$variante.versionCode")?.trim()?.toIntOrNull()
+        ?: error("$variante.versionCode absent ou illisible dans version.properties")
+
+fun nomDe(variante: String): String =
+    versions.getProperty("$variante.versionName")?.trim()
+        ?: error("$variante.versionName absent de version.properties")
+
 android {
     namespace = "net.ryzom.zyroom"
     compileSdk = 35
@@ -22,11 +39,10 @@ android {
         // Android 8 : ce que fait tourner à peu près tout téléphone encore vivant.
         minSdk = 26
         targetSdk = 35
-        // versionCode doit croître à CHAQUE livraison : c'est le seul numéro
-        // qu'Android ordonne, et celui que la vérification de mise à jour
-        // compare. versionName n'est là que pour l'affichage.
-        versionCode = 2
-        versionName = "0.3"
+        // Numéros de la variante des joueurs ; la variante dev surcharge plus
+        // bas. Voir version.properties pour la règle qui les gouverne.
+        versionCode = codeDe("guilde")
+        versionName = nomDe("guilde")
     }
 
     signingConfigs {
@@ -63,7 +79,8 @@ android {
             // La variante dev avance plus vite que celle de la guilde : elle a
             // son propre numéro, sans quoi publier un essai obligerait à faire
             // croître aussi celui que reçoivent les joueurs.
-            versionCode = 3
+            versionCode = codeDe("dev")
+            versionName = nomDe("dev")
             // Le nom du lanceur est dans src/dev/res/ : une ressource de
             // variante remplace celle de src/main, là où un resValue() entrerait
             // en conflit avec elle.
