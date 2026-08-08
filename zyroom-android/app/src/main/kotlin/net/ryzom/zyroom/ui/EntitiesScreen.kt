@@ -70,6 +70,7 @@ fun EntitiesScreen(
     var erreur by remember { mutableStateOf<String?>(null) }
     var maj by remember { mutableStateOf<UpdateChecker.Disponible?>(null) }
     var majEnCours by remember { mutableStateOf(false) }
+    var apropos by remember { mutableStateOf(false) }
     val contexte = LocalContext.current
 
     // Une seule interrogation par ouverture de l'application : inutile de
@@ -127,7 +128,7 @@ fun EntitiesScreen(
             }
         }
         if (entrees.isEmpty()) {
-            Box(Modifier.fillMaxSize(), Alignment.Center) {
+            Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
                 Text(
                     "Aucune entité.\nAjoutez un personnage ou une guilde par sa clé d'API.",
                     textAlign = TextAlign.Center,
@@ -136,7 +137,7 @@ fun EntitiesScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(12.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(entrees, key = { "${it.kind}-${it.id}" }) { entree ->
@@ -158,8 +159,13 @@ fun EntitiesScreen(
                 }
             }
         }
+        // Le crédit reste sous les yeux, en dehors de la liste qui défile : la
+        // licence veut que l'interface le porte, pas seulement le dépôt.
+        LigneSignature { apropos = true }
       }
     }
+
+    if (apropos) AboutDialog { apropos = false }
 
     if (ajout) {
         AddEntityDialog(

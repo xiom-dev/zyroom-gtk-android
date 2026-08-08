@@ -24,6 +24,7 @@ Android.
 | `data/Repository.kt` | va chercher, garde en cache, et n'appelle l'API que si `cached_until` est dépassé |
 | `data/MovementStore.kt` | le journal : ce qui est entré et sorti des contenants, déduit de deux relevés |
 | `ui/` | liste des entités, grille d'un inventaire, journal, compétences, détail d'un item |
+| `ui/About.kt` | le crédit d'auteur et les avis que l'AGPL demande à l'interface de porter |
 
 ## Deux variantes
 
