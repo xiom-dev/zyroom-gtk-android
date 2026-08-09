@@ -9,6 +9,8 @@ import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.api.EntityParser
 import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.model.Entity
+import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
+import net.ryzom.zyroom.model.MeteoAtys
 import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.names.NameDb
 import java.io.File
@@ -152,6 +154,26 @@ class Repository(
         cacheDir.mkdirs()
         file.writeBytes(xml)
         carte
+    }
+
+    /**
+     * La météo d'Atys et la saison, prises à l'API officielle.
+     *
+     * Rien n'est mis en cache sur le disque : le document est minuscule, il
+     * change toutes les neuf minutes, et une prévision périmée vaut moins que
+     * pas de prévision du tout — l'écran ne s'ouvre que quand on le demande.
+     */
+    @Throws(ApiException::class)
+    suspend fun meteo(cycles: Int = 20): MeteoAtys = withContext(Dispatchers.IO) {
+        val continents = CONTINENT_DE_ZONE.values.distinct()
+        val brut = String(RyzomApi.get(RyzomApi.weatherUrl(continents, cycles)))
+        val (cycle, parContinent) = EntityParser.parseWeather(brut)
+        // La saison vient d'un autre appel : le flux météo ne la porte pas, et
+        // c'est elle qui dit quelle page du relevé regarder.
+        val saison = runCatching {
+            EntityParser.parseSeason(RyzomApi.get(RyzomApi.timeUrl().replace("json", "xml")))
+        }.getOrDefault(-1)
+        MeteoAtys(cycleCourant = cycle, saison = saison, continents = parContinent)
     }
 
     private fun parse(entry: EntityStore.Suivie, xml: ByteArray): Entity =

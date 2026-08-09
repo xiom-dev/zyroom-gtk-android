@@ -62,6 +62,26 @@ object RyzomApi {
     fun guildDirectoryUrl(): String = "$BASE_URL/guilds.php"
 
     /**
+     * La météo d'Atys, **sans clé d'API**.
+     *
+     * Elle est calculée par le jeu à partir du jour et de l'heure, non
+     * mesurée : d'où la possibilité de la demander à l'avance. Quarante
+     * cycles est le maximum accepté.
+     *
+     * C'est l'API officielle de Ryzom, la même que pour les inventaires. Les
+     * sites qui publient cette météo — Ballistic Mystix et les autres — ne
+     * font que la republier : j'ai comparé les deux sur le même cycle, elles
+     * rendent le même chiffre. Dépendre de l'officielle plutôt que d'un
+     * intermédiaire, c'est ne rien perdre le jour où l'intermédiaire ferme.
+     */
+    fun weatherUrl(continents: List<String>, cycles: Int): String =
+        "$BASE_URL/weather.php?continent=" + continents.joinToString(",") +
+            "&cycles=" + cycles.coerceIn(0, 40)
+
+    /** Le temps d'Atys : saison, heure, date. Sans clé non plus. */
+    fun timeUrl(): String = "$BASE_URL/time.php?format=json"
+
+    /**
      * L'emblème d'une guilde, dessiné par l'API à partir de son identifiant.
      *
      * Trois tailles : `s`, `m`, `b`. L'identifiant est celui que rend

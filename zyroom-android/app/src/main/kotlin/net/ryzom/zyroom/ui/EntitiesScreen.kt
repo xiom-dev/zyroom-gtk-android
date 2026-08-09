@@ -85,6 +85,7 @@ fun EntitiesScreen(
     store: EntityStore,
     repository: Repository,
     onOpen: (EntityStore.Suivie) -> Unit,
+    onMeteo: () -> Unit = {},
 ) {
     var entrees by remember { mutableStateOf(store.all()) }
     var ajout by remember { mutableStateOf(false) }
@@ -191,6 +192,10 @@ fun EntitiesScreen(
                                     menu = false
                                     importer.launch(arrayOf("*/*"))
                                 },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Météo et sources…") },
+                                onClick = { menu = false; onMeteo() },
                             )
                             DropdownMenuItem(
                                 text = { Text("À propos") },

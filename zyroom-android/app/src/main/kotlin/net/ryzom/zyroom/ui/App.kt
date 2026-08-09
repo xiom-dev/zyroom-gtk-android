@@ -26,14 +26,20 @@ fun App(
     preferences: Preferences,
 ) {
     var ouverte by remember { mutableStateOf<EntityStore.Suivie?>(null) }
+    // La météo ne dépend d'aucune entité : c'est un écran à part, et non une
+    // page de plus dans la rangée des coffres.
+    var meteo by remember { mutableStateOf(false) }
 
     ZyRoomTheme {
         val choisie = ouverte
-        if (choisie == null) {
+        if (meteo) {
+            MeteoScreen(repository = repository, onBack = { meteo = false })
+        } else if (choisie == null) {
             EntitiesScreen(
                 store = store,
                 repository = repository,
                 onOpen = { ouverte = it },
+                onMeteo = { meteo = true },
             )
         } else {
             InventoryScreen(

@@ -4,9 +4,11 @@ import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.ItemColor
+import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
 import net.ryzom.zyroom.model.SkillPoints
+import org.json.JSONObject
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 import net.ryzom.zyroom.MASQUE_COFFRES
@@ -115,6 +117,46 @@ object EntityParser {
                 .filter { it.isNotEmpty() }
                 .map { Outpost(code = it, guild = nom, icon = emblème) }
         }
+    }
+
+    /**
+     * La météo rendue par `weather.php`, par continent puis par cycle.
+     *
+     * Le document est en JSON là où tout le reste de l'API est en XML : on le
+     * lit donc à part, avec org.json.
+     */
+    @Throws(ApiException::class)
+    fun parseWeather(json: String): Pair<Int, Map<String, List<Meteo>>> {
+        val racine = runCatching { JSONObject(json) }
+            .getOrElse { throw ApiException("météo illisible : ${it.message}", it) }
+        if (racine.has("errors")) throw ApiException("météo : " + racine.optString("errors"))
+        val cycleCourant = racine.optInt("cycle")
+        val continents = racine.optJSONObject("continents") ?: JSONObject()
+        val out = mutableMapOf<String, List<Meteo>>()
+        continents.keys().forEach { nom ->
+            val cycles = continents.optJSONObject(nom) ?: return@forEach
+            out[nom] = cycles.keys().asSequence().mapNotNull { cle ->
+                cycles.optJSONObject(cle)?.let {
+                    Meteo(
+                        cycle = it.optInt("cycle"),
+                        condition = it.optString("condition"),
+                        value = it.optString("value").toDoubleOrNull() ?: 0.0,
+                        text = it.optString("text"),
+                    )
+                }
+            }.sortedBy { it.cycle }.toList()
+        }
+        return cycleCourant to out
+    }
+
+    /** La saison d'Atys, de 0 (printemps) à 3 (hiver), lue sur `time.php`. */
+    @Throws(ApiException::class)
+    fun parseSeason(xml: ByteArray): Int {
+        val root = document(xml)
+        checkError(root)
+        return root.text("season").toIntOrNull()
+            ?: root.child("shard_time")?.text("season")?.toIntOrNull()
+            ?: throw ApiException("saison absente du flux de temps")
     }
 
     @Throws(ApiException::class)
