@@ -138,13 +138,33 @@ sont dans `~/.cache/zyroom-gtk/`.
 Aucune dépendance hors GTK : le réseau et le XML utilisent la bibliothèque
 standard de Python.
 
+## Les compétences
+
+Le flux personnage porte l'arbre entier — cent soixante-quatorze compétences en
+quatre branches. Une balise par compétence, nommée par son **code** : `sf`
+Combat, `sfm` Mêlée, `sfms` Manier épée. Le code contient celui de son parent,
+la hiérarchie n'a donc pas à être décrite ailleurs, et l'ordre alphabétique des
+codes est déjà celui de l'arbre.
+
+Le niveau arrive **décimal quand la compétence monte** : `164.52` se lit niveau
+164, et 52 % du suivant. Une valeur entière ne dit rien de l'avancement — d'où
+le filtre « En cours », qui ne garde que les niveaux entamés.
+
+Toute compétence qui a des descendants se plie, pas seulement les quatre
+racines. Le calcul vit dans `zyroom/skills.py`, hors de la fenêtre, pour être
+couvert par des tests : le parent y est le plus proche des ancêtres, non la
+racine, sans quoi un échelon absent du flux décalerait tout l'affichage.
+
+Le bloc peut manquer — c'est un module de l'API, et toutes les clés ne
+l'accordent pas. La page le dit alors, plutôt que de rester vide.
+
 ## Tests
 
 ```sh
 python3 -m unittest discover -s tests
 ```
 
-Six tests, dont deux sur le vrai pack du client quand il est là. Le portage
+Seize tests : le lecteur de pack, son cache, et l'arbre des compétences. Quatre se branchent sur les vraies données du poste quand elles sont là — le pack du client, le flux en cache — et se désactivent sinon. Le portage
 Android en compte soixante-trois ; celui-ci n'en avait aucun, et c'est
 justement dans le lecteur de pack qu'un défaut est resté invisible des mois —
 il perdait des noms sans rien signaler. Le cache des noms porte un numéro de

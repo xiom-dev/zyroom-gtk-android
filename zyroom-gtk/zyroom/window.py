@@ -14,6 +14,7 @@ import unicodedata
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk
 
 from . import alerts, backup, chatlog, detail, i18n, movements, ryzom_api, sorting
+from . import skills as skills_mod
 from .updater import Updater
 from .categorydb import CategoryDb
 from .i18n import _
@@ -287,6 +288,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Onglet « Journal » + bascule dans la barre de titre
         self._stack.add_titled(self._build_log_page(), "log", _("Journal"))
+        self._stack.add_titled(self._build_skills_page(), "skills", _("Compétences"))
         header.set_title_widget(Gtk.StackSwitcher(stack=self._stack))
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
@@ -371,6 +373,181 @@ class MainWindow(Gtk.ApplicationWindow):
         page.append(self._log_status)
         return page
 
+    # ---------------------------------------------------------- Compétences
+    def _build_skills_page(self) -> Gtk.Widget:
+        """L'arbre des compétences : quatre branches qui se plient à tous les
+        échelons, avec le niveau et l'avancement du niveau en cours."""
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._pad(bar)
+        page.append(bar)
+
+        self._skills_search = Gtk.SearchEntry()
+        self._skills_search.set_placeholder_text(_("Rechercher une compétence…"))
+        self._skills_search.set_hexpand(True)
+        self._skills_search.connect("search-changed", lambda *a: self._refresh_skills())
+        bar.append(self._skills_search)
+
+        self._skills_filter = Gtk.DropDown.new_from_strings([_("Tout"), _("En cours")])
+        self._skills_filter.set_tooltip_text(
+            _("« En cours » ne garde que les niveaux entamés"))
+        self._skills_filter.connect("notify::selected", lambda *a: self._refresh_skills())
+        bar.append(self._skills_filter)
+
+        # Un seul bouton : son nom dit ce qu'il va faire, et il n'y a jamais
+        # qu'une action sensée à proposer.
+        self._skills_toggle = Gtk.Button(label=_("Tout déplier"))
+        self._skills_toggle.connect("clicked", self._on_skills_toggle_all)
+        bar.append(self._skills_toggle)
+
+        self._skills_box = Gtk.ListBox()
+        self._skills_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._skills_box.connect("row-activated", self._on_skill_row)
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+        scrolled.set_child(self._skills_box)
+        page.append(scrolled)
+
+        self._skills_status = Gtk.Label(xalign=0.0)
+        self._skills_status.add_css_class("dim-label")
+        self._skills_status.props.margin_start = 8
+        self._skills_status.props.margin_bottom = 6
+        page.append(self._skills_status)
+
+        self._skills_expanded: set[str] = set()
+        self._skills_tree: list = []
+        return page
+
+    def _on_skills_toggle_all(self, _btn) -> None:
+        if self._skills_expanded:
+            self._skills_expanded = set()
+        else:
+            self._skills_expanded = {n.skill.code for n in self._skills_tree
+                                     if n.has_children}
+        self._refresh_skills()
+
+    def _on_skill_row(self, _box, row) -> None:
+        code = getattr(row, "_code", "")
+        if not code:
+            return
+        if code in self._skills_expanded:
+            self._skills_expanded.discard(code)
+        else:
+            self._skills_expanded.add(code)
+        self._refresh_skills()
+
+    def _refresh_skills(self) -> None:
+        """Redessine l'arbre : ce qui est visible dépend des replis, sauf quand
+        une recherche ou un filtre est actif — la liste est alors plate, car
+        chercher « épée » et ne rien voir parce que la branche est fermée serait
+        absurde."""
+        while (child := self._skills_box.get_first_child()) is not None:
+            self._skills_box.remove(child)
+
+        ent = self._entity
+        skills = getattr(ent, "skills", []) if ent else []
+        if not skills:
+            self._skills_status.set_text(
+                _("Aucune compétence : l'API ne les donne que pour un personnage, "
+                  "et seulement si la clé accorde ce module."))
+            self._skills_toggle.set_sensitive(False)
+            return
+        self._skills_toggle.set_sensitive(True)
+
+        self._skills_tree = skills_mod.build_tree(skills)
+        needle = _norm(self._skills_search.get_text().strip())
+        en_cours = self._skills_filter.get_selected() == 1
+        filtering = bool(needle) or en_cours
+
+        if filtering:
+            rows = [n for n in self._skills_tree
+                    if (not en_cours or n.skill.progress)
+                    and (not needle or needle in _norm(self._names.name(n.skill.code)))]
+        else:
+            rows = skills_mod.visible(self._skills_tree, self._skills_expanded)
+
+        self._skills_toggle.set_label(
+            _("Tout replier") if self._skills_expanded else _("Tout déplier"))
+        self._skills_toggle.set_visible(not filtering)
+
+        for index, node in enumerate(rows):
+            self._skills_box.append(
+                self._skill_row(node, index, filtering))
+
+        montrees = len(rows)
+        self._skills_status.set_text(
+            _("%d compétences, %d affichées") % (len(skills), montrees))
+
+    def _skill_row(self, node, index: int, filtering: bool) -> Gtk.ListBoxRow:
+        racine = node.depth == 0 and not filtering
+        row = Gtk.ListBoxRow()
+        row._code = node.skill.code if (node.has_children and not filtering) else ""
+        row.set_activatable(bool(row._code))
+        # Une ligne sur deux teintée, comme les tableaux de l'application
+        # Android : sur des colonnes étroites l'œil perd sa ligne.
+        if index % 2 == 0:
+            row.add_css_class("zebre")
+
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        line.props.margin_top = 4
+        line.props.margin_bottom = 4
+        line.props.margin_end = 8
+        # Un cran par échelon, à partir du retrait de la flèche des racines.
+        line.props.margin_start = 8 + (0 if filtering else node.depth * 14)
+
+        fleche = Gtk.Label(label=("▾" if node.skill.code in self._skills_expanded
+                                  else "▸") if row._code else " ", xalign=0.0)
+        fleche.set_size_request(14, -1)
+        line.append(fleche)
+
+        nom = Gtk.Label(label=self._names.name(node.skill.code), xalign=0.0)
+        nom.set_hexpand(True)
+        if racine:
+            nom.add_css_class("heading")
+        line.append(nom)
+
+        if node.skill.progress:
+            barre = Gtk.LevelBar()
+            barre.set_min_value(0)
+            barre.set_max_value(100)
+            barre.set_value(node.skill.progress)
+            barre.set_size_request(90, -1)
+            barre.set_valign(Gtk.Align.CENTER)
+            line.append(barre)
+
+        niveau = Gtk.Label(
+            label=(f"{node.skill.level} · {node.skill.progress} %"
+                   if node.skill.progress else str(node.skill.level)),
+            xalign=1.0)
+        niveau.set_size_request(90, -1)
+        line.append(niveau)
+
+        if racine:
+            points = getattr(self._entity, "skill_points", {}).get(node.skill.code)
+            if points:
+                # Le niveau d'une racine plafonne bas — Combat vaut 20 : c'est
+                # le plus haut de ses descendants qui dit où en est la branche.
+                niveau.set_label(str(skills_mod.branch_level(self._skills_tree,
+                                                             node.skill.code)))
+                detail = Gtk.Label(
+                    label=_("%s pts · %s dépensés") % (f"{points[0]:,}".replace(",", " "),
+                                                       f"{points[1]:,}".replace(",", " ")),
+                    xalign=0.0)
+                detail.add_css_class("dim-label")
+                detail.add_css_class("caption")
+                colonne = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+                colonne.append(line)
+                detail.props.margin_start = 8 + 14
+                detail.props.margin_bottom = 4
+                colonne.append(detail)
+                row.set_child(colonne)
+                return row
+
+        row.set_child(line)
+        return row
+
     def _load_log(self) -> None:
         """Relit le journal de l'entité courante depuis le disque."""
         entry = self._current_entry()
@@ -443,8 +620,11 @@ class MainWindow(Gtk.ApplicationWindow):
             self._log_status.set_text(f"{len(shown)} lignes sur {total} au journal")
 
     def _on_page_changed(self, *_args) -> None:
-        if self._stack.get_visible_child_name() == "log":
+        page = self._stack.get_visible_child_name()
+        if page == "log":
             self._load_log()
+        elif page == "skills":
+            self._refresh_skills()
 
     def _on_log_copy(self, _btn) -> None:
         lines = [movements.describe(mv, self._names.name)
@@ -640,6 +820,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self._check_alerts(ent, entry, from_sync, time_data)
         if self._stack.get_visible_child_name() == "log":
             self._load_log()      # le journal suit l'entité sélectionnée
+        elif self._stack.get_visible_child_name() == "skills":
+            # Les compétences aussi : un personnage n'a pas l'arbre d'un autre,
+            # et une guilde n'en a pas du tout.
+            self._skills_expanded = set()
+            self._refresh_skills()
 
     # -------------------------------------------------------- Inventaires
     def _populate_inventories(self) -> None:
@@ -970,7 +1155,8 @@ class MainWindow(Gtk.ApplicationWindow):
         provider = Gtk.CssProvider()
         provider.load_from_data(
             b".motd { background: mix(@theme_bg_color, @theme_fg_color, 0.13);"
-            b" border-radius: 8px; padding: 8px 10px; }")
+            b" border-radius: 8px; padding: 8px 10px; }"
+            b" row.zebre { background: mix(@theme_bg_color, @theme_selected_bg_color, 0.10); }")
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)

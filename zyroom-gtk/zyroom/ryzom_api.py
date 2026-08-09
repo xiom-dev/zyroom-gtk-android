@@ -92,6 +92,8 @@ class Entity:
     icon: str = ""                 # icône (pour une guilde)
     portrait_url: str = ""         # URL du portrait (rendu 3D perso / icône guilde)
     inventories: list[Inventory] = field(default_factory=list)
+    skills: list = field(default_factory=list)          # arbre des compétences
+    skill_points: dict = field(default_factory=dict)    # points par branche
 
     @property
     def item_count(self) -> int:
@@ -220,6 +222,48 @@ def _character_portrait_url(char_node: Element) -> str:
             f"&gabarit={gabarit}&morph={morph}&chest={chest}/{chest_color}")
 
 
+#: Les quatre branches de l'API, sous le code de leur racine dans le pack.
+_BRANCHES = {"fight": "sf", "magic": "sm", "craft": "sc", "harvest": "sh"}
+
+
+def _parse_skills(node: Element) -> list:
+    """L'arbre des compétences : une balise par compétence, nommée par son code.
+
+    Le bloc peut manquer — c'est un module de l'API, et toutes les clés ne
+    l'accordent pas. L'écran des compétences s'efface alors de lui-même."""
+    from .skills import Skill, parse_level
+    block = node.find("skills")
+    if block is None:
+        return []
+    out = []
+    for child in block:
+        level, progress = parse_level((child.text or "").strip())
+        out.append(Skill(code=child.tag, level=level, progress=progress))
+    return out
+
+
+def _parse_skill_points(node: Element) -> dict:
+    """Points de compétence par branche : disponibles, et déjà dépensés."""
+    block = node.find("skillpoints")
+    if block is None:
+        return {}
+    out = {}
+    for child in block:
+        code = _BRANCHES.get(child.tag)
+        if not code:
+            continue
+        try:
+            available = int((child.text or "0").strip())
+        except ValueError:
+            available = 0
+        try:
+            spent = int(child.get("spent", "0"))
+        except ValueError:
+            spent = 0
+        out[code] = (available, spent)
+    return out
+
+
 def _build_items(container: Element, resolve_sheet, tag: str = "item") -> list[ItemInfo]:
     """Parse les items d'un conteneur, détermine leur type et leur volume."""
     items = []
@@ -253,6 +297,8 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     ent.modules = node.get("modules", "")
     ent.money = node.findtext("money", default="")
     ent.portrait_url = _character_portrait_url(node)
+    ent.skills = _parse_skills(node)
+    ent.skill_points = _parse_skill_points(node)
 
     bag = node.find("bag")
     if bag is not None:

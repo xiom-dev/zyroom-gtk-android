@@ -19,8 +19,25 @@ quasi instantané aux lancements suivants.
 from __future__ import annotations
 
 import json
+import re
 import os
 import struct
+
+
+#: Codes de l'arbre des compétences : « sf », « sfm », « scahbem »… Le flux
+#: personnage ne nomme les compétences que par eux, et c'est le pack qui porte
+#: leur nom français. La règle retient un peu plus large que l'arbre — quatre
+#: clés comme « sapalchemy » passent aussi —, sans conséquence : on ne cherche
+#: jamais qu'un code venu du flux, et une clé du pack n'a qu'une valeur.
+_SKILL_CODE = re.compile(r"^s[a-z0-9]{1,9}$")
+
+
+def _utile(key: str) -> bool:
+    """Ce que l'application sait nommer : items, avant-postes, compétences.
+
+    Le pack en contient vingt-six mille, dialogues et missions compris."""
+    return (key.endswith(".sitem") or key.endswith(".outpost")
+            or bool(_SKILL_CODE.match(key)))
 
 
 def _parse_pack(data: bytes) -> dict[str, str]:
@@ -115,7 +132,7 @@ class NameDb:
             # personne — chacun aurait gardé la table incomplète tirée du même
             # fichier. À incrémenter à chaque changement de _parse_pack ou du
             # filtre ci-dessous.
-            signature = f"v2:{int(stat.st_mtime)}:{stat.st_size}"
+            signature = f"v3:{int(stat.st_mtime)}:{stat.st_size}"
             if self._cache_path and os.path.isfile(self._cache_path):
                 with open(self._cache_path, "r", encoding="utf-8") as fh:
                     cached = json.load(fh)
@@ -126,7 +143,7 @@ class NameDb:
                     return True
             with open(pack_path, "rb") as fh:
                 names = {k: v for k, v in _parse_pack(fh.read()).items()
-                         if k.endswith(".sitem")}
+                         if _utile(k)}
             if not names:
                 # Pack illisible : format inconnu, fichier tronqué. Ne rien
                 # écraser — ni les noms en place, ni le cache, qui sont bons.
