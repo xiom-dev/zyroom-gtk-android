@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
 import net.ryzom.zyroom.R
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -126,7 +129,7 @@ fun EntitiesScreen(
                     Text(
                         "RyLune",
                         fontFamily = Titrage,
-                        fontSize = 38.sp,
+                        fontSize = 46.sp,
                         color = MaterialTheme.colorScheme.secondary,
                     )
                 },
@@ -209,16 +212,32 @@ fun EntitiesScreen(
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         ),
                     ) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(
-                                entree.label.ifEmpty { entree.id },
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Text(
-                                if (entree.kind == Entity.Kind.CHARACTER) "Personnage"
-                                else "Guilde",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                        Row(
+                            Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Le rendu 3D du personnage, ou l'emblème de la
+                            // guilde. Rien tant que l'API n'a pas répondu une
+                            // première fois : l'adresse se déduit du flux.
+                            if (entree.vignette.isNotEmpty()) {
+                                AsyncImage(
+                                    model = entree.vignette,
+                                    contentDescription = null,
+                                    modifier = Modifier.height(72.dp)
+                                        .padding(end = 12.dp),
+                                )
+                            }
+                            Column {
+                                Text(
+                                    entree.label.ifEmpty { entree.id },
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    if (entree.kind == Entity.Kind.CHARACTER) "Personnage"
+                                    else "Guilde",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
                         }
                     }
                 }

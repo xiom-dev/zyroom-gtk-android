@@ -174,7 +174,13 @@ private fun Possessions(carte: List<Outpost>, guilde: String, nameOf: (String) -
 @Composable
 private fun EnTetePeuple(nom: String) {
     Column(Modifier.padding(top = 14.dp)) {
-        Text(nom, style = MaterialTheme.typography.titleSmall)
+        // Les quatre peuples sont les repères du tableau : ils doivent se
+        // trouver d'un coup d'œil en faisant défiler.
+        Text(
+            nom,
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.secondary,
+        )
         Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp)) {
             Text("Avant-poste", style = MaterialTheme.typography.labelSmall,
                  color = MaterialTheme.colorScheme.onSurfaceVariant,

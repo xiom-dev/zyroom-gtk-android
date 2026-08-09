@@ -74,6 +74,11 @@ class Repository(
             val known = cached(entry)
             val now = System.currentTimeMillis() / 1000
             if (!force && known != null && !known.isStale(now)) {
+                // Même sans appel réseau, on retient ce que le cache sait : le
+                // nom et l'illustration. Sans cela, une entité dont le document
+                // reste frais n'aurait jamais de vignette — c'est au moment de
+                // l'appel qu'elle était notée, et cet appel n'a pas lieu.
+                store.rename(entry, known.name, known.portraitUrl)
                 return@withContext known
             }
 
@@ -86,7 +91,7 @@ class Repository(
 
             cacheDir.mkdirs()
             fileFor(entry).writeBytes(xml)
-            store.rename(entry, entity.name)
+            store.rename(entry, entity.name, entity.portraitUrl)
             entity
         }
 

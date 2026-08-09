@@ -121,6 +121,11 @@ data class Entity(
     /** Date jusqu'à laquelle l'API servira ce même document. */
     val cachedUntil: Long = 0,
     val inventories: List<Inventory> = emptyList(),
+    /**
+     * De quoi illustrer l'entité : le rendu 3D du personnage, ou l'emblème de
+     * la guilde. Vide quand le flux n'en dit pas assez pour la construire.
+     */
+    val portraitUrl: String = "",
     /** L'arbre des compétences, pour un personnage ; vide pour une guilde. */
     val skills: List<Skill> = emptyList(),
     /** Points par branche, indexés par le code de sa racine : sf, sm, sh, sc. */

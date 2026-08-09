@@ -20,6 +20,13 @@ class EntityStore(private val file: File) {
         val kind: Entity.Kind,
         val apiKey: String,
         val label: String = "",
+        /**
+         * L'adresse de l'illustration — rendu 3D du personnage, emblème de la
+         * guilde. Retenue ici plutôt que relue du flux : l'écran d'accueil
+         * devrait sinon analyser un document d'un méga-octet par carte, juste
+         * pour en tirer une URL.
+         */
+        val vignette: String = "",
     )
 
     private val entries = mutableListOf<Suivie>()
@@ -46,11 +53,19 @@ class EntityStore(private val file: File) {
         save()
     }
 
-    /** Renomme une entité une fois que l'API a dit comment elle s'appelle. */
-    fun rename(entry: Suivie, label: String) {
+    /** Retient ce que l'API vient de dire : le nom, et l'illustration. */
+    fun rename(entry: Suivie, label: String, vignette: String = "") {
         val index = entries.indexOfFirst { it.id == entry.id && it.kind == entry.kind }
-        if (index >= 0 && entries[index].label != label) {
-            entries[index] = entries[index].copy(label = label)
+        if (index < 0) return
+        val actuel = entries[index]
+        val neuf = actuel.copy(
+            label = label,
+            // Une URL vide n'efface pas celle qu'on avait : le flux peut être
+            // incomplet un jour sans que la vignette doive disparaître.
+            vignette = vignette.ifEmpty { actuel.vignette },
+        )
+        if (neuf != actuel) {
+            entries[index] = neuf
             save()
         }
     }
@@ -67,6 +82,7 @@ class EntityStore(private val file: File) {
                     kind = Entity.Kind.valueOf(item.getString("kind")),
                     apiKey = item.getString("key"),
                     label = item.optString("label"),
+                    vignette = item.optString("vignette"),
                 )
             }
         }
@@ -80,6 +96,7 @@ class EntityStore(private val file: File) {
                 put("kind", entry.kind.name)
                 put("key", entry.apiKey)
                 put("label", entry.label)
+                put("vignette", entry.vignette)
             })
         }
         file.parentFile?.mkdirs()

@@ -170,9 +170,41 @@ object EntityParser {
             created = node.getAttribute("created").toLongOrNull() ?: 0,
             cachedUntil = node.getAttribute("cached_until").toLongOrNull() ?: 0,
             inventories = inventories,
+            portraitUrl = portraitDe(node),
             skills = skills(node),
             skillPoints = skillPoints(node),
         )
+    }
+
+    /**
+     * Le rendu 3D du personnage, chez Ballistic Mystix.
+     *
+     * L'API de Ryzom ne dessine pas les personnages ; elle décrit leur corps —
+     * gabarit, morphologie, cheveux, yeux — et un service tiers en fait une
+     * image. Porté tel quel de la version GTK, en HTTPS : Android refuse le
+     * trafic en clair depuis Android 9, et le service répond aux deux.
+     *
+     * Sans bloc `<body>`, il n'y a rien à dessiner et l'URL reste vide.
+     */
+    private fun portraitDe(node: Element): String {
+        val body = node.child("body") ?: return ""
+        val gabarit = body.child("gabarit")
+        val morph = body.child("morph")
+        val chest = node.child("equipment")?.child("chest")
+        val taille = listOf("height", "torso", "arms", "legs", "breast")
+            .joinToString(",") { gabarit?.getAttribute(it).orEmpty().ifEmpty { "0" } }
+        val visage = (1..8)
+            .joinToString(",") { morph?.getAttribute("target$it").orEmpty().ifEmpty { "0" } }
+        return "https://api.bmsite.net/char/render/3d/180" +
+            "?race=" + node.text("race").take(2) +
+            "&gender=" + node.text("gender") +
+            "&hair=" + body.text("hairtype") + "/" + body.text("haircolor") +
+            "&tattoo=" + body.text("tattoo") +
+            "&eyes=" + body.text("eyescolor") +
+            "&gabarit=" + taille +
+            "&morph=" + visage +
+            "&chest=" + (chest?.textContent?.trim().orEmpty()) +
+            "/" + (chest?.getAttribute("color").orEmpty().ifEmpty { "0" })
     }
 
     /**
@@ -260,6 +292,8 @@ object EntityParser {
             name = node.text("name"),
             shard = node.text("shard"),
             motd = node.text("motd"),
+            portraitUrl = node.text("icon").takeIf { it.isNotEmpty() }
+                ?.let { RyzomApi.guildIconUrl(it, "b") }.orEmpty(),
             dappers = node.text("money").toLongOrNull() ?: 0,
             created = node.getAttribute("created").toLongOrNull() ?: 0,
             cachedUntil = node.getAttribute("cached_until").toLongOrNull() ?: 0,
