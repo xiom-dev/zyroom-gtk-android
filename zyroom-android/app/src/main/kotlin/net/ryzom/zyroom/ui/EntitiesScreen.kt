@@ -152,15 +152,16 @@ fun EntitiesScreen(
                 // perdait ses hampes. Cent vingt lui vont.
                 modifier = Modifier.height(120.dp),
                 title = {
-                    // Le V de la gothique se lit comme un U : il est composé
-                    // dans la police du système, qui le dessine sans ambiguïté,
-                    // le reste gardant le lettrage gravé. Même or pour les deux.
+                    // Le V de la gothique se lit comme un U : il est composé à
+                    // part, dans une romane à empattements — la lettre des
+                    // livres — qui le dessine sans ambiguïté. Le reste garde le
+                    // lettrage gravé, et l'or est le même pour les deux.
                     Text(
                         buildAnnotatedString {
                             withStyle(SpanStyle(
-                                fontFamily = FontFamily.Default,
+                                fontFamily = FontFamily.Serif,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 46.sp,
+                                fontSize = 50.sp,
                             )) { append("V") }
                             withStyle(SpanStyle(fontFamily = Titrage)) { append("-RyLune") }
                         },
