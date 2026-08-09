@@ -124,7 +124,7 @@ fun EntitiesScreen(
             CenterAlignedTopAppBar(
                 title = {
                     Text(
-                        "ZyRoom",
+                        "RyLune",
                         fontFamily = Titrage,
                         fontSize = 38.sp,
                         color = MaterialTheme.colorScheme.secondary,

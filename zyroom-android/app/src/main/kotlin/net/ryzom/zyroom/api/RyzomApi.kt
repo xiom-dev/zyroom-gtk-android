@@ -61,6 +61,15 @@ object RyzomApi {
      */
     fun guildDirectoryUrl(): String = "$BASE_URL/guilds.php"
 
+    /**
+     * L'emblème d'une guilde, dessiné par l'API à partir de son identifiant.
+     *
+     * Trois tailles : `s`, `m`, `b`. L'identifiant est celui que rend
+     * l'annuaire, un entier de vingt chiffres, et non le numéro de la guilde.
+     */
+    fun guildIconUrl(icon: String, size: String = "s"): String =
+        "$BASE_URL/guild_icon.php?icon=$icon&size=$size"
+
     fun guildsUrl(keys: List<String>): String =
         BASE_URL + "/guild.php?" + keys.joinToString("&") { "apikey%5B%5D=$it" }
 

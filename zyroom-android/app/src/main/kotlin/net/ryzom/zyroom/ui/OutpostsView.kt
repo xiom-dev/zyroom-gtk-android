@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.model.Outpost
 import java.time.Instant
@@ -79,7 +82,7 @@ fun OutpostsView(
                 FilterChip(
                     selected = !journal,
                     onClick = { journal = false },
-                    label = { Text("Carte") },
+                    label = { Text("Qui tient quoi") },
                 )
             }
             item {
@@ -108,12 +111,12 @@ fun OutpostsView(
         }
 
         if (journal) Journal(changements, premierReleve, nameOf)
-        else Carte(carte, guilde, nameOf)
+        else Possessions(carte, guilde, nameOf)
     }
 }
 
 @Composable
-private fun Carte(carte: List<Outpost>, guilde: String, nameOf: (String) -> String) {
+private fun Possessions(carte: List<Outpost>, guilde: String, nameOf: (String) -> String) {
     val parPeuple = remember(carte) { carte.groupBy { it.people } }
     val miens = remember(carte, guilde) { carte.count { it.guild == guilde } }
 
@@ -141,19 +144,31 @@ private fun Carte(carte: List<Outpost>, guilde: String, nameOf: (String) -> Stri
             }
             items(siens, key = { it.code }) { avantPoste ->
                 val notre = avantPoste.guild == guilde
-                Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-                    Text(
-                        nameOf(avantPoste.nameKey),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (notre) FontWeight.Bold else FontWeight.Normal,
-                        color = if (notre) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface,
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // L'emblème dit la guilde d'un coup d'œil, mieux que son nom
+                    // écrit : c'est ce qu'on voit en jeu au-dessus des têtes.
+                    AsyncImage(
+                        model = RyzomApi.guildIconUrl(avantPoste.icon),
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp).padding(end = 10.dp),
                     )
-                    Text(
-                        avantPoste.guild,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column {
+                        Text(
+                            nameOf(avantPoste.nameKey),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (notre) FontWeight.Bold else FontWeight.Normal,
+                            color = if (notre) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            avantPoste.guild,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

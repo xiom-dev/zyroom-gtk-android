@@ -1,6 +1,14 @@
-# ZyRoom Android
+# RyLune — Android
 
-Portage de ZyRoom GTK sur téléphone, en Kotlin et Jetpack Compose.
+Vos inventaires Ryzom et les coffres de la guilde, hors du jeu. Kotlin et
+Jetpack Compose.
+
+L'application s'appelait ZyRoom Android jusqu'au 9 août 2026 ; elle porte
+désormais le nom de la guilde à qui elle est destinée. **L'identifiant de
+paquet, lui, ne change pas** et reste `net.ryzom.zyroom` : Android reconnaît
+une application à cet identifiant et à rien d'autre. Le modifier ferait de la
+nouvelle version une application différente — les joueurs se retrouveraient
+avec les deux côte à côte, sans jamais voir de mise à jour.
 
 > Licence **GNU AGPLv3**, comme le zyRoom d'origine de Misugi
 > (https://github.com/misugi/zyroom) dont ce portage dérive. Le texte complet
@@ -25,7 +33,7 @@ Android.
 | `data/MovementStore.kt` | le journal : ce qui est entré et sorti des contenants, déduit de deux relevés |
 | `data/OutpostStore.kt` | le journal des prises et pertes d'avant-postes, déduit de la même façon |
 | `ui/` | liste des entités, grille d'un inventaire, journal, compétences, avant-postes, détail d'un item |
-| `ui/About.kt` | le crédit d'auteur et les avis que l'AGPL demande à l'interface de porter |
+| `ui/About.kt` | l'auteur, la filiation et les avis que l'AGPL demande à l'interface de porter |
 | `ui/Theme.kt` | les teintes du logo, et le lettrage du titre |
 
 Le titre est composé en **Pirata One**, police libre sous SIL Open Font License
@@ -47,8 +55,8 @@ le même téléphone.
 
 | variante | identifiant | nom au lanceur | petit coffre de Nizy |
 |---|---|---|---|
-| `guilde` | `net.ryzom.zyroom` | ZyRoom | présent dans la liste, mais **vide** |
-| `dev` | `net.ryzom.zyroom.dev` | ZyRoom (dev) 1.0 | montré comme les autres |
+| `guilde` | `net.ryzom.zyroom` | RyLune | présent dans la liste, mais **vide** |
+| `dev` | `net.ryzom.zyroom.dev` | RyLune (dev) 1.0 | montré comme les autres |
 
 Le nom au lanceur de la variante dev porte son numéro : les deux applications
 cohabitant sur le même téléphone, c'est le seul endroit qui dise du premier coup

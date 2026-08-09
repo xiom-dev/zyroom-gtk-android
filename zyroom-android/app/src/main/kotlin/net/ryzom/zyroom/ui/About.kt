@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
 /**
- * Le crédit d'auteur et les avis que la licence demande.
+ * Le nom de l'application, et les avis que la licence demande.
  *
  * L'AGPL ne se contente pas d'un remerciement : quand un programme qu'elle
  * couvre a une interface, celle-ci doit porter le copyright, l'absence de
@@ -31,17 +31,22 @@ import androidx.compose.ui.unit.dp
  * les README le disent déjà — mais un joueur n'ira jamais les lire, et c'est à
  * lui que l'obligation s'adresse.
  *
- * D'où deux morceaux : une ligne toujours sous les yeux, et le détail à une tape.
- * Pas d'adresse de courriel : la licence n'en demande aucune, et une adresse dans
- * un APK public est ramassée par les robots. Le dépôt joue ce rôle, et c'est de
- * toute façon là qu'est le code source que l'AGPL oblige à offrir.
+ * Xiom est l'auteur de RyLune, et la ligne du bas le dit. La filiation reste
+ * écrite ici, en dessous : cette application a été écrite en traduisant le
+ * zyRoom Delphi de Misugi — coefficients de volume, capacités des contenants,
+ * ordre des énumérations qui part dans les URL d'icônes, logique de lecture des
+ * flux. C'est une œuvre dérivée, et l'AGPL interdit d'en effacer la paternité
+ * d'origine. Se dire seul auteur serait faux, et illégal.
+ *
+ * Pas d'adresse de courriel : la licence n'en demande aucune, et une adresse
+ * dans un APK public est ramassée par les robots. Le dépôt joue ce rôle.
  */
-const val SIGNATURE = "Original by Misugi, fork by Xiom"
+const val SIGNATURE = "RyLune, une application de Xiom"
 
 const val DEPOT = "https://github.com/xiom-dev/zyroom-gtk-android"
 const val DEPOT_ORIGINE = "https://github.com/misugi/zyroom"
 
-/** La ligne discrète, sous la liste : le crédit, et l'accès au reste. */
+/** La ligne discrète, sous la liste : le nom, et l'accès au reste. */
 @Composable
 fun LigneSignature(onClick: () -> Unit) {
     Text(
@@ -71,7 +76,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("ZyRoom Android $version") },
+        title = { Text("RyLune $version") },
         text = {
             // Cinq paragraphes ne tiennent pas sur un petit écran, et le corps
             // d'un AlertDialog ne défile pas de lui-même : sans cela, la fin du
@@ -81,12 +86,18 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             ) {
                 Text(
-                    "Portage du zyRoom de Misugi, écrit en Delphi pour Windows.",
+                    "Vos inventaires Ryzom et les coffres de la guilde, hors du jeu.\n" +
+                        "Une application de Xiom, pour La Lune Eternelle.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "© Misugi, pour l'œuvre d'origine.\n" +
-                        "Portage sur Android et modifications : Xiom, 2026.",
+                    "© 2026 Xiom, pour RyLune.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    "Dérivée du zyRoom de Misugi, écrit en Delphi pour Windows, " +
+                        "© Misugi : RyLune en reprend les algorithmes et la lecture " +
+                        "de l'API de Ryzom, et hérite donc de sa licence.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
@@ -99,7 +110,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 )
                 Text(
                     "Code source, licence complète et signalement de défauts :\n$DEPOT\n\n" +
-                        "Projet d'origine :\n$DEPOT_ORIGINE",
+                        "Projet dont elle dérive :\n$DEPOT_ORIGINE",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 // La SIL Open Font License veut que son texte et sa mention de
@@ -112,7 +123,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "ZyRoom n'est pas affilié à Winch Gate, éditeur de Ryzom.",
+                    "RyLune n'est pas affiliée à Winch Gate, éditeur de Ryzom.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
