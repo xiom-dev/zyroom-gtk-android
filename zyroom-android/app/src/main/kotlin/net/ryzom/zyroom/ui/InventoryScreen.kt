@@ -261,7 +261,7 @@ fun InventoryScreen(
                         FilterChip(
                             selected = vue == Vue.JOURNAL,
                             onClick = { vue = Vue.JOURNAL },
-                            label = { Text("🕘 Journal") },
+                            label = { Text("📗 Journal") },
                         )
                     }
                     // Les compétences ne concernent qu'un personnage, et encore
