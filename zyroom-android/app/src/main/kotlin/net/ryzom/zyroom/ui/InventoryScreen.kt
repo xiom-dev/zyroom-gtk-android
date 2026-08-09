@@ -68,12 +68,14 @@ import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.Alert
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.MovementStore
+import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.data.Preferences
 import net.ryzom.zyroom.data.WatchStore
 import net.ryzom.zyroom.data.volumeAlerts
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Item
+import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
 import net.ryzom.zyroom.model.SkillPoints
 import net.ryzom.zyroom.model.SortOrder
@@ -86,7 +88,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Ce que la rangée du haut donne à voir : un contenant, le journal, l'arbre. */
-private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES }
+private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES, AVANTPOSTES }
 
 /**
  * L'inventaire d'une entité : un choix de contenant, puis la grille d'items.
@@ -102,6 +104,7 @@ fun InventoryScreen(
     repository: Repository,
     watches: WatchStore,
     movements: MovementStore,
+    outposts: OutpostStore,
     preferences: Preferences,
     onBack: () -> Unit,
 ) {
@@ -123,6 +126,13 @@ fun InventoryScreen(
     var lignes by remember { mutableStateOf(emptyList<MovementStore.Movement>()) }
     var filtreJournal by remember { mutableStateOf(0) }   // 0 tout, 1 entrées, 2 sorties
     var viderJournal by remember { mutableStateOf(false) }
+    // La carte des avant-postes ne dépend d'aucune clé : elle vient de
+    // l'annuaire public des guildes, et n'est demandée qu'à l'ouverture de
+    // l'onglet — un demi-méga-octet n'a pas à partir au démarrage.
+    var carte by remember { mutableStateOf<List<Outpost>?>(null) }
+    var changements by remember { mutableStateOf(emptyList<OutpostStore.Change>()) }
+    var premierReleve by remember { mutableStateOf(false) }
+    var erreurCarte by remember { mutableStateOf<String?>(null) }
     val portee = rememberCoroutineScope()
 
     suspend fun charger(force: Boolean) {
@@ -146,7 +156,23 @@ fun InventoryScreen(
         occupe = false
     }
 
+    suspend fun chargerCarte(force: Boolean) {
+        erreurCarte = null
+        premierReleve = outposts.jamaisReleve()
+        try {
+            val relevee = repository.outposts(force)
+            changements = outposts.record(relevee).let { outposts.history() }
+            carte = relevee
+        } catch (echec: ApiException) {
+            erreurCarte = echec.message
+        }
+    }
+
     LaunchedEffect(entry.id) { charger(force = false) }
+
+    LaunchedEffect(vue) {
+        if (vue == Vue.AVANTPOSTES && carte == null) chargerCarte(force = false)
+    }
 
     val courant = entity
     Scaffold(
@@ -186,7 +212,12 @@ fun InventoryScreen(
                             Text("🔔 ${alertes.size}")
                         }
                     }
-                    IconButton(onClick = { portee.launch { charger(force = true) } }) {
+                    IconButton(onClick = {
+                        portee.launch {
+                            if (vue == Vue.AVANTPOSTES) chargerCarte(force = true)
+                            else charger(force = true)
+                        }
+                    }) {
                         Icon(Icons.Filled.Refresh, "Rafraîchir", Modifier.size(30.dp))
                     }
                 },
@@ -245,6 +276,17 @@ fun InventoryScreen(
                             )
                         }
                     }
+                    // Les avant-postes appartiennent aux guildes : la puce n'a
+                    // rien à faire sur un personnage.
+                    if (entry.kind == Entity.Kind.GUILD) {
+                        item {
+                            FilterChip(
+                                selected = vue == Vue.AVANTPOSTES,
+                                onClick = { vue = Vue.AVANTPOSTES },
+                                label = { Text("⚔ Avant-postes") },
+                            )
+                        }
+                    }
                 }
             }
 
@@ -275,6 +317,15 @@ fun InventoryScreen(
                     points = courant?.skillPoints.orEmpty(),
                     recherche = recherche,
                     onRecherche = { recherche = it },
+                    nameOf = { repository.nameOf(it) },
+                )
+
+                vue == Vue.AVANTPOSTES -> OutpostsView(
+                    carte = carte,
+                    changements = changements,
+                    premierReleve = premierReleve,
+                    erreur = erreurCarte,
+                    guilde = courant?.name ?: entry.label,
                     nameOf = { repository.nameOf(it) },
                 )
 

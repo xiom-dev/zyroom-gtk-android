@@ -46,6 +46,21 @@ object RyzomApi {
     fun charactersUrl(keys: List<String>): String =
         BASE_URL + "/character.php?" + keys.joinToString("&") { "apikey%5B%5D=$it" }
 
+    /**
+     * L'annuaire des guildes du serveur — **sans clé d'API**.
+     *
+     * Deux mille quatre cents guildes avec leur nom, leur emblème et, ce qui
+     * nous intéresse, la liste des avant-postes qu'elles tiennent. C'est la
+     * seule source publique sur les avant-postes : le flux de guilde n'en dit
+     * rien de plus que la liste de la sienne, et il faut sa clé pour l'obtenir.
+     *
+     * Le document pèse un demi-méga-octet et n'est pas compressé par le
+     * serveur — moitié moins tout de même que le flux de La Lune Eternelle, que
+     * l'application télécharge déjà à chaque relevé. C'est la fréquence qui
+     * compte, pas le poids : on ne l'interroge qu'à l'ouverture de l'écran.
+     */
+    fun guildDirectoryUrl(): String = "$BASE_URL/guilds.php"
+
     fun guildsUrl(keys: List<String>): String =
         BASE_URL + "/guild.php?" + keys.joinToString("&") { "apikey%5B%5D=$it" }
 

@@ -23,7 +23,8 @@ Android.
 | `data/EntityStore.kt` | les entités suivies et leurs clés, en JSON |
 | `data/Repository.kt` | va chercher, garde en cache, et n'appelle l'API que si `cached_until` est dépassé |
 | `data/MovementStore.kt` | le journal : ce qui est entré et sorti des contenants, déduit de deux relevés |
-| `ui/` | liste des entités, grille d'un inventaire, journal, compétences, détail d'un item |
+| `data/OutpostStore.kt` | le journal des prises et pertes d'avant-postes, déduit de la même façon |
+| `ui/` | liste des entités, grille d'un inventaire, journal, compétences, avant-postes, détail d'un item |
 | `ui/About.kt` | le crédit d'auteur et les avis que l'AGPL demande à l'interface de porter |
 | `ui/Theme.kt` | les teintes du logo, et le lettrage du titre |
 
@@ -47,7 +48,7 @@ le même téléphone.
 | variante | identifiant | nom au lanceur | petit coffre de Nizy |
 |---|---|---|---|
 | `guilde` | `net.ryzom.zyroom` | ZyRoom | présent dans la liste, mais **vide** |
-| `dev` | `net.ryzom.zyroom.dev` | ZyRoom (dev) 0.5 | montré comme les autres |
+| `dev` | `net.ryzom.zyroom.dev` | ZyRoom (dev) 1.0 | montré comme les autres |
 
 Le nom au lanceur de la variante dev porte son numéro : les deux applications
 cohabitant sur le même téléphone, c'est le seul endroit qui dise du premier coup
@@ -69,6 +70,27 @@ réclame ici un `jlink` absent du JDK installé.
 **Ce masque n'est pas une protection** : le contenu du coffre voyage toujours
 dans le flux de l'API et dort dans le cache de l'application. Qui a la clé de la
 guilde peut l'y lire.
+
+## Les avant-postes
+
+Le flux d'une guilde ne dit d'elle que la liste de ses avant-postes, et il faut
+sa clé pour l'obtenir. `https://api.ryzom.com/guilds.php` en dit bien plus et
+**ne demande aucune clé** : les 2 420 guildes du serveur, avec leur nom, leur
+emblème et leurs avant-postes. C'est la seule source publique sur le sujet.
+
+Elle ne donne que la propriété. Ni niveau, ni production, ni horaire d'attaque :
+rien de tout cela n'est exposé — les sites qui l'affichent tiennent leur propre
+table. Les noms lisibles, eux, sont dans le pack livré, sous `<code>.outpost`.
+
+Le document pèse un demi-méga-octet et le serveur ne le compresse pas — moitié
+moins tout de même que le flux de guilde que l'application télécharge déjà. Ce
+qui compte est la fréquence, pas le poids : il n'est demandé qu'à l'ouverture de
+l'onglet, et gardé une heure.
+
+Le journal des prises et des pertes suit le même principe que celui des
+mouvements, et pour la même raison : l'API ne rend qu'un état. Deux relevés
+comparés donnent les changements de main ; au tout premier, il n'y a rien à
+comparer et l'écran le dit, plutôt que de laisser croire à un calme plat.
 
 ## Le journal
 

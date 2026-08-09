@@ -7,6 +7,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.MovementStore
+import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.data.Preferences
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.data.WatchStore
@@ -34,6 +35,9 @@ class MainActivity : ComponentActivity() {
         // Le journal des mouvements va dans les fichiers privés, pas dans le
         // cache : c'est le seul historique qui existe, l'API n'en tient aucun.
         val movements = MovementStore(File(filesDir, "movements"))
+        // Le journal des avant-postes vit à côté, et pour la même raison : il
+        // est le seul témoin des prises et des pertes, l'API n'en garde rien.
+        val outposts = OutpostStore(File(filesDir, "outposts"))
         val preferences = Preferences(this)
 
         // Les noms d'items sont livrés avec l'application : rien à faire pour
@@ -44,6 +48,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        setContent { App(store, repository, watches, movements, preferences) }
+        setContent { App(store, repository, watches, movements, outposts, preferences) }
     }
 }

@@ -9,6 +9,7 @@ import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.api.EntityParser
 import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.model.Entity
+import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.names.NameDb
 import java.io.File
 import java.io.InputStream
@@ -26,6 +27,11 @@ class Repository(
     private val cacheDir: File,
     private val store: EntityStore,
 ) {
+
+    private companion object {
+        /** Une heure : un avant-poste change de main au rythme des sièges. */
+        const val FRAICHEUR_CARTE_MS = 3_600_000L
+    }
 
     /** Table des noms — un état, pour que les écrans se redessinent à l'import. */
     var names: NameDb by mutableStateOf(NameDb.EMPTY)
@@ -111,6 +117,37 @@ class Repository(
                 }
             }
         }
+
+    /**
+     * La carte des avant-postes, sans clé d'API.
+     *
+     * Un demi-méga-octet, que l'on garde une heure : la propriété d'un
+     * avant-poste change au rythme des sièges, pas des minutes. En cas d'échec
+     * réseau on rend ce qu'on a sur le disque plutôt que rien — la carte de la
+     * veille vaut mieux qu'un écran vide.
+     */
+    @Throws(ApiException::class)
+    suspend fun outposts(force: Boolean = false): List<Outpost> = withContext(Dispatchers.IO) {
+        val file = File(cacheDir, "guilds.xml")
+        val age = System.currentTimeMillis() - file.lastModified()
+        if (!force && file.isFile && age < FRAICHEUR_CARTE_MS) {
+            runCatching { EntityParser.parseOutposts(file.readBytes()) }
+                .getOrNull()?.let { return@withContext it }
+        }
+        val xml = try {
+            RyzomApi.get(RyzomApi.guildDirectoryUrl())
+        } catch (echec: ApiException) {
+            if (file.isFile) {
+                runCatching { EntityParser.parseOutposts(file.readBytes()) }
+                    .getOrNull()?.let { return@withContext it }
+            }
+            throw echec
+        }
+        val carte = EntityParser.parseOutposts(xml)
+        cacheDir.mkdirs()
+        file.writeBytes(xml)
+        carte
+    }
 
     private fun parse(entry: EntityStore.Suivie, xml: ByteArray): Entity =
         when (entry.kind) {

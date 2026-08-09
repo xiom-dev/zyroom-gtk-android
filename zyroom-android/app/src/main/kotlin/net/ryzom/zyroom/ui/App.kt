@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.MovementStore
+import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.data.Preferences
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.data.WatchStore
@@ -21,6 +22,7 @@ fun App(
     repository: Repository,
     watches: WatchStore,
     movements: MovementStore,
+    outposts: OutpostStore,
     preferences: Preferences,
 ) {
     var ouverte by remember { mutableStateOf<EntityStore.Suivie?>(null) }
@@ -39,6 +41,7 @@ fun App(
                 repository = repository,
                 watches = watches,
                 movements = movements,
+                outposts = outposts,
                 preferences = preferences,
                 onBack = { ouverte = null },
             )

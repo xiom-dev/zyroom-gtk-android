@@ -4,6 +4,7 @@ import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.ItemColor
+import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
 import net.ryzom.zyroom.model.SkillPoints
 import org.w3c.dom.Element
@@ -92,6 +93,28 @@ object EntityParser {
                 if (cle.isEmpty() || entite == null) null else cle to entite
             }
             .toMap()
+    }
+
+    /**
+     * L'annuaire des guildes, réduit à qui tient quoi.
+     *
+     * Le document liste toutes les guildes du serveur ; la plupart n'ont aucun
+     * avant-poste et ne laissent donc rien ici. Une guilde sans nom serait
+     * inexploitable à l'écran comme au journal : on la passe.
+     */
+    @Throws(ApiException::class)
+    fun parseOutposts(xml: ByteArray): List<Outpost> {
+        val root = document(xml)
+        checkError(root)
+        return root.children("guild").flatMap { guilde ->
+            val nom = guilde.text("name")
+            val emblème = guilde.text("icon")
+            if (nom.isEmpty()) emptyList()
+            else guilde.child("outposts")?.children("outpost").orEmpty()
+                .mapNotNull { it.textContent?.trim() }
+                .filter { it.isNotEmpty() }
+                .map { Outpost(code = it, guild = nom, icon = emblème) }
+        }
     }
 
     @Throws(ApiException::class)

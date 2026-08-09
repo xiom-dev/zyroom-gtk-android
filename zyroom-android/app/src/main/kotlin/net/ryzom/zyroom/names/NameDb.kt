@@ -55,8 +55,13 @@ class NameDb private constructor(private val names: Map<String, String>) {
         fun read(file: File): NameDb = parse(file.readBytes())
 
         /**
-         * N'extrait que les fiches d'items et les codes de compétences — le
-         * pack en contient vingt-six mille, dialogues et missions compris.
+         * N'extrait que ce que l'application sait nommer : les fiches d'items,
+         * les codes de compétences et les avant-postes — le pack en contient
+         * vingt-six mille, dialogues et missions compris.
+         *
+         * Les avant-postes se nomment `fyros_outpost_04.outpost` ; l'API, elle,
+         * ne rend que `fyros_outpost_04`, à quoi on rajoute le suffixe pour
+         * chercher ici.
          */
         fun parse(data: ByteArray): NameDb {
             val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
@@ -107,7 +112,10 @@ class NameDb private constructor(private val names: Map<String, String>) {
                 val raw = data.copyOfRange(valuePosition + 4,
                                            valuePosition + 4 + width * valueLength)
                 val value = String(raw, if (width == 2) Charsets.UTF_16LE else Charsets.UTF_8)
-                if (key.endsWith(".sitem") || SKILL_CODE.matches(key)) names[key] = value
+                if (key.endsWith(".sitem") || key.endsWith(".outpost") ||
+                    SKILL_CODE.matches(key)) {
+                    names[key] = value
+                }
                 index = valuePosition + 4 + width * valueLength
             }
             return NameDb(names)
