@@ -137,3 +137,17 @@ sont dans `~/.cache/zyroom-gtk/`.
 
 Aucune dépendance hors GTK : le réseau et le XML utilisent la bibliothèque
 standard de Python.
+
+## Tests
+
+```sh
+python3 -m unittest discover -s tests
+```
+
+Six tests, dont deux sur le vrai pack du client quand il est là. Le portage
+Android en compte soixante-trois ; celui-ci n'en avait aucun, et c'est
+justement dans le lecteur de pack qu'un défaut est resté invisible des mois —
+il perdait des noms sans rien signaler. Le cache des noms porte un numéro de
+format (`v2:`) en plus de l'empreinte du pack : sans lui, corriger le lecteur
+n'aurait servi à personne, chacun gardant la table incomplète tirée du même
+fichier.

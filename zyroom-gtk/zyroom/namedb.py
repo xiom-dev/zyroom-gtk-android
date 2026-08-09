@@ -50,8 +50,17 @@ def _parse_pack(data: bytes) -> dict[str, str]:
         if vlen > 100000 or vpos + 4 + width * vlen > n:
             i += 1
             continue
+        cle_brute = data[i + 4:i + 4 + klen]
+        # Une clé du pack est un identifiant : ni espace, ni octet accentué, ni
+        # caractère de contrôle. Sans cette vérification, une suite d'octets
+        # quelconque tombant au bon endroit passait pour un enregistrement, et
+        # le vrai qui commençait à l'intérieur était sauté — le parcours
+        # cherchant octet par octet quand un enregistrement ne se présente pas.
+        if not all(0x21 <= b <= 0x7E for b in cle_brute):
+            i += 1
+            continue
         try:
-            key = data[i + 4:i + 4 + klen].decode("latin-1")
+            key = cle_brute.decode("latin-1")
             raw = data[vpos + 4:vpos + 4 + width * vlen]
             val = raw.decode("utf-16-le") if width == 2 else raw.decode("utf-8")
         except Exception:
@@ -100,7 +109,13 @@ class NameDb:
             return False
         try:
             stat = os.stat(pack_path)
-            signature = f"{int(stat.st_mtime)}:{stat.st_size}"
+            # Le numéro de format en tête : le cache doit être refait quand les
+            # règles d'extraction changent, et pas seulement quand le pack
+            # change. Sans lui, la correction du lecteur n'aurait servi à
+            # personne — chacun aurait gardé la table incomplète tirée du même
+            # fichier. À incrémenter à chaque changement de _parse_pack ou du
+            # filtre ci-dessous.
+            signature = f"v2:{int(stat.st_mtime)}:{stat.st_size}"
             if self._cache_path and os.path.isfile(self._cache_path):
                 with open(self._cache_path, "r", encoding="utf-8") as fh:
                     cached = json.load(fh)
