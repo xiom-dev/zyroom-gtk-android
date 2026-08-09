@@ -108,14 +108,14 @@ for v in "${variantes[@]}"; do
     # La copie datée dans dist/ reste, elle, ce qu'on joint à une Release.
     case $v in
         guilde)
-            fichier=RyLune-Android_$nom.apk
+            fichier=V-RyLune-Android_$nom.apk
             affiche=$nom
-            servi=RyLune-Android.apk
+            servi=V-RyLune-Android.apk
             ;;
         dev)
-            fichier=RyLune-Android-dev_$nom.apk
+            fichier=V-RyLune-Android-dev_$nom.apk
             affiche=$nom-dev          # ce que l'APK annonce vraiment : versionNameSuffix
-            servi=RyLune-Android-dev.apk
+            servi=V-RyLune-Android-dev.apk
             ;;
     esac
     url=https://xiom-dev.github.io/zyroom-gtk-android/$servi

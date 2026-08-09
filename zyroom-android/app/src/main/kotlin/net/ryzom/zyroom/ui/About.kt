@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
  * les README le disent déjà — mais un joueur n'ira jamais les lire, et c'est à
  * lui que l'obligation s'adresse.
  *
- * Xiom est l'auteur de RyLune, et la ligne du bas le dit. La filiation reste
+ * Xiom est l'auteur de V-RyLune, et la ligne du bas le dit. La filiation reste
  * écrite ici, en dessous : cette application a été écrite en traduisant le
  * zyRoom Delphi de Misugi — coefficients de volume, capacités des contenants,
  * ordre des énumérations qui part dans les URL d'icônes, logique de lecture des
@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
  * Pas d'adresse de courriel : la licence n'en demande aucune, et une adresse
  * dans un APK public est ramassée par les robots. Le dépôt joue ce rôle.
  */
-const val SIGNATURE = "RyLune, une application de Xiom"
+const val SIGNATURE = "V-RyLune, une application de Xiom"
 
 const val DEPOT = "https://github.com/xiom-dev/zyroom-gtk-android"
 const val DEPOT_ORIGINE = "https://github.com/misugi/zyroom"
@@ -76,7 +76,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("RyLune $version") },
+        title = { Text("V-RyLune $version") },
         text = {
             // Cinq paragraphes ne tiennent pas sur un petit écran, et le corps
             // d'un AlertDialog ne défile pas de lui-même : sans cela, la fin du
@@ -91,12 +91,12 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "© 2026 Xiom, pour RyLune.",
+                    "© 2026 Xiom, pour V-RyLune.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
                     "Dérivée du zyRoom de Misugi, écrit en Delphi pour Windows, " +
-                        "© Misugi : RyLune en reprend les algorithmes et la lecture " +
+                        "© Misugi : V-RyLune en reprend les algorithmes et la lecture " +
                         "de l'API de Ryzom, et hérite donc de sa licence.",
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -123,7 +123,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "RyLune n'est pas affiliée à Winch Gate, éditeur de Ryzom.",
+                    "V-RyLune n'est pas affiliée à Winch Gate, éditeur de Ryzom.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

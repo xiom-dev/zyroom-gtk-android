@@ -46,7 +46,7 @@ android {
         // Nom au lanceur. Celui des joueurs reste nu : ils n'ont pas à lire un
         // numéro pour lancer leur application, et le bandeau de mise à jour le
         // leur dit quand il compte.
-        manifestPlaceholders["appLabel"] = "RyLune"
+        manifestPlaceholders["appLabel"] = "V-RyLune"
     }
 
     signingConfigs {
@@ -93,7 +93,7 @@ android {
             // et il serait faux au premier oubli. Passe par le manifeste et non
             // par une ressource : une ressource de variante et un resValue()
             // sur le même nom entrent en conflit.
-            manifestPlaceholders["appLabel"] = "RyLune (dev) ${nomDe("dev")}"
+            manifestPlaceholders["appLabel"] = "V-RyLune (dev) ${nomDe("dev")}"
             // Ce qui sépare les deux variantes est `MASQUE_COFFRES`, déclaré une
             // fois par variante dans src/<variante>/kotlin/. On aurait pu passer
             // par BuildConfig, mais l'activer fait générer du Java, donc appelle

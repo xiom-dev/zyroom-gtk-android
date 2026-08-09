@@ -1,4 +1,4 @@
-# RyLune — Android
+# V-RyLune — Android
 
 Vos inventaires Ryzom et les coffres de la guilde, hors du jeu. Kotlin et
 Jetpack Compose.
@@ -55,8 +55,8 @@ le même téléphone.
 
 | variante | identifiant | nom au lanceur | petit coffre de Nizy |
 |---|---|---|---|
-| `guilde` | `net.ryzom.zyroom` | RyLune | présent dans la liste, mais **vide** |
-| `dev` | `net.ryzom.zyroom.dev` | RyLune (dev) 1.0 | montré comme les autres |
+| `guilde` | `net.ryzom.zyroom` | V-RyLune | présent dans la liste, mais **vide** |
+| `dev` | `net.ryzom.zyroom.dev` | V-RyLune (dev) 2.0 | montré comme les autres |
 
 Le nom au lanceur de la variante dev porte son numéro : les deux applications
 cohabitant sur le même téléphone, c'est le seul endroit qui dise du premier coup

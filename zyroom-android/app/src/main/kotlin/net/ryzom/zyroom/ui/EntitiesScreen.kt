@@ -148,7 +148,7 @@ fun EntitiesScreen(
                 modifier = Modifier.height(120.dp),
                 title = {
                     Text(
-                        "RyLune",
+                        "V-RyLune",
                         fontFamily = Titrage,
                         fontSize = 58.sp,
                         lineHeight = 62.sp,
