@@ -1,5 +1,6 @@
 package net.ryzom.zyroom.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -25,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -147,8 +150,8 @@ private fun Possessions(carte: List<Outpost>, guilde: String, nameOf: (String) -
                     .thenBy { nameOf(it.nameKey) })
             if (siens.isEmpty()) return@forEach
             item(key = "peuple-$code") { EnTetePeuple(nom) }
-            items(siens, key = { it.code }) { avantPoste ->
-                Ligne(avantPoste, avantPoste.guild == guilde, nameOf)
+            itemsIndexed(siens, key = { _, o -> o.code }) { rang, avantPoste ->
+                Ligne(avantPoste, avantPoste.guild == guilde, rang % 2 == 0, nameOf)
             }
         }
         val orphelins = carte.filterNot { PEUPLES.any { (c, _) -> c == it.people } }
@@ -197,10 +200,24 @@ private fun EnTetePeuple(nom: String) {
  * l'autre.
  */
 @Composable
-private fun Ligne(avantPoste: Outpost, notre: Boolean, nameOf: (String) -> String) {
+private fun Ligne(
+    avantPoste: Outpost,
+    notre: Boolean,
+    zebre: Boolean,
+    nameOf: (String) -> String,
+) {
     val niveau = niveauDe(avantPoste.code)
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        Modifier.fillMaxWidth()
+            // Une ligne sur deux teintée du vert de l'application, très
+            // diluée : sur trois colonnes dont deux étroites, l'œil perd sa
+            // ligne en traversant. Le zébrage la tient mieux qu'un filet, qui
+            // hachait la lecture à chaque rang.
+            .background(
+                if (zebre) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
+                else Color.Transparent
+            )
+            .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -240,7 +257,6 @@ private fun Ligne(avantPoste: Outpost, notre: Boolean, nameOf: (String) -> Strin
             )
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 }
 
 @Composable

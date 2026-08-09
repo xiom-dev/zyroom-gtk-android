@@ -283,7 +283,7 @@ fun InventoryScreen(
                             FilterChip(
                                 selected = vue == Vue.AVANTPOSTES,
                                 onClick = { vue = Vue.AVANTPOSTES },
-                                label = { Text("⚔ Avant-postes") },
+                                label = { Text("⚔️ Avant-postes") },
                             )
                         }
                     }
