@@ -49,6 +49,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
@@ -88,6 +89,7 @@ fun EntitiesScreen(
     var majEnCours by remember { mutableStateOf(false) }
     var apropos by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    var agrandi by remember { mutableStateOf<String?>(null) }
     val contexte = LocalContext.current
 
     // À chaque retour au premier plan, et non une seule fois par lancement.
@@ -125,11 +127,17 @@ fun EntitiesScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
+                // La hauteur d'une barre de titre comprend l'encoche et la
+                // barre d'état du téléphone : quatre-vingt-quatre points n'en
+                // laissaient qu'une cinquantaine à la lettre, et la gothique y
+                // perdait ses hampes. Cent vingt lui vont.
+                modifier = Modifier.height(120.dp),
                 title = {
                     Text(
                         "RyLune",
                         fontFamily = Titrage,
-                        fontSize = 46.sp,
+                        fontSize = 58.sp,
+                        lineHeight = 62.sp,
                         color = MaterialTheme.colorScheme.secondary,
                     )
                 },
@@ -223,8 +231,12 @@ fun EntitiesScreen(
                                 AsyncImage(
                                     model = entree.vignette,
                                     contentDescription = null,
-                                    modifier = Modifier.height(72.dp)
-                                        .padding(end = 12.dp),
+                                    // Une tape sur l'image l'agrandit, comme un
+                                    // clic sur le bureau ; le reste de la carte
+                                    // ouvre l'inventaire.
+                                    modifier = Modifier.height(110.dp)
+                                        .padding(end = 12.dp)
+                                        .clickable { agrandi = entree.vignette },
                                 )
                             }
                             Column {
@@ -248,6 +260,16 @@ fun EntitiesScreen(
         // licence veut que l'interface le porte, pas seulement le dépôt.
         LigneSignature { apropos = true }
       }
+    }
+
+    agrandi?.let { adresse ->
+        Dialog(onDismissRequest = { agrandi = null }) {
+            AsyncImage(
+                model = adresse,
+                contentDescription = null,
+                modifier = Modifier.height(460.dp).clickable { agrandi = null },
+            )
+        }
     }
 
     if (apropos) AboutDialog { apropos = false }
