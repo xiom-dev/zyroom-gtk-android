@@ -219,10 +219,7 @@ private fun Ligne(
             // diluée : sur trois colonnes dont deux étroites, l'œil perd sa
             // ligne en traversant. Le zébrage la tient mieux qu'un filet, qui
             // hachait la lecture à chaque rang.
-            .background(
-                if (zebre) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
-                else Color.Transparent
-            )
+            .background(fondZebre(zebre))
             .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -289,11 +286,16 @@ private fun Journal(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(vertical = 8.dp),
     ) {
-        items(changements) { c ->
-            Row(Modifier.fillMaxWidth()) {
+        // Le retrait latéral passe dans la ligne : la bande de couleur doit
+        // aller d'un bord à l'autre, sinon elle flotte au milieu.
+        itemsIndexed(changements) { rang, c ->
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(fondZebre(rang % 2 == 0))
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+            ) {
                 Text(
                     if (c.lost) "▼" else "▲",
                     color = if (c.lost) SORTIE_OUTPOST else ENTREE_OUTPOST,

@@ -51,6 +51,19 @@ private val couleurs = darkColorScheme(
  */
 val Titrage = FontFamily(Font(R.font.pirata_one))
 
+/**
+ * Le fond d'une ligne sur deux, dans les listes qui se lisent en travers.
+ *
+ * Le vert de l'application, très dilué : sur des colonnes étroites l'œil perd
+ * sa ligne, et une teinte alternée la tient mieux qu'un filet, qui hachait la
+ * lecture à chaque rang. Défini ici, et non recopié dans chaque écran, pour que
+ * « le même zébrage » le reste.
+ */
+@Composable
+fun fondZebre(pair: Boolean): Color =
+    if (pair) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
+    else Color.Transparent
+
 @Composable
 fun ZyRoomTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = couleurs, content = content)

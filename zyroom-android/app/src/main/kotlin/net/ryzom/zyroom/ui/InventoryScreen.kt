@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -548,11 +549,16 @@ private fun JournalView(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            items(retenues) { mouvement ->
-                Row(Modifier.fillMaxWidth()) {
+            // Le retrait latéral passe dans la ligne : la bande de couleur doit
+            // aller d'un bord à l'autre, sinon elle flotte au milieu.
+            itemsIndexed(retenues) { rang, mouvement ->
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(fondZebre(rang % 2 == 0))
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                ) {
                     Text(
                         text = (if (mouvement.delta > 0) "+" else "") + mouvement.delta,
                         color = if (mouvement.delta > 0) ENTREE else SORTIE,
