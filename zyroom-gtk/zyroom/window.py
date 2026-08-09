@@ -197,13 +197,23 @@ class MainWindow(Gtk.ApplicationWindow):
         self._season_lbl = Gtk.Label(label="")
         bar1.append(self._season_lbl)
 
-        # MOTD (guilde) — masquée si vide
-        self._motd_lbl = Gtk.Label(xalign=0.0, wrap=True)
-        self._motd_lbl.add_css_class("dim-label")
-        self._motd_lbl.props.margin_start = 8
-        self._motd_lbl.props.margin_end = 8
-        self._motd_lbl.set_visible(False)
-        root.append(self._motd_lbl)
+        # MOTD (guilde) — masquée si vide. Encadrée comme sur Android : une
+        # ligne grise perdue entre deux rangées ne se remarquait pas, et c'est
+        # pourtant ce que les officiers écrivent à toute la guilde. Le mégaphone
+        # reste à part du texte pour que celui-ci s'aligne quand il passe à la
+        # ligne, au lieu de repartir sous l'icône.
+        self._motd_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._motd_box.add_css_class("motd")
+        self._motd_box.props.margin_start = 8
+        self._motd_box.props.margin_end = 8
+        self._motd_box.props.margin_top = 2
+        self._motd_box.props.margin_bottom = 2
+        self._motd_box.append(Gtk.Label(label="📢", valign=Gtk.Align.START))
+        self._motd_lbl = Gtk.Label(xalign=0.0, wrap=True, hexpand=True)
+        self._motd_box.append(self._motd_lbl)
+        self._motd_box.set_visible(False)
+        root.append(self._motd_box)
+        self._install_motd_css()
 
         # Deux vues : la grille d'inventaire et le journal des mouvements.
         # Le sélecteur d'entité reste au-dessus, il vaut pour les deux.
@@ -950,6 +960,21 @@ class MainWindow(Gtk.ApplicationWindow):
             self._display_inventory(idx)
 
     # --------------------------------------- En-tête entité + saison serveur
+    @staticmethod
+    def _install_motd_css() -> None:
+        """Le cadre du message du jour, dans les teintes de la fenêtre.
+
+        Une couleur fixe jurerait avec un thème clair : `@theme_bg_color`
+        mélangé de blanc suit celui du système, comme le fait l'encadré de
+        l'application Android avec son fond de surface."""
+        provider = Gtk.CssProvider()
+        provider.load_from_data(
+            b".motd { background: mix(@theme_bg_color, @theme_fg_color, 0.13);"
+            b" border-radius: 8px; padding: 8px 10px; }")
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
     def _update_entity_header(self, ent, entry) -> None:
         if ent.money:
             try:
@@ -960,10 +985,10 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             self._dappers_lbl.set_text("")
         if ent.motd:
-            self._motd_lbl.set_text(f"📢 {ent.motd}")
-            self._motd_lbl.set_visible(True)
+            self._motd_lbl.set_text(ent.motd)
+            self._motd_box.set_visible(True)
         else:
-            self._motd_lbl.set_visible(False)
+            self._motd_box.set_visible(False)
         self._load_portrait(ent, entry)
 
     _PORTRAIT_HEIGHT = 72
