@@ -697,9 +697,18 @@ private fun SkillsView(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            items(visibles, key = { it.skill.code }) { rang ->
+            // Le retrait latéral passe dans la ligne : la bande de couleur doit
+            // aller d'un bord à l'autre. Le zébrage suit ce qui est affiché,
+            // plié ou déplié — c'est le rang à l'écran qui compte, pas la place
+            // dans l'arbre.
+            itemsIndexed(visibles, key = { _, r -> r.skill.code }) { rangee, rang ->
+              Box(
+                  Modifier.fillMaxWidth()
+                      .background(fondZebre(rangee % 2 == 0))
+                      .padding(horizontal = 12.dp),
+              ) {
                 if (!filtrant && rang.depth == 0) {
                     Branche(
                         nom = nameOf(rang.skill.code),
@@ -730,6 +739,7 @@ private fun SkillsView(
                         },
                     )
                 }
+              }
             }
         }
     }
