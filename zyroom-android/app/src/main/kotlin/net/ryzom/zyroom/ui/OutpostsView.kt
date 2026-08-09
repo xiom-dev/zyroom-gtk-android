@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,11 +27,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.model.Outpost
+import net.ryzom.zyroom.model.niveauDe
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -45,6 +48,10 @@ private val PEUPLES = listOf(
 // qui sort.
 private val ENTREE_OUTPOST = androidx.compose.ui.graphics.Color(0xFF4CAF50)
 private val SORTIE_OUTPOST = androidx.compose.ui.graphics.Color(0xFFE05252)
+
+/** Largeurs fixes des deux colonnes de droite, pour que tout s'aligne. */
+private val LARGEUR_NIVEAU = 44.dp
+private val LARGEUR_GUILDE = 132.dp
 
 private val HORODATAGE_JOUR: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
@@ -133,47 +140,17 @@ private fun Possessions(carte: List<Outpost>, guilde: String, nameOf: (String) -
             )
         }
         PEUPLES.forEach { (code, nom) ->
-            val siens = parPeuple[code].orEmpty().sortedBy { nameOf(it.nameKey) }
+            val siens = parPeuple[code].orEmpty()
+                // Du plus haut niveau au plus bas, comme on lit une carte de
+                // conquête : les enjeux d'abord.
+                .sortedWith(compareByDescending<Outpost> { niveauDe(it.code) ?: -1 }
+                    .thenBy { nameOf(it.nameKey) })
             if (siens.isEmpty()) return@forEach
-            item(key = "peuple-$code") {
-                Text(
-                    nom,
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
-                )
-            }
+            item(key = "peuple-$code") { EnTetePeuple(nom) }
             items(siens, key = { it.code }) { avantPoste ->
-                val notre = avantPoste.guild == guilde
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // L'emblème dit la guilde d'un coup d'œil, mieux que son nom
-                    // écrit : c'est ce qu'on voit en jeu au-dessus des têtes.
-                    AsyncImage(
-                        model = RyzomApi.guildIconUrl(avantPoste.icon),
-                        contentDescription = null,
-                        modifier = Modifier.size(36.dp).padding(end = 10.dp),
-                    )
-                    Column {
-                        Text(
-                            nameOf(avantPoste.nameKey),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (notre) FontWeight.Bold else FontWeight.Normal,
-                            color = if (notre) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            avantPoste.guild,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                Ligne(avantPoste, avantPoste.guild == guilde, nameOf)
             }
         }
-        // Un peuple inconnu — l'API rend parfois un identifiant hors norme — ne
-        // doit pas faire disparaître la ligne en silence.
         val orphelins = carte.filterNot { PEUPLES.any { (c, _) -> c == it.people } }
         if (orphelins.isNotEmpty()) {
             item(key = "orphelins") {
@@ -188,6 +165,82 @@ private fun Possessions(carte: List<Outpost>, guilde: String, nameOf: (String) -
             }
         }
     }
+}
+
+/** L'en-tête d'un peuple, qui sert aussi d'en-tête de colonnes. */
+@Composable
+private fun EnTetePeuple(nom: String) {
+    Column(Modifier.padding(top = 14.dp)) {
+        Text(nom, style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp)) {
+            Text("Avant-poste", style = MaterialTheme.typography.labelSmall,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                 modifier = Modifier.weight(1f))
+            Text("Niv.", style = MaterialTheme.typography.labelSmall,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                 textAlign = TextAlign.Center, modifier = Modifier.width(LARGEUR_NIVEAU))
+            Text("Guilde", style = MaterialTheme.typography.labelSmall,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                 modifier = Modifier.width(LARGEUR_GUILDE))
+        }
+        HorizontalDivider()
+    }
+}
+
+/**
+ * Une ligne du tableau : l'avant-poste, son niveau, la guilde qui le tient.
+ *
+ * Trois colonnes, comme sur les sites qui recensent les avant-postes. Le nom
+ * peut passer sur deux lignes — « Centre de Recherche de la Promenade
+ * Caverneuse » ne tient pas sur un téléphone — et les deux autres colonnes
+ * gardent leur largeur pour que les niveaux restent alignés d'une ligne à
+ * l'autre.
+ */
+@Composable
+private fun Ligne(avantPoste: Outpost, notre: Boolean, nameOf: (String) -> String) {
+    val niveau = niveauDe(avantPoste.code)
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            nameOf(avantPoste.nameKey),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (notre) FontWeight.Bold else FontWeight.Normal,
+            color = if (notre) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f).padding(end = 6.dp),
+        )
+        Text(
+            // Un niveau inconnu se dit, plutôt que de laisser une case vide
+            // qu'on prendrait pour un zéro.
+            niveau?.toString() ?: "—",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(LARGEUR_NIVEAU),
+        )
+        Row(
+            Modifier.width(LARGEUR_GUILDE),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // L'emblème dit la guilde d'un coup d'œil, mieux que son nom écrit :
+            // c'est ce qu'on voit en jeu au-dessus des têtes.
+            AsyncImage(
+                model = RyzomApi.guildIconUrl(avantPoste.icon),
+                contentDescription = null,
+                modifier = Modifier.size(28.dp).padding(end = 6.dp),
+            )
+            Text(
+                avantPoste.guild,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 }
 
 @Composable

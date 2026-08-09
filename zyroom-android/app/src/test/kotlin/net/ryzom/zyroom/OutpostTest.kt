@@ -2,6 +2,8 @@ package net.ryzom.zyroom
 
 import net.ryzom.zyroom.api.EntityParser
 import net.ryzom.zyroom.data.OutpostStore
+import net.ryzom.zyroom.model.NIVEAUX_AVANT_POSTES
+import net.ryzom.zyroom.model.niveauDe
 import net.ryzom.zyroom.names.NameDb
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -85,6 +87,32 @@ class OutpostTest {
     fun `un état identique ne journalise rien`() {
         val etat = mapOf("a" to "La Lune Eternelle")
         assertTrue(store.diff(etat, etat).isEmpty())
+    }
+
+    /**
+     * La table des niveaux est figée dans le code, faute d'être dans l'API.
+     * Ces trois-là ont été recoupés avec deux sources indépendantes — le wiki
+     * et un site de recensement — et servent de témoin : si la table était
+     * régénérée de travers, ils tomberaient.
+     */
+    @Test
+    fun `les niveaux connus sont ceux des deux sources`() {
+        assertEquals(250, niveauDe("zorai_outpost_15"))   // Atelier des Ruines Zo-Kian
+        assertEquals(200, niveauDe("fyros_outpost_04"))   // Ferme de Malmontagne
+        assertEquals(50, niveauDe("tryker_outpost_06"))   // Poste d'Échange de Vertval
+        assertEquals(28, NIVEAUX_AVANT_POSTES.size)
+        // Cinquante à deux cent cinquante, par pas de cinquante : rien d'autre.
+        assertTrue(NIVEAUX_AVANT_POSTES.values.all { it in 50..250 && it % 50 == 0 })
+    }
+
+    /**
+     * Les avant-postes d'essai n'ont pas de niveau, et la table ne doit pas
+     * leur en inventer un : l'écran affiche un tiret.
+     */
+    @Test
+    fun `un avant-poste sans niveau connu n'en reçoit pas`() {
+        assertEquals(null, niveauDe("primes_outpost_01"))
+        assertEquals(null, niveauDe("code_inexistant"))
     }
 
     /**

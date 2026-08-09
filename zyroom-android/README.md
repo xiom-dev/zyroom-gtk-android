@@ -86,9 +86,22 @@ sa clé pour l'obtenir. `https://api.ryzom.com/guilds.php` en dit bien plus et
 **ne demande aucune clé** : les 2 420 guildes du serveur, avec leur nom, leur
 emblème et leurs avant-postes. C'est la seule source publique sur le sujet.
 
-Elle ne donne que la propriété. Ni niveau, ni production, ni horaire d'attaque :
-rien de tout cela n'est exposé — les sites qui l'affichent tiennent leur propre
-table. Les noms lisibles, eux, sont dans le pack livré, sous `<code>.outpost`.
+Elle ne donne que la propriété. Ni production, ni horaire d'attaque : rien de
+tout cela n'est exposé. Les noms lisibles, eux, sont dans le pack livré, sous
+`<code>.outpost`.
+
+**Le niveau non plus n'est pas dans l'API**, et c'est pourtant une donnée fixe :
+le wiki énonce la règle — « la qualité des produits correspond au niveau de
+récolte maximal dans la région où se situe l'avant-poste ». Un avant-poste ne
+change donc de niveau que si le jeu change. `model/OutpostLevels.kt` en tient la
+table, tirée du classement par étoiles de `fr.wiki.ryzom.com/wiki/Avant-postes`
+— une étoile pour cinquante niveaux — et recoupée avec `mymap.ryzom.eu.org` :
+vingt-sept valeurs communes, aucun désaccord. Les quatre `primes_outpost_*`,
+que le pack annonce « en test, instable », n'y figurent pas et s'affichent avec
+un tiret plutôt qu'un niveau inventé.
+
+À refaire si le jeu ajoute des avant-postes : c'est la seule partie de
+l'application qui vieillit toute seule.
 
 Le document pèse un demi-méga-octet et le serveur ne le compresse pas — moitié
 moins tout de même que le flux de guilde que l'application télécharge déjà. Ce
