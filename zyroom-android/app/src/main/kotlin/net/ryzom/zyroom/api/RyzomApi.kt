@@ -74,9 +74,10 @@ object RyzomApi {
      * rendent le même chiffre. Dépendre de l'officielle plutôt que d'un
      * intermédiaire, c'est ne rien perdre le jour où l'intermédiaire ferme.
      */
-    fun weatherUrl(continents: List<String>, cycles: Int): String =
+    fun weatherUrl(continents: List<String>, cycles: Int, passes: Int = 0): String =
         "$BASE_URL/weather.php?continent=" + continents.joinToString(",") +
-            "&cycles=" + cycles.coerceIn(0, 40)
+            "&cycles=" + cycles.coerceIn(0, 40) +
+            "&offset=" + passes.coerceIn(0, 8)
 
     /** Le temps d'Atys : saison, heure, date. Sans clé non plus. */
     fun timeUrl(): String = "$BASE_URL/time.php?format=json"

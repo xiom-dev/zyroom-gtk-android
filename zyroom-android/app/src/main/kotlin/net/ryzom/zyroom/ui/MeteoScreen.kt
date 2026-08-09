@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -33,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,11 +42,13 @@ import kotlinx.coroutines.launch
 import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
+import net.ryzom.zyroom.model.EXCELLENTES
+import net.ryzom.zyroom.model.SAISONS
+import net.ryzom.zyroom.model.SUPREMES
 import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
 import net.ryzom.zyroom.model.nomSaison
-import net.ryzom.zyroom.model.popDe
 import net.ryzom.zyroom.model.texteCondition
 import net.ryzom.zyroom.model.texteMeteo
 
@@ -108,6 +112,8 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                 Text(it, color = MaterialTheme.colorScheme.error,
                      modifier = Modifier.fillMaxWidth().padding(12.dp))
             }
+            val paysage = LocalConfiguration.current.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
             val donnees = releve
             if (donnees == null) {
                 Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -123,18 +129,23 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                 // vérifié sur quarante cycles. La répéter sous chaque zone
                 // n'apprendrait rien : elle est en tête, une fois.
                 item { EnTeteMeteo(donnees) }
-                itemsIndexed(CONTINENT_DE_ZONE.keys.toList()) { rang, zone ->
-                    Zone(zone, donnees, rang % 2 == 0)
-                }
                 item {
-                    Text(
-                        "Le relevé des sources est celui de la guilde, et il se " +
-                            "complète au fil des sorties : une case vide veut dire " +
-                            "« pas encore noté », pas « rien ».",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp),
+                    CourbeMeteo(
+                        cycles = cyclesDesPrimes(donnees),
+                        cycleCourant = donnees.cycleCourant,
+                        hauteur = if (paysage) 260 else 200,
                     )
+                }
+                item { TitreTableau("Suprêmes — " + nomSaison(donnees.saison)) }
+                itemsIndexed(SUPREMES[saisonCle(donnees.saison)]
+                                 ?.entries?.toList().orEmpty()) { rang, (zone, groupes) ->
+                    BlocMatieres(zone, groupes, rang % 2 == 0)
+                }
+                item { TitreTableau("Excellentes — " + nomSaison(donnees.saison)) }
+                itemsIndexed(EXCELLENTES[saisonCle(donnees.saison)]
+                                 ?.entries?.toList().orEmpty()) { rang, (moment, groupes) ->
+                    BlocMatieres(if (moment == "JOUR") "De jour" else "De nuit",
+                                 groupes, rang % 2 == 0)
                 }
             }
         }
@@ -201,36 +212,44 @@ private fun maintenantDansLesPrimes(releve: MeteoAtys): Meteo? {
     return cycles.firstOrNull { it.cycle == releve.cycleCourant } ?: cycles.firstOrNull()
 }
 
+/** Un titre de section du tableau. */
 @Composable
-private fun Zone(zone: String, releve: MeteoAtys, zebre: Boolean) {
-    val maintenant = maintenantDansLesPrimes(releve) ?: return
+private fun TitreTableau(titre: String) {
+    Text(
+        titre,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.secondary,
+        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 18.dp, bottom = 4.dp),
+    )
+}
 
+/**
+ * Une zone — ou un moment de la journée — et ce qu'on y fore.
+ *
+ * Le groupe à gauche, les matières à droite : c'est la disposition d'un
+ * tableau, et elle se lit en travers sans chercher.
+ */
+@Composable
+private fun BlocMatieres(titre: String, groupes: Map<String, List<String>>, zebre: Boolean) {
     Column(
         Modifier.fillMaxWidth()
             .background(fondZebre(zebre))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Text(zone, style = MaterialTheme.typography.titleMedium,
-             color = MaterialTheme.colorScheme.secondary)
-
-        val sortent = popDe(releve.saison, zone, maintenant.condition)
-        if (sortent.isEmpty()) {
-            Text(
-                "Rien de noté pour cette condition.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        } else {
-            sortent.forEach { (famille, matieres) ->
+        Text(titre, style = MaterialTheme.typography.titleSmall)
+        groupes.toSortedMap().forEach { (groupe, matieres) ->
+            Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
                 Text(
-                    "$famille : ${matieres.joinToString(", ")}",
+                    groupe,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 2.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(72.dp),
                 )
+                Text(matieres.joinToString(", "),
+                     style = MaterialTheme.typography.bodySmall,
+                     modifier = Modifier.weight(1f))
             }
         }
-
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 }
@@ -241,6 +260,9 @@ private fun couleurCondition(condition: String) = when (condition.lowercase()) {
     "good" -> MaterialTheme.colorScheme.secondary
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
+
+/** La clé de saison du relevé, « PRINTEMPS »… */
+private fun saisonCle(saison: Int): String = SAISONS.getOrElse(saison) { "" }
 
 /** « 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule. */
 private fun duree(minutes: Int): String =

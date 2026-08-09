@@ -166,7 +166,9 @@ class Repository(
     @Throws(ApiException::class)
     suspend fun meteo(cycles: Int = 20): MeteoAtys = withContext(Dispatchers.IO) {
         val continents = CONTINENT_DE_ZONE.values.distinct()
-        val brut = String(RyzomApi.get(RyzomApi.weatherUrl(continents, cycles)))
+        // Quelques cycles passés en plus : sans eux la courbe commence à
+        // l'instant présent, et le trait du « maintenant » se colle au bord.
+        val brut = String(RyzomApi.get(RyzomApi.weatherUrl(continents, cycles, passes = 6)))
         val (cycle, parContinent) = EntityParser.parseWeather(brut)
         // La saison vient d'un autre appel : le flux météo ne la porte pas, et
         // c'est elle qui dit quelle page du relevé regarder.
