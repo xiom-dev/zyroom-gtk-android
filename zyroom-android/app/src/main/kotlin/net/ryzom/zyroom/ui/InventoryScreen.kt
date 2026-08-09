@@ -657,6 +657,27 @@ private fun SkillsView(
                     label = { Text("En cours") },
                 )
             }
+            // Un seul bouton plutôt que deux : son nom dit ce qu'il va faire,
+            // et il n'y a jamais qu'une action sensée à proposer. Il disparaît
+            // quand une recherche ou un filtre est actif, la liste étant alors
+            // plate et le repli sans objet.
+            if (!filtrant) {
+                item {
+                    val quelqueChoseOuvert = depliees.isNotEmpty()
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            depliees = if (quelqueChoseOuvert) emptySet()
+                                       else arbre.filter { it.hasChildren }
+                                           .map { it.skill.code }.toSet()
+                        },
+                        label = {
+                            Text(if (quelqueChoseOuvert) "Tout replier"
+                                 else "Tout déplier")
+                        },
+                    )
+                }
+            }
         }
 
         if (visibles.isEmpty()) {
