@@ -103,6 +103,22 @@ fun EntitiesScreen(
         }
     }
 
+    // Les vignettes des entités déjà en cache, pour celles qui n'en ont pas
+    // encore. L'adresse se déduit du flux, et le flux n'était relu qu'à
+    // l'ouverture d'une entité : après une mise à jour, les cartes restaient
+    // nues jusqu'à ce qu'on les ouvre une à une. Ici on lit le cache, sans
+    // réseau ; une entité jamais consultée n'a rien à lire et prendra sa
+    // vignette à sa première ouverture.
+    LaunchedEffect(entrees.size) {
+        val manquantes = entrees.filter { it.vignette.isEmpty() }
+        if (manquantes.isEmpty()) return@LaunchedEffect
+        manquantes.forEach { entree ->
+            val connue = repository.cached(entree) ?: return@forEach
+            store.rename(entree, connue.name, connue.portraitUrl)
+        }
+        entrees = store.all()
+    }
+
     // Import du `string_client.pack` : sur un téléphone, il n'y a pas
     // d'installation de Ryzom où aller le chercher.
     val portee = rememberCoroutineScope()
