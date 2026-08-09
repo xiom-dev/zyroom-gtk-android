@@ -37,7 +37,7 @@ ICON_SIZE = 48
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
 APP_NAME = ("ZyRoom-GTK-dev-0.4"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
-            else "ZyRoom-GTK-0.3")
+            else "ZyRoom-GTK-0.4")
 
 #: Signature affichée en bas de la fenêtre principale.
 SIGNATURE = "Original by Misugi, fork by Xiom"
