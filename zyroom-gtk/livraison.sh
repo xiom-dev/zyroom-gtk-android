@@ -126,6 +126,13 @@ for v in "${variantes[@]}"; do
     flatpak build-bundle "$depot_publie" "dist/$etiquette.flatpak" \
         --repo-url="$url_depot" --gpg-keys="$cle_publique" "$app" master
     (cd dist && sha256sum "$etiquette.flatpak")
+
+    # Une copie sous un nom fixe sur la page : c'est le lien qu'on donne aux
+    # joueurs. Il ne change jamais et pointe droit sur le fichier — une adresse
+    # qui change à chaque version, ou qui mène à une page où il faut chercher,
+    # ne convient pas à des gens qui ne connaissent pas GitHub.
+    servi=$([ "$v" = dev ] && echo "ZyRoom-GTK-dev.flatpak" || echo "ZyRoom-GTK.flatpak")
+    cp "dist/$etiquette.flatpak" "$racine/../pages/$servi"
 done
 
 echo
