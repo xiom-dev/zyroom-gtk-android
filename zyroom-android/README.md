@@ -36,12 +36,13 @@ Android.
 | `ui/About.kt` | l'auteur, la filiation et les avis que l'AGPL demande à l'interface de porter |
 | `ui/Theme.kt` | les teintes du logo, et le lettrage du titre |
 
-Le titre est composé en **Pirata One**, police libre sous SIL Open Font License
-1.1. Cette licence veut que son texte et sa mention de droits voyagent avec la
-police : il est donc à la fois dans `licenses/OFL-PirataOne.txt` et embarqué dans
-l'APK (`app/src/main/assets/`), et l'écran d'information la cite. « Pirata » est
-un *Reserved Font Name* — le fichier ne doit pas être renommé pour désigner une
-version modifiée.
+Le titre est composé en **Pirata One**, et son V initial en **Cinzel
+Decorative** — la gothique dessine un V qui se lit comme un U. Les deux polices
+sont libres sous SIL Open Font License 1.1. Cette licence veut que son texte et sa mention de droits voyagent avec la
+police : leur texte est donc à la fois dans `licenses/` et embarqué dans
+l'APK (`app/src/main/assets/`), et l'écran d'information les cite. « Pirata »
+et « Cinzel » sont des *Reserved Font Names* — les fichiers ne doivent pas être
+renommés pour désigner une version modifiée.
 
 La couleur du vert vit à deux endroits, faute de mieux : `Theme.kt` pour
 l'interface, et `res/values/colors.xml` pour la barre de navigation du système,

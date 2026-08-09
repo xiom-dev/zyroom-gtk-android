@@ -117,7 +117,8 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 // droits voyagent avec la police : le fichier est dans l'APK
                 // (assets/OFL-PirataOne.txt) et dans le dépôt.
                 Text(
-                    "Lettrage : Pirata One, © Rodrigo Fuenzalida et Nicolas Massi, " +
+                    "Lettrage : Pirata One, © Rodrigo Fuenzalida et Nicolas Massi ; " +
+                        "capitale Cinzel Decorative, © Natanael Gama. Toutes deux " +
                         "sous SIL Open Font License 1.1.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

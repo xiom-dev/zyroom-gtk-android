@@ -52,6 +52,18 @@ private val couleurs = darkColorScheme(
 val Titrage = FontFamily(Font(R.font.pirata_one))
 
 /**
+ * La capitale du titre : Cinzel Decorative, une romaine gravée.
+ *
+ * Le V de la gothique se confond avec un U — c'est le défaut du dessin, pas de
+ * la lecture. Cette capitale-là, inspirée des inscriptions romaines, le tranche
+ * nettement tout en restant du même monde que le reste du titre.
+ *
+ * Libre sous SIL Open Font License 1.1, texte dans `licenses/` et dans l'APK,
+ * comme pour Pirata One. « Cinzel » est un Reserved Font Name.
+ */
+val Capitale = FontFamily(Font(R.font.cinzel_decorative))
+
+/**
  * Le fond d'une ligne sur deux, dans les listes qui se lisent en travers.
  *
  * Le vert de l'application, très dilué : sur des colonnes étroites l'œil perd

@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -153,14 +154,13 @@ fun EntitiesScreen(
                 modifier = Modifier.height(120.dp),
                 title = {
                     // Le V de la gothique se lit comme un U : il est composé à
-                    // part, dans une romane à empattements — la lettre des
-                    // livres — qui le dessine sans ambiguïté. Le reste garde le
-                    // lettrage gravé, et l'or est le même pour les deux.
+                    // part, dans une capitale romaine gravée, qui le dessine
+                    // sans ambiguïté. Le reste garde le lettrage gothique, et
+                    // l'or est le même pour les deux.
                     Text(
                         buildAnnotatedString {
                             withStyle(SpanStyle(
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Bold,
+                                fontFamily = Capitale,
                                 fontSize = 50.sp,
                             )) { append("V") }
                             withStyle(SpanStyle(fontFamily = Titrage)) { append("-RyLune") }
@@ -218,6 +218,7 @@ fun EntitiesScreen(
             }
         }
         if (entrees.isEmpty()) {
+
             Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
                 Text(
                     "Aucune entité.\nAjoutez un personnage ou une guilde par sa clé d'API.",
