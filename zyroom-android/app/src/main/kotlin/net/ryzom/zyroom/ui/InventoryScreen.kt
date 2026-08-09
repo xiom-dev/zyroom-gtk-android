@@ -711,7 +711,7 @@ private fun SkillsView(
               ) {
                 if (!filtrant && rang.depth == 0) {
                     Branche(
-                        nom = nameOf(rang.skill.code),
+                        nom = nomDeBranche(rang.skill.code, nameOf),
                         // Le niveau d'une racine plafonne bas — Combat vaut 20 :
                         // c'est le plus haut de ses descendants qui dit où en est
                         // la branche.
@@ -745,6 +745,16 @@ private fun SkillsView(
     }
 }
 
+/**
+ * Le nom d'une branche, raccourci quand celui du jeu est trop long.
+ *
+ * Le pack appelle la branche de forage « Extraire les matières premières » :
+ * une phrase là où les trois autres tiennent en un mot, et qui déborde sur un
+ * téléphone. Les autres gardent le nom du jeu.
+ */
+private fun nomDeBranche(code: String, nameOf: (String) -> String): String =
+    if (code == "sh") "Extraction" else nameOf(code)
+
 @Composable
 private fun Branche(
     nom: String,
@@ -760,12 +770,21 @@ private fun Branche(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (depliee) "▾" else "▸", modifier = Modifier.width(20.dp))
+            // Les quatre branches dans l'or des titres, comme les peuples du
+            // tableau des avant-postes : ce sont les repères qu'on cherche en
+            // faisant défiler.
             Text(
                 nom,
                 style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.weight(1f),
             )
-            Text(niveau.toString(), style = MaterialTheme.typography.titleSmall)
+            Text(
+                niveau.toString(),
+                style = MaterialTheme.typography.titleSmall,
+                color = if (niveau >= NIVEAU_MAX) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.secondary,
+            )
         }
         points?.let {
             Text(
@@ -777,6 +796,9 @@ private fun Branche(
         }
     }
 }
+
+/** Le plafond du jeu : au-delà, une compétence ne monte plus. */
+private const val NIVEAU_MAX = 250
 
 @Composable
 private fun Competence(
@@ -795,6 +817,14 @@ private fun Competence(
             // échelons, et les noms de l'artisanat sont longs.
             .padding(start = 20.dp + 12.dp * (profondeur - 1), top = 5.dp, bottom = 5.dp),
     ) {
+        // Une compétence au plafond est finie : elle passe au vert, nom compris,
+        // pour qu'on repère d'un coup d'œil ce qui reste à monter.
+        val finie = skill.level >= NIVEAU_MAX
+        val teinte = when {
+            finie -> MaterialTheme.colorScheme.primary
+            skill.progress > 0 -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurface
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             // La place de la flèche est tenue même pour une feuille : sans elle,
             // les noms d'un même échelon ne s'aligneraient pas.
@@ -803,14 +833,18 @@ private fun Competence(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.width(14.dp),
             )
-            Text(nom, style = MaterialTheme.typography.bodyMedium,
-                 modifier = Modifier.weight(1f))
+            Text(
+                nom,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (finie) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 if (skill.progress > 0) "${skill.level} · ${skill.progress} %"
                 else skill.level.toString(),
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (skill.progress > 0) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface,
+                color = teinte,
             )
         }
         // La barre ne s'affiche que pour un niveau entamé : sur cent soixante-dix
