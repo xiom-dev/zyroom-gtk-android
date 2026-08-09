@@ -49,7 +49,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
@@ -89,7 +88,6 @@ fun EntitiesScreen(
     var majEnCours by remember { mutableStateOf(false) }
     var apropos by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
-    var agrandi by remember { mutableStateOf<String?>(null) }
     val contexte = LocalContext.current
 
     // À chaque retour au premier plan, et non une seule fois par lancement.
@@ -221,22 +219,22 @@ fun EntitiesScreen(
                         ),
                     ) {
                         Row(
-                            Modifier.padding(12.dp),
+                            Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             // Le rendu 3D du personnage, ou l'emblème de la
                             // guilde. Rien tant que l'API n'a pas répondu une
                             // première fois : l'adresse se déduit du flux.
                             if (entree.vignette.isNotEmpty()) {
+                                // Une vignette carrée, à la hauteur qu'occupent
+                                // déjà les deux lignes de texte : la carte garde
+                                // ainsi exactement la taille qu'elle avait avant
+                                // qu'on l'illustre.
                                 AsyncImage(
                                     model = entree.vignette,
                                     contentDescription = null,
-                                    // Une tape sur l'image l'agrandit, comme un
-                                    // clic sur le bureau ; le reste de la carte
-                                    // ouvre l'inventaire.
-                                    modifier = Modifier.height(72.dp)
-                                        .padding(end = 12.dp)
-                                        .clickable { agrandi = entree.vignette },
+                                    modifier = Modifier.size(44.dp)
+                                        .padding(end = 12.dp),
                                 )
                             }
                             Column {
@@ -260,16 +258,6 @@ fun EntitiesScreen(
         // licence veut que l'interface le porte, pas seulement le dépôt.
         LigneSignature { apropos = true }
       }
-    }
-
-    agrandi?.let { adresse ->
-        Dialog(onDismissRequest = { agrandi = null }) {
-            AsyncImage(
-                model = adresse,
-                contentDescription = null,
-                modifier = Modifier.height(460.dp).clickable { agrandi = null },
-            )
-        }
     }
 
     if (apropos) AboutDialog { apropos = false }

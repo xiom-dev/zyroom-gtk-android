@@ -177,34 +177,51 @@ object EntityParser {
     }
 
     /**
-     * Le rendu 3D du personnage, chez Ballistic Mystix.
+     * Le buste du personnage, chez Ballistic Mystix.
      *
      * L'API de Ryzom ne dessine pas les personnages ; elle décrit leur corps —
-     * gabarit, morphologie, cheveux, yeux — et un service tiers en fait une
-     * image. Porté tel quel de la version GTK, en HTTPS : Android refuse le
-     * trafic en clair depuis Android 9, et le service répond aux deux.
+     * gabarit, morphologie, cheveux, yeux — et leur équipement, et ce service
+     * en fait une image. `zoom=face` cadre la tête et les épaules ; sans lui on
+     * obtient le corps entier, deux fois plus haut que large.
      *
-     * Sans bloc `<body>`, il n'y a rien à dessiner et l'URL reste vide.
+     * Tout l'équipement visible est transmis, et pas seulement le plastron : le
+     * personnage apparaissait sinon en sous-vêtements, casque et armure
+     * absents. Les bijoux, eux, ne se rendent pas.
+     *
+     * En HTTPS : Android refuse le trafic en clair depuis Android 9, et le
+     * service répond aux deux. Sans bloc `<body>`, il n'y a rien à dessiner.
      */
     private fun portraitDe(node: Element): String {
         val body = node.child("body") ?: return ""
         val gabarit = body.child("gabarit")
         val morph = body.child("morph")
-        val chest = node.child("equipment")?.child("chest")
+        val equipement = node.child("equipment")
         val taille = listOf("height", "torso", "arms", "legs", "breast")
             .joinToString(",") { gabarit?.getAttribute(it).orEmpty().ifEmpty { "0" } }
         val visage = (1..8)
             .joinToString(",") { morph?.getAttribute("target$it").orEmpty().ifEmpty { "0" } }
+        // Les noms de créneaux du service sont ceux du flux, à l'exception du
+        // casque : « head » ici, « headdress » là-bas.
+        val pieces = listOf(
+            "head" to "headdress", "chest" to "chest", "arms" to "arms",
+            "hands" to "hands", "legs" to "legs", "feet" to "feet",
+            "handl" to "handl", "handr" to "handr",
+        ).mapNotNull { (parametre, balise) ->
+            val piece = equipement?.child(balise) ?: return@mapNotNull null
+            val fiche = piece.textContent?.trim().orEmpty()
+            if (fiche.isEmpty()) null
+            else "$parametre=$fiche/" + piece.getAttribute("color").ifEmpty { "0" }
+        }
         return "https://api.bmsite.net/char/render/3d/180" +
-            "?race=" + node.text("race").take(2) +
+            "?zoom=face" +
+            "&race=" + node.text("race").take(2) +
             "&gender=" + node.text("gender") +
             "&hair=" + body.text("hairtype") + "/" + body.text("haircolor") +
             "&tattoo=" + body.text("tattoo") +
             "&eyes=" + body.text("eyescolor") +
             "&gabarit=" + taille +
             "&morph=" + visage +
-            "&chest=" + (chest?.textContent?.trim().orEmpty()) +
-            "/" + (chest?.getAttribute("color").orEmpty().ifEmpty { "0" })
+            pieces.joinToString("") { "&$it" }
     }
 
     /**
