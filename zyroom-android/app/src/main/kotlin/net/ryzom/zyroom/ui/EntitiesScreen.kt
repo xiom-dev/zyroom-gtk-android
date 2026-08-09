@@ -234,7 +234,7 @@ fun EntitiesScreen(
                                     // Une tape sur l'image l'agrandit, comme un
                                     // clic sur le bureau ; le reste de la carte
                                     // ouvre l'inventaire.
-                                    modifier = Modifier.height(110.dp)
+                                    modifier = Modifier.height(72.dp)
                                         .padding(end = 12.dp)
                                         .clickable { agrandi = entree.vignette },
                                 )
