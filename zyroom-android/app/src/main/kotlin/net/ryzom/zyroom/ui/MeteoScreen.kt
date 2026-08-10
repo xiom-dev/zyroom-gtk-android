@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.data.Repository
@@ -68,7 +69,10 @@ import net.ryzom.zyroom.model.texteMeteo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
+    // Deux états : ce que l'API a rendu, et le même recalé sur l'instant
+    // présent. Le second seul est affiché ; le premier sert de base au calcul.
     var releve by remember { mutableStateOf<MeteoAtys?>(null) }
+    var affiche by remember { mutableStateOf<MeteoAtys?>(null) }
     var erreur by remember { mutableStateOf<String?>(null) }
     var occupe by remember { mutableStateOf(true) }
     val portee = rememberCoroutineScope()
@@ -78,6 +82,7 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
         erreur = null
         try {
             releve = repository.meteo()
+            affiche = releve
         } catch (echec: ApiException) {
             erreur = echec.message
         }
@@ -85,6 +90,26 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
     }
 
     LaunchedEffect(Unit) { charger() }
+
+    // Le temps d'Atys avance tout seul : on ne redemande rien, on recale
+    // l'affichage. Toutes les dix secondes, soit un pas de trois heures et
+    // vingt d'Atys — le trait glisse au lieu de sauter. Les cycles reçus
+    // couvrent plusieurs heures ; quand le présent approche du bout de la
+    // prévision, on redemande une fois.
+    LaunchedEffect(releve) {
+        while (true) {
+            delay(10_000)
+            val base = releve ?: break
+            val avance = base.aPresent()
+            val dernier = avance.continents.values.firstOrNull()?.lastOrNull()
+            if (dernier != null && avance.cycleCourant > dernier.cycle - 4) {
+                // Bientôt à court de prévision : on va en rechercher, une fois.
+                charger()
+                break
+            }
+            affiche = avance
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -114,7 +139,7 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
             }
             val paysage = LocalConfiguration.current.orientation ==
                 android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            val donnees = releve
+            val donnees = affiche
             if (donnees == null) {
                 Box(Modifier.fillMaxSize(), Alignment.Center) {
                     if (occupe) CircularProgressIndicator()

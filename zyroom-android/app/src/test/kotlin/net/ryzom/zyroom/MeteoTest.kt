@@ -67,4 +67,38 @@ class MeteoTest {
         assertEquals(300.0, heure, 0.001)
         assertEquals(0.0, MeteoAtys(cycle, heure, 0, emptyMap()).avancementDuCycle, 0.001)
     }
+
+    /**
+     * Le temps d'Atys avance à cadence fixe : on le suit sans rien redemander.
+     *
+     * Une heure d'Atys vaut trois minutes réelles, un cycle en vaut trois.
+     */
+    @Test
+    fun `neuf minutes réelles font un cycle`() {
+        val (cycle, heure, continents) = EntityParser.parseWeather(flux)
+        val depart = MeteoAtys(cycle, heure, 0, continents, prisA = 0)
+        val apres = depart.aPresent(maintenant = 9 * 60 * 1000L)
+        assertEquals(depart.cycleCourant + 1, apres.cycleCourant)
+    }
+
+    @Test
+    fun `trois minutes réelles font une heure d'Atys`() {
+        val (cycle, heure, continents) = EntityParser.parseWeather(flux)
+        val depart = MeteoAtys(cycle, heure, 0, continents, prisA = 0)
+        assertEquals(heure + 1, depart.aPresent(3 * 60 * 1000L).heureAtys, 0.01)
+    }
+
+    @Test
+    fun `la série des cycles ne bouge pas, seul le curseur avance`() {
+        val (cycle, heure, continents) = EntityParser.parseWeather(flux)
+        val depart = MeteoAtys(cycle, heure, 0, continents, prisA = 0)
+        assertEquals(depart.continents, depart.aPresent(60_000L).continents)
+    }
+
+    @Test
+    fun `sans temps écoulé, rien ne change`() {
+        val (cycle, heure, continents) = EntityParser.parseWeather(flux)
+        val depart = MeteoAtys(cycle, heure, 0, continents, prisA = 1000)
+        assertEquals(depart.heureAtys, depart.aPresent(1000).heureAtys, 0.0001)
+    }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -21,7 +22,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import net.ryzom.zyroom.model.HEURES_PAR_CYCLE
-import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
+import net.ryzom.zyroom.model.MINUTES_PAR_HEURE_ATYS
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
 import net.ryzom.zyroom.model.estLaNuit
@@ -29,24 +30,35 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
- * L'humidité dans le temps, en marches d'escalier.
+ * Ce que la courbe montre, en heures d'Atys, et où s'y tient le présent.
  *
- * **Le jeu ne fait pas varier la météo en continu.** Une valeur vaut pour tout
- * un cycle — trois heures d'Atys, neuf minutes réelles — puis saute à la
- * suivante. Relier les points par des segments obliques dessinait des crêtes
- * qui n'existent pas et déplaçait les moments intéressants : la fenêtre
- * excellente n'est pas un sommet qu'on rate, c'est un palier qui dure.
+ * Vingt-quatre heures d'Atys valent soixante-douze minutes réelles : de quoi
+ * voir une heure d'avance et un bon quart d'heure de passé. Le trait du présent
+ * se tient à un sixième de la largeur — c'est ce qui vient qui compte, le passé
+ * ne sert qu'à comprendre d'où l'on sort. Pas contre le bord pour autant : on
+ * veut encore voir le palier qu'on quitte.
+ */
+private const val FENETRE_HEURES = 24.0
+private const val ANCRE = 0.15
+
+/**
+ * L'humidité dans le temps, **en marches d'escalier**.
  *
- * C'est ce que trace le calendrier d'Atys de Ballistic Mystix, en répétant la
- * valeur sur les trois heures du cycle ; on fait pareil, en marches.
+ * Le jeu ne fait pas varier la météo en continu : une valeur vaut pour tout un
+ * cycle — trois heures d'Atys, neuf minutes réelles — puis saute à la suivante.
+ * Relier les points par des obliques dessinait des crêtes qui n'existent pas et
+ * déplaçait les moments intéressants : la fenêtre excellente n'est pas un
+ * sommet qu'on rate, c'est un palier qui dure.
  *
- * Les trois traits horizontaux sont les seuils du jeu — 16,66 %, 50 % et
+ * **C'est le graphique qui défile, pas le trait.** Le présent se tient près du
+ * bord gauche et la courbe glisse dessous, comme un sismographe : on garde
+ * ainsi toujours la même avance sous les yeux, au lieu de voir le trait dériver
+ * vers le bord jusqu'à sortir de la vue.
+ *
+ * Les trois traits en pointillé sont les seuils du jeu — 16,66 %, 50 % et
  * 83,33 % — qui découpent les quatre conditions de gisement : sous le premier,
  * c'est excellent. Les bandes sombres sont les nuits d'Atys, que le jeu compte
  * de 22 h à 3 h : ce sont elles qui décident des matières excellentes de nuit.
- * L'axe du temps est en heures réelles — annoncer des numéros de cycle ne
- * parlerait à personne — et le trait vertical marque l'instant présent, tout ce
- * qui est à sa droite étant une prévision que le jeu calcule et non devine.
  */
 @Composable
 fun CourbeMeteo(
@@ -78,28 +90,50 @@ fun CourbeMeteo(
             val haut = size.height - margeBas
             if (largeur <= 0f || haut <= 0f) return@Canvas
 
-            // L'axe se compte en cycles, bornes comprises : le dernier palier
-            // occupe une case comme les autres, sinon la courbe s'arrêterait
-            // avant le bord.
-            val cases = cycles.size.toFloat()
-            fun x(position: Float) = margeGauche + largeur * position / cases
+            // Tout se repère en heures d'Atys, et non en indices de cycle :
+            // c'est ce qui permet à la fenêtre de glisser continûment sous un
+            // trait fixe, au lieu de sauter de trois heures en trois heures.
+            val gauche = releve.heureAtys - ANCRE * FENETRE_HEURES
+            fun x(heure: Double) =
+                margeGauche + largeur * ((heure - gauche) / FENETRE_HEURES).toFloat()
             fun y(valeur: Double) = haut * (1f - valeur.toFloat()).coerceIn(0f, 1f)
 
-            // Les nuits d'Atys, sous tout le reste. Elles se comptent par heure
-            // et non par cycle : un cycle de trois heures enjambe volontiers le
-            // lever du jour, et l'ombrer en entier avancerait la nuit d'une
-            // heure ou deux.
-            val heurePremiere = cycles.first().cycle.toLong() * HEURES_PAR_CYCLE
-            val parCycle = 1f / HEURES_PAR_CYCLE
-            repeat(cycles.size * HEURES_PAR_CYCLE) { h ->
-                if (estLaNuit((((heurePremiere + h) % 24 + 24) % 24).toInt())) {
-                    drawRect(couleurNuit, Offset(x(h * parCycle), 0f),
-                             Size(largeur * parCycle / cases, haut))
+            clipRect(left = margeGauche, top = 0f, right = size.width, bottom = haut) {
+                // Les nuits, comptées par heure et non par cycle : un cycle de
+                // trois heures enjambe volontiers le lever du jour.
+                val largeurHeure = largeur / FENETRE_HEURES.toFloat()
+                var heure = gauche.toLong() - 1
+                while (heure < gauche + FENETRE_HEURES + 2) {
+                    if (estLaNuit(((heure % 24 + 24) % 24).toInt())) {
+                        drawRect(couleurNuit, Offset(x(heure.toDouble()), 0f),
+                                 Size(largeurHeure, haut))
+                    }
+                    heure++
                 }
+
+                // La courbe en marches et son aire : l'aire fait lire d'un coup
+                // les creux, qui sont justement les bonnes fenêtres. Un cycle
+                // couvre trois heures : son palier va de `cycle * 3` à
+                // `(cycle + 1) * 3`.
+                val trace = Path()
+                val aire = Path()
+                aire.moveTo(x(cycles.first().cycle * HEURES_PAR_CYCLE.toDouble()), haut)
+                cycles.forEachIndexed { i, m ->
+                    val debut = x(m.cycle * HEURES_PAR_CYCLE.toDouble())
+                    val fin = x((m.cycle + 1) * HEURES_PAR_CYCLE.toDouble())
+                    val py = y(m.value)
+                    if (i == 0) trace.moveTo(debut, py) else trace.lineTo(debut, py)
+                    trace.lineTo(fin, py)
+                    aire.lineTo(debut, py)
+                    aire.lineTo(fin, py)
+                }
+                aire.lineTo(x((cycles.last().cycle + 1) * HEURES_PAR_CYCLE.toDouble()), haut)
+                aire.close()
+                drawPath(aire, remplissage)
+                drawPath(trace, couleurCourbe, style = Stroke(width = 3.5f))
             }
 
-            // Les trois seuils, en pointillé : ce sont eux qui décident de la
-            // condition, la courbe seule ne dit rien.
+            // Les seuils, par-dessus la courbe, et leur étiquette dans la marge.
             val pointille = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
             listOf(0.1666f to "16", 0.5f to "50", 0.8333f to "83").forEach { (v, texte) ->
                 val yy = y(v.toDouble())
@@ -109,69 +143,44 @@ fun CourbeMeteo(
                           couleurTexte)
             }
 
-            // La courbe en marches et son aire : l'aire fait lire d'un coup les
-            // creux, qui sont justement les bonnes fenêtres.
-            val trace = Path()
-            val aire = Path()
-            aire.moveTo(x(0f), haut)
-            cycles.forEachIndexed { i, m ->
-                val gauche = x(i.toFloat())
-                val droite = x(i + 1f)
-                val py = y(m.value)
-                if (i == 0) trace.moveTo(gauche, py) else trace.lineTo(gauche, py)
-                trace.lineTo(droite, py)
-                aire.lineTo(gauche, py)
-                aire.lineTo(droite, py)
-            }
-            aire.lineTo(x(cases), haut)
-            aire.close()
-            drawPath(aire, remplissage)
-            drawPath(trace, couleurCourbe, style = Stroke(width = 3.5f))
-
-            // Le trait du « maintenant », posé à l'intérieur du cycle en cours :
-            // l'API donne l'heure d'Atys avec ses décimales, autant s'en servir.
-            val iMaintenant = cycles.indexOfFirst { it.cycle == releve.cycleCourant }
-            if (iMaintenant >= 0) {
-                val px = x(iMaintenant + releve.avancementDuCycle.toFloat())
-                drawLine(couleurMaintenant, Offset(px, 0f), Offset(px, haut),
-                         strokeWidth = 2f)
-            }
+            // Le présent, immobile près du bord gauche.
+            val px = x(releve.heureAtys)
+            drawLine(couleurMaintenant, Offset(px, 0f), Offset(px, haut), strokeWidth = 2f)
             drawLine(couleurAxe, Offset(margeGauche, haut), Offset(size.width, haut),
                      strokeWidth = 1f)
 
-            // L'heure réelle, à chaque heure ronde : les étiquettes se posent au
-            // temps qu'elles annoncent, non au cycle le plus proche — un cycle
-            // vaut neuf minutes, et six cycles font cinquante-quatre minutes,
-            // pas une heure.
-            if (iMaintenant >= 0) {
-                val maintenant = LocalTime.now()
-                val minutesAvant =
-                    (iMaintenant + releve.avancementDuCycle.toFloat()) * MINUTES_PAR_CYCLE
-                val depart = maintenant.minusMinutes(minutesAvant.toLong())
-                val totalMinutes = cycles.size * MINUTES_PAR_CYCLE
-                var heure = depart.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                if (heure.isBefore(depart)) heure = heure.plusHours(1)
-                var decalage = minutesEntre(depart, heure)
-                while (decalage < totalMinutes) {
-                    val px = (x(decalage / MINUTES_PAR_CYCLE.toFloat()) - 16f)
-                        .coerceIn(0f, size.width - 34f)
-                    etiquette(mesure, heure.format(HEURE), Offset(px, haut + 4f),
-                              couleurTexte)
-                    heure = heure.plusHours(1)
-                    decalage += 60f
+            // L'heure réelle, toutes les demi-heures. Une heure d'Atys valant
+            // trois minutes, la fenêtre ne couvre que soixante-douze minutes :
+            // à l'heure ronde, il n'y aurait qu'un repère, parfois zéro.
+            val maintenant = LocalTime.now()
+            var repere = maintenant.withMinute(0).withSecond(0).withNano(0)
+                .minusHours(1)
+            repeat(8) {
+                repere = repere.plusMinutes(30)
+                val minutes = minutesEntre(maintenant, repere)
+                val atys = releve.heureAtys + minutes / MINUTES_PAR_HEURE_ATYS
+                if (atys in gauche..(gauche + FENETRE_HEURES)) {
+                    val texte = if (repere.minute == 0) repere.format(HEURE)
+                                else repere.format(HEURE_MINUTE)
+                    etiquette(mesure, texte,
+                              Offset((x(atys) - 20f).coerceIn(0f, size.width - 46f),
+                                     haut + 4f), couleurTexte)
                 }
             }
         }
     }
 }
 
-/** Minutes de `depuis` à `vers`, la seconde heure étant toujours la plus tardive. */
-private fun minutesEntre(depuis: LocalTime, vers: LocalTime): Float {
-    val ecart = (vers.toSecondOfDay() - depuis.toSecondOfDay()) / 60f
-    return if (ecart < 0f) ecart + 24 * 60 else ecart
+/** Minutes de `depuis` à `vers`, signées, en tenant compte du passage de minuit. */
+private fun minutesEntre(depuis: LocalTime, vers: LocalTime): Double {
+    var ecart = (vers.toSecondOfDay() - depuis.toSecondOfDay()) / 60.0
+    if (ecart > 12 * 60) ecart -= 24 * 60
+    if (ecart < -12 * 60) ecart += 24 * 60
+    return ecart
 }
 
 private val HEURE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH'h'")
+private val HEURE_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("HH'h'mm")
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.etiquette(
     mesure: TextMeasurer, texte: String, position: Offset, couleur: Color,

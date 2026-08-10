@@ -19,7 +19,16 @@ data class Meteo(
     val conditionMajuscule: String get() = condition.uppercase()
 }
 
-/** Un relevé complet : la saison, le cycle en cours, et chaque continent. */
+/**
+ * Un relevé complet : la saison, le cycle en cours, et chaque continent.
+ *
+ * Le relevé porte l'instant où il a été pris. Le temps d'Atys avançant à
+ * cadence fixe — une heure pour trois minutes réelles —, on sait donc le faire
+ * avancer soi-même : `aPresent()` rend le même relevé recalé sur maintenant,
+ * **sans rien redemander à l'API**. Les cycles reçus couvrent plusieurs heures ;
+ * il n'y a aucune raison de les redemander toutes les minutes pour voir un
+ * trait bouger.
+ */
 data class MeteoAtys(
     val cycleCourant: Int,
     /**
@@ -33,7 +42,29 @@ data class MeteoAtys(
     /** 0 printemps … 3 hiver ; -1 si le flux de temps n'a pas répondu. */
     val saison: Int,
     val continents: Map<String, List<Meteo>>,
+    /**
+     * Horloge monotone au moment du relevé, en millisecondes.
+     *
+     * Monotone et non horloge murale : une mise à l'heure réseau ou un
+     * changement d'heure ferait sinon sauter le graphique.
+     */
+    val prisA: Long = System.nanoTime() / 1_000_000,
 ) {
+
+    /**
+     * Le même relevé, recalé sur l'instant présent.
+     *
+     * Une heure d'Atys dure trois minutes réelles : le temps écoulé depuis le
+     * relevé se convertit donc directement en heures d'Atys. Rien n'est
+     * redemandé — la série des cycles ne change pas, seul le curseur qui la
+     * parcourt avance.
+     */
+    fun aPresent(maintenant: Long = System.nanoTime() / 1_000_000): MeteoAtys {
+        val ecoulees = (maintenant - prisA).coerceAtLeast(0L) / 1000.0
+        val heure = heureAtys + ecoulees / (60.0 * MINUTES_PAR_HEURE_ATYS)
+        return copy(cycleCourant = (heure / HEURES_PAR_CYCLE).toInt(),
+                    heureAtys = heure)
+    }
     /** Avancement dans le cycle en cours, de 0 à 1. */
     val avancementDuCycle: Double
         get() = (heureAtys / HEURES_PAR_CYCLE - cycleCourant).coerceIn(0.0, 1.0)
@@ -56,6 +87,13 @@ fun estLaNuit(heureDuJour: Int): Boolean = heureDuJour >= 22 || heureDuJour < 3
 
 /** Heures d'Atys dans un cycle météo. */
 const val HEURES_PAR_CYCLE = 3
+
+/**
+ * Minutes réelles pour une heure d'Atys.
+ *
+ * Mesuré sur l'API, et confirmé par le code du jeu (`ATYS_HOUR = 3`).
+ */
+const val MINUTES_PAR_HEURE_ATYS = 3
 
 /**
  * Le temps qu'il fait, en français. Le jeu ne rend que sa clé.
