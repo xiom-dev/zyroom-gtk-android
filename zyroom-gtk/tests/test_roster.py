@@ -143,3 +143,37 @@ class Retention(unittest.TestCase):
             s.record([("Dale", "Member")])
             s.record([("Dale", "Member"), ("Nizy", "Member")])
             self.assertEqual(1, len(s.history()))
+
+
+class ElagageSur(unittest.TestCase):
+    """L'élagage ne doit jamais faire perdre ce qu'il n'a pas compris."""
+
+    def test_une_ligne_illisible_survit_a_l_elagage(self):
+        """Fichier tronqué par une coupure : la reconstruire à partir de ce
+        qu'on a su lire l'aurait effacée."""
+        import time
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            maintenant = int(time.time())
+            with open(s._journal(), "w", encoding="utf-8") as fh:
+                fh.write('{"at": %d, "member": "Vieux", "kind": "arrivee",'
+                         ' "from": "", "to": "Member"}\n'
+                         % (maintenant - 40 * 86400))
+                fh.write('{"at": %d, "member": "Recent", "kind": "arrivee",'
+                         ' "from": "", "to": "Member"}\n' % maintenant)
+                fh.write('{"at": 17, "member": "Tronq\n')     # ligne coupée
+            self.assertEqual(1, s.elaguer())
+            with open(s._journal(), encoding="utf-8") as fh:
+                restant = [l for l in fh if l.strip()]
+            self.assertEqual(2, len(restant))
+            self.assertIn("Tronq", "".join(restant))
+            self.assertNotIn("Vieux", "".join(restant))
+
+    def test_rien_de_vieux_rien_a_reecrire(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            s.record([("Dale", "Member")])
+            s.record([("Dale", "Member"), ("Nizy", "Member")])
+            avant = open(s._journal(), encoding="utf-8").read()
+            self.assertEqual(0, s.elaguer())
+            self.assertEqual(avant, open(s._journal(), encoding="utf-8").read())

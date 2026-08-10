@@ -185,29 +185,46 @@ class RosterStore:
         """Réécrit le journal sans les lignes plus vieilles que `jours`.
 
         Appelé après chaque relevé : le fichier ne grossit donc jamais au-delà
-        d'un mois de mouvements. Rend le nombre de lignes écartées."""
-        gardees = self.history(jours)
+        d'un mois de mouvements. Rend le nombre de lignes écartées.
+
+        **Les lignes gardées sont recopiées telles quelles**, et jamais
+        reconstruites à partir de ce qu'on a su lire. Autrement, une ligne
+        illisible — fichier tronqué par une coupure de courant, écriture
+        concurrente — disparaîtrait à la réécriture, et une simple erreur de
+        lecture aurait vidé tout l'historique d'un coup. Ce qu'on ne comprend
+        pas, on le garde : c'est un journal, il n'est pas remplaçable.
+        """
         chemin = self._journal()
         if not os.path.isfile(chemin):
             return 0
+        depuis = int(time.time()) - jours * 86400
+        gardees, ecartees = [], 0
         try:
             with open(chemin, encoding="utf-8") as fh:
-                total = sum(1 for ligne in fh if ligne.strip())
+                for ligne in fh:
+                    if not ligne.strip():
+                        continue
+                    try:
+                        at = int(json.loads(ligne).get("at", 0))
+                    except (ValueError, AttributeError, TypeError):
+                        gardees.append(ligne)      # illisible : on n'y touche pas
+                        continue
+                    if at < depuis:
+                        ecartees += 1
+                    else:
+                        gardees.append(ligne)
         except OSError:
             return 0
-        if total <= len(gardees):
+        if not ecartees:
             return 0
         try:
             with open(chemin, "w", encoding="utf-8") as fh:
-                # Réécrites dans l'ordre chronologique, comme elles ont été
-                # ajoutées : le fichier reste un journal, pas une pile.
-                for c in sorted(gardees, key=lambda c: c.at):
-                    fh.write(json.dumps({"at": c.at, "member": c.member,
-                                         "kind": c.kind, "from": c.frm,
-                                         "to": c.to}) + "\n")
+                # Dans l'ordre où elles ont été ajoutées : le fichier reste un
+                # journal, pas une pile.
+                fh.writelines(gardees)
         except OSError:
             return 0
-        return total - len(gardees)
+        return ecartees
 
     def clear(self) -> None:
         try:
