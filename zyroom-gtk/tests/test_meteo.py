@@ -108,3 +108,33 @@ class TableDesMatieres(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AvanceToutSeul(unittest.TestCase):
+    """Le temps d'Atys avance à cadence fixe : on le suit sans rien redemander."""
+
+    def releve(self, il_y_a: float = 0.0):
+        import time
+        r = meteo.parse_weather(FLUX)
+        return meteo.MeteoAtys(r.cycle_courant, r.heure_atys, 0, r.continents,
+                               pris_a=time.monotonic() - il_y_a)
+
+    def test_neuf_minutes_font_un_cycle(self):
+        """Un cycle vaut trois heures d'Atys, soit neuf minutes réelles."""
+        depart = self.releve()
+        plus_tard = self.releve(il_y_a=9 * 60).a_present()
+        self.assertEqual(depart.cycle_courant + 1, plus_tard.cycle_courant)
+
+    def test_trois_minutes_font_une_heure_d_atys(self):
+        plus_tard = self.releve(il_y_a=3 * 60).a_present()
+        self.assertAlmostEqual(self.releve().heure_atys + 1,
+                               plus_tard.heure_atys, places=1)
+
+    def test_la_serie_des_cycles_ne_bouge_pas(self):
+        """Seul le curseur avance : les prévisions reçues restent les mêmes."""
+        depart = self.releve()
+        self.assertEqual(depart.continents, depart.a_present().continents)
+
+    def test_sans_temps_ecoule_rien_ne_change(self):
+        depart = self.releve()
+        self.assertEqual(depart.cycle_courant, depart.a_present().cycle_courant)

@@ -219,15 +219,6 @@ class MainWindow(Gtk.ApplicationWindow):
         bar1.append(self._spinner)
         spacer = Gtk.Label(hexpand=True)
         bar1.append(spacer)
-        # La rangée des quatre écrans de « Plus » se glisse ici, entre les
-        # sélecteurs et la saison : elle occupait sinon une ligne à elle seule,
-        # et la hauteur est ce qui manque le plus à un tableau. Elle est
-        # construite plus bas, avec la page qu'elle commande, et rangée ici pour
-        # ne paraître que sur cet onglet.
-        self._plus_switch_slot = Gtk.Box()
-        bar1.append(self._plus_switch_slot)
-        spacer2 = Gtk.Label(hexpand=True)
-        bar1.append(spacer2)
         self._season_lbl = Gtk.Label(label="")
         bar1.append(self._season_lbl)
 
@@ -328,7 +319,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # « Plus », avec sa propre rangée.
         self._stack.add_titled(self._build_log_page(), "log", _("Journal"))
         self._stack.add_titled(self._build_plus_page(), "plus", _("Plus"))
-        header.set_title_widget(Gtk.StackSwitcher(stack=self._stack))
+        header.set_title_widget(self._build_navigation())
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
         # Barre d'état : portrait du personnage + texte
@@ -338,7 +329,10 @@ class MainWindow(Gtk.ApplicationWindow):
         statusbar.props.margin_bottom = 6
         root.append(statusbar)
         self._portrait = Gtk.Image()
-        self._portrait.set_pixel_size(72)
+        # Soixante au lieu de soixante-douze : à la taille précédente, l'emblème
+        # d'une guilde touchait presque le bas du tableau et paraissait lui
+        # appartenir. Un peu d'air le remet à sa place, celle d'une signature.
+        self._portrait.set_pixel_size(60)
         self._portrait.set_tooltip_text(_("Cliquer pour agrandir"))
         self._portrait_path = ""
         pclick = Gtk.GestureClick()
@@ -418,6 +412,73 @@ class MainWindow(Gtk.ApplicationWindow):
         return page
 
     # ---------------------------------------------------------- Compétences
+    #: Les quatre écrans de « Plus », dans l'ordre du menu.
+    PLUS_PAGES = (("skills", "Compétences"), ("roster", "Personnel"),
+                  ("outposts", "Avant-postes"), ("meteo", "Météo"))
+
+    def _build_navigation(self) -> Gtk.Widget:
+        """La navigation de la barre de titre : deux boutons et un menu.
+
+        Six onglets ne tenaient pas ; une rangée de plus mangeait la hauteur
+        d'un tableau. Ici, l'inventaire et le journal — ce qu'on consulte tous
+        les jours — restent à un clic, et les quatre écrans de consultation
+        vivent dans un menu déroulant qui porte le nom de celui qu'on regarde.
+        """
+        boite = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        boite.add_css_class("linked")
+
+        self._nav_boutons = {}
+        for nom, etiquette in (("inventory", _("Inventaire")), ("log", _("Journal"))):
+            bouton = Gtk.ToggleButton(label=etiquette)
+            bouton.connect("toggled", self._on_nav_toggled, nom)
+            self._nav_boutons[nom] = bouton
+            boite.append(bouton)
+
+        menu = Gio.Menu()
+        for nom, etiquette in self.PLUS_PAGES:
+            menu.append(_(etiquette), f"win.plus::{nom}")
+        self._plus_btn = Gtk.MenuButton(label=_("Plus"))
+        self._plus_btn.set_menu_model(menu)
+        self._plus_btn.set_always_show_arrow(True)
+        boite.append(self._plus_btn)
+
+        action = Gio.SimpleAction.new("plus", GLib.VariantType.new("s"))
+        action.connect("activate", self._on_plus_choisi)
+        self.add_action(action)
+        return boite
+
+    def _on_nav_toggled(self, bouton, nom: str) -> None:
+        if bouton.get_active():
+            self._stack.set_visible_child_name(nom)
+
+    def _on_plus_choisi(self, _action, parametre) -> None:
+        page = parametre.get_string()
+        self._stack.set_visible_child_name("plus")
+        self._plus_stack.set_visible_child_name(page)
+
+    def _refresh_navigation(self) -> None:
+        """Aligne les boutons sur la page réellement visible.
+
+        Le clavier, le code et la souris peuvent tous changer de page : c'est la
+        pile qui fait foi, jamais l'état d'un bouton."""
+        page = self._stack.get_visible_child_name()
+        for nom, bouton in self._nav_boutons.items():
+            actif = nom == page
+            if bouton.get_active() != actif:
+                bouton.handler_block_by_func(self._on_nav_toggled)
+                bouton.set_active(actif)
+                bouton.handler_unblock_by_func(self._on_nav_toggled)
+        # Le bouton porte le nom de l'écran affiché : sans cela, « Plus » ne
+        # dirait pas ce qu'on est en train de regarder.
+        if page == "plus":
+            courant = self._plus_stack.get_visible_child_name()
+            nom = dict(self.PLUS_PAGES).get(courant, "")
+            self._plus_btn.set_label(_(nom) if nom else _("Plus"))
+            self._plus_btn.add_css_class("suggested-action")
+        else:
+            self._plus_btn.set_label(_("Plus"))
+            self._plus_btn.remove_css_class("suggested-action")
+
     # --------------------------------------------------------------- Plus
     #
     # Quatre écrans de consultation, derrière un seul onglet : les compétences
@@ -438,13 +499,8 @@ class MainWindow(Gtk.ApplicationWindow):
                                     _("Avant-postes"))
         self._plus_stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
 
-        # La rangée va dans la barre du haut, à côté des sélecteurs : une ligne
-        # de moins, et c'est la hauteur qui manque à un tableau. Elle ne se
-        # montre que quand l'onglet « Plus » est visible — ailleurs elle
-        # commanderait une pile qu'on ne voit pas.
-        self._plus_switch = Gtk.StackSwitcher(stack=self._plus_stack)
-        self._plus_switch.set_visible(False)
-        self._plus_switch_slot.append(self._plus_switch)
+        # Aucune rangée de boutons ici : c'est le menu déroulant de la barre de
+        # titre qui commande cette pile, et il porte le nom de l'écran affiché.
         page.append(self._plus_stack)
         self._plus_stack.set_vexpand(True)
         self._plus_stack.connect("notify::visible-child-name",
@@ -452,6 +508,7 @@ class MainWindow(Gtk.ApplicationWindow):
         return page
 
     def _on_plus_changed(self) -> None:
+        self._refresh_navigation()
         page = self._plus_stack.get_visible_child_name()
         if page == "skills":
             self._refresh_skills()
@@ -959,9 +1016,30 @@ class MainWindow(Gtk.ApplicationWindow):
             self._meteo_box.append(defilement)
         page.append(self._meteo_box)
 
-        self._meteo_releve = None
+        self._meteo_releve = None      #: ce que l'API a rendu, tel quel
+        self._meteo_affiche = None     #: le même, recalé sur l'instant présent
         self._meteo_charge = False
+        self._meteo_timer = None
         return page
+
+    def _meteo_tick(self) -> bool:
+        """Fait avancer l'heure d'Atys, sans rien demander à personne.
+
+        Les quarante cycles reçus couvrent six heures réelles : tant que le
+        trait du « maintenant » reste dans la série, il n'y a aucune raison de
+        redemander quoi que ce soit. Quand il en sort, on redemande une fois."""
+        if self._meteo_releve is None:
+            self._meteo_timer = None
+            return False
+        avance = self._meteo_releve.a_present()
+        cycles = avance.cycles_des_primes()
+        if cycles and avance.cycle_courant > cycles[-1].cycle - 4:
+            # Bientôt à court de prévision : on va en rechercher, une fois.
+            self._load_meteo(force=True)
+            return True
+        self._meteo_affiche = avance
+        self._refresh_meteo()
+        return True
 
     def _load_meteo(self, force: bool = False) -> None:
         if self._meteo_charge and not force:
@@ -985,7 +1063,7 @@ class MainWindow(Gtk.ApplicationWindow):
             except Exception:                           # noqa: BLE001
                 saison = -1
             return meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys,
-                                   saison, releve.continents)
+                                   saison, releve.continents, releve.pris_a)
 
         def done(res, err):
             self._meteo_refresh.set_sensitive(True)
@@ -993,12 +1071,19 @@ class MainWindow(Gtk.ApplicationWindow):
                 self._meteo_entete.set_text(_("Météo indisponible : %s") % err)
                 return
             self._meteo_releve = res
+            self._meteo_affiche = res
             self._refresh_meteo()
+            # Le temps d'Atys avance tout seul : on ne redemande rien, on
+            # recale l'affichage. Toutes les dix secondes, soit un pas de trois
+            # heures et vingt d'Atys — le trait glisse au lieu de sauter.
+            if self._meteo_timer is None:
+                self._meteo_timer = GLib.timeout_add_seconds(
+                    10, self._meteo_tick)
 
         run_async(work, done)
 
     def _refresh_meteo(self) -> None:
-        releve = self._meteo_releve
+        releve = self._meteo_affiche or self._meteo_releve
         if releve is None:
             return
         maintenant = releve.maintenant()
@@ -1119,7 +1204,7 @@ class MainWindow(Gtk.ApplicationWindow):
         conditions de gisement ; les bandes sombres sont les nuits d'Atys, que
         le jeu compte de 22 h à 3 h.
         """
-        releve = self._meteo_releve
+        releve = self._meteo_affiche or self._meteo_releve
         if releve is None:
             return
         cycles = releve.cycles_des_primes()
@@ -1474,7 +1559,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_page_changed(self, *_args) -> None:
         page = self._stack.get_visible_child_name()
-        self._plus_switch.set_visible(page == "plus")
+        self._refresh_navigation()
         if page == "log":
             self._load_log()
         elif page == "plus":
@@ -2579,8 +2664,8 @@ class MainWindow(Gtk.ApplicationWindow):
         dlg = Gtk.AlertDialog()
         dlg.set_message(_("Mise à jour installée"))
         dlg.set_detail(_("Elle ne prendra effet qu'au prochain lancement. "
-                         "Redémarrer maintenant ?"))
-        dlg.set_buttons([_("Plus tard"), _("Redémarrer")])
+                         "Relancer maintenant ?"))
+        dlg.set_buttons([_("Plus tard"), _("Relancer")])
         dlg.set_default_button(1)
         dlg.set_cancel_button(0)
 

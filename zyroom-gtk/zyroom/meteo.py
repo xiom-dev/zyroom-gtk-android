@@ -15,10 +15,15 @@ afficher.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 
 #: Heures d'Atys dans un cycle météo.
 HEURES_PAR_CYCLE = 3
+
+#: Minutes réelles pour une heure d'Atys. Mesuré sur l'API, et confirmé par le
+#: code du jeu (`ATYS_HOUR = 3`).
+MINUTES_PAR_HEURE_ATYS = 3
 
 #: Durée réelle d'un cycle, en minutes.
 MINUTES_PAR_CYCLE = 9
@@ -52,7 +57,15 @@ class Meteo:
 
 @dataclass(frozen=True)
 class MeteoAtys:
-    """Un relevé complet : la saison, le cycle en cours, et chaque continent."""
+    """Un relevé complet : la saison, le cycle en cours, et chaque continent.
+
+    Le relevé porte l'instant où il a été pris. Le temps d'Atys avançant à
+    cadence fixe — une heure pour trois minutes réelles —, on sait donc le
+    faire avancer soi-même : `a_present()` rend le même relevé, recalé sur
+    maintenant, **sans rien redemander à l'API**. Les quarante cycles reçus
+    couvrent six heures ; il n'y a aucune raison de les redemander toutes les
+    minutes pour voir un trait bouger.
+    """
 
     cycle_courant: int
     #: L'heure d'Atys en cours, décimales comprises. Un cycle couvre trois
@@ -62,6 +75,24 @@ class MeteoAtys:
     heure_atys: float
     saison: int             #: 0 printemps … 3 hiver ; -1 si le temps n'a pas répondu
     continents: dict = field(default_factory=dict)
+    #: Horloge monotone au moment du relevé. Monotone et non horloge murale :
+    #: un changement d'heure ou une mise à l'heure réseau ferait sauter la
+    #: seconde, et le graphique avec.
+    pris_a: float = field(default_factory=time.monotonic)
+
+    def a_present(self) -> "MeteoAtys":
+        """Le même relevé, recalé sur l'instant présent.
+
+        Une heure d'Atys dure trois minutes réelles : les secondes écoulées
+        depuis le relevé se convertissent donc directement en heures d'Atys.
+        Rien n'est redemandé — la série des cycles ne change pas, seul le
+        curseur qui la parcourt avance.
+        """
+        ecoulees = max(0.0, time.monotonic() - self.pris_a)
+        heure = self.heure_atys + ecoulees / (60.0 * MINUTES_PAR_HEURE_ATYS)
+        return MeteoAtys(cycle_courant=int(heure // HEURES_PAR_CYCLE),
+                         heure_atys=heure, saison=self.saison,
+                         continents=self.continents, pris_a=self.pris_a)
 
     @property
     def avancement_du_cycle(self) -> float:
