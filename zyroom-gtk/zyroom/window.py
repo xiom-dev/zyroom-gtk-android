@@ -2383,11 +2383,73 @@ class MainWindow(Gtk.ApplicationWindow):
             self._sync_timer = GLib.timeout_add_seconds(minutes * 60, self._sync_tick)
 
     def _sync_tick(self) -> bool:
-        """Rafraîchit l'entité affichée, si l'application n'est pas déjà occupée."""
-        entry = self._current_entry()
-        if entry and not self._busy:
-            self._sync_entity(entry)
+        """Relève toutes les entités suivies, pas seulement celle qu'on regarde.
+
+        Les journaux — mouvements de coffres, effectif d'une guilde — se
+        déduisent de deux instantanés rapprochés. Ne rafraîchir que l'entité
+        affichée laissait donc des trous de plusieurs heures dans les autres :
+        rester sur son personnage une soirée, puis ouvrir la guilde, et les
+        allées et venues de la soirée se résumaient à un seul écart constaté.
+
+        L'entité affichée passe par le chemin ordinaire, qui met l'écran à jour.
+        Les autres sont relevées en silence : on écrit leur cache et on
+        journalise, sans rien changer à ce qu'on regarde.
+        """
+        if self._busy:
+            return True
+        courante = self._current_entry()
+        if courante:
+            self._sync_entity(courante)
+        for entry in list(self._entries):
+            if courante and (entry["kind"], entry["id"]) == (courante["kind"],
+                                                             courante["id"]):
+                continue
+            self._relever_en_silence(entry)
         return True
+
+    def _relever_en_silence(self, entry: dict) -> None:
+        """Va chercher le flux d'une entité et journalise, sans toucher à l'écran.
+
+        Aucune alerte n'en sort : la cloche parle de ce qu'on regarde, et douze
+        notifications au retour d'une soirée ne rendraient service à personne.
+        Le journal, lui, garde tout — c'est là qu'on va voir.
+        """
+        kind, key = entry["kind"], entry["key"]
+        fetch = (ryzom_api.fetch_character_xml if kind == KIND_CHARACTER
+                 else ryzom_api.fetch_guild_xml)
+
+        def work():
+            xml = fetch(key)
+            with open(entity_xml_path(kind, entry["id"]), "wb") as fh:
+                fh.write(xml)
+            parse = (ryzom_api.parse_character if kind == KIND_CHARACTER
+                     else ryzom_api.parse_guild)
+            ent = parse(xml, self._sheetdb.name)
+
+            # Le journal des mouvements, comme pour l'entité affichée.
+            chemin = snapshot_path(kind, entry["id"])
+            avant = alerts.load_snapshot(chemin)
+            apres = alerts.build_snapshot(ent)
+            if avant:
+                movements.append(movements_path(kind, entry["id"]),
+                                 movements.diff(avant, apres, ent))
+            alerts.save_snapshot(chemin, apres)
+
+            # Et le registre du personnel, pour une guilde.
+            if kind == KIND_GUILD and ent.members:
+                roster.RosterStore(data_dir(), ent.entity_id).record(ent.members)
+            return ent.name
+
+        def done(_nom, err):
+            # Un échec est sans conséquence : on réessaiera au prochain quart
+            # d'heure, et le dire volerait la barre d'état à ce qu'on regarde.
+            if err:
+                return
+            page = self._stack.get_visible_child_name()
+            if page == "plus" and self._plus_stack.get_visible_child_name() == "roster":
+                self._refresh_roster()
+
+        run_async(work, done)
 
     # -------------------------------------------- Surveillance par item
     def _on_item_right_click(self, _gesture, _n, x, y, item, image) -> None:
