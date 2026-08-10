@@ -40,6 +40,7 @@ class RosterStore(private val dir: File) {
     suspend fun record(guildId: String, membres: List<Member>): List<MouvementMembre> =
         withContext(Dispatchers.IO) {
             if (membres.isEmpty()) return@withContext emptyList()
+            reprendre(guildId)
             val apres = membres.associate { it.name to it.grade }
             val avant = readSnapshot(guildId)
             val changements = if (avant == null) emptyList()
@@ -116,6 +117,36 @@ class RosterStore(private val dir: File) {
         }
     }
 
+    /**
+     * Verse au journal les mouvements observés avant qu'il n'existe.
+     *
+     * V-RyLune et ZyRoom-GTK tiennent chacun leur journal, et chacun ne connaît
+     * que ce qu'il a vu lui-même : l'API ne rend qu'un état. Ce que le portage
+     * GTK a constaté avant que celui-ci ne tienne un registre serait donc perdu
+     * pour toujours — non parce que ce n'est pas arrivé, mais parce que
+     * personne ne le lui a dit.
+     *
+     * La reprise ne se fait qu'**une fois**, marquée par un fichier témoin :
+     * sans lui, une ligne effacée par l'élagage ou par l'utilisateur
+     * reviendrait à chaque relevé.
+     */
+    private fun reprendre(id: String) {
+        val temoin = File(dir, "roster-$id.reprise")
+        if (temoin.isFile) return
+        runCatching {
+            dir.mkdirs()
+            val depuis = System.currentTimeMillis() / 1000 - RETENTION_JOURS * 86400
+            val connus = lignes(id).mapNotNull {
+                runCatching { JSONObject(it) }.getOrNull()
+            }.map { "${it.optLong("at")}|${it.optString("member")}|${it.optString("kind")}" }
+                .toSet()
+            val neufs = REPRISE[id].orEmpty()
+                .filter { it.at >= depuis && "${it.at}|${it.member}|${it.kind}" !in connus }
+            if (neufs.isNotEmpty()) append(id, neufs)
+            temoin.writeText("")
+        }
+    }
+
     private fun readSnapshot(id: String): Map<String, String>? {
         val file = snapFile(id)
         if (!file.isFile) return null
@@ -159,5 +190,25 @@ class RosterStore(private val dir: File) {
          * lise.
          */
         const val RETENTION_JOURS = 30L
+
+        /**
+         * Les mouvements repris d'un autre journal, par guilde.
+         *
+         * Ceux-ci ont été **relevés par ZyRoom-GTK le 10 août 2026 à 15 h 48**,
+         * à un moment où V-RyLune ne tenait pas encore de registre pour cette
+         * guilde. Ils sont datés de leur constat, non d'aujourd'hui : c'est ce
+         * qui les fera sortir du journal en même temps que les autres, au bout
+         * d'un mois. Rien ne les remplacera après cela, et c'est bien ainsi —
+         * une reprise sert à recoller deux journaux, pas à écrire l'histoire.
+         */
+        private val REPRISE: Map<String, List<MouvementMembre>> = mapOf(
+            // La Lune Eternelle
+            "105906237" to listOf(
+                MouvementMembre(1786369686, "Paty", "grade",
+                                from = "Member", to = "Officer"),
+                MouvementMembre(1786369686, "Thysela", "grade",
+                                from = "Officer", to = "HighOfficer"),
+            ),
+        )
     }
 }
