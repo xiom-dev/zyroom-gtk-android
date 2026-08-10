@@ -169,13 +169,14 @@ class Repository(
         // Quelques cycles passés en plus : sans eux la courbe commence à
         // l'instant présent, et le trait du « maintenant » se colle au bord.
         val brut = String(RyzomApi.get(RyzomApi.weatherUrl(continents, cycles, passes = 6)))
-        val (cycle, parContinent) = EntityParser.parseWeather(brut)
+        val (cycle, heure, parContinent) = EntityParser.parseWeather(brut)
         // La saison vient d'un autre appel : le flux météo ne la porte pas, et
         // c'est elle qui dit quelle page du relevé regarder.
         val saison = runCatching {
             EntityParser.parseSeason(RyzomApi.get(RyzomApi.timeUrl().replace("json", "xml")))
         }.getOrDefault(-1)
-        MeteoAtys(cycleCourant = cycle, saison = saison, continents = parContinent)
+        MeteoAtys(cycleCourant = cycle, heureAtys = heure, saison = saison,
+                  continents = parContinent)
     }
 
     private fun parse(entry: EntityStore.Suivie, xml: ByteArray): Entity =

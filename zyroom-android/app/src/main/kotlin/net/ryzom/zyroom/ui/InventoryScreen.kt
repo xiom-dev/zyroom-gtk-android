@@ -80,6 +80,7 @@ import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
 import net.ryzom.zyroom.model.SkillPoints
 import net.ryzom.zyroom.model.SortOrder
+import net.ryzom.zyroom.model.finishedSkills
 import net.ryzom.zyroom.model.skillTree
 import net.ryzom.zyroom.model.sortItems
 import net.ryzom.zyroom.model.visibleSkills
@@ -613,6 +614,19 @@ private fun SkillsView(
 ) {
     // L'arbre ne change pas d'une frappe à l'autre : il se calcule une fois.
     val arbre = remember(skills) { skillTree(skills) }
+    val finies = remember(arbre) { finishedSkills(arbre) }
+    // Une teinte par sous-branche, dans l'ordre de l'arbre : « Magie
+    // salvatrice » et « Magie destructrice » ne se confondent plus, et la
+    // couleur ne bouge pas quand on plie et déplie.
+    val teintes = remember(arbre) {
+        arbre.filter { it.depth == 1 }
+            .groupBy { it.root }
+            .flatMap { (_, freres) ->
+                freres.mapIndexed { rang, noeud ->
+                    noeud.skill.code to OrangesDuCoffre[rang % OrangesDuCoffre.size]
+                }
+            }.toMap()
+    }
     var depliees by remember(skills) { mutableStateOf(emptySet<String>()) }
     var enCoursSeulement by remember { mutableStateOf(false) }
 
@@ -717,6 +731,7 @@ private fun SkillsView(
                         // la branche.
                         niveau = arbre.filter { it.root == rang.root }
                             .maxOf { it.skill.level },
+                        finie = rang.skill.code in finies,
                         points = points[rang.skill.code],
                         depliee = rang.skill.code in depliees,
                         onBascule = {
@@ -728,6 +743,8 @@ private fun SkillsView(
                     Competence(
                         nom = nameOf(rang.skill.code),
                         skill = rang.skill,
+                        finie = rang.skill.code in finies,
+                        teinte = teintes[rang.skill.code],
                         // En liste plate, tout est au même bord et rien ne se
                         // plie : la liste est déjà le résultat d'un filtre.
                         profondeur = if (filtrant) 1 else rang.depth,
@@ -759,6 +776,7 @@ private fun nomDeBranche(code: String, nameOf: (String) -> String): String =
 private fun Branche(
     nom: String,
     niveau: Int,
+    finie: Boolean,
     points: SkillPoints?,
     depliee: Boolean,
     onBascule: () -> Unit,
@@ -772,18 +790,20 @@ private fun Branche(
             Text(if (depliee) "▾" else "▸", modifier = Modifier.width(20.dp))
             // Les quatre branches dans l'or des titres, comme les peuples du
             // tableau des avant-postes : ce sont les repères qu'on cherche en
-            // faisant défiler.
+            // faisant défiler. Une branche entièrement montée passe au vert,
+            // titre compris : c'est ce qui se voit de plus loin.
+            val couleur = if (finie) MaterialTheme.colorScheme.primary
+                          else MaterialTheme.colorScheme.secondary
             Text(
                 nom,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.secondary,
+                color = couleur,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 niveau.toString(),
                 style = MaterialTheme.typography.titleSmall,
-                color = if (niveau >= NIVEAU_MAX) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.secondary,
+                color = couleur,
             )
         }
         points?.let {
@@ -797,13 +817,13 @@ private fun Branche(
     }
 }
 
-/** Le plafond du jeu : au-delà, une compétence ne monte plus. */
-private const val NIVEAU_MAX = 250
-
 @Composable
 private fun Competence(
     nom: String,
     skill: Skill,
+    finie: Boolean,
+    /** Nuance d'orange d'une sous-branche ; nulle pour une compétence ordinaire. */
+    teinte: Color?,
     profondeur: Int,
     pliable: Boolean = false,
     depliee: Boolean = false,
@@ -817,12 +837,20 @@ private fun Competence(
             // échelons, et les noms de l'artisanat sont longs.
             .padding(start = 20.dp + 12.dp * (profondeur - 1), top = 5.dp, bottom = 5.dp),
     ) {
-        // Une compétence au plafond est finie : elle passe au vert, nom compris,
-        // pour qu'on repère d'un coup d'œil ce qui reste à monter.
-        val finie = skill.level >= NIVEAU_MAX
-        val teinte = when {
+        // Une compétence finie passe au vert, nom compris — et « finie » vaut
+        // pour toute la descendance, pas seulement pour la feuille à 250 : le
+        // père plafonne à 100 alors que tout ce qu'il porte est monté.
+        //
+        // Une sous-branche non finie garde sa nuance d'orange : c'est ce qui la
+        // distingue de ses voisines quand la liste défile.
+        val couleurNom = when {
             finie -> MaterialTheme.colorScheme.primary
-            skill.progress > 0 -> MaterialTheme.colorScheme.primary
+            teinte != null -> teinte
+            else -> MaterialTheme.colorScheme.onSurface
+        }
+        val couleurNiveau = when {
+            finie || skill.progress > 0 -> MaterialTheme.colorScheme.primary
+            teinte != null -> teinte
             else -> MaterialTheme.colorScheme.onSurface
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -836,15 +864,15 @@ private fun Competence(
             Text(
                 nom,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (finie) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface,
+                color = couleurNom,
+                fontWeight = if (teinte != null) FontWeight.Medium else null,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 if (skill.progress > 0) "${skill.level} · ${skill.progress} %"
                 else skill.level.toString(),
                 style = MaterialTheme.typography.bodyMedium,
-                color = teinte,
+                color = couleurNiveau,
             )
         }
         // La barre ne s'affiche que pour un niveau entamé : sur cent soixante-dix

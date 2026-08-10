@@ -1,9 +1,11 @@
 package net.ryzom.zyroom.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.MovementStore
@@ -25,12 +27,25 @@ fun App(
     outposts: OutpostStore,
     preferences: Preferences,
 ) {
-    var ouverte by remember { mutableStateOf<EntityStore.Suivie?>(null) }
+    // On retient l'identifiant plutôt que l'entité : tourner le téléphone
+    // reconstruit l'écran, et un simple `remember` renvoyait à l'accueil au
+    // milieu d'une consultation. L'identifiant, lui, se range dans l'état
+    // sauvegardé et retrouve l'entité au retour.
+    var ouverteId by rememberSaveable { mutableStateOf<String?>(null) }
+    val ouverte = store.all().firstOrNull { it.id == ouverteId }
     // La météo ne dépend d'aucune entité : c'est un écran à part, et non une
     // page de plus dans la rangée des coffres.
-    var meteo by remember { mutableStateOf(false) }
+    var meteo by rememberSaveable { mutableStateOf(false) }
+
+    // Le bouton « retour » du téléphone doit remonter d'un écran, comme la
+    // flèche de la barre de titre. Sans cela il fermait l'application depuis
+    // n'importe où, ce qui n'est ni ce qu'on attend ni ce qu'on veut au milieu
+    // d'un inventaire.
+    BackHandler(enabled = meteo) { meteo = false }
+    BackHandler(enabled = !meteo && ouverte != null) { ouverteId = null }
 
     ZyRoomTheme {
+      ZoomPincee {
         val choisie = ouverte
         if (meteo) {
             MeteoScreen(repository = repository, onBack = { meteo = false })
@@ -38,7 +53,7 @@ fun App(
             EntitiesScreen(
                 store = store,
                 repository = repository,
-                onOpen = { ouverte = it },
+                onOpen = { ouverteId = it.id },
                 onMeteo = { meteo = true },
             )
         } else {
@@ -49,8 +64,9 @@ fun App(
                 movements = movements,
                 outposts = outposts,
                 preferences = preferences,
-                onBack = { ouverte = null },
+                onBack = { ouverteId = null },
             )
         }
+      }
     }
 }

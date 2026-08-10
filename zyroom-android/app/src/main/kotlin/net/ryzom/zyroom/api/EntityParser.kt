@@ -126,11 +126,17 @@ object EntityParser {
      * lit donc à part, avec org.json.
      */
     @Throws(ApiException::class)
-    fun parseWeather(json: String): Pair<Int, Map<String, List<Meteo>>> {
+    fun parseWeather(json: String): Triple<Int, Double, Map<String, List<Meteo>>> {
         val racine = runCatching { JSONObject(json) }
             .getOrElse { throw ApiException("météo illisible : ${it.message}", it) }
         if (racine.has("errors")) throw ApiException("météo : " + racine.optString("errors"))
         val cycleCourant = racine.optInt("cycle")
+        // `hour` est l'heure d'Atys en cours, avec ses décimales : 104011.496
+        // au cycle 34670 veut dire qu'on est à la moitié du cycle, celui-ci en
+        // couvrant trois heures. Sans elle, un compte à rebours se trompait de
+        // neuf minutes au pire, et le trait du « maintenant » sautait de cycle
+        // en cycle au lieu d'avancer.
+        val heure = racine.optString("hour").toDoubleOrNull() ?: (cycleCourant * 3.0)
         val continents = racine.optJSONObject("continents") ?: JSONObject()
         val out = mutableMapOf<String, List<Meteo>>()
         continents.keys().forEach { nom ->
@@ -146,7 +152,7 @@ object EntityParser {
                 }
             }.sortedBy { it.cycle }.toList()
         }
-        return cycleCourant to out
+        return Triple(cycleCourant, heure, out)
     }
 
     /** La saison d'Atys, de 0 (printemps) à 3 (hiver), lue sur `time.php`. */

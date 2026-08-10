@@ -131,8 +131,8 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                 item { EnTeteMeteo(donnees) }
                 item {
                     CourbeMeteo(
+                        releve = donnees,
                         cycles = cyclesDesPrimes(donnees),
-                        cycleCourant = donnees.cycleCourant,
                         hauteur = if (paysage) 260 else 200,
                     )
                 }
@@ -144,8 +144,17 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                 item { TitreTableau("Excellentes — " + nomSaison(donnees.saison)) }
                 itemsIndexed(EXCELLENTES[saisonCle(donnees.saison)]
                                  ?.entries?.toList().orEmpty()) { rang, (moment, groupes) ->
-                    BlocMatieres(if (moment == "JOUR") "De jour" else "De nuit",
-                                 groupes, rang % 2 == 0)
+                    // Il fait nuit sur Atys de 22 h à 3 h : dire laquelle des
+                    // deux listes vaut en ce moment évite d'aller forer ce qui
+                    // ne sortira que dans huit heures.
+                    val maintenant = (moment == "NUIT") == donnees.nuit
+                    BlocMatieres(
+                        titre = (if (moment == "JOUR") "De jour" else "De nuit") +
+                            if (maintenant) "  ·  en ce moment" else "",
+                        groupes = groupes,
+                        zebre = rang % 2 == 0,
+                        souligne = maintenant,
+                    )
                 }
             }
         }
@@ -177,7 +186,7 @@ private fun EnTeteMeteo(releve: MeteoAtys) {
         suite.firstOrNull { it.condition != maintenant.condition }?.let { prochain ->
             Text(
                 "${texteCondition(prochain.condition)} dans " +
-                    duree((prochain.cycle - releve.cycleCourant) * MINUTES_PAR_CYCLE),
+                    duree(minutesAvant(releve, prochain.cycle)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = couleurCondition(prochain.condition),
                 modifier = Modifier.padding(top = 4.dp),
@@ -186,8 +195,7 @@ private fun EnTeteMeteo(releve: MeteoAtys) {
         if (maintenant.condition != "best") {
             suite.firstOrNull { it.condition == "best" }?.let { meilleur ->
                 Text(
-                    "Excellente dans " +
-                        duree((meilleur.cycle - releve.cycleCourant) * MINUTES_PAR_CYCLE),
+                    "Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = couleurCondition("best"),
                     modifier = Modifier.padding(top = 2.dp),
@@ -195,7 +203,9 @@ private fun EnTeteMeteo(releve: MeteoAtys) {
             }
         }
         Text(
-            "Les Primes partagent une seule météo : celle-ci vaut pour les quatre zones.",
+            "Les Primes partagent une seule météo : celle-ci vaut pour les quatre zones. " +
+                "Il est ${releve.heureDuJour} h sur Atys, " +
+                (if (releve.nuit) "il y fait nuit." else "il y fait jour."),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 6.dp),
@@ -230,13 +240,23 @@ private fun TitreTableau(titre: String) {
  * tableau, et elle se lit en travers sans chercher.
  */
 @Composable
-private fun BlocMatieres(titre: String, groupes: Map<String, List<String>>, zebre: Boolean) {
+private fun BlocMatieres(
+    titre: String,
+    groupes: Map<String, List<String>>,
+    zebre: Boolean,
+    souligne: Boolean = false,
+) {
     Column(
         Modifier.fillMaxWidth()
             .background(fondZebre(zebre))
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Text(titre, style = MaterialTheme.typography.titleSmall)
+        Text(
+            titre,
+            style = MaterialTheme.typography.titleSmall,
+            color = if (souligne) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+        )
         groupes.toSortedMap().forEach { (groupe, matieres) ->
             Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
                 Text(
@@ -263,6 +283,17 @@ private fun couleurCondition(condition: String) = when (condition.lowercase()) {
 
 /** La clé de saison du relevé, « PRINTEMPS »… */
 private fun saisonCle(saison: Int): String = SAISONS.getOrElse(saison) { "" }
+
+/**
+ * Minutes réelles avant le début d'un cycle à venir.
+ *
+ * Compter les cycles pleins surestimait l'attente de neuf minutes au pire :
+ * quand on regarde, on est déjà quelque part **dans** le cycle en cours, et
+ * l'API dit où par les décimales de son heure d'Atys.
+ */
+private fun minutesAvant(releve: MeteoAtys, cycle: Int): Int =
+    ((cycle - releve.cycleCourant - releve.avancementDuCycle) * MINUTES_PAR_CYCLE)
+        .toInt().coerceAtLeast(0)
 
 /** « 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule. */
 private fun duree(minutes: Int): String =

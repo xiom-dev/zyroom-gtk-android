@@ -22,10 +22,40 @@ data class Meteo(
 /** Un relevé complet : la saison, le cycle en cours, et chaque continent. */
 data class MeteoAtys(
     val cycleCourant: Int,
+    /**
+     * L'heure d'Atys en cours, décimales comprises.
+     *
+     * Un cycle couvre trois heures d'Atys : la partie fractionnaire dit donc où
+     * l'on en est **dans** le cycle, et c'est d'elle que dépendent les comptes à
+     * rebours comme la place du trait « maintenant » sur la courbe.
+     */
+    val heureAtys: Double,
     /** 0 printemps … 3 hiver ; -1 si le flux de temps n'a pas répondu. */
     val saison: Int,
     val continents: Map<String, List<Meteo>>,
-)
+) {
+    /** Avancement dans le cycle en cours, de 0 à 1. */
+    val avancementDuCycle: Double
+        get() = (heureAtys / HEURES_PAR_CYCLE - cycleCourant).coerceIn(0.0, 1.0)
+
+    /** L'heure d'Atys du jour, de 0 à 23 — c'est elle qui fait le jour et la nuit. */
+    val heureDuJour: Int get() = (heureAtys.toLong() % 24).toInt()
+
+    /** Vrai s'il fait nuit sur Atys : les matières excellentes n'y sont pas les mêmes. */
+    val nuit: Boolean get() = estLaNuit(heureDuJour)
+}
+
+/**
+ * Il fait nuit sur Atys de 22 h à 3 h.
+ *
+ * Bornes relevées sur le calendrier d'Atys de Ballistic Mystix, qui ombre cette
+ * plage sur son graphique : c'est la même que celle qui décide des matières
+ * excellentes de nuit.
+ */
+fun estLaNuit(heureDuJour: Int): Boolean = heureDuJour >= 22 || heureDuJour < 3
+
+/** Heures d'Atys dans un cycle météo. */
+const val HEURES_PAR_CYCLE = 3
 
 /** Le temps qu'il fait, en français. Le jeu ne rend que sa clé. */
 fun texteMeteo(cle: String): String = when (cle) {

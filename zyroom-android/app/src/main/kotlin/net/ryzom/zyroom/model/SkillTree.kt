@@ -41,6 +41,37 @@ fun skillTree(skills: List<Skill>): List<SkillNode> =
         )
     }
 
+/** Le plafond du jeu : au-delà, une compétence ne monte plus. */
+const val NIVEAU_MAX = 250
+
+/**
+ * Les compétences finies — celles dont il n'y a plus rien à monter.
+ *
+ * Chaque échelon de l'arbre a son propre plafond : la racine vaut 20, la
+ * branche du dessous 50, puis 100, 150, 200, et 250 pour la feuille. Un père
+ * affiche donc 50 ou 100 alors que tout ce qu'il porte est au maximum, et rien
+ * ne montrait qu'il était terminé : c'est pourtant ce qu'on cherche en
+ * parcourant l'arbre.
+ *
+ * D'où la règle : une feuille est finie à 250, un père l'est quand tous ses
+ * enfants le sont. « Magie curative » passe ainsi au vert dès que les quatre
+ * soins qu'elle porte sont au plafond, et le vert remonte jusqu'au titre de la
+ * branche quand la branche entière est faite.
+ */
+fun finishedSkills(tree: List<SkillNode>): Set<String> {
+    val enfants = tree.groupBy { it.parent }
+    val finies = mutableSetOf<String>()
+    // Les codes sont triés, donc un enfant est plus long que son père : les
+    // parcourir du plus long au plus court décide les feuilles d'abord.
+    tree.sortedByDescending { it.skill.code.length }.forEach { noeud ->
+        val siens = enfants[noeud.skill.code].orEmpty()
+        val finie = if (siens.isEmpty()) noeud.skill.level >= NIVEAU_MAX
+                    else siens.all { it.skill.code in finies }
+        if (finie) finies += noeud.skill.code
+    }
+    return finies
+}
+
 /**
  * Ce qui se voit, `expanded` disant quelles compétences sont ouvertes.
  *

@@ -64,6 +64,20 @@ val Titrage = FontFamily(Font(R.font.pirata_one))
 val Capitale = FontFamily(Font(R.font.cinzel_decorative))
 
 /**
+ * Les nuances d'orange du coffre, de la lumière du couvercle à son ombre.
+ *
+ * Relevées sur l'icône de l'application — le brun clair du dessus, le cuivre du
+ * milieu, la terre du bas — puis éclaircies juste assez pour se lire sur le
+ * fond sombre. Elles servent à distinguer les sous-branches de l'arbre des
+ * compétences les unes des autres : six suffisent, aucune branche n'ayant plus
+ * de six enfants.
+ */
+val OrangesDuCoffre = listOf(
+    Color(0xFFF5B85C), Color(0xFFE89446), Color(0xFFDA7539),
+    Color(0xFFC95C35), Color(0xFFB8492F), Color(0xFFF7D488),
+)
+
+/**
  * Le fond d'une ligne sur deux, dans les listes qui se lisent en travers.
  *
  * Le vert de l'application, très dilué : sur des colonnes étroites l'œil perd

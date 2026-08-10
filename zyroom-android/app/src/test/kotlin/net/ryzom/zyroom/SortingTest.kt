@@ -5,6 +5,7 @@ import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.SortOrder
 import net.ryzom.zyroom.model.familyOf
 import net.ryzom.zyroom.model.materialKey
+import net.ryzom.zyroom.model.outfitKey
 import net.ryzom.zyroom.model.sortItems
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -44,6 +45,62 @@ class SortingTest {
                    "m0117dxajd01.sitem", "bidule.sitem"),
             range.map { it.sheet },
         )
+    }
+
+    @Test
+    fun `les pièces d'une tenue se réunissent et se lisent de la tête aux pieds`() {
+        // Fiches et noms relevés sur un personnage : le jeu nomme les six
+        // pièces de six façons, et deux tenues s'entremêlaient par leur nom.
+        val noms = mapOf(
+            "icmahb_3.sitem" to "Bottes Kara Paroks",
+            "icmahh_3.sitem" to "Casque Kara Parok",
+            "icmahv_3.sitem" to "Gilet Kara Parok",
+            "icmalb_3.sitem" to "Bottes Kara Wivas",
+            "icmalv_3.sitem" to "Gilet Kara Wiva",
+        )
+        val liste = noms.keys.map { item(it, quality = 250) }.shuffled()
+        val range = sortItems(liste, SortOrder.FAMILY) { noms.getValue(it.sheet) }
+        assertEquals(
+            listOf("Casque Kara Parok", "Gilet Kara Parok", "Bottes Kara Paroks",
+                   "Gilet Kara Wiva", "Bottes Kara Wivas"),
+            range.map { noms.getValue(it.sheet) },
+        )
+    }
+
+    @Test
+    fun `les bijoux d'une même parure restent ensemble malgré la casse`() {
+        // Le jeu écrit « Bague zoraï » avec une capitale et « bracelet zoraï »
+        // sans : l'ordre des codes de caractères les séparait de toute la
+        // liste, les minuscules venant après le Z.
+        val noms = mapOf(
+            "iczjb.sitem" to "bracelet zoraï",
+            "iczjr.sitem" to "Bague zoraï",
+            "iczjd.sitem" to "diadème zoraï",
+        )
+        val liste = noms.keys.map { item(it, quality = 210) }
+        val range = sortItems(liste, SortOrder.FAMILY) { noms.getValue(it.sheet) }
+        assertEquals(listOf("diadème zoraï", "Bague zoraï", "bracelet zoraï"),
+                     range.map { noms.getValue(it.sheet) })
+    }
+
+    @Test
+    fun `le tri par nom range comme un dictionnaire, accents compris`() {
+        val noms = mapOf("a.sitem" to "Épée Zo'Kovan",
+                         "b.sitem" to "Pique",
+                         "c.sitem" to "bracelet zoraï")
+        val range = sortItems(noms.keys.map { item(it) }, SortOrder.NAME) {
+            noms.getValue(it.sheet)
+        }
+        assertEquals(listOf("bracelet zoraï", "Épée Zo'Kovan", "Pique"),
+                     range.map { noms.getValue(it.sheet) })
+    }
+
+    @Test
+    fun `une arme n'est pas prise pour une pièce de tenue`() {
+        assertEquals(null, outfitKey(item("iccm2pp.sitem")))
+        assertEquals(null, outfitKey(item("icokamm2ss_2.sitem")))
+        assertEquals("icmah_3", outfitKey(item("icmahb_3.sitem")))
+        assertEquals("iczj", outfitKey(item("iczja.sitem")))
     }
 
     @Test

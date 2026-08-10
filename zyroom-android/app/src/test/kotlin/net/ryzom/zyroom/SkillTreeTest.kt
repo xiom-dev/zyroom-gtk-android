@@ -2,6 +2,7 @@ package net.ryzom.zyroom
 
 import net.ryzom.zyroom.api.EntityParser
 import net.ryzom.zyroom.model.Skill
+import net.ryzom.zyroom.model.finishedSkills
 import net.ryzom.zyroom.model.skillTree
 import net.ryzom.zyroom.model.visibleSkills
 import org.junit.Assert.assertEquals
@@ -83,6 +84,35 @@ class SkillTreeTest {
         assertEquals(listOf("sf"), visibleSkills(arbre, ouverts - "sf").map { it.skill.code })
         // « sfm » est resté dans l'ensemble : rouvrir sf remontre son contenu.
         assertEquals(3, visibleSkills(arbre, ouverts).size)
+    }
+
+    /**
+     * Le cas que l'écran doit montrer : « Magie curative » plafonne à 100, mais
+     * les quatre soins qu'elle porte sont à 250. La branche est finie, et c'est
+     * elle qu'on doit voir en vert, pas seulement ses feuilles.
+     */
+    @Test
+    fun `un père est fini quand tout ce qu'il porte l'est`() {
+        val arbre = skillTree(listOf(
+            Skill("sm", 20), Skill("smd", 50),
+            Skill("smdh", 100), Skill("smdhh", 250), Skill("smdhs", 250),
+            Skill("smda", 100), Skill("smdaf", 101),
+        ))
+        val finies = finishedSkills(arbre)
+
+        assertTrue("les feuilles au plafond", "smdhh" in finies && "smdhs" in finies)
+        assertTrue("Magie curative, tout entière montée", "smdh" in finies)
+        assertFalse("Magie neutralisante, encore en cours", "smda" in finies)
+        assertFalse("donc la branche du dessus non plus", "smd" in finies)
+        assertFalse("ni la racine", "sm" in finies)
+    }
+
+    @Test
+    fun `une branche entièrement montée remonte jusqu'à sa racine`() {
+        val arbre = skillTree(listOf(
+            Skill("sh", 20), Skill("shf", 50), Skill("shfd", 100), Skill("shfdc", 250),
+        ))
+        assertEquals(setOf("sh", "shf", "shfd", "shfdc"), finishedSkills(arbre))
     }
 
     @Test

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
+import android.content.res.Configuration
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.DropdownMenu
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import net.ryzom.zyroom.R
@@ -147,27 +149,33 @@ fun EntitiesScreen(
 
     Scaffold(
         topBar = {
+            // Couché, l'écran n'a plus que la moitié de sa hauteur : le titre
+            // en prenait le tiers et ne laissait voir qu'une carte et demie.
+            // Il se réduit donc, au lieu de tout repousser hors de l'écran.
+            val paysage = LocalConfiguration.current.orientation ==
+                Configuration.ORIENTATION_LANDSCAPE
             CenterAlignedTopAppBar(
                 // La hauteur d'une barre de titre comprend l'encoche et la
                 // barre d'état du téléphone : quatre-vingt-quatre points n'en
                 // laissaient qu'une cinquantaine à la lettre, et la gothique y
                 // perdait ses hampes. Cent vingt lui vont.
-                modifier = Modifier.height(120.dp),
+                modifier = Modifier.height(if (paysage) 76.dp else 120.dp),
                 title = {
                     // Le V de la gothique se lit comme un U : il est composé à
                     // part, dans une capitale romaine gravée, qui le dessine
                     // sans ambiguïté. Le reste garde le lettrage gothique, et
                     // l'or est le même pour les deux.
+                    val corps = if (paysage) 34.sp else 58.sp
                     Text(
                         buildAnnotatedString {
                             withStyle(SpanStyle(
                                 fontFamily = Capitale,
-                                fontSize = 50.sp,
+                                fontSize = corps * 0.86f,
                             )) { append("V") }
                             withStyle(SpanStyle(fontFamily = Titrage)) { append("-RyLune") }
                         },
-                        fontSize = 58.sp,
-                        lineHeight = 62.sp,
+                        fontSize = corps,
+                        lineHeight = corps * 1.07f,
                         color = MaterialTheme.colorScheme.secondary,
                     )
                 },
