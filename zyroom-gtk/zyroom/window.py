@@ -194,11 +194,15 @@ class MainWindow(Gtk.ApplicationWindow):
         self._update_btn.connect("clicked", self._on_update_clicked)
         header.pack_end(self._update_btn)
 
+        # La cloche va à gauche, avec l'ajout et le retrait : ce sont les
+        # boutons qui parlent de l'entité affichée. À droite, elle se trouvait
+        # entre le menu et la mise à jour, deux choses qui parlent de
+        # l'application, et sa pastille jaune y attirait l'œil de travers.
         self._bell = Gtk.Button(label="🔔")
         self._bell.set_tooltip_text(_("Alertes"))
         self._bell.set_sensitive(False)
         self._bell.connect("clicked", self._on_bell_clicked)
-        header.pack_end(self._bell)
+        header.pack_start(self._bell)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.set_child(root)
@@ -1190,6 +1194,15 @@ class MainWindow(Gtk.ApplicationWindow):
         boite.append(grille)
         return boite
 
+    #: Ce que la courbe montre, en heures d'Atys, et où s'y tient le présent.
+    #:
+    #: Vingt-quatre heures d'Atys valent soixante-douze minutes réelles : de
+    #: quoi voir une heure d'avance et un bon quart d'heure de passé. Le trait
+    #: du présent reste au quart de la largeur — c'est ce qui vient qui compte,
+    #: le passé ne sert qu'à comprendre d'où l'on sort.
+    FENETRE_HEURES = 24.0
+    ANCRE = 0.25
+
     def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
         """L'humidité dans le temps, **en marches d'escalier**.
 
@@ -1199,6 +1212,11 @@ class MainWindow(Gtk.ApplicationWindow):
         crêtes qui n'existent pas, et déplacerait les moments intéressants : la
         fenêtre excellente n'est pas un sommet qu'on rate, c'est un palier qui
         dure.
+
+        **C'est le graphique qui défile, pas le trait.** Le présent reste au
+        quart de la largeur et la courbe glisse dessous, comme un sismographe :
+        on garde ainsi toujours la même avance sous les yeux, au lieu de voir
+        le trait dériver vers le bord jusqu'à sortir de la vue.
 
         Les trois traits en pointillé sont les seuils du jeu, qui découpent les
         conditions de gisement ; les bandes sombres sont les nuits d'Atys, que
@@ -1216,25 +1234,55 @@ class MainWindow(Gtk.ApplicationWindow):
         haut = hauteur - marge_b
         if large <= 0 or haut <= 0:
             return
-        cases = float(len(cycles))
 
-        def x(position: float) -> float:
-            return marge_g + large * position / cases
+        # Tout se repère en heures d'Atys, et non en indices de cycle : c'est ce
+        # qui permet à la fenêtre de glisser continûment sous un trait fixe.
+        gauche = releve.heure_atys - self.ANCRE * self.FENETRE_HEURES
+
+        def x(heure: float) -> float:
+            return marge_g + large * (heure - gauche) / self.FENETRE_HEURES
 
         def y(valeur: float) -> float:
             return haut * (1.0 - min(1.0, max(0.0, valeur)))
 
+        cr.save()
+        cr.rectangle(marge_g, 0, large, haut)
+        cr.clip()
+
         # Les nuits, comptées par heure et non par cycle : un cycle de trois
         # heures enjambe volontiers le lever du jour.
         cr.set_source_rgba(1, 1, 1, 0.06)
-        heure0 = cycles[0].cycle * meteo.HEURES_PAR_CYCLE
-        par_cycle = 1.0 / meteo.HEURES_PAR_CYCLE
-        for h in range(len(cycles) * meteo.HEURES_PAR_CYCLE):
-            if meteo.est_la_nuit(int((heure0 + h) % 24)):
-                cr.rectangle(x(h * par_cycle), 0, large * par_cycle / cases, haut)
+        premiere = int(gauche) - 1
+        for h in range(premiere, int(gauche + self.FENETRE_HEURES) + 2):
+            if meteo.est_la_nuit(h % 24):
+                cr.rectangle(x(h), 0, large / self.FENETRE_HEURES, haut)
                 cr.fill()
 
-        # Les seuils, et leur étiquette.
+        # La courbe en marches, et son aire. Un cycle couvre trois heures : son
+        # palier va de `cycle * 3` à `(cycle + 1) * 3`.
+        def parcourir():
+            for m in cycles:
+                debut = m.cycle * meteo.HEURES_PAR_CYCLE
+                yield x(debut), x(debut + meteo.HEURES_PAR_CYCLE), y(m.value)
+
+        cr.set_source_rgba(0.25, 0.48, 0.41, 0.35)
+        cr.move_to(x(cycles[0].cycle * meteo.HEURES_PAR_CYCLE), haut)
+        for gx, dx, py in parcourir():
+            cr.line_to(gx, py)
+            cr.line_to(dx, py)
+        cr.line_to(x((cycles[-1].cycle + 1) * meteo.HEURES_PAR_CYCLE), haut)
+        cr.close_path()
+        cr.fill()
+
+        cr.set_source_rgb(0.35, 0.68, 0.58)
+        cr.set_line_width(2.0)
+        for gx, dx, py in parcourir():
+            cr.line_to(gx, py)
+            cr.line_to(dx, py)
+        cr.stroke()
+        cr.restore()
+
+        # Les seuils, par-dessus la courbe, et leur étiquette dans la marge.
         cr.set_line_width(1.0)
         cr.set_dash([4.0, 4.0])
         cr.select_font_face("Sans")
@@ -1250,54 +1298,36 @@ class MainWindow(Gtk.ApplicationWindow):
             cr.show_text(etiquette)
         cr.set_dash([])
 
-        # La courbe en marches, et son aire.
-        cr.set_source_rgba(0.25, 0.48, 0.41, 0.35)
-        cr.move_to(x(0), haut)
-        for i, m in enumerate(cycles):
-            cr.line_to(x(i), y(m.value))
-            cr.line_to(x(i + 1), y(m.value))
-        cr.line_to(x(cases), haut)
-        cr.close_path()
-        cr.fill()
-
-        cr.set_source_rgb(0.35, 0.68, 0.58)
+        # Le présent, immobile au quart de la largeur.
+        px = x(releve.heure_atys)
+        cr.set_source_rgb(0.91, 0.76, 0.35)
         cr.set_line_width(2.0)
-        for i, m in enumerate(cycles):
-            cr.line_to(x(i), y(m.value))
-            cr.line_to(x(i + 1), y(m.value))
+        cr.move_to(px, 0)
+        cr.line_to(px, haut)
         cr.stroke()
 
-        # Le trait du « maintenant », posé à l'intérieur du cycle en cours.
-        indice = next((i for i, m in enumerate(cycles)
-                       if m.cycle == releve.cycle_courant), -1)
-        if indice >= 0:
-            px = x(indice + releve.avancement_du_cycle)
-            cr.set_source_rgb(0.91, 0.76, 0.35)
-            cr.move_to(px, 0)
-            cr.line_to(px, haut)
-            cr.stroke()
-
         cr.set_source_rgba(1, 1, 1, 0.35)
+        cr.set_line_width(1.0)
         cr.move_to(marge_g, haut)
         cr.line_to(largeur, haut)
         cr.stroke()
 
-        # L'heure réelle, à chaque heure ronde : les étiquettes se posent au
-        # temps qu'elles annoncent, non au cycle le plus proche — un cycle vaut
-        # neuf minutes, et six cycles font cinquante-quatre minutes.
-        if indice >= 0:
-            cr.set_source_rgba(1, 1, 1, 0.55)
-            depart = datetime.now() - timedelta(
-                minutes=(indice + releve.avancement_du_cycle) * meteo.MINUTES_PAR_CYCLE)
-            heure = (depart.replace(minute=0, second=0, microsecond=0)
-                     + timedelta(hours=1))
-            total = len(cycles) * meteo.MINUTES_PAR_CYCLE
-            while (decalage := (heure - depart).total_seconds() / 60) < total:
-                px = min(largeur - 22, max(0.0,
-                                           x(decalage / meteo.MINUTES_PAR_CYCLE) - 10))
-                cr.move_to(px, hauteur - 6)
-                cr.show_text(heure.strftime("%Hh"))
-                heure += timedelta(hours=1)
+        # L'heure réelle, toutes les demi-heures. Une heure d'Atys valant trois
+        # minutes, la fenêtre ne couvre que soixante-douze minutes réelles : à
+        # l'heure ronde, il n'y aurait qu'un repère, parfois zéro.
+        cr.set_source_rgba(1, 1, 1, 0.55)
+        maintenant = datetime.now()
+        repere = maintenant.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+        for _ in range(8):
+            repere += timedelta(minutes=30)
+            minutes = (repere - maintenant).total_seconds() / 60.0
+            atys = releve.heure_atys + minutes / meteo.MINUTES_PAR_HEURE_ATYS
+            if not gauche <= atys <= gauche + self.FENETRE_HEURES:
+                continue
+            texte = repere.strftime("%Hh") if repere.minute == 0 \
+                else repere.strftime("%Hh%M")
+            cr.move_to(min(largeur - 30, max(0.0, x(atys) - 14)), hauteur - 6)
+            cr.show_text(texte)
 
     def _build_skills_page(self) -> Gtk.Widget:
         """L'arbre des compétences : quatre branches qui se plient à tous les
