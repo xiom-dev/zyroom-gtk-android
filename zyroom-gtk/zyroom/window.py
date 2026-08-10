@@ -219,6 +219,15 @@ class MainWindow(Gtk.ApplicationWindow):
         bar1.append(self._spinner)
         spacer = Gtk.Label(hexpand=True)
         bar1.append(spacer)
+        # La rangée des quatre écrans de « Plus » se glisse ici, entre les
+        # sélecteurs et la saison : elle occupait sinon une ligne à elle seule,
+        # et la hauteur est ce qui manque le plus à un tableau. Elle est
+        # construite plus bas, avec la page qu'elle commande, et rangée ici pour
+        # ne paraître que sur cet onglet.
+        self._plus_switch_slot = Gtk.Box()
+        bar1.append(self._plus_switch_slot)
+        spacer2 = Gtk.Label(hexpand=True)
+        bar1.append(spacer2)
         self._season_lbl = Gtk.Label(label="")
         bar1.append(self._season_lbl)
 
@@ -429,10 +438,13 @@ class MainWindow(Gtk.ApplicationWindow):
                                     _("Avant-postes"))
         self._plus_stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
 
-        rangee = Gtk.StackSwitcher(stack=self._plus_stack)
-        rangee.set_halign(Gtk.Align.CENTER)
-        self._pad(rangee)
-        page.append(rangee)
+        # La rangée va dans la barre du haut, à côté des sélecteurs : une ligne
+        # de moins, et c'est la hauteur qui manque à un tableau. Elle ne se
+        # montre que quand l'onglet « Plus » est visible — ailleurs elle
+        # commanderait une pile qu'on ne voit pas.
+        self._plus_switch = Gtk.StackSwitcher(stack=self._plus_stack)
+        self._plus_switch.set_visible(False)
+        self._plus_switch_slot.append(self._plus_switch)
         page.append(self._plus_stack)
         self._plus_stack.set_vexpand(True)
         self._plus_stack.connect("notify::visible-child-name",
@@ -475,6 +487,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self._roster_box = Gtk.ListBox()
         self._roster_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._roster_box.add_css_class("survol")
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
@@ -554,7 +567,25 @@ class MainWindow(Gtk.ApplicationWindow):
             row.set_child(flow)
             self._roster_box.append(row)
 
+    #: Le signe de chaque mouvement : forme, classe de couleur, et sens.
+    #:
+    #: La couleur porte le sens — vert pour ce qui entre, rouge pour ce qui
+    #: sort, blanc pour ce qui bouge à l'intérieur — et la direction du triangle
+    #: le confirme, pour qui distingue mal les deux teintes.
+    SIGNES = {
+        ("arrivee", True): ("▲", "tri-arrivee", "arrivée"),
+        ("depart", True): ("▼", "tri-depart", "départ"),
+        ("grade", True): ("▲", "tri-grade", "montée de grade"),
+        ("grade", False): ("▼", "tri-grade", "rétrogradation"),
+    }
+
+    def _signe_mouvement(self, c) -> tuple:
+        if c.kind == "grade":
+            return self.SIGNES[("grade", c.promotion)]
+        return self.SIGNES[(c.kind, True)]
+
     def _remplir_mouvements_roster(self, changements: list) -> None:
+        self._roster_box.append(self._legende_roster())
         if not changements:
             self._roster_box.append(self._ligne_simple(
                 _("Aucun mouvement depuis le premier relevé. Le registre "
@@ -563,9 +594,53 @@ class MainWindow(Gtk.ApplicationWindow):
                 dim=True))
             return
         for rang, c in enumerate(changements):
-            quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
-            self._roster_box.append(self._ligne_simple(
-                f"{quand}   {roster.decrire(c)}", zebre=rang % 2 == 0))
+            row = Gtk.ListBoxRow()
+            if rang % 2 == 0:
+                row.add_css_class("zebre")
+            line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            self._pad(line)
+            line.props.margin_top = 2
+            line.props.margin_bottom = 2
+
+            quand = Gtk.Label(label=datetime.fromtimestamp(c.at)
+                              .strftime("%d/%m %H:%M"), xalign=0.0)
+            quand.add_css_class("dim-label")
+            quand.add_css_class("compact")
+            line.append(quand)
+
+            forme, classe, _sens = self._signe_mouvement(c)
+            triangle = Gtk.Label(label=forme)
+            triangle.add_css_class(classe)
+            line.append(triangle)
+
+            line.append(Gtk.Label(label=roster.decrire(c), xalign=0.0))
+            row.set_child(line)
+            self._roster_box.append(row)
+
+    def _legende_roster(self) -> Gtk.ListBoxRow:
+        """Quatre signes et leur sens, en tête du journal.
+
+        Sans elle, un triangle rouge vers le bas se lit comme une alarme plutôt
+        que comme un départ."""
+        row = Gtk.ListBoxRow()
+        row.set_activatable(False)
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
+        self._pad(line)
+        for (forme, classe, sens) in (self.SIGNES[("arrivee", True)],
+                                      self.SIGNES[("depart", True)],
+                                      self.SIGNES[("grade", True)],
+                                      self.SIGNES[("grade", False)]):
+            paire = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+            triangle = Gtk.Label(label=forme)
+            triangle.add_css_class(classe)
+            paire.append(triangle)
+            texte = Gtk.Label(label=_(sens))
+            texte.add_css_class("dim-label")
+            texte.add_css_class("compact")
+            paire.append(texte)
+            line.append(paire)
+        row.set_child(line)
+        return row
 
     # ------------------------------------------------------- Avant-postes
     #
@@ -607,7 +682,9 @@ class MainWindow(Gtk.ApplicationWindow):
         colonnes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
                            homogeneous=True)
         self._op_gauche = Gtk.ListBox()
+        self._op_gauche.add_css_class("survol")
         self._op_droite = Gtk.ListBox()
+        self._op_droite.add_css_class("survol")
         for colonne in (self._op_gauche, self._op_droite):
             colonne.set_selection_mode(Gtk.SelectionMode.NONE)
             defilement = Gtk.ScrolledWindow()
@@ -619,6 +696,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # phrases, pas un tableau.
         self._op_box = Gtk.ListBox()
         self._op_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._op_box.add_css_class("survol")
         journal = Gtk.ScrolledWindow()
         journal.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         journal.set_vexpand(True)
@@ -788,9 +866,11 @@ class MainWindow(Gtk.ApplicationWindow):
         # n'était alignée d'une ligne à l'autre. Les groupes de taille, eux,
         # imposent à tous leurs membres la largeur du plus large — c'est
         # exactement ce qu'on veut d'une colonne.
+        # Pas de largeur maximale : le groupe prend la largeur du nom le plus
+        # long, et tous s'affichent en entier tant que la fenêtre le permet.
+        # L'abrègement ne sert plus que de secours, quand on la rétrécit.
         nom = Gtk.Label(label=self._names.name(avant_poste.name_key), xalign=0.0)
         nom.set_ellipsize(Pango.EllipsizeMode.END)
-        nom.set_max_width_chars(26)
         nom.add_css_class("compact")
         if mien:
             nom.add_css_class("fini")     # le vert de l'application
@@ -806,7 +886,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         guilde = Gtk.Label(label=avant_poste.guild, xalign=0.0)
         guilde.set_ellipsize(Pango.EllipsizeMode.END)
-        guilde.set_max_width_chars(18)
+        guilde.set_max_width_chars(24)
         guilde.add_css_class("compact")
         if mien:
             guilde.add_css_class("fini")
@@ -1163,6 +1243,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self._skills_box = Gtk.ListBox()
         self._skills_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self._skills_box.add_css_class("survol")
         self._skills_box.connect("row-activated", self._on_skill_row)
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
@@ -1393,6 +1474,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_page_changed(self, *_args) -> None:
         page = self._stack.get_visible_child_name()
+        self._plus_switch.set_visible(page == "plus")
         if page == "log":
             self._load_log()
         elif page == "plus":
@@ -1948,7 +2030,20 @@ class MainWindow(Gtk.ApplicationWindow):
             # Un cran sous le corps courant : trois colonnes doivent tenir dans
             # une moitié de fenêtre, et un nom d'avant-poste va jusqu'à
             # quarante signes.
-            b" .compact { font-size: 0.92em; }")
+            b" .compact { font-size: 0.92em; }"
+            # Le survol. Ces listes ne se sélectionnent pas — on n'y clique
+            # rien —, et GTK n'éclaire alors plus la ligne sous le pointeur :
+            # on perdait sa ligne en traversant un tableau de vingt-neuf
+            # avant-postes ou de cent soixante-dix noms. La teinte est celle de
+            # la sélection du thème, très diluée, pour ne pas se confondre avec
+            # un vrai choix.
+            b" .survol row:hover {"
+            b"   background: alpha(@theme_selected_bg_color, 0.28); }"
+            # Les triangles du registre : la couleur porte le sens, la
+            # direction le confirme.
+            b" .tri-arrivee { color: #4caf50; font-weight: bold; }"
+            b" .tri-depart  { color: #e2696a; font-weight: bold; }"
+            b" .tri-grade   { color: @theme_fg_color; font-weight: bold; }")
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)

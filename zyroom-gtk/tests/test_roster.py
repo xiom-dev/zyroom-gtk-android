@@ -52,7 +52,10 @@ class Mouvements(unittest.TestCase):
         self.assertIn("a rejoint la guilde", roster.decrire(arrivee))
         self.assertIn("a quitté la guilde", roster.decrire(depart))
         montee = roster.diff({"Dale": "Member"}, {"Dale": "Officer"})[0]
-        self.assertIn("▲", roster.decrire(montee))
+        # Le signe n'est plus dans le texte : l'écran le pose à part, en
+        # couleur, et `promotion` dit lequel choisir.
+        self.assertIn("Membre → Officier", roster.decrire(montee))
+        self.assertTrue(montee.promotion)
 
 
 class Journal(unittest.TestCase):

@@ -84,13 +84,16 @@ def diff(avant: dict[str, str], apres: dict[str, str]) -> list[Change]:
 
 
 def decrire(changement: Change) -> str:
-    """Une ligne de journal, lisible telle quelle."""
+    """Une ligne de journal, lisible telle quelle.
+
+    Sans le signe : l'écran le pose à part, en couleur, et le répéter dans le
+    texte ferait double emploi. Cette fonction sert aussi au presse-papier et
+    aux tests, où la couleur ne passe pas."""
     if changement.kind == "arrivee":
         return f"{changement.member} a rejoint la guilde ({nom_grade(changement.to)})"
     if changement.kind == "depart":
         return f"{changement.member} a quitté la guilde ({nom_grade(changement.frm)})"
-    fleche = "▲" if changement.promotion else "▼"
-    return (f"{changement.member} {fleche} {nom_grade(changement.frm)} → "
+    return (f"{changement.member} : {nom_grade(changement.frm)} → "
             f"{nom_grade(changement.to)}")
 
 
