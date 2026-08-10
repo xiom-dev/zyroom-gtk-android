@@ -136,6 +136,47 @@ enum class SortOrder(val label: String) {
 }
 
 /**
+ * Ce que la grille montre : un contenant, ou le résultat d'une recherche.
+ *
+ * Tant qu'on ne cherche rien, on montre le contenant choisi, et lui seul.
+ * **Dès qu'on tape, tous les contenants sont fouillés** — « où est cette
+ * écorce ? » ne se répond pas en ouvrant dix-sept coffres l'un après l'autre.
+ * Il n'y a pas de réglage pour ça : c'est le seul comportement qu'on veuille
+ * jamais, et une case à cocher de plus ne ferait qu'une chose à oublier.
+ *
+ * Le résultat garde le nom du contenant avec chaque groupe : trouver l'objet
+ * sans dire où il est ne répondrait pas à la question posée. Les contenants
+ * sans réponse disparaissent, et l'ordre des autres est celui de la rangée du
+ * haut.
+ *
+ * Vit ici, hors de l'écran, pour être couvert par des tests.
+ */
+fun chercheDansTout(
+    inventaires: List<Inventory>,
+    contenantChoisi: Int,
+    recherche: String,
+    order: SortOrder,
+    nameOf: (Item) -> String,
+    normalise: (String) -> String,
+): List<Pair<String, List<Item>>> {
+    if (inventaires.isEmpty()) return emptyList()
+    val cherche = normalise(recherche.trim())
+    if (cherche.isEmpty()) {
+        val choisi = inventaires[contenantChoisi.coerceIn(inventaires.indices)]
+        return listOf(choisi.label to sortItems(choisi.items, order, nameOf))
+    }
+    // Le nom lisible et la fiche : sans pack chargé, il ne reste que la fiche,
+    // et chercher « m0117 » doit continuer de répondre.
+    return inventaires.mapNotNull { inventaire ->
+        val trouves = inventaire.items.filter {
+            cherche in normalise(nameOf(it)) || cherche in normalise(it.sheet)
+        }
+        if (trouves.isEmpty()) null
+        else inventaire.label to sortItems(trouves, order, nameOf)
+    }
+}
+
+/**
  * Range une liste d'items.
  *
  * En tri par famille, les matières sont réunies par matière puis classées du

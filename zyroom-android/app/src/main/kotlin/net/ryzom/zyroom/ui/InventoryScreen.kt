@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
@@ -79,7 +80,9 @@ import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
 import net.ryzom.zyroom.model.SkillPoints
+import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.SortOrder
+import net.ryzom.zyroom.model.chercheDansTout
 import net.ryzom.zyroom.model.finishedSkills
 import net.ryzom.zyroom.model.skillTree
 import net.ryzom.zyroom.model.sortItems
@@ -337,15 +340,16 @@ fun InventoryScreen(
                     }
 
                 else -> {
-                    val tous = inventaires[contenant.coerceIn(inventaires.indices)].items
-                    // La recherche porte sur le nom lisible et sur la fiche :
-                    // sans pack chargé, il ne reste que la fiche.
-                    val cherche = normalise(recherche.trim())
-                    val filtres = if (cherche.isEmpty()) tous else tous.filter {
-                        cherche in normalise(repository.nameOf(it.sheet)) ||
-                            cherche in normalise(it.sheet)
-                    }
-                    val items = sortItems(filtres, tri) { repository.nameOf(it.sheet) }
+                    // Chercher, c'est chercher partout : voir chercheDansTout.
+                    val parContenant = chercheDansTout(
+                        inventaires = inventaires,
+                        contenantChoisi = contenant,
+                        recherche = recherche,
+                        order = tri,
+                        nameOf = { repository.nameOf(it.sheet) },
+                        normalise = ::normalise,
+                    )
+                    val items = parContenant.flatMap { it.second }
                     OutlinedTextField(
                         value = recherche,
                         onValueChange = { recherche = it },
@@ -381,13 +385,31 @@ fun InventoryScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(items, key = { it.id.ifEmpty { it.sheet + it.slot } }) { item ->
-                            ItemCell(
-                                item = item,
-                                surveille = watches.isWatched(item),
-                                onClick = { detail = item },
-                                onLongClick = { surveiller = item },
-                            )
+                        parContenant.forEach { (contenantNom, trouves) ->
+                            // Le nom du contenant, sur toute la largeur, entre
+                            // deux groupes. Il ne paraît qu'en cherchant : sans
+                            // lui, trouver l'objet ne dirait pas où il est, ce
+                            // qui est justement la question posée.
+                            if (parContenant.size > 1) {
+                                item(span = { GridItemSpan(maxLineSpan) }) {
+                                    Text(
+                                        "$contenantNom — ${trouves.size}",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+                                    )
+                                }
+                            }
+                            items(trouves,
+                                  key = { "$contenantNom-${it.id.ifEmpty { it.sheet + it.slot }}" }
+                            ) { item ->
+                                ItemCell(
+                                    item = item,
+                                    surveille = watches.isWatched(item),
+                                    onClick = { detail = item },
+                                    onLongClick = { surveiller = item },
+                                )
+                            }
                         }
                     }
                 }
