@@ -121,35 +121,29 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                 }
                 return@Column
             }
-            // Couché, la courbe reste en place et seules les matières défilent
-            // dessous : c'est la disposition qu'on cherche en tournant le
-            // téléphone — lire la fenêtre de forage tout en parcourant ce
-            // qu'elle fait sortir. Debout, la hauteur manque pour figer quoi
-            // que ce soit, et tout défile ensemble.
-            if (paysage) {
-                EnTeteMeteo(donnees, compact = true)
-                CourbeMeteo(
-                    releve = donnees,
-                    cycles = cyclesDesPrimes(donnees),
-                    hauteur = 160,
-                )
-            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 8.dp),
             ) {
+                // Tout défile ensemble, courbe comprise. La figer en paysage
+                // avait l'air d'une bonne idée — lire la fenêtre de forage en
+                // parcourant ce qu'elle fait sortir — mais un écran couché est
+                // deux fois moins haut : il ne restait plus qu'un ou deux
+                // rangs de matières sous elle. Mieux vaut pousser la courbe
+                // hors de vue et lire le tableau.
+                //
                 // Les cinq continents des Primes rendent la même série météo —
                 // vérifié sur quarante cycles. La répéter sous chaque zone
-                // n'apprendrait rien : elle est en tête, une fois.
-                if (!paysage) {
-                    item { EnTeteMeteo(donnees) }
-                    item {
-                        CourbeMeteo(
-                            releve = donnees,
-                            cycles = cyclesDesPrimes(donnees),
-                            hauteur = 200,
-                        )
-                    }
+                // n'apprendrait rien : elle est en tête, une fois. En paysage
+                // l'en-tête se resserre sur une ligne, pour que le tableau
+                // commence plus tôt.
+                item { EnTeteMeteo(donnees, compact = paysage) }
+                item {
+                    CourbeMeteo(
+                        releve = donnees,
+                        cycles = cyclesDesPrimes(donnees),
+                        hauteur = if (paysage) 190 else 200,
+                    )
                 }
                 item { TitreTableau("Suprêmes — " + nomSaison(donnees.saison)) }
                 itemsIndexed(SUPREMES[saisonCle(donnees.saison)]

@@ -1,0 +1,10 @@
+* La météo d'Atys a sa carte sur l'écran d'accueil : courbe des prévisions,
+  matières suprêmes par zone des Primes, excellentes de jour et de nuit.
+* L'arbre des compétences montre en vert les branches entièrement montées, et
+  distingue les sous-branches par des nuances d'orange.
+* Le tri réunit les pièces d'une même tenue et les bijoux d'une même parure, au
+  lieu de les éparpiller selon la casse de leurs noms.
+* En paysage, le titre se réduit et l'écran retrouve sa place après rotation.
+  Un pincement à deux doigts change la taille de l'affichage.
+* Le bouton « retour » du téléphone remonte d'un écran au lieu de fermer
+  l'application.
