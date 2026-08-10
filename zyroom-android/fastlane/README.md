@@ -11,8 +11,8 @@ titre, descriptions, journal des versions, images. Rien ici n'entre dans l'APK.
         images/icon.png                512 × 512
         images/phoneScreenshots/       1.png, 2.png… dans l'ordre d'affichage
 
-Le nom d'un journal est un **versionCode**, pas un numéro affiché : `13.txt`
-accompagne la version 2.8, dont le versionCode vaut 13. Voir `version.properties`,
+Le nom d'un journal est un **versionCode**, pas un numéro affiché : `14.txt`
+accompagne la version 2.9, dont le versionCode vaut 14. Voir `version.properties`,
 que `livraison.sh` fait croître — un journal nommé d'après le numéro affiché ne
 serait jamais retrouvé.
 

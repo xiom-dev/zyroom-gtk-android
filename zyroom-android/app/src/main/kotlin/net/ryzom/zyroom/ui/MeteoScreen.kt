@@ -202,24 +202,28 @@ private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
         // On ne montre que les bascules, non les cycles un par un : ce qu'on
         // veut savoir, c'est quand ça change.
         val suite = cycles.filter { it.cycle > releve.cycleCourant }
-        suite.firstOrNull { it.condition != maintenant.condition }?.let { prochain ->
+        val prochain = suite.firstOrNull { it.condition != maintenant.condition }
+        prochain?.let {
             Text(
-                "${texteCondition(prochain.condition)} dans " +
-                    duree(minutesAvant(releve, prochain.cycle)),
+                "${texteCondition(it.condition)} dans " +
+                    duree(minutesAvant(releve, it.cycle)),
                 style = MaterialTheme.typography.bodyMedium,
-                color = couleurCondition(prochain.condition),
+                color = couleurCondition(it.condition),
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
-        if (maintenant.condition != "best") {
-            suite.firstOrNull { it.condition == "best" }?.let { meilleur ->
-                Text(
-                    "Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = couleurCondition("best"),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
+        // La fenêtre excellente, seulement si elle n'est pas déjà annoncée
+        // au-dessus : quand la prochaine bascule est justement celle-là, les
+        // deux lignes disaient mot pour mot la même chose.
+        val meilleur = suite.firstOrNull { it.condition == "best" }
+        if (maintenant.condition != "best" && meilleur != null &&
+            meilleur.cycle != prochain?.cycle) {
+            Text(
+                "Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = couleurCondition("best"),
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
         Text(
             "Les Primes partagent une seule météo : celle-ci vaut pour les quatre zones. " +
@@ -237,6 +241,8 @@ private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
 @Composable
 private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Meteo>) {
     val suite = cycles.filter { it.cycle > releve.cycleCourant }
+    val prochain = suite.firstOrNull { it.condition != maintenant.condition }
+    val meilleur = suite.firstOrNull { it.condition == "best" }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -251,22 +257,23 @@ private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Met
             fontWeight = FontWeight.Bold,
             color = couleurCondition(maintenant.condition),
         )
-        suite.firstOrNull { it.condition != maintenant.condition }?.let { prochain ->
+        prochain?.let {
             Text(
-                "  →  ${texteCondition(prochain.condition)} dans " +
-                    duree(minutesAvant(releve, prochain.cycle)),
+                "  →  ${texteCondition(it.condition)} dans " +
+                    duree(minutesAvant(releve, it.cycle)),
                 style = MaterialTheme.typography.bodyMedium,
-                color = couleurCondition(prochain.condition),
+                color = couleurCondition(it.condition),
             )
         }
-        if (maintenant.condition != "best") {
-            suite.firstOrNull { it.condition == "best" }?.let { meilleur ->
-                Text(
-                    "   ✦ Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = couleurCondition("best"),
-                )
-            }
+        // Tue dans l'œuf la répétition : quand la prochaine bascule est la
+        // fenêtre excellente, les deux annonces se valent mot pour mot.
+        if (maintenant.condition != "best" && meilleur != null &&
+            meilleur.cycle != prochain?.cycle) {
+            Text(
+                "   ✦ Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = couleurCondition("best"),
+            )
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
