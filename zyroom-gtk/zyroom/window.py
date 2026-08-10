@@ -337,7 +337,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # l'inventaire et le journal des mouvements — et le reste vit sous
         # « Plus », avec sa propre rangée.
         self._stack.add_titled(self._build_log_page(), "log", _("Journal"))
-        self._stack.add_titled(self._build_plus_page(), "plus", _("Plus"))
+        self._stack.add_titled(self._build_plus_page(), "plus", _("Bonus"))
         header.set_title_widget(self._build_navigation())
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
@@ -437,7 +437,10 @@ class MainWindow(Gtk.ApplicationWindow):
         return page
 
     # ---------------------------------------------------------- Compétences
-    #: Les quatre écrans de « Plus », dans l'ordre du menu.
+    #: Les quatre écrans de « Bonus », dans l'ordre du menu.
+    #:
+    #: Le nom interne de la page reste `plus` : il ne paraît nulle part, et le
+    #: renommer toucherait l'action D-Bus, la pile et six méthodes pour rien.
     PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
                   ("outposts", "Avant-postes"), ("meteo", "Météo"))
 
@@ -447,7 +450,7 @@ class MainWindow(Gtk.ApplicationWindow):
         Six onglets ne tenaient pas ; une rangée de plus mangeait la hauteur
         d'un tableau. Ici, l'inventaire et le journal — ce qu'on consulte tous
         les jours — restent à un clic, et les quatre écrans de consultation
-        vivent dans un menu déroulant qui porte le nom de celui qu'on regarde.
+        vivent dans un menu déroulant.
         """
         boite = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         boite.add_css_class("linked")
@@ -462,7 +465,7 @@ class MainWindow(Gtk.ApplicationWindow):
         menu = Gio.Menu()
         for nom, etiquette in self.PLUS_PAGES:
             menu.append(_(etiquette), f"win.plus::{nom}")
-        self._plus_btn = Gtk.MenuButton(label=_("Plus"))
+        self._plus_btn = Gtk.MenuButton(label=_("Bonus"))
         self._plus_btn.set_menu_model(menu)
         self._plus_btn.set_always_show_arrow(True)
         boite.append(self._plus_btn)
@@ -493,7 +496,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 bouton.handler_block_by_func(self._on_nav_toggled)
                 bouton.set_active(actif)
                 bouton.handler_unblock_by_func(self._on_nav_toggled)
-        # Le bouton s'appelle « Plus », toujours : c'est un menu, et un menu ne
+        # Le bouton s'appelle « Bonus », toujours : c'est un menu, et un menu ne
         # prend pas le nom de ce qu'on y a choisi. Seul son état enfoncé dit
         # qu'on est dans l'une de ses pages.
         if page == "plus":
@@ -501,7 +504,7 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             self._plus_btn.remove_css_class("suggested-action")
 
-    # --------------------------------------------------------------- Plus
+    # -------------------------------------------------------------- Bonus
     #
     # Quatre écrans de consultation, derrière un seul onglet : les compétences
     # d'un personnage, la carte des avant-postes, la météo d'Atys et le
