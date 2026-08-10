@@ -45,10 +45,16 @@ fun App(
     BackHandler(enabled = !meteo && ouverte != null) { ouverteId = null }
 
     ZyRoomTheme {
-      ZoomPincee {
         val choisie = ouverte
         if (meteo) {
-            MeteoScreen(repository = repository, onBack = { meteo = false })
+            // Le pincement ne vaut que pour la météo : c'est le seul écran dont
+            // le contenu ne s'adapte pas — une courbe et un tableau de matières
+            // qu'on veut tantôt lire de près, tantôt embrasser d'un coup. Les
+            // inventaires, eux, ont déjà leurs boutons « − » et « + » pour la
+            // taille des cases, et l'arbre des compétences se replie.
+            ZoomPincee {
+                MeteoScreen(repository = repository, onBack = { meteo = false })
+            }
         } else if (choisie == null) {
             EntitiesScreen(
                 store = store,
@@ -67,6 +73,5 @@ fun App(
                 onBack = { ouverteId = null },
             )
         }
-      }
     }
 }

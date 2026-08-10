@@ -45,8 +45,14 @@ APP_NAME = ("ZyRoom-GTK-dev-0.7"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.6")
 
-#: Signature affichée en bas de la fenêtre principale.
+#: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
+#: l'À propos, où vivent le copyright et la licence.
 SIGNATURE = "Original by Misugi, fork by Xiom"
+
+#: Où trouver le code de ce portage, et celui dont il dérive. L'AGPL veut que
+#: l'interface dise à qui reçoit l'application où prendre ses sources.
+DEPOT_SOURCES = "https://github.com/xiom-dev/zyroom-gtk-android"
+DEPOT_ORIGINE = "https://github.com/misugi/zyroom"
 
 _KIND_PREFIX = {KIND_CHARACTER: "👤", KIND_GUILD: "🛡"}
 _KIND_LABEL = {KIND_CHARACTER: "Personnage", KIND_GUILD: "Guilde"}
@@ -322,10 +328,15 @@ class MainWindow(Gtk.ApplicationWindow):
         statusbar.append(self._dappers_lbl)
 
         # Signature : d'où vient cette application. Pas de traduction, ce sont
-        # des noms propres.
-        signature = Gtk.Label(label=SIGNATURE)
-        signature.add_css_class("dim-label")
-        signature.add_css_class("caption")
+        # des noms propres. Cliquable, parce que c'est là qu'on cherche d'où
+        # vient un logiciel — et que l'AGPL veut que l'interface porte le
+        # copyright, l'absence de garantie et le moyen d'obtenir le code.
+        signature = Gtk.Button(label=SIGNATURE)
+        signature.set_has_frame(False)
+        signature.get_child().add_css_class("dim-label")
+        signature.get_child().add_css_class("caption")
+        signature.set_tooltip_text(_("À propos de ZyRoom-GTK"))
+        signature.connect("clicked", self._on_about)
         signature.props.margin_bottom = 6
         root.append(signature)
 
@@ -1578,6 +1589,38 @@ class MainWindow(Gtk.ApplicationWindow):
                 self._display_inventory(idx)
         else:
             self._set_status("Impossible de lire ce fichier string_client.pack.")
+
+    # ------------------------------------------------------------- À propos
+    def _on_about(self, *_) -> None:
+        """L'origine de l'application, et les avis que la licence demande.
+
+        L'AGPL ne se contente pas d'un remerciement : quand un programme qu'elle
+        couvre a une interface, celle-ci doit porter le copyright, l'absence de
+        garantie, le droit de redistribuer et le moyen de lire la licence. Le
+        dépôt et le README le disent déjà — mais un joueur n'ira jamais les
+        lire, et c'est à lui que l'obligation s'adresse.
+
+        La filiation est écrite ici : cette application traduit le zyRoom Delphi
+        de Misugi. C'est une œuvre dérivée, et l'AGPL interdit d'en effacer la
+        paternité d'origine.
+        """
+        about = Gtk.AboutDialog(transient_for=self, modal=True)
+        about.set_program_name(APP_NAME)
+        about.set_comments(
+            "Vos inventaires Ryzom et les coffres de la guilde, hors du jeu.\n"
+            "Dérivée du zyRoom de Misugi, écrit en Delphi pour Windows :\n"
+            "ZyRoom-GTK en reprend les algorithmes et la lecture de l'API,\n"
+            "et hérite donc de sa licence.")
+        about.set_copyright("© Misugi pour le zyRoom d'origine\n"
+                            "© 2026 Xiom pour ce portage")
+        # GTK affiche le texte complet de la licence, celui du dépôt.
+        about.set_license_type(Gtk.License.AGPL_3_0)
+        about.set_website(DEPOT_SOURCES)
+        about.set_website_label("Code source, licence et signalement de défauts")
+        about.add_credit_section("Projet d'origine", [DEPOT_ORIGINE])
+        about.set_logo_icon_name(
+            os.environ.get("FLATPAK_ID") or "net.ryzom.zyroomgtk")
+        about.present()
 
     # ---------------------------------------- Menu : options / chatlog / backup
     def _on_options(self, *_):

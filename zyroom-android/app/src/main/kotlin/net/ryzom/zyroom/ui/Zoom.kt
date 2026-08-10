@@ -22,17 +22,22 @@ private const val ZOOM_MIN = 0.6f
 private const val ZOOM_MAX = 2.0f
 
 /**
- * Le zoom à deux doigts, sur toute l'application.
+ * Le zoom à deux doigts, autour de l'écran météo.
  *
- * En paysage, un tableau large déborde et rien ne permettait de le ramener : la
- * seule issue était de remettre le téléphone droit. Pincer change la densité
- * d'affichage, donc **tout** rétrécit ensemble — textes, icônes, colonnes,
- * marges — au lieu de rapetisser une image déjà composée : le texte reste net à
- * n'importe quel facteur, et les listes continuent de se replier comme il faut.
+ * Pincer change la densité d'affichage, donc **tout** rétrécit ensemble —
+ * textes, courbe, colonnes, marges — au lieu de rapetisser une image déjà
+ * composée : le texte reste net à n'importe quel facteur, et les listes
+ * continuent de se replier comme il faut.
+ *
+ * Il n'enveloppe que la météo, et non toute l'application : c'est le seul écran
+ * dont le contenu ne s'adapte pas de lui-même — on veut tantôt lire une matière
+ * précise, tantôt voir toute la saison d'un coup. Ailleurs le geste ne servait à
+ * rien et pouvait surprendre : les inventaires ont leurs boutons « − » et « + »,
+ * l'arbre des compétences se replie.
  *
  * Le geste se lit dans la passe initiale, avant les listes qui défilent, et
  * n'est retenu qu'à partir de deux doigts : un glissement d'un doigt reste un
- * défilement, et rien ne se met à zoomer quand on parcourt un inventaire.
+ * défilement, et rien ne se met à zoomer quand on parcourt le tableau.
  */
 @Composable
 fun ZoomPincee(content: @Composable () -> Unit) {
