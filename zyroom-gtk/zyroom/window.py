@@ -342,9 +342,10 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Barre d'état : portrait du personnage + texte
         statusbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        statusbar.props.margin_start = 8
-        statusbar.props.margin_end = 8
-        statusbar.props.margin_bottom = 6
+        # Les marges passent à l'intérieur : la bande grise doit aller d'un bord
+        # à l'autre, comme la barre de titre qui lui répond en haut.
+        statusbar.add_css_class("barre-etat")
+        statusbar.props.margin_top = 4
         root.append(statusbar)
         self._portrait = Gtk.Image()
         # Quarante-quatre, et de l'air au-dessus : c'est une signature, pas une
@@ -611,8 +612,8 @@ class MainWindow(Gtk.ApplicationWindow):
 
         Cent soixante-dix noms sur une seule colonne faisaient un ruban plus
         haut que dix écrans, où l'on ne trouvait rien. Une `FlowBox` les
-        répartit et suit la largeur de la fenêtre : six colonnes au large, une
-        seule si on la rétrécit."""
+        range sur six colonnes, et une rangée sur deux est teintée — sans quoi
+        l'œil saute d'une ligne à l'autre en cherchant un nom."""
         # Le chef d'abord, les membres ensuite : on lit une liste de guilde par
         # le haut, et l'API la rend dans un ordre qui n'en est pas un.
         membres = sorted(ent.members,
@@ -634,23 +635,32 @@ class MainWindow(Gtk.ApplicationWindow):
             entete.set_child(titre)
             self._roster_box.append(entete)
 
-            row = Gtk.ListBoxRow()
-            row.set_activatable(False)
-            flow = Gtk.FlowBox()
-            flow.set_selection_mode(Gtk.SelectionMode.NONE)
-            flow.set_homogeneous(True)
-            flow.set_min_children_per_line(1)
-            flow.set_max_children_per_line(6)
-            flow.set_column_spacing(4)
-            flow.set_row_spacing(1)
-            self._pad(flow)
-            for nom in noms:
-                label = Gtk.Label(label=nom, xalign=0.0)
-                label.add_css_class("compact")
-                label.set_ellipsize(Pango.EllipsizeMode.END)
-                flow.append(label)
-            row.set_child(flow)
-            self._roster_box.append(row)
+            # Une grille et non une boîte à flot : le zébrage suppose des
+            # rangées, et une boîte à flot n'en a que le jour où elle se
+            # dessine. Six colonnes, comme elle en tenait au large.
+            for depart in range(0, len(noms), self.ROSTER_COLONNES):
+                tranche = noms[depart:depart + self.ROSTER_COLONNES]
+                row = Gtk.ListBoxRow()
+                row.set_activatable(False)
+                if (depart // self.ROSTER_COLONNES) % 2 == 0:
+                    row.add_css_class("zebre")
+                grille = Gtk.Grid(column_spacing=4, column_homogeneous=True)
+                self._pad(grille)
+                grille.props.margin_top = 1
+                grille.props.margin_bottom = 1
+                # La rangée est toujours remplie jusqu'à six, au besoin de
+                # cases vides : une grille homogène ne répartit que les colonnes
+                # qui existent, et la dernière rangée d'un grade — deux noms —
+                # s'étalait sur toute la largeur au lieu de s'aligner sur celles
+                # du dessus.
+                for colonne in range(self.ROSTER_COLONNES):
+                    nom = tranche[colonne] if colonne < len(tranche) else ""
+                    label = Gtk.Label(label=nom, xalign=0.0)
+                    label.add_css_class("compact")
+                    label.set_ellipsize(Pango.EllipsizeMode.END)
+                    grille.attach(label, colonne, 0, 1, 1)
+                row.set_child(grille)
+                self._roster_box.append(row)
 
     #: Le signe de chaque mouvement : forme, classe de couleur, et sens.
     #:
@@ -1217,6 +1227,13 @@ class MainWindow(Gtk.ApplicationWindow):
             grille.attach(m, 1, ligne, 1, 1)
         boite.append(grille)
         return boite
+
+    #: Combien de noms par rangée dans l'effectif.
+    #:
+    #: Six : c'est ce qui tient sur une fenêtre au large, et le zébrage a besoin
+    #: d'un nombre fixe — une boîte à flot n'a de rangées que le jour où elle se
+    #: dessine, et on ne saurait pas laquelle teinter.
+    ROSTER_COLONNES = 6
 
     #: Ce que la courbe montre, en heures d'Atys, et où s'y tient le présent.
     #:
@@ -2225,7 +2242,15 @@ class MainWindow(Gtk.ApplicationWindow):
             # direction le confirme.
             b" .tri-arrivee { color: #4caf50; font-weight: bold; }"
             b" .tri-depart  { color: #e2696a; font-weight: bold; }"
-            b" .tri-grade   { color: @theme_fg_color; font-weight: bold; }")
+            b" .tri-grade   { color: @theme_fg_color; font-weight: bold; }"
+            # Les deux bandes qui encadrent la fenêtre — titre en haut, état en
+            # bas — d'un gris un cran plus sombre que le fond. Elles tiennent
+            # ainsi le tableau entre elles au lieu de s'y fondre, et le calcul
+            # part du thème : sur un thème clair, « plus sombre » reste juste.
+            b" headerbar { background: mix(@theme_bg_color, black, 0.22); }"
+            b" .barre-etat {"
+            b"   background: mix(@theme_bg_color, black, 0.22);"
+            b"   padding: 4px 8px; }")
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
