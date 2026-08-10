@@ -10,7 +10,10 @@ Deux limites à connaître :
 
   - **C'est le portail qui décide quand vérifier.** Il n'existe aucune méthode
     « vérifie maintenant » ; il sonde à sa propre cadence, et le signal peut
-    donc arriver plusieurs minutes après le lancement.
+    donc arriver longtemps après le lancement. D'où le `Veilleur` ci-dessous,
+    qui regarde lui-même le dépôt publié : le portail reste seul à savoir
+    installer, mais il n'est plus seul à savoir qu'il y a quelque chose à
+    installer.
   - **Rien ne se passe hors Flatpak.** Lancée depuis les sources ou installée
     par le paquet Debian, l'application ne trouve pas le portail : le module se
     met alors en sommeil et le bouton n'apparaît jamais, ce qui est correct —
@@ -18,11 +21,20 @@ Deux limites à connaître :
 """
 from __future__ import annotations
 
+import re
+import urllib.request
+
 from gi.repository import Gio, GLib
 
 _PORTAL_NAME = "org.freedesktop.portal.Flatpak"
 _PORTAL_PATH = "/org/freedesktop/portal/Flatpak"
 _MONITOR_IFACE = "org.freedesktop.portal.Flatpak.UpdateMonitor"
+
+#: Le dépôt d'où viennent les mises à jour, celui qu'annonce le bundle installé.
+DEPOT = "https://xiom-dev.github.io/zyroom-gtk-android/repo/"
+
+#: Ce que le bac à sable dit de l'application en cours d'exécution.
+_INFO_FLATPAK = "/.flatpak-info"
 
 
 class Updater:
@@ -109,6 +121,77 @@ class Updater:
         except Exception:                               # noqa: BLE001
             pass
         self._monitor = None
+
+
+class Veilleur:
+    """Regarde le dépôt publié, sans passer par le portail.
+
+    Le portail sonde à sa guise — souvent une fois par heure — et le bouton
+    « Mettre à jour » n'apparaissait donc qu'avec beaucoup de retard, parfois
+    jamais dans une séance de jeu. Ici on lit simplement, en HTTPS, l'empreinte
+    que le dépôt annonce pour cette application, et on la compare à celle qu'on
+    exécute. C'est un fichier de soixante-cinq octets ; on peut le demander à
+    chaque lancement et tous les quarts d'heure sans peser sur rien.
+
+    Le portail garde son rôle : lui seul peut installer. Il refait de son côté
+    la comparaison au moment de le faire, et n'installe donc jamais sur la foi
+    de cette lecture-ci.
+
+    Hors bac à sable, `possible` est faux : il n'y a ni empreinte installée à
+    lire, ni mise à jour à proposer.
+    """
+
+    def __init__(self) -> None:
+        self.application, self.commit_installe = _identite_flatpak()
+
+    @property
+    def possible(self) -> bool:
+        return bool(self.application and self.commit_installe)
+
+    @property
+    def url(self) -> str:
+        """L'adresse de la référence publiée pour cette application."""
+        return (f"{DEPOT}refs/heads/app/{self.application}/x86_64/master")
+
+    def commit_publie(self, timeout: int = 15) -> str:
+        """L'empreinte annoncée par le dépôt, ou une chaîne vide s'il se tait.
+
+        Une panne de réseau ne doit rien casser : sans réponse, on s'en tient à
+        ce qu'on a, et on redemandera au prochain quart d'heure.
+        """
+        try:
+            with urllib.request.urlopen(self.url, timeout=timeout) as reponse:
+                texte = reponse.read(200).decode("ascii", "ignore").strip()
+        except Exception:                               # noqa: BLE001
+            return ""
+        return texte if re.fullmatch(r"[0-9a-f]{64}", texte) else ""
+
+    def mise_a_jour_disponible(self) -> str:
+        """L'empreinte qui attend, ou une chaîne vide s'il n'y a rien de neuf."""
+        if not self.possible:
+            return ""
+        publie = self.commit_publie()
+        return publie if publie and publie != self.commit_installe else ""
+
+
+def _identite_flatpak() -> tuple[str, str]:
+    """(identifiant d'application, empreinte installée), vides hors Flatpak.
+
+    `/.flatpak-info` est écrit par Flatpak dans chaque bac à sable ; sa clé
+    `app-commit` est exactement ce que le dépôt publie sous `refs/heads`.
+    """
+    try:
+        with open(_INFO_FLATPAK, encoding="utf-8") as fichier_info:
+            contenu = fichier_info.read()
+    except OSError:
+        return "", ""
+    fichier = GLib.KeyFile()
+    try:
+        fichier.load_from_data(contenu, len(contenu), GLib.KeyFileFlags.NONE)
+        return (fichier.get_string("Application", "name"),
+                fichier.get_string("Instance", "app-commit"))
+    except Exception:                                   # noqa: BLE001
+        return "", ""
 
 
 #: Codes d'état du portail (`status` du signal Progress).

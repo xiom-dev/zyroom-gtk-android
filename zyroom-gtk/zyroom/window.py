@@ -15,7 +15,7 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk
 
 from . import alerts, backup, chatlog, detail, i18n, movements, ryzom_api, sorting
 from . import skills as skills_mod
-from .updater import Updater
+from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
 from .i18n import _
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings, detect_pack,
@@ -33,10 +33,15 @@ from .watch import WatchStore, watch_kind, KIND_DURABILITY
 
 ICON_SIZE = 48
 
+#: Intervalle de vérification des mises à jour de l'application, en secondes.
+#: Un quart d'heure, comme la resynchronisation : c'est la cadence à laquelle
+#: on regarde déjà si quelque chose a changé ailleurs.
+MAJ_INTERVALLE = 15 * 60
+
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.6"
+APP_NAME = ("ZyRoom-GTK-dev-0.7"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.5")
 
@@ -111,9 +116,14 @@ class MainWindow(Gtk.ApplicationWindow):
         self._busy = False
 
         self._build_ui()
-        # Le portail décide lui-même quand vérifier : le bouton peut n'apparaître
-        # que plusieurs minutes après le lancement. Hors Flatpak, jamais.
+        # Le portail décide lui-même quand vérifier, souvent une fois l'heure.
+        # On l'écoute quand même — c'est lui qui installe —, mais on regarde
+        # aussi le dépôt nous-même : au lancement, puis tous les quarts d'heure.
+        # Hors Flatpak, ni l'un ni l'autre ne trouve de quoi travailler.
         self._updater = Updater(self._on_update_available, self._on_update_progress)
+        self._veilleur = Veilleur()
+        self._verifier_maj()
+        GLib.timeout_add_seconds(MAJ_INTERVALLE, self._verifier_maj_tick)
         self._reload_entities()
         self._refresh_season()
         GLib.timeout_add_seconds(180, self._refresh_season_tick)
@@ -1599,7 +1609,35 @@ class MainWindow(Gtk.ApplicationWindow):
         self._set_status(("Sauvegarde : " if ok else "") + msg)
 
     # ------------------------------------------------- Mise à jour de l'app
+    def _verifier_maj(self) -> None:
+        """Demande au dépôt s'il annonce autre chose que ce qu'on exécute.
+
+        La lecture part dans un fil : le lancement de l'application ne doit pas
+        attendre le réseau, et une coupure ne doit pas figer la fenêtre.
+        """
+        if not self._veilleur.possible:
+            return
+
+        def travail():
+            return self._veilleur.mise_a_jour_disponible()
+
+        def fini(commit, err):
+            if err or not commit:
+                return
+            self._on_update_available(commit[:12])
+
+        run_async(travail, fini)
+
+    def _verifier_maj_tick(self) -> bool:
+        # Une fois le bouton affiché, plus rien à demander : il n'y a pas deux
+        # façons d'être en retard, et la mise à jour est déjà proposée.
+        if not self._update_btn.get_visible():
+            self._verifier_maj()
+        return True
+
     def _on_update_available(self, version: str) -> None:
+        if self._update_btn.get_visible():
+            return          # le portail et la veille disent la même chose
         self._update_btn.set_visible(True)
         self._update_btn.set_tooltip_text(
             _("Une nouvelle version est disponible") + f" ({version})")
