@@ -392,12 +392,33 @@ fun InventoryScreen(
                             // qui est justement la question posée.
                             if (parContenant.size > 1) {
                                 item(span = { GridItemSpan(maxLineSpan) }) {
-                                    Text(
-                                        "$contenantNom — ${trouves.size}",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
-                                    )
+                                    // Le nom et le compte sur deux textes, non
+                                    // sur un seul : les coffres de guilde ont
+                                    // des noms à rallonge — « Coffre 6 — La
+                                    // Forge Lunaire (Craft Armes 2/3) » — et
+                                    // une seule chaîne se faisait couper en
+                                    // plein milieu, emportant le compte avec
+                                    // elle. Ici le nom s'abrège, le compte
+                                    // reste.
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .padding(top = 6.dp, bottom = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            contenantNom,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.secondary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                        )
+                                        Text(
+                                            "  ${trouves.size}",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
                                 }
                             }
                             items(trouves,
