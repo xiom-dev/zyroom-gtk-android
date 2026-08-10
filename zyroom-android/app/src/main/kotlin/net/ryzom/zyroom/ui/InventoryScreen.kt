@@ -72,6 +72,7 @@ import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.MovementStore
 import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.data.Preferences
+import net.ryzom.zyroom.data.RosterStore
 import net.ryzom.zyroom.data.WatchStore
 import net.ryzom.zyroom.data.volumeAlerts
 import net.ryzom.zyroom.data.Repository
@@ -81,6 +82,7 @@ import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
 import net.ryzom.zyroom.model.SkillPoints
 import net.ryzom.zyroom.model.Inventory
+import net.ryzom.zyroom.model.MouvementMembre
 import net.ryzom.zyroom.model.SortOrder
 import net.ryzom.zyroom.model.chercheDansTout
 import net.ryzom.zyroom.model.finishedSkills
@@ -93,7 +95,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Ce que la rangée du haut donne à voir : un contenant, le journal, l'arbre. */
-private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES, AVANTPOSTES }
+private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES, AVANTPOSTES, EFFECTIF }
 
 /**
  * L'inventaire d'une entité : un choix de contenant, puis la grille d'items.
@@ -110,6 +112,7 @@ fun InventoryScreen(
     watches: WatchStore,
     movements: MovementStore,
     outposts: OutpostStore,
+    roster: RosterStore,
     preferences: Preferences,
     onBack: () -> Unit,
 ) {
@@ -138,6 +141,10 @@ fun InventoryScreen(
     var changements by remember { mutableStateOf(emptyList<OutpostStore.Change>()) }
     var premierReleve by remember { mutableStateOf(false) }
     var erreurCarte by remember { mutableStateOf<String?>(null) }
+    // Le registre du personnel : l'effectif vient du flux, les mouvements du
+    // journal que l'application tient elle-même.
+    var mouvements by remember { mutableStateOf(emptyList<MouvementMembre>()) }
+    var premierRosterReleve by remember { mutableStateOf(false) }
     val portee = rememberCoroutineScope()
 
     suspend fun charger(force: Boolean) {
@@ -157,6 +164,13 @@ fun InventoryScreen(
             // l'API a resservi le même document.
             movements.record(entry, it)
             lignes = movements.history(entry)
+            // Le registre suit la guilde affichée. Chaque lecture du flux
+            // journalise les arrivées, les départs et les changements de grade.
+            if (it.kind == Entity.Kind.GUILD && it.members.isNotEmpty()) {
+                premierRosterReleve = roster.jamaisReleve(it.id)
+                roster.record(it.id, it.members)
+                mouvements = roster.history(it.id)
+            }
         }
         occupe = false
     }
@@ -291,6 +305,18 @@ fun InventoryScreen(
                                 label = { Text("⚔️ Avant-postes") },
                             )
                         }
+                        // Le registre non plus : un personnage n'a pas
+                        // d'effectif, et l'API ne rend les membres que pour une
+                        // guilde dont la clé accorde le module.
+                        if (courant?.members?.isNotEmpty() == true) {
+                            item {
+                                FilterChip(
+                                    selected = vue == Vue.EFFECTIF,
+                                    onClick = { vue = Vue.EFFECTIF },
+                                    label = { Text("🛡️ Effectif") },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -323,6 +349,14 @@ fun InventoryScreen(
                     recherche = recherche,
                     onRecherche = { recherche = it },
                     nameOf = { repository.nameOf(it) },
+                )
+
+                vue == Vue.EFFECTIF -> RosterView(
+                    membres = courant?.members.orEmpty(),
+                    mouvements = mouvements,
+                    premierReleve = premierRosterReleve,
+                    recherche = recherche,
+                    onRecherche = { recherche = it },
                 )
 
                 vue == Vue.AVANTPOSTES -> OutpostsView(

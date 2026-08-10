@@ -130,6 +130,8 @@ data class Entity(
     val skills: List<Skill> = emptyList(),
     /** Points par branche, indexés par le code de sa racine : sf, sm, sh, sc. */
     val skillPoints: Map<String, SkillPoints> = emptyMap(),
+    /** Le registre d'une guilde : ses membres et leurs grades. Vide ailleurs. */
+    val members: List<Member> = emptyList(),
 ) {
     enum class Kind { CHARACTER, GUILD }
 

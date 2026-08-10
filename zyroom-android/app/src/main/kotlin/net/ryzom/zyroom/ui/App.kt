@@ -12,6 +12,7 @@ import net.ryzom.zyroom.data.MovementStore
 import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.data.Preferences
 import net.ryzom.zyroom.data.Repository
+import net.ryzom.zyroom.data.RosterStore
 import net.ryzom.zyroom.data.WatchStore
 
 /**
@@ -25,6 +26,7 @@ fun App(
     watches: WatchStore,
     movements: MovementStore,
     outposts: OutpostStore,
+    roster: RosterStore,
     preferences: Preferences,
 ) {
     // On retient l'identifiant plutôt que l'entité : tourner le téléphone
@@ -69,6 +71,7 @@ fun App(
                 watches = watches,
                 movements = movements,
                 outposts = outposts,
+                roster = roster,
                 preferences = preferences,
                 onBack = { ouverteId = null },
             )

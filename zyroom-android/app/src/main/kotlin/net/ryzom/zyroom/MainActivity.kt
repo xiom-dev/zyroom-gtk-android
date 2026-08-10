@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.MovementStore
 import net.ryzom.zyroom.data.OutpostStore
+import net.ryzom.zyroom.data.RosterStore
 import net.ryzom.zyroom.data.Preferences
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.data.WatchStore
@@ -38,6 +39,9 @@ class MainActivity : ComponentActivity() {
         // Le journal des avant-postes vit à côté, et pour la même raison : il
         // est le seul témoin des prises et des pertes, l'API n'en garde rien.
         val outposts = OutpostStore(File(filesDir, "outposts"))
+        // Le registre du personnel, à côté des autres journaux : c'est le seul
+        // témoin des arrivées et des départs, l'API n'en garde rien.
+        val roster = RosterStore(File(filesDir, "roster"))
         val preferences = Preferences(this)
 
         // Les noms d'items sont livrés avec l'application, sauf dans la variante
@@ -50,6 +54,9 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        setContent { App(store, repository, watches, movements, outposts, preferences) }
+        setContent {
+            App(store, repository, watches, movements, outposts, roster,
+                preferences)
+        }
     }
 }

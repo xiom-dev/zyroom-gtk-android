@@ -4,6 +4,7 @@ import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.ItemColor
+import net.ryzom.zyroom.model.Member
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
@@ -197,9 +198,13 @@ object EntityParser {
                 // Le nom donné en jeu est une chaîne multilingue à rallonge :
                 // « Zig 1 », « Zig 2 » se lisent mieux dans un menu.
                 val etiquette = "${espece.label} $rang"
+                // Toutes les bêtes sous un seul bouton. Séparées, montures,
+                // mektoubs et zigs prenaient trois places dans une rangée qui
+                // en a peu, alors qu'on cherche « dans quelle bête ai-je mis
+                // ça ? » sans savoir laquelle avant d'avoir regardé.
                 add(Inventory("animal${animal.getAttribute("index")}", etiquette,
                               items(inventory), espece.capacity,
-                              group = espece.label))
+                              group = "Animaux"))
             }
             node.child("shop")?.let {
                 val sales = items(it, tag = "shopitem")
@@ -363,8 +368,22 @@ object EntityParser {
             created = node.getAttribute("created").toLongOrNull() ?: 0,
             cachedUntil = node.getAttribute("cached_until").toLongOrNull() ?: 0,
             inventories = chests,
+            members = membres(node),
         )
     }
+
+    /**
+     * Le registre des membres : leur nom et leur grade.
+     *
+     * La date d'entrée que rend l'API — un grand entier, 6115304166 — n'est pas
+     * un temps Unix, et rien dans le flux n'en donne la clé. On ne la lit donc
+     * pas : afficher une date fausse serait pire que de n'en afficher aucune.
+     */
+    private fun membres(node: Element): List<Member> =
+        node.child("members")?.children("member").orEmpty().mapNotNull {
+            val nom = it.text("name")
+            if (nom.isEmpty()) null else Member(nom, it.text("grade"))
+        }
 
     /** Les trois espèces de bête à inventaire, avec ce qu'elles portent. */
     private enum class Monture(val label: String, val capacity: Int) {
