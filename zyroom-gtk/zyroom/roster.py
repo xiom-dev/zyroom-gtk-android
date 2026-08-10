@@ -41,7 +41,26 @@ GRADES = (
 #: se perd tant qu'on n'a pas relu, et rien ne s'accumule indéfiniment.
 RETENTION_JOURS = 30
 
-_RANG = {code: rang for rang, (code, _n) in enumerate(GRADES)}
+#: Les mouvements repris d'un autre journal, par guilde.
+#:
+#: V-RyLune et ZyRoom-GTK tiennent chacun leur registre, et chacun ne connaît
+#: que ce qu'il a vu lui-même : l'API ne rend qu'un état. Ceux-ci ont été
+#: **relevés le 10 août 2026 à 15 h 48** par l'exemplaire du mainteneur, sur une
+#: guilde dont les autres exemplaires n'avaient pas encore de journal.
+#:
+#: Ils portent la date de leur constat et non celle du jour : c'est ce qui les
+#: fera sortir du journal au bout d'un mois, comme les autres. Rien ne les
+#: remplacera ensuite, et c'est bien ainsi — une reprise sert à recoller deux
+#: journaux, pas à écrire l'histoire.
+REPRISE: dict[str, tuple[tuple[int, str, str, str, str], ...]] = {
+    # La Lune Eternelle
+    "105906237": (
+        (1786369686, "Paty", "grade", "Member", "Officer"),
+        (1786369686, "Thysela", "grade", "Officer", "HighOfficer"),
+    ),
+}
+
+_RANG ={code: rang for rang, (code, _n) in enumerate(GRADES)}
 _NOM = dict(GRADES)
 
 
@@ -139,6 +158,7 @@ class RosterStore:
         """
         if not membres:
             return []
+        self._reprendre()
         apres = {nom: grade for nom, grade in membres}
         avant = self._lire_etat()
         changements = [] if avant is None else diff(avant, apres)
@@ -231,6 +251,35 @@ class RosterStore:
             os.remove(self._journal())
         except OSError:
             pass
+
+    def _reprendre(self) -> int:
+        """Verse au journal les mouvements constatés avant qu'il n'existe.
+
+        Ce que l'autre exemplaire a vu serait perdu pour toujours — non parce
+        que ce n'est pas arrivé, mais parce que personne ne le lui a dit.
+
+        La reprise ne se fait qu'**une fois**, marquée par un fichier témoin :
+        sans lui, une ligne écartée par l'élagage ou effacée à dessein
+        reviendrait à chaque relevé. Les doublons sont écartés au passage — le
+        journal du mainteneur, lui, les contient déjà.
+        """
+        temoin = os.path.join(self._dir, f"roster-{self._id}.reprise")
+        if os.path.exists(temoin):
+            return 0
+        depuis = int(time.time()) - RETENTION_JOURS * 86400
+        connus = {(c.at, c.member, c.kind) for c in self.history()}
+        neufs = [Change(at, membre, genre, frm, to)
+                 for at, membre, genre, frm, to in REPRISE.get(self._id, ())
+                 if at >= depuis and (at, membre, genre) not in connus]
+        if neufs:
+            self._ajouter(neufs)
+        try:
+            os.makedirs(self._dir, exist_ok=True)
+            with open(temoin, "w", encoding="utf-8"):
+                pass
+        except OSError:
+            return 0
+        return len(neufs)
 
     def _lire_etat(self) -> dict[str, str] | None:
         try:

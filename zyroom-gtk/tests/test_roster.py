@@ -60,8 +60,11 @@ class Mouvements(unittest.TestCase):
 
 class Journal(unittest.TestCase):
 
+    # Une guilde quelconque, et non celle du mainteneur : celle-ci a des
+    # mouvements repris d'un autre exemplaire, qui compteraient dans le journal
+    # et brouilleraient ce qu'on mesure ici — les relevés eux-mêmes.
     def store(self, dossier):
-        return roster.RosterStore(dossier, "105906237")
+        return roster.RosterStore(dossier, "essai")
 
     def test_le_premier_releve_ne_journalise_rien(self):
         """Sinon les cent soixante-dix membres passeraient pour autant
@@ -98,15 +101,11 @@ class Journal(unittest.TestCase):
             self.assertEqual([], s.history())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class Retention(unittest.TestCase):
     """Le journal garde un mois, pas davantage."""
 
     def store(self, dossier):
-        return roster.RosterStore(dossier, "105906237")
+        return roster.RosterStore(dossier, "essai")
 
     def _ecrire(self, s, lignes):
         import json
@@ -177,3 +176,60 @@ class ElagageSur(unittest.TestCase):
             avant = open(s._journal(), encoding="utf-8").read()
             self.assertEqual(0, s.elaguer())
             self.assertEqual(avant, open(s._journal(), encoding="utf-8").read())
+
+
+class Reprise(unittest.TestCase):
+    """Ce qu'un autre exemplaire a constaté avant que ce journal n'existe.
+
+    L'API ne rend qu'un état : sans reprise, ces mouvements seraient perdus
+    pour toujours — non parce qu'ils ne sont pas arrivés, mais parce que
+    personne ne les a dits à cet exemplaire-ci.
+    """
+
+    LUNE = "105906237"
+
+    def test_la_reprise_verse_les_mouvements(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, self.LUNE)
+            s.record([("Paty", "Officer")])
+            journal = s.history()
+            self.assertEqual(["Paty", "Thysela"],
+                             sorted(c.member for c in journal))
+            self.assertTrue(all(c.kind == "grade" for c in journal))
+            thysela = next(c for c in journal if c.member == "Thysela")
+            self.assertTrue(thysela.promotion)
+
+    def test_la_reprise_ne_se_fait_qu_une_fois(self):
+        """Sans témoin, chaque relevé la rejouerait : deux lignes, puis quatre."""
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, self.LUNE)
+            for _ in range(3):
+                s.record([("Paty", "Officer")])
+            self.assertEqual(2, len(s.history()))
+
+    def test_une_ligne_effacee_ne_revient_pas(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, self.LUNE)
+            s.record([("Paty", "Officer")])
+            s.clear()
+            s.record([("Paty", "Officer")])
+            self.assertEqual([], s.history())
+
+    def test_un_journal_qui_les_a_deja_ne_double_pas(self):
+        """Celui du mainteneur les contient : il ne doit pas les voir deux fois."""
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, self.LUNE)
+            s._ajouter([roster.Change(1786369686, "Paty", "grade",
+                                      "Member", "Officer")])
+            s.record([("Paty", "Officer")])
+            self.assertEqual(1, [c.member for c in s.history()].count("Paty"))
+
+    def test_les_autres_guildes_ne_reprennent_rien(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "689325")
+            s.record([("Xiom", "HighOfficer")])
+            self.assertEqual([], s.history())
+
+
+if __name__ == "__main__":
+    unittest.main()
