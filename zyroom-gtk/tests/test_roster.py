@@ -100,3 +100,46 @@ class Journal(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Retention(unittest.TestCase):
+    """Le journal garde un mois, pas davantage."""
+
+    def store(self, dossier):
+        return roster.RosterStore(dossier, "105906237")
+
+    def _ecrire(self, s, lignes):
+        import json
+        with open(s._journal(), "w", encoding="utf-8") as fh:
+            for at, nom in lignes:
+                fh.write(json.dumps({"at": at, "member": nom, "kind": "arrivee",
+                                     "from": "", "to": "Member"}) + "\n")
+
+    def test_les_lignes_trop_vieilles_ne_sont_plus_rendues(self):
+        import time
+        with tempfile.TemporaryDirectory() as d:
+            s = self.store(d)
+            maintenant = int(time.time())
+            self._ecrire(s, [(maintenant - 40 * 86400, "Vieux"),
+                             (maintenant - 2 * 86400, "Recent")])
+            self.assertEqual(["Recent"], [c.member for c in s.history()])
+
+    def test_elaguer_reecrit_le_fichier(self):
+        import time
+        with tempfile.TemporaryDirectory() as d:
+            s = self.store(d)
+            maintenant = int(time.time())
+            self._ecrire(s, [(maintenant - 40 * 86400, "Vieux"),
+                             (maintenant - 2 * 86400, "Recent")])
+            self.assertEqual(1, s.elaguer())
+            with open(s._journal(), encoding="utf-8") as fh:
+                self.assertEqual(1, sum(1 for l in fh if l.strip()))
+            # Deux passages de suite n'écartent rien de plus.
+            self.assertEqual(0, s.elaguer())
+
+    def test_un_relevé_elague_au_passage(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = self.store(d)
+            s.record([("Dale", "Member")])
+            s.record([("Dale", "Member"), ("Nizy", "Member")])
+            self.assertEqual(1, len(s.history()))

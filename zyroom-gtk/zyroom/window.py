@@ -105,6 +105,14 @@ class MainWindow(Gtk.ApplicationWindow):
         # Le registre du personnel : un jeu de fichiers par guilde,
         # reconstruit à chaque changement d'entité.
         self._roster_store = None
+        # La dernière guilde et le dernier personnage rencontrés. Les
+        # écrans de « Plus » s'ouvrent sur eux quelle que soit l'entité
+        # choisie : les avant-postes ne dépendent d'aucune, l'effectif est
+        # celui de sa guilde, et l'arbre celui de son personnage — passer
+        # de l'un à l'autre pour consulter n'aurait aucun sens.
+        self._derniere_guilde = None
+        self._dernier_perso = None
+        self._skills_de = ""      #: nom rappelé quand l'arbre vient d'ailleurs
 
         self._entries: list[dict] = []       # entités fusionnées (perso + guilde)
         self._entity: Entity | None = None
@@ -140,6 +148,12 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.timeout_add_seconds(MAJ_INTERVALLE, self._verifier_maj_tick)
         self._reload_entities()
         self._refresh_season()
+        # La météo part au démarrage, et non à l'ouverture de son onglet :
+        # ainsi le graphique avance déjà quand on l'affiche, au lieu de
+        # faire attendre le réseau. Un document de quelques kilo-octets,
+        # sans clé, et une seule fois — c'est ensuite le temps qui passe
+        # qui le fait défiler.
+        GLib.idle_add(lambda: (self._load_meteo(), False)[1])
         GLib.timeout_add_seconds(180, self._refresh_season_tick)
         self._schedule_sync()
         self.connect("close-request", self._on_close)
@@ -333,10 +347,12 @@ class MainWindow(Gtk.ApplicationWindow):
         statusbar.props.margin_bottom = 6
         root.append(statusbar)
         self._portrait = Gtk.Image()
-        # Soixante au lieu de soixante-douze : à la taille précédente, l'emblème
-        # d'une guilde touchait presque le bas du tableau et paraissait lui
-        # appartenir. Un peu d'air le remet à sa place, celle d'une signature.
-        self._portrait.set_pixel_size(60)
+        # Quarante-quatre, et de l'air au-dessus : c'est une signature, pas une
+        # illustration du tableau. Aux tailles précédentes — soixante-douze
+        # puis soixante — l'emblème touchait presque la dernière ligne et
+        # paraissait lui appartenir.
+        self._portrait.set_pixel_size(44)
+        self._portrait.props.margin_top = 6
         self._portrait.set_tooltip_text(_("Cliquer pour agrandir"))
         self._portrait_path = ""
         pclick = Gtk.GestureClick()
@@ -417,7 +433,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     # ---------------------------------------------------------- Compétences
     #: Les quatre écrans de « Plus », dans l'ordre du menu.
-    PLUS_PAGES = (("skills", "Compétences"), ("roster", "Personnel"),
+    PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
                   ("outposts", "Avant-postes"), ("meteo", "Météo"))
 
     def _build_navigation(self) -> Gtk.Widget:
@@ -498,7 +514,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._plus_stack.add_titled(self._build_skills_page(), "skills",
                                     _("Compétences"))
         self._plus_stack.add_titled(self._build_roster_page(), "roster",
-                                    _("Personnel"))
+                                    _("Effectif"))
         self._plus_stack.add_titled(self._build_outposts_page(), "outposts",
                                     _("Avant-postes"))
         self._plus_stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
@@ -559,22 +575,30 @@ class MainWindow(Gtk.ApplicationWindow):
     def _refresh_roster(self) -> None:
         while (child := self._roster_box.get_first_child()) is not None:
             self._roster_box.remove(child)
+        # L'effectif s'ouvre quelle que soit l'entité choisie : c'est celui de
+        # la dernière guilde rencontrée, et consulter un registre ne devrait pas
+        # obliger à changer d'entité. Le nom de la guilde est rappelé quand ce
+        # n'est pas celle qu'on regarde.
         ent = self._entity
-        if ent is None or ent.kind != KIND_GUILD:
+        if ent is None or ent.kind != KIND_GUILD or not ent.members:
+            ent = self._derniere_guilde or self._entite_en_cache(KIND_GUILD)
+            self._derniere_guilde = self._derniere_guilde or ent
+            ailleurs = ent is not None
+        else:
+            ailleurs = False
+        if ent is None:
             self._roster_status.set_text(
-                _("Le registre n'existe que pour une guilde : choisissez-en une "
-                  "dans la liste des entités."))
-            return
-        if not ent.members:
-            self._roster_status.set_text(
-                _("L'API n'a pas rendu la liste des membres — la clé de la "
-                  "guilde n'accorde peut-être pas ce module."))
+                _("Aucune guilde consultée pour l'instant : ouvrez-en une une "
+                  "fois, et son effectif restera consultable d'ici."))
             return
 
-        changements = self._roster_store.history() if self._roster_store else []
+        store = (self._roster_store if not ailleurs
+                 else roster.RosterStore(data_dir(), ent.entity_id))
+        changements = store.history() if store else []
         self._roster_status.set_text(
+            (_("%s · ") % ent.name if ailleurs else "") +
             _("%d membres") % len(ent.members) +
-            (_("  ·  %d mouvements journalisés") % len(changements)
+            (_("  ·  %d mouvements sur un mois") % len(changements)
              if changements else ""))
 
         if self._roster_vue.get_selected() == 1:
@@ -1198,10 +1222,11 @@ class MainWindow(Gtk.ApplicationWindow):
     #:
     #: Vingt-quatre heures d'Atys valent soixante-douze minutes réelles : de
     #: quoi voir une heure d'avance et un bon quart d'heure de passé. Le trait
-    #: du présent reste au quart de la largeur — c'est ce qui vient qui compte,
-    #: le passé ne sert qu'à comprendre d'où l'on sort.
+    #: du présent se tient à un sixième de la largeur — c'est ce qui vient qui
+    #: compte, le passé ne sert qu'à comprendre d'où l'on sort. Pas contre le
+    #: bord pour autant : on veut voir le palier qu'on quitte.
     FENETRE_HEURES = 24.0
-    ANCRE = 0.25
+    ANCRE = 0.15
 
     def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
         """L'humidité dans le temps, **en marches d'escalier**.
@@ -1213,8 +1238,8 @@ class MainWindow(Gtk.ApplicationWindow):
         fenêtre excellente n'est pas un sommet qu'on rate, c'est un palier qui
         dure.
 
-        **C'est le graphique qui défile, pas le trait.** Le présent reste au
-        quart de la largeur et la courbe glisse dessous, comme un sismographe :
+        **C'est le graphique qui défile, pas le trait.** Le présent se tient
+        près du bord gauche et la courbe glisse dessous, comme un sismographe :
         on garde ainsi toujours la même avance sous les yeux, au lieu de voir
         le trait dériver vers le bord jusqu'à sortir de la vue.
 
@@ -1298,7 +1323,7 @@ class MainWindow(Gtk.ApplicationWindow):
             cr.show_text(etiquette)
         cr.set_dash([])
 
-        # Le présent, immobile au quart de la largeur.
+        # Le présent, immobile près du bord gauche.
         px = x(releve.heure_atys)
         cr.set_source_rgb(0.91, 0.76, 0.35)
         cr.set_line_width(2.0)
@@ -1395,6 +1420,30 @@ class MainWindow(Gtk.ApplicationWindow):
             self._skills_expanded.add(code)
         self._refresh_skills()
 
+    def _entite_en_cache(self, kind: str):
+        """La première entité de ce genre, relue du cache disque.
+
+        Sert aux écrans de « Plus » : ils doivent s'ouvrir quelle que soit
+        l'entité choisie, y compris au tout premier lancement où rien n'a
+        encore été affiché. Le cache est celui qui rend déjà l'application
+        consultable hors ligne — **aucun appel réseau ici**.
+        """
+        for entry in self._entries:
+            if entry["kind"] != kind:
+                continue
+            chemin = entity_xml_path(kind, entry["id"])
+            if not os.path.isfile(chemin):
+                continue
+            try:
+                with open(chemin, "rb") as fh:
+                    brut = fh.read()
+                parse = (ryzom_api.parse_character if kind == KIND_CHARACTER
+                         else ryzom_api.parse_guild)
+                return parse(brut, self._sheetdb.name)
+            except Exception:                           # noqa: BLE001
+                continue
+        return None
+
     def _refresh_skills(self) -> None:
         """Redessine l'arbre : ce qui est visible dépend des replis, sauf quand
         une recherche ou un filtre est actif — la liste est alors plate, car
@@ -1403,15 +1452,26 @@ class MainWindow(Gtk.ApplicationWindow):
         while (child := self._skills_box.get_first_child()) is not None:
             self._skills_box.remove(child)
 
+        # L'arbre s'ouvre quelle que soit l'entité choisie : c'est celui du
+        # dernier personnage rencontré. Une guilde n'a pas de compétences, et
+        # devoir rebasculer d'entité pour consulter un arbre n'aurait aucun sens.
         ent = self._entity
+        ailleurs = False
+        if not getattr(ent, "skills", None):
+            ent = self._dernier_perso or self._entite_en_cache(KIND_CHARACTER)
+            self._dernier_perso = self._dernier_perso or ent
+            ailleurs = ent is not None
         skills = getattr(ent, "skills", []) if ent else []
         if not skills:
             self._skills_status.set_text(
-                _("Aucune compétence : l'API ne les donne que pour un personnage, "
-                  "et seulement si la clé accorde ce module."))
+                _("Aucun personnage consulté pour l'instant : ouvrez-en un une "
+                  "fois, et son arbre restera consultable d'ici. L'API ne donne "
+                  "les compétences que pour un personnage, et seulement si la "
+                  "clé accorde ce module."))
             self._skills_toggle.set_sensitive(False)
             return
         self._skills_toggle.set_sensitive(True)
+        self._skills_de = ent.name if ailleurs else ""
 
         self._skills_tree = skills_mod.build_tree(skills)
         # Ce qui est monté au maximum, y compris les pères dont tout ce qu'ils
@@ -1437,8 +1497,11 @@ class MainWindow(Gtk.ApplicationWindow):
                 self._skill_row(node, index, filtering))
 
         montrees = len(rows)
+        # Le nom du personnage n'est rappelé que si ce n'est pas celui qu'on
+        # regarde : sinon il serait déjà deux fois à l'écran.
+        prefixe = f"{self._skills_de} · " if self._skills_de else ""
         self._skills_status.set_text(
-            _("%d compétences, %d affichées") % (len(skills), montrees))
+            prefixe + _("%d compétences, %d affichées") % (len(skills), montrees))
 
     def _skill_row(self, node, index: int, filtering: bool) -> Gtk.ListBoxRow:
         racine = node.depth == 0 and not filtering
@@ -1791,8 +1854,12 @@ class MainWindow(Gtk.ApplicationWindow):
         if ent.kind == KIND_GUILD:
             self._roster_store = roster.RosterStore(data_dir(), ent.entity_id)
             self._roster_store.record(ent.members)
+            if ent.members:
+                self._derniere_guilde = ent
         else:
             self._roster_store = None
+            if ent.skills:
+                self._dernier_perso = ent
         self._update_entity_header(ent, entry)
         self._populate_inventories()
         self._check_alerts(ent, entry, from_sync, time_data)
@@ -2179,7 +2246,14 @@ class MainWindow(Gtk.ApplicationWindow):
             self._motd_box.set_visible(False)
         self._load_portrait(ent, entry)
 
-    _PORTRAIT_HEIGHT = 72
+    #: Hauteur du portrait de la barre d'état.
+    #:
+    #: C'est **elle** qui commande, et non le `set_pixel_size` du widget : le
+    #: portrait est posé comme une texture déjà mise à l'échelle, et la taille
+    #: du widget ne fait alors que suivre. Quarante-quatre au lieu de
+    #: soixante-douze : c'est une signature sous le tableau, pas une
+    #: illustration.
+    _PORTRAIT_HEIGHT = 44
 
     def _set_portrait_file(self, path: str) -> None:
         """Affiche le portrait. Un rendu de personnage (image haute, corps

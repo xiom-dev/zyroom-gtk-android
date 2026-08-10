@@ -33,6 +33,14 @@ GRADES = (
     ("Member", "Membre"),
 )
 
+#: Combien de temps le journal garde ses lignes, en jours.
+#:
+#: Un mois : c'est la mémoire utile d'un officier. Au-delà, la liste s'allonge
+#: sans que personne la lise. Les lignes plus vieilles sont écartées à la
+#: lecture, et le fichier est réécrit quand il en contient trop — ainsi rien ne
+#: se perd tant qu'on n'a pas relu, et rien ne s'accumule indéfiniment.
+RETENTION_JOURS = 30
+
 _RANG = {code: rang for rang, (code, _n) in enumerate(GRADES)}
 _NOM = dict(GRADES)
 
@@ -137,13 +145,21 @@ class RosterStore:
         if changements:
             self._ajouter(changements)
         self._ecrire_etat(apres)
+        self.elaguer()
         return changements
 
-    def history(self) -> list[Change]:
-        """Le journal, du plus récent au plus ancien."""
+    def history(self, jours: int = RETENTION_JOURS) -> list[Change]:
+        """Le journal, du plus récent au plus ancien, sur `jours` jours.
+
+        Un mois : c'est la mémoire utile d'un officier — « qui est arrivé ce
+        mois-ci ? », « qui nous a quittés depuis la dernière guerre d'avant-poste
+        ? ». Au-delà, la liste s'allonge sans que personne la lise, et le
+        fichier grossit pour rien.
+        """
         chemin = self._journal()
         if not os.path.isfile(chemin):
             return []
+        depuis = int(time.time()) - jours * 86400
         lignes = []
         try:
             with open(chemin, encoding="utf-8") as fh:
@@ -154,13 +170,44 @@ class RosterStore:
                         o = json.loads(ligne)
                     except ValueError:
                         continue
-                    lignes.append(Change(int(o.get("at", 0)), o.get("member", ""),
+                    at = int(o.get("at", 0))
+                    if at < depuis:
+                        continue
+                    lignes.append(Change(at, o.get("member", ""),
                                          o.get("kind", ""), o.get("from", ""),
                                          o.get("to", "")))
         except OSError:
             return []
         lignes.sort(key=lambda c: c.at, reverse=True)
         return lignes
+
+    def elaguer(self, jours: int = RETENTION_JOURS) -> int:
+        """Réécrit le journal sans les lignes plus vieilles que `jours`.
+
+        Appelé après chaque relevé : le fichier ne grossit donc jamais au-delà
+        d'un mois de mouvements. Rend le nombre de lignes écartées."""
+        gardees = self.history(jours)
+        chemin = self._journal()
+        if not os.path.isfile(chemin):
+            return 0
+        try:
+            with open(chemin, encoding="utf-8") as fh:
+                total = sum(1 for ligne in fh if ligne.strip())
+        except OSError:
+            return 0
+        if total <= len(gardees):
+            return 0
+        try:
+            with open(chemin, "w", encoding="utf-8") as fh:
+                # Réécrites dans l'ordre chronologique, comme elles ont été
+                # ajoutées : le fichier reste un journal, pas une pile.
+                for c in sorted(gardees, key=lambda c: c.at):
+                    fh.write(json.dumps({"at": c.at, "member": c.member,
+                                         "kind": c.kind, "from": c.frm,
+                                         "to": c.to}) + "\n")
+        except OSError:
+            return 0
+        return total - len(gardees)
 
     def clear(self) -> None:
         try:
