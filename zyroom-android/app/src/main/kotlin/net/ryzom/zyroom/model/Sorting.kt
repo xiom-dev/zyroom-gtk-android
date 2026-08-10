@@ -151,6 +151,10 @@ fun sortItems(items: List<Item>, order: SortOrder, nameOf: (Item) -> String): Li
     when (order) {
         SortOrder.FAMILY -> items.sortedWith(
             compareBy<Item> { familyOf(it).ordinal }
+                // Les ensembles d'abord, le reste ensuite : une clé de fiche et
+                // un nom d'arme ne se classent pas sur la même chose, et les
+                // mêler intercalait la Pique entre deux parures.
+                .thenBy { if (familyOf(it).raw || outfitKey(it) != null) 0 else 1 }
                 .thenBy(CLASSEUR) {
                     when {
                         familyOf(it).raw -> materialKey(it)

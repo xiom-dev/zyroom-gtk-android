@@ -96,6 +96,25 @@ class SortingTest {
     }
 
     @Test
+    fun `les armes ne s'intercalent pas entre deux parures`() {
+        // Le nom d'une arme se comparait à un code de fiche : la Pique tombait
+        // au milieu des bijoux zoraï. Les ensembles d'abord, le reste ensuite.
+        val noms = mapOf(
+            "iccm2pp.sitem" to "Pique",
+            "icfm1bs_3.sitem" to "Bâton Talusyx",
+            "icmahb_3.sitem" to "Bottes Kara Paroks",
+            "iczja.sitem" to "Anneau de cheville zoraï",
+        )
+        val range = sortItems(noms.keys.map { item(it, quality = 250) },
+                              SortOrder.FAMILY) { noms.getValue(it.sheet) }
+        assertEquals(
+            listOf("Bottes Kara Paroks", "Anneau de cheville zoraï",
+                   "Bâton Talusyx", "Pique"),
+            range.map { noms.getValue(it.sheet) },
+        )
+    }
+
+    @Test
     fun `une arme n'est pas prise pour une pièce de tenue`() {
         assertEquals(null, outfitKey(item("iccm2pp.sitem")))
         assertEquals(null, outfitKey(item("icokamm2ss_2.sitem")))

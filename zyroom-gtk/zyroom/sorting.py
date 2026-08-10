@@ -82,6 +82,19 @@ _PATTERNS: tuple[tuple[re.Pattern, Family], ...] = (
 # matière, indépendamment de sa qualité et de son écosystème.
 _RAW_MATERIAL = re.compile(r"^m0?(\d{3,4})")
 
+# Pièces d'une tenue et bijoux d'une parure. Une fiche d'armure se lit « ic » +
+# peuple + « a » + poids + pièce + qualité de fabrication : « icmahb_3 » est la
+# botte (b) d'une tenue lourde (h) matis. Un bijou suit la même règle avec
+# « j » : « iczja » est l'anneau de cheville zoraï. Retirer la lettre de pièce
+# donne donc la tenue elle-même.
+_ARMOUR = re.compile(r"^(ic[a-z]a[a-z])([a-z])(_\d+)?\.sitem$")
+_JEWEL = re.compile(r"^(ic[a-z]j)([a-z])(_\d+)?\.sitem$")
+
+# De la tête aux pieds pour une tenue, du haut du corps aux chevilles pour une
+# parure.
+_ARMOUR_ORDER = "hvsgpb"
+_JEWEL_ORDER = "derbpa"
+
 _TYPE_FALLBACK = {
     ItemType.ANIMAL_MAT: Family.RAW_LOOTED,
     ItemType.NATURAL_MAT: Family.RAW_HARVESTED,
@@ -115,13 +128,51 @@ def material_key(item: ItemInfo) -> str:
     return match.group(1) if match else (item.sheet or "")
 
 
+def outfit_key(item: ItemInfo) -> str | None:
+    """Ce qui réunit deux pièces d'une même tenue, ou ``None``.
+
+    Le jeu nomme les six pièces d'une armure de six façons — « Bottes Kara
+    Paroks », « Casque Kara Parok » — et un tri par nom éparpillait donc chaque
+    tenue parmi les autres. Le classer par fiche les remet ensemble.
+    """
+    sheet = (item.sheet or "").lower()
+    match = _ARMOUR.match(sheet) or _JEWEL.match(sheet)
+    if match is None:
+        return None
+    return match.group(1) + (match.group(3) or "")
+
+
+def _piece_rank(item: ItemInfo) -> int:
+    """Rang de la pièce dans sa tenue ; les inconnues passent après."""
+    sheet = (item.sheet or "").lower()
+    match = _ARMOUR.match(sheet)
+    order = _ARMOUR_ORDER
+    if match is None:
+        match = _JEWEL.match(sheet)
+        order = _JEWEL_ORDER
+    if match is None:
+        return 0
+    rank = order.find(match.group(2))
+    return len(order) if rank < 0 else rank
+
+
 def sort_key(item: ItemInfo, name: str = "") -> tuple:
     """Clé de tri par famille.
 
     Les matières premières sont réunies par matière et classées du plus bas
-    niveau au plus haut. Les autres objets sont groupés par famille, puis par
-    nom, et enfin par qualité — deux objets identiques de qualités différentes
-    restent ainsi côte à côte.
+    niveau au plus haut. Viennent ensuite les tenues et les parures, réunies
+    par fiche, chacune à sa couleur et à sa qualité, et lues de la tête aux
+    pieds ; puis ce qui ne fait partie d'aucun ensemble — armes, amplificateurs
+    — par nom et par qualité, deux objets identiques de qualités différentes
+    restant côte à côte.
+
+    Les deux blocs sont séparés parce qu'ils ne se classent pas sur la même
+    chose : mêler un code de fiche à un nom d'arme intercalait la Pique entre
+    deux parures.
+
+    `name` est attendu normalisé — minuscule et sans accents : le jeu écrit
+    « Bracelet matis » avec une capitale et « bracelet zoraï » sans, et l'ordre
+    brut des caractères mettrait toutes les minuscules après le Z.
     """
     group = family(item)
     quality = getattr(item, "quality", 0) or 0
@@ -129,4 +180,9 @@ def sort_key(item: ItemInfo, name: str = "") -> tuple:
     if group in (Family.RAW_HARVESTED, Family.RAW_LOOTED, Family.RAW_SYSTEM):
         return (int(group), material_key(item), quality, name)
 
-    return (int(group), name or (item.sheet or ""), quality)
+    outfit = outfit_key(item)
+    if outfit is not None:
+        colour = int(getattr(item, "color", 0) or 0)
+        return (int(group), 0, outfit, colour, quality, _piece_rank(item), name)
+
+    return (int(group), 1, name or (item.sheet or ""), 0, quality)
