@@ -3,6 +3,7 @@ package net.ryzom.zyroom.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import net.ryzom.zyroom.model.Member
 import net.ryzom.zyroom.model.MouvementMembre
@@ -86,7 +91,22 @@ fun RosterView(
     }
 }
 
-/** L'effectif, par grade, du chef aux membres. */
+/**
+ * Largeur minimale d'une colonne de noms.
+ *
+ * Les noms de Ryzom dépassent rarement la douzaine de caractères ; en dessous de
+ * cette largeur, ils se feraient couper plus souvent qu'ils ne se liraient.
+ */
+private val COLONNE_MINIMALE = 116.dp
+
+/**
+ * L'effectif, par grade, du chef aux membres — sur autant de colonnes que
+ * l'écran en tient.
+ *
+ * Cent soixante-dix noms sur une seule colonne faisaient un ruban plus haut que
+ * dix écrans, où l'on ne trouvait rien : deux ou trois colonnes de portrait, le
+ * double couché. Comme la version GTK, à ceci près qu'elle en tient six.
+ */
 @Composable
 private fun Effectif(membres: List<Member>, cherche: String) {
     // Le chef d'abord, les membres ensuite : on lit une liste de guilde par le
@@ -103,31 +123,46 @@ private fun Effectif(membres: List<Member>, cherche: String) {
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-        parGrade.entries.forEachIndexed { rang, (grade, gens) ->
-            // Le zébrage sépare les grades et non les lignes : un nom n'a rien
-            // à droite de lui qu'on doive relier, et une teinte par ligne n'y
-            // servirait à rien — alors qu'une teinte par groupe montre d'un
-            // coup d'œil où finissent les officiers.
-            val teinte = rang % 2 == 0
-            item(key = "grade-$grade") {
-                Text(
-                    "${nomGrade(grade)} · ${gens.size}",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.fillMaxWidth()
-                        .background(fondZebre(teinte))
-                        .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 2.dp),
-                )
-            }
-            items(gens.size, key = { "$grade-${gens[it].name}" }) { index ->
-                Text(
-                    gens[index].name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth()
-                        .background(fondZebre(teinte))
-                        .padding(horizontal = 20.dp, vertical = 3.dp),
-                )
+    // Le nombre de colonnes se calcule ici, et non par `GridCells.Adaptive` :
+    // le zébrage a besoin de le connaître pour compléter les rangées.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val colonnes = ((maxWidth - 24.dp) / COLONNE_MINIMALE).toInt().coerceIn(2, 6)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(colonnes),
+            contentPadding = PaddingValues(vertical = 8.dp),
+        ) {
+            parGrade.entries.forEachIndexed { rang, (grade, gens) ->
+                // Le zébrage sépare les grades et non les lignes : un nom n'a
+                // rien à droite de lui qu'on doive relier, et une teinte par
+                // ligne n'y servirait à rien — alors qu'une teinte par groupe
+                // montre d'un coup d'œil où finissent les officiers.
+                val teinte = rang % 2 == 0
+                item(key = "grade-$grade", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        "${nomGrade(grade)} · ${gens.size}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.fillMaxWidth()
+                            .background(fondZebre(teinte))
+                            .padding(start = 14.dp, end = 14.dp,
+                                     top = 10.dp, bottom = 2.dp),
+                    )
+                }
+                // La rangée est toujours remplie, au besoin de cases vides :
+                // sans elles, la dernière rangée d'un grade laisse un trou clair
+                // dans la bande teintée, là où le grade n'est pas fini.
+                val cases = gens.size + (-gens.size).mod(colonnes)
+                items(cases, key = { "$grade-$it" }) { index ->
+                    Text(
+                        gens.getOrNull(index)?.name.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth()
+                            .background(fondZebre(teinte))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
             }
         }
     }
