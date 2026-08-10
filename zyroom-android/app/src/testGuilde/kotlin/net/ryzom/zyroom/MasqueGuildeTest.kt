@@ -20,4 +20,11 @@ class MasqueGuildeTest {
         assertTrue("la variante distribuée doit masquer le petit coffre",
                    MASQUE_COFFRES)
     }
+
+    @Test
+    fun `la variante guilde se met à jour elle-même`() {
+        // Elle n'a pas de logithèque pour le faire : sans cela, les joueurs
+        // resteraient sur la version du jour de leur installation.
+        assertTrue(MISES_A_JOUR_INTEGREES)
+    }
 }

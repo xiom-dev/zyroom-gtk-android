@@ -67,14 +67,30 @@ android {
         }
     }
 
-    // Deux applications à partir du même code, comme les deux bundles Flatpak :
-    // celle qu'on donne à la guilde masque le contenu du petit coffre, celle du
-    // mainteneur montre tout. L'identifiant diffère, donc elles s'installent
-    // côte à côte sur le même téléphone.
+    // Trois applications à partir du même code. Ce qui les sépare tient dans
+    // `src/<variante>/kotlin/Diffusion.kt` : le masque du petit coffre, et la
+    // faculté de se mettre à jour soi-même. On aurait pu passer par
+    // BuildConfig, mais l'activer fait générer du Java, donc appelle javac, qui
+    // réclame ici un jlink absent du JDK installé.
+    //
+    //   guilde  distribuée par la page GitHub, masque le coffre
+    //   dev     la même, mais montre tout ; identifiant distinct, donc les deux
+    //           s'installent côte à côte sur le même téléphone
+    //   fdroid  publique, construite et signée par la logithèque
     flavorDimensions += "diffusion"
     productFlavors {
         create("guilde") {
             dimension = "diffusion"
+        }
+        create("fdroid") {
+            dimension = "diffusion"
+            // Même identifiant et mêmes numéros que la variante guilde : c'est
+            // la même application, publiée ailleurs. Conséquence à connaître :
+            // F-Droid signe de sa propre clé, donc celui qui a déjà l'APK de la
+            // page GitHub devra désinstaller avant d'installer celui-ci.
+            versionCode = codeDe("guilde")
+            versionName = nomDe("guilde")
+            manifestPlaceholders["appLabel"] = "V-RyLune"
         }
         create("dev") {
             dimension = "diffusion"
@@ -94,10 +110,6 @@ android {
             // par une ressource : une ressource de variante et un resValue()
             // sur le même nom entrent en conflit.
             manifestPlaceholders["appLabel"] = "V-RyLune (dev) ${nomDe("dev")}"
-            // Ce qui sépare les deux variantes est `MASQUE_COFFRES`, déclaré une
-            // fois par variante dans src/<variante>/kotlin/. On aurait pu passer
-            // par BuildConfig, mais l'activer fait générer du Java, donc appelle
-            // javac, qui réclame ici un jlink absent du JDK installé.
         }
     }
 
@@ -119,6 +131,18 @@ android {
         getByName("test").java.srcDirs("src/test/kotlin")
         getByName("guilde").java.srcDirs("src/guilde/kotlin")
         getByName("dev").java.srcDirs("src/dev/kotlin")
+        getByName("fdroid").java.srcDirs("src/fdroid/kotlin")
+
+        // Le `string_client.pack` du jeu — deux mégaoctets et demi de données
+        // de Ryzom — n'est embarqué que dans les variantes qu'on distribue
+        // soi-même. F-Droid ne publie que ce dont la licence est établie ; ici
+        // elle ne l'est pas, et l'application sait de toute façon importer le
+        // fichier depuis l'installation du joueur.
+        //
+        // Un répertoire partagé plutôt qu'une copie par variante : le fichier
+        // est binaire, et un dépôt git garde chaque copie pour toujours.
+        getByName("guilde").assets.srcDir("src/packAssets")
+        getByName("dev").assets.srcDir("src/packAssets")
     }
 }
 
@@ -135,8 +159,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
     // FileProvider, pour présenter l'APK de mise à jour au système.
     implementation("androidx.core:core-ktx:1.13.1")
-    // Rafraîchissement en arrière-plan : quinze minutes est le plancher.
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    // Pas de WorkManager : il avait été ajouté pour un rafraîchissement en
+    // arrière-plan qui n'a jamais été écrit, et il apportait à lui seul cinq
+    // permissions — service au premier plan, démarrage du téléphone, réveil du
+    // processeur — qu'un joueur voit dans la liste avant d'installer, et qu'il
+    // aurait fallu justifier à F-Droid. Le jour où le rafraîchissement viendra,
+    // la dépendance reviendra avec lui.
+    //
     // Icônes d'items : téléchargement et cache disque.
     implementation("io.coil-kt:coil-compose:2.7.0")
 

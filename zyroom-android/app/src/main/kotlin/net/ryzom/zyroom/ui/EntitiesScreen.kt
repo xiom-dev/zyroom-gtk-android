@@ -65,6 +65,7 @@ import net.ryzom.zyroom.R
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import net.ryzom.zyroom.MISES_A_JOUR_INTEGREES
 import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.EntityStore
@@ -106,10 +107,14 @@ fun EntitiesScreen(
     // l'application hors des récentes pour la voir arriver. Personne n'y pense.
     // UpdateChecker garde sa réponse une minute, une bascule d'application ne
     // redemande donc pas le manifeste.
+    // La variante F-Droid ne demande rien : c'est la logithèque qui met à jour,
+    // et ses règles refusent qu'une application aille chercher un APK.
     val cycle = LocalLifecycleOwner.current
-    LaunchedEffect(cycle) {
-        cycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            maj = UpdateChecker(contexte).check()
+    if (MISES_A_JOUR_INTEGREES) {
+        LaunchedEffect(cycle) {
+            cycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                maj = UpdateChecker(contexte).check()
+            }
         }
     }
 

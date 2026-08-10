@@ -40,11 +40,13 @@ class MainActivity : ComponentActivity() {
         val outposts = OutpostStore(File(filesDir, "outposts"))
         val preferences = Preferences(this)
 
-        // Les noms d'items sont livrés avec l'application : rien à faire pour
-        // les avoir. Un pack importé par l'utilisateur prend le pas.
+        // Les noms d'items sont livrés avec l'application, sauf dans la variante
+        // F-Droid : là, le pack du jeu n'est pas embarqué et le joueur l'importe
+        // lui-même — le menu ⋮ est fait pour ça. Un pack importé prend de toute
+        // façon le pas sur celui qui serait livré.
         lifecycleScope.launch {
             repository.loadNames(File(filesDir, PACK_NAME)) {
-                assets.open(PACK_NAME)
+                runCatching { assets.open(PACK_NAME) }.getOrNull()
             }
         }
 

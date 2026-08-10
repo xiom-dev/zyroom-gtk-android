@@ -48,16 +48,37 @@ La couleur du vert vit à deux endroits, faute de mieux : `Theme.kt` pour
 l'interface, et `res/values/colors.xml` pour la barre de navigation du système,
 que le thème XML peint avant que Compose ne s'exécute.
 
-## Deux variantes
+## Trois variantes
 
-Le même code donne deux applications, comme les deux bundles Flatpak du bureau.
-Elles portent des identifiants distincts et s'installent donc **côte à côte** sur
-le même téléphone.
+Le même code donne trois applications. `guilde` et `dev` portent des
+identifiants distincts et s'installent donc **côte à côte** sur le même
+téléphone ; `fdroid` est la variante `guilde` débarrassée de ce que la
+logithèque n'accepte pas, et partage son identifiant.
 
-| variante | identifiant | nom au lanceur | petit coffre de Nizy |
-|---|---|---|---|
-| `guilde` | `net.ryzom.zyroom` | V-RyLune | présent dans la liste, mais **vide** |
-| `dev` | `net.ryzom.zyroom.dev` | V-RyLune (dev) 2.0 | montré comme les autres |
+| variante | identifiant | nom au lanceur | petit coffre | se met à jour seule |
+|---|---|---|---|---|
+| `guilde` | `net.ryzom.zyroom` | V-RyLune | présent, mais **vide** | oui, depuis la page GitHub |
+| `dev` | `net.ryzom.zyroom.dev` | V-RyLune (dev) 2.0 | montré | oui |
+| `fdroid` | `net.ryzom.zyroom` | V-RyLune | présent, mais **vide** | non — c'est F-Droid qui le fait |
+
+La variante `fdroid` se distingue sur trois points, chacun imposé par les règles
+d'inclusion de la logithèque :
+
+- **elle ne va pas chercher ses mises à jour** : F-Droid refuse qu'une
+  application télécharge un APK et le fasse installer. Son manifeste retire donc
+  aussi `REQUEST_INSTALL_PACKAGES` et le `FileProvider` qui servait à ça — il ne
+  lui reste que `INTERNET` et `ACCESS_NETWORK_STATE` ;
+- **elle n'embarque pas le `string_client.pack`** du jeu : F-Droid ne publie que
+  ce dont la licence est établie, et celle de ce fichier ne l'est pas. Les noms
+  d'items s'importent depuis le menu ⋮, comme avant qu'on les livre ;
+- **F-Droid la signe de sa propre clé.** Qui a déjà l'APK de la page GitHub
+  devra donc désinstaller avant d'installer celui de la logithèque, et perdra
+  son journal des mouvements — l'API n'en garde aucune trace. À dire aux joueurs
+  le jour de la publication.
+
+```
+./gradlew assembleFdroidRelease   # app/build/outputs/apk/fdroid/release/
+```
 
 Le nom au lanceur de la variante dev porte son numéro : les deux applications
 cohabitant sur le même téléphone, c'est le seul endroit qui dise du premier coup
@@ -71,10 +92,17 @@ Le coffre masqué garde sa place et son nom : le faire disparaître amenait les
 joueurs à demander pourquoi il manquait un coffre. Vide, il ne pose plus de
 question.
 
-Ce qui les sépare tient dans une constante, `MASQUE_COFFRES`, déclarée une fois
-par variante dans `src/guilde/kotlin/` et `src/dev/kotlin/`. On aurait pu passer
-par `BuildConfig`, mais l'activer fait générer du Java, donc appelle `javac`, qui
-réclame ici un `jlink` absent du JDK installé.
+Ce qui les sépare tient dans deux constantes, `MASQUE_COFFRES` et
+`MISES_A_JOUR_INTEGREES`, déclarées une fois par variante dans
+`src/<variante>/kotlin/Diffusion.kt`. On aurait pu passer par `BuildConfig`,
+mais l'activer fait générer du Java, donc appelle `javac`, qui réclame ici un
+`jlink` absent du JDK installé.
+
+Chaque variante a un test qui **fixe ces valeurs** (`src/test<Variante>/`) : les
+autres tests comparent le réglage à ce que fait l'analyseur, et passeraient donc
+tout aussi bien si une variante était compilée à l'envers, les deux étant alors
+faux ensemble. Intervertir les fichiers fait maintenant échouer la construction
+au lieu de partir masque baissé.
 
 **Ce masque n'est pas une protection** : le contenu du coffre voyage toujours
 dans le flux de l'API et dort dans le cache de l'application. Qui a la clé de la
