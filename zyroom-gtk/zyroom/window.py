@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
 APP_NAME = ("ZyRoom-GTK-dev-0.7"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
-            else "ZyRoom-GTK-0.5")
+            else "ZyRoom-GTK-0.6")
 
 #: Signature affichée en bas de la fenêtre principale.
 SIGNATURE = "Original by Misugi, fork by Xiom"
