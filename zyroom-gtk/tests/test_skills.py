@@ -9,8 +9,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from zyroom.skills import (Skill, branch_level, build_tree, parse_level,  # noqa: E402
-                           visible)
+from zyroom.skills import (Skill, branch_level, build_tree, finished,  # noqa: E402
+                           parse_level, visible)
 
 FLUX = os.path.expanduser("~/.cache/zyroom-gtk/character/689325.xml")
 
@@ -108,6 +108,36 @@ class SurLeVraiFlux(unittest.TestCase):
         en_cours = [s for s in ent.skills if s.progress]
         self.assertTrue(en_cours, "aucune compétence en cours")
         self.assertTrue(all(1 <= s.progress <= 99 for s in en_cours))
+
+
+class Finies(unittest.TestCase):
+    """Une branche est finie quand tout ce qu'elle porte l'est.
+
+    Chaque échelon a son propre plafond — 20, 50, 100, 150, 200, 250 —, si bien
+    qu'un père affiche 100 alors que ses feuilles sont au maximum.
+    """
+
+    def test_un_pere_est_fini_quand_tout_ce_qu_il_porte_l_est(self):
+        # Le cas que l'écran doit montrer : « Magie curative » (smdh) plafonne à
+        # 100, mais les soins qu'elle porte sont à 250.
+        a = build_tree([Skill("sm", 20), Skill("smd", 50),
+                        Skill("smdh", 100), Skill("smdhh", 250), Skill("smdhs", 250),
+                        Skill("smda", 100), Skill("smdaf", 101)])
+        finies = finished(a)
+        self.assertIn("smdhh", finies)
+        self.assertIn("smdh", finies)          # Magie curative, tout entière montée
+        self.assertNotIn("smda", finies)       # Magie neutralisante, en cours
+        self.assertNotIn("smd", finies)        # donc la branche du dessus non plus
+        self.assertNotIn("sm", finies)         # ni la racine
+
+    def test_une_branche_entiere_remonte_jusqu_a_sa_racine(self):
+        a = build_tree([Skill("sh", 20), Skill("shf", 50),
+                        Skill("shfd", 100), Skill("shfdc", 250)])
+        self.assertEqual({"sh", "shf", "shfd", "shfdc"}, finished(a))
+
+    def test_une_feuille_sous_le_plafond_n_est_pas_finie(self):
+        a = build_tree([Skill("sf", 20), Skill("sfm", 50), Skill("sfms", 249)])
+        self.assertEqual(set(), finished(a))
 
 
 if __name__ == "__main__":

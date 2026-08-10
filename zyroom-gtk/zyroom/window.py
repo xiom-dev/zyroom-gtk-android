@@ -427,6 +427,7 @@ class MainWindow(Gtk.ApplicationWindow):
         page.append(self._skills_status)
 
         self._skills_expanded: set[str] = set()
+        self._skills_finies: set[str] = set()
         self._skills_tree: list = []
         return page
 
@@ -467,6 +468,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._skills_toggle.set_sensitive(True)
 
         self._skills_tree = skills_mod.build_tree(skills)
+        # Ce qui est monté au maximum, y compris les pères dont tout ce qu'ils
+        # portent est fini : c'est ce qu'on cherche en parcourant l'arbre.
+        self._skills_finies = skills_mod.finished(self._skills_tree)
         needle = _norm(self._skills_search.get_text().strip())
         en_cours = self._skills_filter.get_selected() == 1
         filtering = bool(needle) or en_cours
@@ -516,6 +520,12 @@ class MainWindow(Gtk.ApplicationWindow):
         nom.set_hexpand(True)
         if racine:
             nom.add_css_class("heading")
+        # Toute la ligne au vert quand il n'y a plus rien à monter : c'est ce
+        # qui se voit de loin en faisant défiler, et le père compte autant que
+        # sa feuille — il plafonne à 100 alors que tout dessous est à 250.
+        finie = node.skill.code in self._skills_finies
+        if finie:
+            nom.add_css_class("fini")
         line.append(nom)
 
         if node.skill.progress:
@@ -532,6 +542,8 @@ class MainWindow(Gtk.ApplicationWindow):
                    if node.skill.progress else str(node.skill.level)),
             xalign=1.0)
         niveau.set_size_request(90, -1)
+        if finie:
+            niveau.add_css_class("fini")
         line.append(niveau)
 
         if racine:
@@ -1166,7 +1178,12 @@ class MainWindow(Gtk.ApplicationWindow):
         provider.load_from_data(
             b".motd { background: mix(@theme_bg_color, @theme_fg_color, 0.13);"
             b" border-radius: 8px; padding: 8px 10px; }"
-            b" row.zebre { background: mix(@theme_bg_color, @theme_selected_bg_color, 0.10); }")
+            b" row.zebre { background: mix(@theme_bg_color, @theme_selected_bg_color, 0.10); }"
+            # Le vert de l'application — celui du coffre de l'icône, le même que
+            # sur Android — pour ce qui est monté au maximum. Éclairci sur fond
+            # sombre, assombri sur fond clair : mélangé au texte du thème, il
+            # reste lisible dans les deux sens.
+            b" .fini { color: mix(#3f7a68, @theme_fg_color, 0.35); font-weight: bold; }")
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)

@@ -83,6 +83,39 @@ def visible(tree: list[Node], expanded: set[str]) -> list[Node]:
     return out
 
 
+#: Le plafond du jeu : au-delà, une compétence ne monte plus.
+NIVEAU_MAX = 250
+
+
+def finished(tree: list[Node]) -> set[str]:
+    """Les compétences finies — celles dont il n'y a plus rien à monter.
+
+    Chaque échelon de l'arbre a son propre plafond : la racine vaut 20, la
+    branche du dessous 50, puis 100, 150, 200, et 250 pour la feuille. Un père
+    affiche donc 50 ou 100 alors que tout ce qu'il porte est au maximum, et rien
+    ne montrait qu'il était terminé : c'est pourtant ce qu'on cherche en
+    parcourant l'arbre.
+
+    D'où la règle : une feuille est finie à 250, un père l'est quand tous ses
+    enfants le sont. « Magie curative » plafonne à 100 et passe au vert dès que
+    les quatre soins qu'elle porte sont au maximum, et le vert remonte jusqu'au
+    titre de la branche quand la branche entière est faite.
+    """
+    children: dict[str, list[Node]] = {}
+    for node in tree:
+        children.setdefault(node.parent, []).append(node)
+
+    done: set[str] = set()
+    # Les codes d'un enfant sont plus longs que ceux de son père : les parcourir
+    # du plus long au plus court décide les feuilles d'abord, en une passe.
+    for node in sorted(tree, key=lambda n: len(n.skill.code), reverse=True):
+        siens = children.get(node.skill.code, [])
+        if (node.skill.level >= NIVEAU_MAX if not siens
+                else all(n.skill.code in done for n in siens)):
+            done.add(node.skill.code)
+    return done
+
+
 def branch_level(tree: list[Node], root: str) -> int:
     """Le niveau d'une branche : le plus haut de ses membres.
 
