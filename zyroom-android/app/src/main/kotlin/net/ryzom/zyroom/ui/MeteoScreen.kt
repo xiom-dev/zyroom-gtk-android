@@ -121,6 +121,19 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                 }
                 return@Column
             }
+            // Couché, la courbe reste en place et seules les matières défilent
+            // dessous : c'est la disposition qu'on cherche en tournant le
+            // téléphone — lire la fenêtre de forage tout en parcourant ce
+            // qu'elle fait sortir. Debout, la hauteur manque pour figer quoi
+            // que ce soit, et tout défile ensemble.
+            if (paysage) {
+                EnTeteMeteo(donnees, compact = true)
+                CourbeMeteo(
+                    releve = donnees,
+                    cycles = cyclesDesPrimes(donnees),
+                    hauteur = 160,
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 8.dp),
@@ -128,13 +141,15 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                 // Les cinq continents des Primes rendent la même série météo —
                 // vérifié sur quarante cycles. La répéter sous chaque zone
                 // n'apprendrait rien : elle est en tête, une fois.
-                item { EnTeteMeteo(donnees) }
-                item {
-                    CourbeMeteo(
-                        releve = donnees,
-                        cycles = cyclesDesPrimes(donnees),
-                        hauteur = if (paysage) 260 else 200,
-                    )
+                if (!paysage) {
+                    item { EnTeteMeteo(donnees) }
+                    item {
+                        CourbeMeteo(
+                            releve = donnees,
+                            cycles = cyclesDesPrimes(donnees),
+                            hauteur = 200,
+                        )
+                    }
                 }
                 item { TitreTableau("Suprêmes — " + nomSaison(donnees.saison)) }
                 itemsIndexed(SUPREMES[saisonCle(donnees.saison)]
@@ -161,11 +176,21 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
     }
 }
 
-/** Le temps qu'il fait dans les Primes, et ce qui vient ensuite. */
+/**
+ * Le temps qu'il fait dans les Primes, et ce qui vient ensuite.
+ *
+ * `compact` sert le mode paysage, où la hauteur est comptée : les bascules
+ * passent sur la même ligne que la condition, et la phrase d'explication saute
+ * — elle se lit une fois, pas à chaque consultation.
+ */
 @Composable
-private fun EnTeteMeteo(releve: MeteoAtys) {
+private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
     val cycles = cyclesDesPrimes(releve)
     val maintenant = maintenantDansLesPrimes(releve) ?: return
+    if (compact) {
+        EnTeteCompact(releve, maintenant, cycles)
+        return
+    }
     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row {
             Text(
@@ -210,6 +235,45 @@ private fun EnTeteMeteo(releve: MeteoAtys) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 6.dp),
         )
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+}
+
+/** Tout sur une ligne : la condition, la bascule qui vient, la fenêtre excellente. */
+@Composable
+private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Meteo>) {
+    val suite = cycles.filter { it.cycle > releve.cycleCourant }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "${(maintenant.value * 100).toInt()} %  ",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            texteCondition(maintenant.condition),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = couleurCondition(maintenant.condition),
+        )
+        suite.firstOrNull { it.condition != maintenant.condition }?.let { prochain ->
+            Text(
+                "  →  ${texteCondition(prochain.condition)} dans " +
+                    duree(minutesAvant(releve, prochain.cycle)),
+                style = MaterialTheme.typography.bodyMedium,
+                color = couleurCondition(prochain.condition),
+            )
+        }
+        if (maintenant.condition != "best") {
+            suite.firstOrNull { it.condition == "best" }?.let { meilleur ->
+                Text(
+                    "   ✦ Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = couleurCondition("best"),
+                )
+            }
+        }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 }
@@ -296,6 +360,10 @@ private fun minutesAvant(releve: MeteoAtys, cycle: Int): Int =
         .toInt().coerceAtLeast(0)
 
 /** « 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule. */
-private fun duree(minutes: Int): String =
-    if (minutes < 60) "$minutes min"
-    else "${minutes / 60} h ${(minutes % 60).toString().padStart(2, '0')}"
+private fun duree(minutes: Int): String = when {
+    // À cheval sur la bascule, l'arrondi rendait « dans 0 min », qui se lit
+    // comme une panne plutôt que comme une imminence.
+    minutes <= 0 -> "moins d'une minute"
+    minutes < 60 -> "$minutes min"
+    else -> "${minutes / 60} h ${(minutes % 60).toString().padStart(2, '0')}"
+}
