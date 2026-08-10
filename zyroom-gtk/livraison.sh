@@ -5,6 +5,8 @@
 #   ./livraison.sh dev          → variante du mainteneur, numéro inchangé
 #   ./livraison.sh guilde 0.4   → variante des joueurs, renumérotée 0.4
 #   ./livraison.sh tout 0.4     → les deux
+#   ./livraison.sh dev 0.4 --sans-signature  → renumérote et construit, s'arrête
+#                                             avant tout ce qui demande la clé
 #
 # Ce que le script fait, dans l'ordre : recopier le numéro là où il s'affiche,
 # construire, verser le résultat dans le dépôt publié, le signer, refaire son
@@ -19,6 +21,12 @@
 # Il faudra taper la phrase de passe de la clé. Elle est dans le KeePassXC de
 # Ludo ; sans elle, rien ne se publie — et la perdre obligerait chaque joueur à
 # désinstaller puis réinstaller.
+#
+# `--sans-signature` sépare les deux moitiés du travail : renuméroter et
+# construire ne demande rien, signer si. Cela permet de préparer une livraison —
+# et de découvrir une construction cassée — avant d'aller chercher la phrase de
+# passe, au lieu de l'apprendre juste après l'avoir tapée. Relancer ensuite la
+# même commande sans le drapeau reprend là où l'on s'était arrêté.
 set -euo pipefail
 
 racine=$(cd "$(dirname "$0")" && pwd)
@@ -31,7 +39,17 @@ cle_publique=$HOME/cle-signature-zyroom/cle-publique-zyroom.asc
 proprietes=$racine/version.properties
 builder="flatpak run org.flatpak.Builder"
 
-usage() { sed -n '3,7p' "$0" | sed 's/^# \?//'; exit 2; }
+usage() { sed -n '3,9p' "$0" | sed 's/^# \?//'; exit 2; }
+
+sans_signature=0
+arguments=()
+for argument in "$@"; do
+    case $argument in
+        --sans-signature) sans_signature=1 ;;
+        *)                arguments+=("$argument") ;;
+    esac
+done
+set -- ${arguments[@]+"${arguments[@]}"}
 
 case ${1:-} in
     guilde|dev) variantes=("$1") ;;
@@ -111,6 +129,11 @@ for v in "${variantes[@]}"; do
     $builder --user --force-clean --disable-updates \
         --repo="build-repo$suffixe" "build-dir$suffixe" "$(manifeste_de "$v")" >/dev/null
 
+    if [ "$sans_signature" = 1 ]; then
+        echo "── construit dans build-repo$suffixe, non signé"
+        continue
+    fi
+
     echo "── versement dans le dépôt publié, et signature"
     # La signature demande la phrase de passe : c'est ici qu'elle est réclamée,
     # sur l'hôte, où l'agent GPG sait ouvrir sa fenêtre.
@@ -134,6 +157,18 @@ for v in "${variantes[@]}"; do
     servi=$([ "$v" = dev ] && echo "ZyRoom-GTK-dev.flatpak" || echo "ZyRoom-GTK.flatpak")
     cp "dist/$etiquette.flatpak" "$racine/../pages/$servi"
 done
+
+if [ "$sans_signature" = 1 ]; then
+    cat <<FIN
+
+Préparé, rien n'est signé ni publié. Les numéros sont posés et la
+construction passe. Pour terminer, la phrase de passe à la main :
+
+    ./livraison.sh ${1:-} ${nom_demande:-}
+
+FIN
+    exit 0
+fi
 
 echo
 echo "── sommaire du dépôt"
