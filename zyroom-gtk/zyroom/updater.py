@@ -36,6 +36,14 @@ DEPOT = "https://xiom-dev.github.io/zyroom-gtk-android/repo/"
 #: Ce que le bac à sable dit de l'application en cours d'exécution.
 _INFO_FLATPAK = "/.flatpak-info"
 
+#: La commande d'entrée, la même dans les deux manifestes Flatpak.
+_COMMANDE = "zyroom-gtk"
+
+#: `FLATPAK_SPAWN_FLAGS_LATEST_VERSION` : lance la version la plus récente
+#: installée, et non celle du processus en cours. C'est ce qui permet de se
+#: relancer soi-même après une mise à jour.
+_SPAWN_LATEST_VERSION = 2
+
 
 class Updater:
     """Surveille les mises à jour et sait les appliquer.
@@ -111,6 +119,36 @@ class Updater:
             else:
                 self._on_progress(f"Mise à jour refusée : {echec.message}",
                                   True, True)
+
+    def relancer(self) -> bool:
+        """Relance l'application dans sa version fraîchement installée.
+
+        Une mise à jour Flatpak ne touche pas au processus en cours : celui-ci
+        continue de tourner sur l'ancienne version jusqu'à ce qu'on le ferme.
+        Le portail sait le relancer, par la même interface que `flatpak-spawn`,
+        avec le drapeau `LATEST_VERSION` — c'est précisément ce pour quoi ce
+        drapeau existe.
+
+        Rend vrai si le portail a accepté ; à l'appelant de fermer la fenêtre
+        ensuite. Faux hors bac à sable, ou si le portail refuse : mieux vaut
+        alors laisser l'application ouverte que la fermer sans rien relancer.
+        """
+        try:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            portal = Gio.DBusProxy.new_sync(
+                bus, Gio.DBusProxyFlags.NONE, None,
+                _PORTAL_NAME, _PORTAL_PATH, _PORTAL_NAME, None)
+            # Spawn(cwd, argv, fds, envs, flags, options). Les chaînes sont des
+            # tableaux d'octets terminés par un zéro, comme en C.
+            portal.call_sync(
+                "Spawn",
+                GLib.Variant("(ayaaya{uh}a{ss}ua{sv})",
+                             (b"/\0", [_COMMANDE.encode() + b"\0"], {}, {},
+                              _SPAWN_LATEST_VERSION, {})),
+                Gio.DBusCallFlags.NONE, -1, None)
+            return True
+        except Exception:                               # noqa: BLE001
+            return False
 
     def close(self) -> None:
         if self._monitor is None:

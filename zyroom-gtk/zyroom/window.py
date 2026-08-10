@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
 from . import (alerts, armory, backup, chatlog, detail, i18n, meteo, movements,
-               outposts, ryzom_api, sorting)
+               outposts, roster, ryzom_api, sorting)
 from . import skills as skills_mod
 from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
@@ -102,6 +102,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # Le journal des prises d'avant-postes : un seul jeu de fichiers
         # pour tout le serveur, la carte ne dépendant d'aucune clé.
         self._op_store = outposts.OutpostStore(data_dir())
+        # Le registre du personnel : un jeu de fichiers par guilde,
+        # reconstruit à chaque changement d'entité.
+        self._roster_store = None
 
         self._entries: list[dict] = []       # entités fusionnées (perso + guilde)
         self._entity: Entity | None = None
@@ -307,12 +310,15 @@ class MainWindow(Gtk.ApplicationWindow):
         scrolled.set_child(self._flow)
         inv_page.append(scrolled)
 
-        # Onglet « Journal » + bascule dans la barre de titre
+        # Onglet « Journal » + bascule dans la barre de titre.
+        #
+        # Trois onglets en haut, et non six : la barre de titre partageait sa
+        # place avec les boutons, et six titres l'y auraient serrée à
+        # l'illisible. Ce qu'on consulte tous les jours reste devant —
+        # l'inventaire et le journal des mouvements — et le reste vit sous
+        # « Plus », avec sa propre rangée.
         self._stack.add_titled(self._build_log_page(), "log", _("Journal"))
-        self._stack.add_titled(self._build_skills_page(), "skills", _("Compétences"))
-        self._stack.add_titled(self._build_outposts_page(), "outposts",
-                               _("Avant-postes"))
-        self._stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
+        self._stack.add_titled(self._build_plus_page(), "plus", _("Plus"))
         header.set_title_widget(Gtk.StackSwitcher(stack=self._stack))
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
@@ -403,6 +409,143 @@ class MainWindow(Gtk.ApplicationWindow):
         return page
 
     # ---------------------------------------------------------- Compétences
+    # --------------------------------------------------------------- Plus
+    #
+    # Quatre écrans de consultation, derrière un seul onglet : les compétences
+    # d'un personnage, la carte des avant-postes, la météo d'Atys et le
+    # registre du personnel d'une guilde. Chacun a sa propre pile, avec sa
+    # rangée de boutons — celle du haut porte déjà l'inventaire et le journal.
+
+    def _build_plus_page(self) -> Gtk.Widget:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        self._plus_stack = Gtk.Stack()
+        self._plus_stack.set_transition_type(Gtk.StackTransitionType.NONE)
+        self._plus_stack.add_titled(self._build_skills_page(), "skills",
+                                    _("Compétences"))
+        self._plus_stack.add_titled(self._build_roster_page(), "roster",
+                                    _("Personnel"))
+        self._plus_stack.add_titled(self._build_outposts_page(), "outposts",
+                                    _("Avant-postes"))
+        self._plus_stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
+
+        rangee = Gtk.StackSwitcher(stack=self._plus_stack)
+        rangee.set_halign(Gtk.Align.CENTER)
+        self._pad(rangee)
+        page.append(rangee)
+        page.append(self._plus_stack)
+        self._plus_stack.set_vexpand(True)
+        self._plus_stack.connect("notify::visible-child-name",
+                                 lambda *a: self._on_plus_changed())
+        return page
+
+    def _on_plus_changed(self) -> None:
+        page = self._plus_stack.get_visible_child_name()
+        if page == "skills":
+            self._refresh_skills()
+        elif page == "roster":
+            self._refresh_roster()
+        # Ces deux-là vont chercher sur le réseau : elles ne le font qu'à la
+        # première ouverture, et sur demande ensuite. L'annuaire des guildes
+        # pèse un demi-méga-octet, il n'a pas à partir au démarrage.
+        elif page == "outposts":
+            self._load_outposts()
+        elif page == "meteo":
+            self._load_meteo()
+
+    # -------------------------------------------------- Registre du personnel
+
+    def _build_roster_page(self) -> Gtk.Widget:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._pad(bar)
+        page.append(bar)
+
+        self._roster_vue = Gtk.DropDown.new_from_strings(
+            [_("Effectif"), _("Arrivées et départs")])
+        self._roster_vue.connect("notify::selected",
+                                 lambda *a: self._refresh_roster())
+        bar.append(self._roster_vue)
+
+        self._roster_status = Gtk.Label(xalign=0.0)
+        self._roster_status.add_css_class("dim-label")
+        self._roster_status.set_hexpand(True)
+        bar.append(self._roster_status)
+
+        self._roster_box = Gtk.ListBox()
+        self._roster_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+        scrolled.set_child(self._roster_box)
+        page.append(scrolled)
+        return page
+
+    def _refresh_roster(self) -> None:
+        while (child := self._roster_box.get_first_child()) is not None:
+            self._roster_box.remove(child)
+        ent = self._entity
+        if ent is None or ent.kind != KIND_GUILD:
+            self._roster_status.set_text(
+                _("Le registre n'existe que pour une guilde : choisissez-en une "
+                  "dans la liste des entités."))
+            return
+        if not ent.members:
+            self._roster_status.set_text(
+                _("L'API n'a pas rendu la liste des membres — la clé de la "
+                  "guilde n'accorde peut-être pas ce module."))
+            return
+
+        changements = self._roster_store.history() if self._roster_store else []
+        self._roster_status.set_text(
+            _("%d membres") % len(ent.members) +
+            (_("  ·  %d mouvements journalisés") % len(changements)
+             if changements else ""))
+
+        if self._roster_vue.get_selected() == 1:
+            self._remplir_mouvements_roster(changements)
+        else:
+            self._remplir_effectif_roster(ent)
+
+    def _remplir_effectif_roster(self, ent) -> None:
+        # Le chef d'abord, les membres ensuite : on lit une liste de guilde par
+        # le haut, et l'API la rend dans un ordre qui n'en est pas un.
+        membres = sorted(ent.members,
+                         key=lambda nm: (roster.rang_grade(nm[1]), nm[0].lower()))
+        grade_courant = None
+        rang = 0
+        for nom, grade in membres:
+            if grade != grade_courant:
+                grade_courant = grade
+                self._roster_box.append(
+                    self._entete_peuple(roster.nom_grade(grade)))
+                rang = 0
+            row = Gtk.ListBoxRow()
+            if rang % 2 == 0:
+                row.add_css_class("zebre")
+            label = Gtk.Label(label=nom, xalign=0.0)
+            label.set_size_request(456, -1)
+            label.set_halign(Gtk.Align.CENTER)
+            label.props.margin_top = 3
+            label.props.margin_bottom = 3
+            row.set_child(label)
+            self._roster_box.append(row)
+            rang += 1
+
+    def _remplir_mouvements_roster(self, changements: list) -> None:
+        if not changements:
+            self._roster_box.append(self._ligne_simple(
+                _("Aucun mouvement depuis le premier relevé. Le registre "
+                  "compare l'effectif d'une synchronisation à l'autre : l'API "
+                  "ne garde aucune histoire, seule l'application en tient une."),
+                dim=True))
+            return
+        for rang, c in enumerate(changements):
+            quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
+            self._roster_box.append(self._ligne_simple(
+                f"{quand}   {roster.decrire(c)}", zebre=rang % 2 == 0))
+
     # ------------------------------------------------------- Avant-postes
     #
     # Qui tient quoi sur Atys, et le journal des prises. L'annuaire public des
@@ -435,13 +578,37 @@ class MainWindow(Gtk.ApplicationWindow):
         self._op_status.set_hexpand(True)
         bar.append(self._op_status)
 
+        # Deux colonnes : Fyros et Matis à gauche, Tryker et Zoraï à droite.
+        # Les vingt-neuf avant-postes tenaient sur une colonne plus haute que
+        # l'écran, et il fallait faire défiler pour comparer deux peuples.
+        # Chacune défile pour son compte, les quatre listes n'ayant pas la même
+        # longueur.
+        colonnes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
+                           homogeneous=True)
+        self._op_gauche = Gtk.ListBox()
+        self._op_droite = Gtk.ListBox()
+        for colonne in (self._op_gauche, self._op_droite):
+            colonne.set_selection_mode(Gtk.SelectionMode.NONE)
+            defilement = Gtk.ScrolledWindow()
+            defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            defilement.set_vexpand(True)
+            defilement.set_child(colonne)
+            colonnes.append(defilement)
+        # Le journal, lui, se lit sur toute la largeur : ses lignes sont des
+        # phrases, pas un tableau.
         self._op_box = Gtk.ListBox()
         self._op_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_vexpand(True)
-        scrolled.set_child(self._op_box)
-        page.append(scrolled)
+        journal = Gtk.ScrolledWindow()
+        journal.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        journal.set_vexpand(True)
+        journal.set_child(self._op_box)
+
+        self._op_pile = Gtk.Stack()
+        self._op_pile.set_transition_type(Gtk.StackTransitionType.NONE)
+        self._op_pile.add_named(colonnes, "carte")
+        self._op_pile.add_named(journal, "journal")
+        self._op_pile.set_vexpand(True)
+        page.append(self._op_pile)
 
         self._op_carte: list = []
         self._op_changements: list = []
@@ -476,13 +643,16 @@ class MainWindow(Gtk.ApplicationWindow):
         run_async(work, done)
 
     def _refresh_outposts(self) -> None:
-        while (child := self._op_box.get_first_child()) is not None:
-            self._op_box.remove(child)
+        for boite in (self._op_gauche, self._op_droite, self._op_box):
+            while (child := boite.get_first_child()) is not None:
+                boite.remove(child)
         if not self._op_carte:
             return
         if self._op_vue.get_selected() == 1:
+            self._op_pile.set_visible_child_name("journal")
             self._remplir_journal_outposts()
         else:
+            self._op_pile.set_visible_child_name("carte")
             self._remplir_carte_outposts()
 
     def _remplir_carte_outposts(self) -> None:
@@ -498,27 +668,30 @@ class MainWindow(Gtk.ApplicationWindow):
         entete = _("%d avant-postes tenus sur Atys") % len(carte)
         if miens:
             entete += _(", dont %d à %s") % (miens, ma_guilde)
-        self._op_box.append(self._ligne_simple(entete + ".", dim=True))
+        self._op_status.set_text(entete + ".")
 
-        rang = 0
         connus = {c for c, _n in self.PEUPLES}
-        for code, nom in self.PEUPLES:
-            # Du plus haut niveau au plus bas, comme on lit une carte de
-            # conquête : les enjeux d'abord.
-            siens = sorted((o for o in carte if o.people == code),
-                           key=lambda o: (-o.level, self._names.name(o.name_key)))
-            if not siens:
-                continue
-            self._op_box.append(self._entete_peuple(nom))
-            for avant_poste in siens:
-                self._op_box.append(self._ligne_outpost(
-                    avant_poste, avant_poste.guild == ma_guilde, rang % 2 == 0))
-                rang += 1
+        # Deux peuples par colonne, dans l'ordre de la carte.
+        for colonne, peuples in ((self._op_gauche, self.PEUPLES[:2]),
+                                 (self._op_droite, self.PEUPLES[2:])):
+            rang = 0
+            for code, nom in peuples:
+                # Du plus haut niveau au plus bas, comme on lit une carte de
+                # conquête : les enjeux d'abord.
+                siens = sorted((o for o in carte if o.people == code),
+                               key=lambda o: (-o.level, self._names.name(o.name_key)))
+                if not siens:
+                    continue
+                colonne.append(self._entete_peuple(nom))
+                for avant_poste in siens:
+                    colonne.append(self._ligne_outpost(
+                        avant_poste, avant_poste.guild == ma_guilde, rang % 2 == 0))
+                    rang += 1
         orphelins = [o for o in carte if o.people not in connus]
         if orphelins:
             # L'annuaire contient parfois un code qui n'est pas un avant-poste
             # — « #15 ». Le taire ferait un total qui ne tombe pas juste.
-            self._op_box.append(self._ligne_simple(
+            self._op_droite.append(self._ligne_simple(
                 _("Hors carte : ") + ", ".join(f"{o.code} ({o.guild})"
                                                for o in orphelins), dim=True))
 
@@ -554,7 +727,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # Aligné sur le bloc des lignes, qui est centré : un titre resté contre
         # le bord gauche n'aurait plus rien coiffé.
         label.set_halign(Gtk.Align.CENTER)
-        label.set_size_request(616, -1)
+        label.set_size_request(456, -1)
         row.set_child(label)
         return row
 
@@ -581,7 +754,7 @@ class MainWindow(Gtk.ApplicationWindow):
         line.append(image)
 
         nom = Gtk.Label(label=self._names.name(avant_poste.name_key), xalign=0.0)
-        nom.set_size_request(330, -1)
+        nom.set_size_request(250, -1)
         nom.set_ellipsize(Pango.EllipsizeMode.END)
         if mien:
             nom.add_css_class("fini")     # le vert de l'application
@@ -594,7 +767,7 @@ class MainWindow(Gtk.ApplicationWindow):
         line.append(niveau)
 
         guilde = Gtk.Label(label=avant_poste.guild, xalign=0.0)
-        guilde.set_size_request(230, -1)
+        guilde.set_size_request(150, -1)
         guilde.set_ellipsize(Pango.EllipsizeMode.END)
         if mien:
             guilde.add_css_class("fini")
@@ -1182,15 +1355,9 @@ class MainWindow(Gtk.ApplicationWindow):
         page = self._stack.get_visible_child_name()
         if page == "log":
             self._load_log()
-        elif page == "skills":
-            self._refresh_skills()
-        # Ces deux-là vont chercher sur le réseau : elles ne le font qu'à la
-        # première ouverture de l'onglet, et sur demande ensuite. L'annuaire des
-        # guildes pèse un demi-méga-octet, il n'a pas à partir au démarrage.
-        elif page == "outposts":
-            self._load_outposts()
-        elif page == "meteo":
-            self._load_meteo()
+        elif page == "plus":
+            # C'est la sous-page visible qui décide ce qu'il faut charger.
+            self._on_plus_changed()
 
     def _on_log_copy(self, _btn) -> None:
         lines = [movements.describe(mv, self._names.name)
@@ -1381,16 +1548,24 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         self._entity = ent
         self._watch = WatchStore(guard_path(entry["kind"], entry["id"]))
+        # Le registre suit la guilde affichée. Chaque lecture du flux journalise
+        # les arrivées, les départs et les changements de grade : l'API ne rend
+        # qu'un effectif, jamais son histoire.
+        if ent.kind == KIND_GUILD:
+            self._roster_store = roster.RosterStore(data_dir(), ent.entity_id)
+            self._roster_store.record(ent.members)
+        else:
+            self._roster_store = None
         self._update_entity_header(ent, entry)
         self._populate_inventories()
         self._check_alerts(ent, entry, from_sync, time_data)
         if self._stack.get_visible_child_name() == "log":
             self._load_log()      # le journal suit l'entité sélectionnée
-        elif self._stack.get_visible_child_name() == "skills":
-            # Les compétences aussi : un personnage n'a pas l'arbre d'un autre,
-            # et une guilde n'en a pas du tout.
+        elif self._stack.get_visible_child_name() == "plus":
+            # Les compétences suivent aussi : un personnage n'a pas l'arbre d'un
+            # autre, et une guilde n'en a pas du tout.
             self._skills_expanded = set()
-            self._refresh_skills()
+            self._on_plus_changed()
 
     # -------------------------------------------------------- Inventaires
     def _populate_inventories(self) -> None:
@@ -2246,11 +2421,45 @@ class MainWindow(Gtk.ApplicationWindow):
     def _on_update_progress(self, message: str, done: bool, failed: bool) -> None:
         self._set_status(message)
         if done:
-            # Réussie, le bouton n'a plus lieu d'être : la version installée
-            # n'est reprise qu'au prochain lancement. Échouée, on le rend pour
+            # Réussie, le bouton n'a plus lieu d'être. Échouée, on le rend pour
             # permettre un second essai.
             self._update_btn.set_visible(failed)
             self._update_btn.set_sensitive(True)
+            if not failed:
+                self._proposer_redemarrage()
+
+    def _proposer_redemarrage(self) -> None:
+        """Une mise à jour installée ne tourne qu'au prochain lancement.
+
+        On le propose plutôt que de le faire : fermer la fenêtre sous les doigts
+        de quelqu'un qui consulte un coffre serait une drôle de façon de le
+        remercier d'avoir mis à jour. Le portail sait relancer la version
+        fraîche ; s'il refuse, on laisse l'application ouverte en le disant,
+        plutôt que de la fermer sans rien relancer.
+        """
+        dlg = Gtk.AlertDialog()
+        dlg.set_message(_("Mise à jour installée"))
+        dlg.set_detail(_("Elle ne prendra effet qu'au prochain lancement. "
+                         "Redémarrer maintenant ?"))
+        dlg.set_buttons([_("Plus tard"), _("Redémarrer")])
+        dlg.set_default_button(1)
+        dlg.set_cancel_button(0)
+
+        def repondu(source, resultat):
+            try:
+                choix = source.choose_finish(resultat)
+            except GLib.Error:
+                return
+            if choix != 1:
+                return
+            if self._updater.relancer():
+                self.close()
+            else:
+                self._set_status(
+                    _("Impossible de relancer automatiquement : fermez et "
+                      "rouvrez l'application pour utiliser la nouvelle version."))
+
+        dlg.choose(self, None, repondu)
 
     # ------------------------------------------------------------- États
     def _set_busy(self, busy: bool, message: str = "") -> None:

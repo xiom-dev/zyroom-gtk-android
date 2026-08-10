@@ -94,6 +94,7 @@ class Entity:
     inventories: list[Inventory] = field(default_factory=list)
     skills: list = field(default_factory=list)          # arbre des compétences
     skill_points: dict = field(default_factory=dict)    # points par branche
+    members: list = field(default_factory=list)         # [(nom, grade)] d'une guilde
 
     @property
     def item_count(self) -> int:
@@ -355,6 +356,16 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     ent.modules = node.get("modules", "")
     ent.money = node.findtext("money", default="")
     ent.motd = node.findtext("motd", default="")
+    # Le registre des membres : leur nom et leur grade. La date d'entrée que
+    # rend l'API — un grand entier — n'est pas un temps Unix et rien n'en donne
+    # la clé ; on ne la lit donc pas plutôt que d'afficher une date fausse.
+    membres = node.find("members")
+    if membres is not None:
+        for m in membres.findall("member"):
+            nom = (m.findtext("name") or "").strip()
+            if nom:
+                ent.members.append((nom, (m.findtext("grade") or "").strip()))
+
     ent.icon = node.findtext("icon", default="")
     if ent.icon:
         ent.portrait_url = f"{API_BASE_URL}/guild_icon.php?icon={ent.icon}&size=b"
