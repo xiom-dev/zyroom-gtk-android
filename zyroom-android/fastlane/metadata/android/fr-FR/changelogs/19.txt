@@ -1,0 +1,5 @@
+* L'effectif de la guilde se range sur plusieurs colonnes — deux ou trois en
+  portrait, jusqu'à six l'écran couché : cent soixante-dix noms tiennent
+  désormais en deux glissements au lieu de dix écrans.
+* Le registre reprend les changements de grade constatés par le portage bureau
+  avant qu'il n'en tienne un lui-même.

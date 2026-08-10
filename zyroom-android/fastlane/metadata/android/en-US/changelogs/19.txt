@@ -1,0 +1,5 @@
+* The guild roster now lays out across several columns — two or three in
+  portrait, up to six in landscape: a hundred and seventy names fit in two
+  swipes instead of ten screens.
+* The roster carries over the rank changes the desktop port had recorded before
+  this one kept a journal of its own.

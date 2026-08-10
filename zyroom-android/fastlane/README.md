@@ -11,10 +11,15 @@ titre, descriptions, journal des versions, images. Rien ici n'entre dans l'APK.
         images/icon.png                512 × 512
         images/phoneScreenshots/       1.png, 2.png… dans l'ordre d'affichage
 
-Le nom d'un journal est un **versionCode**, pas un numéro affiché : `14.txt`
-accompagne la version 2.9, dont le versionCode vaut 14. Voir `version.properties`,
-que `livraison.sh` fait croître — un journal nommé d'après le numéro affiché ne
-serait jamais retrouvé.
+Le nom d'un journal est un **versionCode**, pas un numéro affiché : `19.txt`
+accompagne la version 2.14, dont le versionCode vaut 19. Voir
+`version.properties`, que `livraison.sh` fait croître.
+
+Les deux se ressemblent assez pour qu'on les confonde, et la panne est
+silencieuse : un journal nommé d'après le numéro affiché n'est jamais retrouvé,
+la fiche sort sans note de version, et rien ne le signale. C'est arrivé ici —
+le fichier a suivi le numéro affiché pendant deux versions avant qu'on s'en
+aperçoive.
 
 Deux langues sont tenues : `fr-FR`, celle de la guilde, et `en-US`, celle que
 F-Droid montre par défaut à qui n'a ni l'une ni l'autre.
