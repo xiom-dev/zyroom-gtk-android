@@ -47,5 +47,31 @@ class IconLoader:
         # Retour sur le thread GTK
         GLib.idle_add(callback, result)
 
+    def request_emblem(self, icon_id: str, callback, size: str = "s") -> None:
+        """Demande l'emblème d'une guilde, dessiné par l'API à partir de son
+        identifiant.
+
+        Même cache et même thread que les icônes d'items : un tableau des
+        avant-postes en demande une trentaine d'un coup, et les redemander à
+        chaque affichage ferait clignoter la fenêtre."""
+        if not icon_id:
+            GLib.idle_add(callback, None)
+            return
+        self._executor.submit(self._work_emblem, icon_id, size, callback)
+
+    def _work_emblem(self, icon_id: str, size: str, callback) -> None:
+        path = os.path.join(self._dir, f"guild-{icon_id}-{size}.png")
+        result = path
+        try:
+            if not (os.path.isfile(path) and os.path.getsize(path) > 0):
+                data = ryzom_api.fetch_url(ryzom_api.guild_icon_url(icon_id, size))
+                tmp = path + ".part"
+                with open(tmp, "wb") as fh:
+                    fh.write(data)
+                os.replace(tmp, path)
+        except Exception:                               # noqa: BLE001
+            result = None
+        GLib.idle_add(callback, result)
+
     def shutdown(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)

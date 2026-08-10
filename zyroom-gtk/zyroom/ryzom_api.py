@@ -397,7 +397,18 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
 
 
 # ------------------------------------------------------------- Saison serveur
-_SEASONS = ("Été", "Automne", "Hiver", "Printemps")  # index 0..3 (cf. Delphi)
+#: Les saisons d'Atys, dans l'ordre où `time.php` les numérote.
+#:
+#: **Corrigé** : la table héritée du Delphi commençait par « Été », et
+#: l'application annonçait donc une saison d'avance. Le flux tranche — au
+#: moment du relevé, `season=0` allait avec `month_of_jy=1`, Germinally, et
+#: `day_of_season == day_of_jy` : la saison 0 commence donc avec l'année, sur
+#: les mois Winderly, Germinally et Folially. Germination et floraison : c'est
+#: le printemps, et Nivia — la neige — tombe bien dans la saison 3.
+#:
+#: Le portage Android emploie le même ordre ; les deux applications
+#: s'accordaient sur tout sauf sur ce point.
+_SEASONS = ("Printemps", "Été", "Automne", "Hiver")   # index 0..3
 
 
 def fetch_time_xml() -> bytes:
@@ -432,3 +443,34 @@ def parse_time(xml_bytes: bytes) -> dict:
 
 
 _FORMAT_XML = "xml"
+
+
+# ------------------------------------------------- Avant-postes et météo
+#
+# Trois flux publics, **sans clé d'API** : ils décrivent le serveur, pas une
+# guilde. L'annuaire pèse un demi-méga-octet et n'est donc demandé qu'à
+# l'ouverture de l'onglet.
+
+def guild_icon_url(icon_id: str, size: str = "s") -> str:
+    """L'emblème d'une guilde, dessiné par l'API. Trois tailles : s, m, b.
+
+    L'identifiant est celui que rend l'annuaire — un entier de vingt chiffres —
+    et non le numéro de la guilde."""
+    return f"{API_BASE_URL}/guild_icon.php?icon={icon_id}&size={size}"
+
+
+def fetch_guild_directory_xml() -> bytes:
+    """L'annuaire public : les 2 420 guildes, leurs emblèmes, leurs avant-postes."""
+    return _http_get(f"{API_BASE_URL}/guilds.php")
+
+
+def fetch_weather_json(continents: list[str], cycles: int = 20,
+                       passes: int = 0) -> bytes:
+    """La météo d'Atys, calculée par le jeu et donc connue à l'avance.
+
+    `passes` demande en plus quelques cycles déjà écoulés : sans eux la courbe
+    commencerait à l'instant présent, et le trait du « maintenant » se
+    collerait au bord gauche."""
+    return _http_get(f"{API_BASE_URL}/weather.php?continent=" + ",".join(continents) +
+                     f"&cycles={max(0, min(40, cycles))}"
+                     f"&offset={max(0, min(8, passes))}")

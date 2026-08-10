@@ -1,0 +1,110 @@
+"""La météo d'Atys : lecture du flux, et ce qu'on en déduit du temps qui passe.
+
+Un cycle vaut trois heures d'Atys, neuf minutes réelles ; l'API donne l'heure
+d'Atys avec ses décimales, et c'est d'elles que dépendent les comptes à rebours.
+"""
+
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from zyroom import armory, meteo                                   # noqa: E402
+
+FLUX = """{"version":"1.0","hour":"104011.496","cycle":34670,
+ "continents":{"terre":{
+   "34670":{"cycle":34670,"condition":"good","value":"0.483","text":"uiFair"},
+   "34671":{"cycle":34671,"condition":"best","value":"0.042","text":"uiFair"}}}}"""
+
+
+class Lecture(unittest.TestCase):
+
+    def test_le_flux_rend_cycle_heure_et_continents(self):
+        r = meteo.parse_weather(FLUX)
+        self.assertEqual(34670, r.cycle_courant)
+        self.assertAlmostEqual(104011.496, r.heure_atys, places=3)
+        self.assertEqual([34670, 34671], [m.cycle for m in r.continents["terre"]])
+        self.assertAlmostEqual(0.483, r.continents["terre"][0].value, places=3)
+
+    def test_sans_heure_le_cycle_fait_foi(self):
+        r = meteo.parse_weather('{"cycle":100,"continents":{}}')
+        self.assertEqual(300.0, r.heure_atys)
+        self.assertEqual(0.0, r.avancement_du_cycle)
+
+    def test_une_erreur_de_l_api_est_signalee(self):
+        with self.assertRaises(ValueError):
+            meteo.parse_weather('{"errors":"nope"}')
+
+
+class TempsDAtys(unittest.TestCase):
+
+    def releve(self):
+        r = meteo.parse_weather(FLUX)
+        return meteo.MeteoAtys(r.cycle_courant, r.heure_atys, 0, r.continents)
+
+    def test_l_avancement_se_lit_dans_les_decimales(self):
+        """104011,496 au cycle 34670 : le cycle commence à 104010, on est donc
+        à la moitié. Compter en cycles pleins surestimait l'attente."""
+        self.assertAlmostEqual(0.499, self.releve().avancement_du_cycle, places=2)
+
+    def test_le_compte_a_rebours_tient_compte_du_cycle_entame(self):
+        r = self.releve()
+        # Le cycle suivant commence dans une demi-période, soit ~4 min.
+        self.assertEqual(4, r.minutes_avant(34671))
+
+    def test_l_heure_du_jour_et_la_nuit(self):
+        self.assertEqual(19, self.releve().heure_du_jour)
+        self.assertFalse(self.releve().nuit)
+
+    def test_la_nuit_va_de_vingt_deux_heures_a_trois_heures(self):
+        for h in (22, 23, 0, 2):
+            self.assertTrue(meteo.est_la_nuit(h), h)
+        for h in (3, 12, 21):
+            self.assertFalse(meteo.est_la_nuit(h), h)
+
+
+class Textes(unittest.TestCase):
+
+    def test_les_quatre_temps_que_l_api_emploie(self):
+        self.assertEqual("Beau", meteo.texte_meteo("uiFair"))
+        self.assertEqual("Pluie", meteo.texte_meteo("uiRainy"))
+        self.assertEqual("Orage", meteo.texte_meteo("uiThundery"))
+        self.assertEqual("Orage de sève", meteo.texte_meteo("uiSapThundery"))
+
+    def test_une_cle_inconnue_reste_lisible(self):
+        """Mieux vaut l'afficher qu'un blanc : elle dit qu'il se passe
+        quelque chose, et se traduira le jour où on la rencontre."""
+        self.assertEqual("Bidule", meteo.texte_meteo("uiBidule"))
+
+    def test_les_conditions_de_gisement(self):
+        self.assertEqual("Excellente", meteo.texte_condition("best"))
+        self.assertEqual("Exécrable", meteo.texte_condition("worst"))
+
+    def test_un_compte_a_rebours_se_lit(self):
+        self.assertEqual("27 min", meteo.duree(27))
+        self.assertEqual("1 h 12", meteo.duree(72))
+        # À cheval sur la bascule, « dans 0 min » se lisait comme une panne.
+        self.assertEqual("moins d'une minute", meteo.duree(0))
+
+
+class TableDesMatieres(unittest.TestCase):
+    """Le relevé figé doit couvrir les quatre saisons et les quatre zones."""
+
+    def test_les_quatre_saisons_ont_leurs_suprêmes(self):
+        for saison in meteo.SAISONS:
+            zones = armory.SUPREMES.get(saison, {})
+            self.assertEqual(4, len(zones), saison)
+            self.assertTrue(all(groupes for groupes in zones.values()), saison)
+
+    def test_les_excellentes_se_donnent_de_jour_et_de_nuit(self):
+        for saison in meteo.SAISONS:
+            self.assertEqual({"JOUR", "NUIT"}, set(armory.EXCELLENTES[saison]))
+
+    def test_chaque_zone_du_releve_a_son_continent(self):
+        for zone in armory.SUPREMES["PRINTEMPS"]:
+            self.assertIn(zone, meteo.CONTINENT_DE_ZONE, zone)
+
+
+if __name__ == "__main__":
+    unittest.main()

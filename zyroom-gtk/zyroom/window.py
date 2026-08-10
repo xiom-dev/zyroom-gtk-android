@@ -10,15 +10,17 @@ from __future__ import annotations
 import os
 import threading
 import unicodedata
+from datetime import datetime, timedelta
 
-from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk
+from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
-from . import alerts, backup, chatlog, detail, i18n, movements, ryzom_api, sorting
+from . import (alerts, armory, backup, chatlog, detail, i18n, meteo, movements,
+               outposts, ryzom_api, sorting)
 from . import skills as skills_mod
 from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
 from .i18n import _
-from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings, detect_pack,
+from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, data_dir, Settings, detect_pack,
                      detect_save_folder, entity_xml_path, format_last_sync,
                      guard_path, last_sync, movements_path, names_cache_path,
                      portrait_path, snapshot_path)
@@ -97,6 +99,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._load_names(self._settings.pack_file or detect_pack())
 
         self._icons = IconLoader()
+        # Le journal des prises d'avant-postes : un seul jeu de fichiers
+        # pour tout le serveur, la carte ne dépendant d'aucune clé.
+        self._op_store = outposts.OutpostStore(data_dir())
 
         self._entries: list[dict] = []       # entités fusionnées (perso + guilde)
         self._entity: Entity | None = None
@@ -305,6 +310,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # Onglet « Journal » + bascule dans la barre de titre
         self._stack.add_titled(self._build_log_page(), "log", _("Journal"))
         self._stack.add_titled(self._build_skills_page(), "skills", _("Compétences"))
+        self._stack.add_titled(self._build_outposts_page(), "outposts",
+                               _("Avant-postes"))
+        self._stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
         header.set_title_widget(Gtk.StackSwitcher(stack=self._stack))
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
@@ -395,6 +403,485 @@ class MainWindow(Gtk.ApplicationWindow):
         return page
 
     # ---------------------------------------------------------- Compétences
+    # ------------------------------------------------------- Avant-postes
+    #
+    # Qui tient quoi sur Atys, et le journal des prises. L'annuaire public des
+    # guildes ne demande aucune clé, mais pèse un demi-méga-octet : il n'est
+    # donc demandé qu'à l'ouverture de l'onglet, et rafraîchi à la main.
+
+    #: Les quatre peuples, dans l'ordre de la carte.
+    PEUPLES = (("fyros", "Fyros"), ("matis", "Matis"),
+               ("tryker", "Tryker"), ("zorai", "Zoraï"))
+
+    def _build_outposts_page(self) -> Gtk.Widget:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._pad(bar)
+        page.append(bar)
+
+        self._op_vue = Gtk.DropDown.new_from_strings(
+            [_("Qui tient quoi"), _("Journal des prises")])
+        self._op_vue.connect("notify::selected", lambda *a: self._refresh_outposts())
+        bar.append(self._op_vue)
+
+        self._op_refresh = Gtk.Button(label=_("Actualiser"))
+        self._op_refresh.set_tooltip_text(_("Redemander l'annuaire des guildes"))
+        self._op_refresh.connect("clicked", lambda *a: self._load_outposts(force=True))
+        bar.append(self._op_refresh)
+
+        self._op_status = Gtk.Label(xalign=0.0)
+        self._op_status.add_css_class("dim-label")
+        self._op_status.set_hexpand(True)
+        bar.append(self._op_status)
+
+        self._op_box = Gtk.ListBox()
+        self._op_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+        scrolled.set_child(self._op_box)
+        page.append(scrolled)
+
+        self._op_carte: list = []
+        self._op_changements: list = []
+        self._op_premier = False
+        self._op_charge = False
+        return page
+
+    def _load_outposts(self, force: bool = False) -> None:
+        """Va chercher l'annuaire, journalise les changements de main."""
+        if self._op_charge and not force:
+            return
+        self._op_charge = True
+        self._op_refresh.set_sensitive(False)
+        self._op_status.set_text(_("Lecture de l'annuaire des guildes…"))
+
+        def work():
+            xml = ryzom_api.fetch_guild_directory_xml()
+            carte = outposts.parse_outposts(xml)
+            premier = self._op_store.jamais_releve()
+            self._op_store.record(carte)
+            return carte, self._op_store.history(), premier
+
+        def done(res, err):
+            self._op_refresh.set_sensitive(True)
+            if err:
+                self._op_status.set_text(_("Annuaire indisponible : %s") % err)
+                return
+            self._op_carte, self._op_changements, self._op_premier = res
+            self._op_status.set_text("")
+            self._refresh_outposts()
+
+        run_async(work, done)
+
+    def _refresh_outposts(self) -> None:
+        while (child := self._op_box.get_first_child()) is not None:
+            self._op_box.remove(child)
+        if not self._op_carte:
+            return
+        if self._op_vue.get_selected() == 1:
+            self._remplir_journal_outposts()
+        else:
+            self._remplir_carte_outposts()
+
+    def _remplir_carte_outposts(self) -> None:
+        carte = self._op_carte
+        # Sur une guilde, c'est son nom ; sur un personnage, celui de sa guilde.
+        # Sans cela, ouvrir la carte depuis son personnage ne mettait rien en
+        # vert, alors que c'est justement là qu'on se demande « et nous ? ».
+        ent = self._entity
+        ma_guilde = ""
+        if ent is not None:
+            ma_guilde = (ent.name if ent.kind == KIND_GUILD else ent.guild) or ""
+        miens = sum(1 for o in carte if o.guild == ma_guilde)
+        entete = _("%d avant-postes tenus sur Atys") % len(carte)
+        if miens:
+            entete += _(", dont %d à %s") % (miens, ma_guilde)
+        self._op_box.append(self._ligne_simple(entete + ".", dim=True))
+
+        rang = 0
+        connus = {c for c, _n in self.PEUPLES}
+        for code, nom in self.PEUPLES:
+            # Du plus haut niveau au plus bas, comme on lit une carte de
+            # conquête : les enjeux d'abord.
+            siens = sorted((o for o in carte if o.people == code),
+                           key=lambda o: (-o.level, self._names.name(o.name_key)))
+            if not siens:
+                continue
+            self._op_box.append(self._entete_peuple(nom))
+            for avant_poste in siens:
+                self._op_box.append(self._ligne_outpost(
+                    avant_poste, avant_poste.guild == ma_guilde, rang % 2 == 0))
+                rang += 1
+        orphelins = [o for o in carte if o.people not in connus]
+        if orphelins:
+            # L'annuaire contient parfois un code qui n'est pas un avant-poste
+            # — « #15 ». Le taire ferait un total qui ne tombe pas juste.
+            self._op_box.append(self._ligne_simple(
+                _("Hors carte : ") + ", ".join(f"{o.code} ({o.guild})"
+                                               for o in orphelins), dim=True))
+
+    def _remplir_journal_outposts(self) -> None:
+        if self._op_premier and not self._op_changements:
+            self._op_box.append(self._ligne_simple(
+                _("Premier relevé : rien à comparer. Les changements de main "
+                  "apparaîtront à partir du prochain."), dim=True))
+            return
+        if not self._op_changements:
+            self._op_box.append(self._ligne_simple(
+                _("Aucun changement de main depuis le premier relevé."), dim=True))
+            return
+        for rang, c in enumerate(self._op_changements):
+            quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
+            nom = self._names.name(f"{c.outpost}.outpost")
+            if c.taken:
+                texte = _("%s — pris par %s") % (nom, c.to)
+            elif c.lost:
+                texte = _("%s — perdu par %s") % (nom, c.frm)
+            else:
+                texte = _("%s — %s ▸ %s") % (nom, c.frm, c.to)
+            self._op_box.append(self._ligne_simple(f"{quand}   {texte}",
+                                                   zebre=rang % 2 == 0))
+
+    def _entete_peuple(self, nom: str) -> Gtk.ListBoxRow:
+        row = Gtk.ListBoxRow()
+        label = Gtk.Label(label=nom, xalign=0.0)
+        label.add_css_class("title-4")
+        label.add_css_class("peuple")
+        label.props.margin_top = 10
+        label.props.margin_start = 8
+        label.props.margin_bottom = 2
+        row.set_child(label)
+        return row
+
+    def _ligne_outpost(self, avant_poste, mien: bool, zebre: bool) -> Gtk.ListBoxRow:
+        row = Gtk.ListBoxRow()
+        if zebre:
+            row.add_css_class("zebre")
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        line.props.margin_start = 8
+        line.props.margin_end = 8
+        line.props.margin_top = 3
+        line.props.margin_bottom = 3
+
+        # L'emblème de la guilde, chargé en tâche de fond et mis en cache.
+        image = Gtk.Image()
+        image.set_pixel_size(20)
+        self._icons.request_emblem(
+            avant_poste.icon,
+            lambda chemin, img=image: img.set_from_file(chemin) if chemin else None)
+        line.append(image)
+
+        nom = Gtk.Label(label=self._names.name(avant_poste.name_key), xalign=0.0)
+        nom.set_hexpand(True)
+        if mien:
+            nom.add_css_class("fini")     # le vert de l'application
+        line.append(nom)
+
+        niveau = Gtk.Label(label=str(avant_poste.level) if avant_poste.level else "—",
+                           xalign=1.0)
+        niveau.set_size_request(48, -1)
+        niveau.add_css_class("dim-label")
+        line.append(niveau)
+
+        guilde = Gtk.Label(label=avant_poste.guild, xalign=1.0)
+        guilde.set_size_request(220, -1)
+        guilde.set_ellipsize(Pango.EllipsizeMode.END)
+        if mien:
+            guilde.add_css_class("fini")
+        line.append(guilde)
+
+        row.set_child(line)
+        return row
+
+    def _ligne_simple(self, texte: str, dim: bool = False,
+                      zebre: bool = False) -> Gtk.ListBoxRow:
+        row = Gtk.ListBoxRow()
+        if zebre:
+            row.add_css_class("zebre")
+        label = Gtk.Label(label=texte, xalign=0.0, wrap=True)
+        if dim:
+            label.add_css_class("dim-label")
+        self._pad(label)
+        row.set_child(label)
+        return row
+
+    # -------------------------------------------------------------- Météo
+    #
+    # La météo d'Atys en courbe, et les matières qu'elle fait sortir. Deux
+    # sources : l'API officielle pour le temps — calculé par le jeu, donc connu
+    # quarante cycles à l'avance — et un relevé de Ryzom Armory figé dans
+    # `armory.py`, qui ne changera qu'avec le jeu.
+
+    def _build_meteo_page(self) -> Gtk.Widget:
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._pad(bar)
+        page.append(bar)
+
+        self._meteo_entete = Gtk.Label(xalign=0.0, use_markup=True)
+        self._meteo_entete.set_hexpand(True)
+        bar.append(self._meteo_entete)
+
+        self._meteo_refresh = Gtk.Button(label=_("Actualiser"))
+        self._meteo_refresh.connect("clicked", lambda *a: self._load_meteo(force=True))
+        bar.append(self._meteo_refresh)
+
+        self._meteo_courbe = Gtk.DrawingArea()
+        self._meteo_courbe.set_content_height(190)
+        self._meteo_courbe.set_draw_func(self._dessiner_courbe)
+        self._pad(self._meteo_courbe)
+        page.append(self._meteo_courbe)
+
+        self._meteo_box = Gtk.ListBox()
+        self._meteo_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_vexpand(True)
+        scrolled.set_child(self._meteo_box)
+        page.append(scrolled)
+
+        self._meteo_releve = None
+        self._meteo_charge = False
+        return page
+
+    def _load_meteo(self, force: bool = False) -> None:
+        if self._meteo_charge and not force:
+            return
+        self._meteo_charge = True
+        self._meteo_refresh.set_sensitive(False)
+        self._meteo_entete.set_text(_("Lecture de la météo…"))
+
+        def work():
+            continents = sorted(set(meteo.CONTINENT_DE_ZONE.values()))
+            # Quelques cycles déjà écoulés en plus : sans eux la courbe
+            # commencerait à l'instant présent, et le trait du « maintenant »
+            # se collerait au bord gauche.
+            brut = ryzom_api.fetch_weather_json(continents, cycles=20, passes=6)
+            releve = meteo.parse_weather(brut)
+            # La saison vient d'un autre appel : le flux météo ne la porte pas,
+            # et c'est elle qui dit quelle page du relevé regarder.
+            try:
+                saison = ryzom_api.parse_time(
+                    ryzom_api.fetch_time_xml())["season_index"]
+            except Exception:                           # noqa: BLE001
+                saison = -1
+            return meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys,
+                                   saison, releve.continents)
+
+        def done(res, err):
+            self._meteo_refresh.set_sensitive(True)
+            if err:
+                self._meteo_entete.set_text(_("Météo indisponible : %s") % err)
+                return
+            self._meteo_releve = res
+            self._refresh_meteo()
+
+        run_async(work, done)
+
+    def _refresh_meteo(self) -> None:
+        releve = self._meteo_releve
+        if releve is None:
+            return
+        maintenant = releve.maintenant()
+        if maintenant is not None:
+            suite = [c for c in releve.cycles_des_primes()
+                     if c.cycle > releve.cycle_courant]
+            prochain = next((c for c in suite
+                             if c.condition != maintenant.condition), None)
+            meilleur = next((c for c in suite if c.condition == "best"), None)
+            # Chaque morceau est échappé pour lui-même, et le gras posé ensuite :
+            # échapper la phrase entière puis remettre les balises à la main
+            # marchait, mais aurait cédé au premier nom de matière contenant un
+            # « & ».
+            def gras(texte: str) -> str:
+                return f"<b>{GLib.markup_escape_text(texte)}</b>"
+
+            def clair(texte: str) -> str:
+                return GLib.markup_escape_text(texte)
+
+            morceaux = [
+                gras(f"{meteo.texte_meteo(maintenant.text)} · "
+                     f"{int(maintenant.value * 100)} %"),
+                clair("  →  "),
+                gras(meteo.texte_condition(maintenant.condition)),
+            ]
+            if prochain is not None:
+                morceaux.append(clair(
+                    f"   {meteo.texte_condition(prochain.condition)} dans "
+                    f"{meteo.duree(releve.minutes_avant(prochain.cycle))}"))
+            # La fenêtre excellente, sauf si elle est déjà annoncée juste
+            # au-dessus : les deux mentions se vaudraient mot pour mot.
+            if (maintenant.condition != "best" and meilleur is not None
+                    and (prochain is None or meilleur.cycle != prochain.cycle)):
+                morceaux.append(clair(
+                    "   ✦ Excellente dans "
+                    f"{meteo.duree(releve.minutes_avant(meilleur.cycle))}"))
+            morceaux.append(clair(
+                f"   ·   {meteo.nom_saison(releve.saison)}, "
+                f"{releve.heure_du_jour} h sur Atys, "
+                f"{'nuit' if releve.nuit else 'jour'}"))
+            self._meteo_entete.set_markup("".join(morceaux))
+        self._meteo_courbe.queue_draw()
+
+        while (child := self._meteo_box.get_first_child()) is not None:
+            self._meteo_box.remove(child)
+        cle = releve.saison_cle
+        self._meteo_box.append(self._ligne_simple(
+            _("Les Primes partagent une seule météo : celle-ci vaut pour les "
+              "quatre zones."), dim=True))
+        self._meteo_box.append(self._entete_peuple(
+            _("Suprêmes — %s") % meteo.nom_saison(releve.saison)))
+        for rang, (zone, groupes) in enumerate(armory.SUPREMES.get(cle, {}).items()):
+            self._meteo_box.append(self._bloc_matieres(zone, groupes, rang % 2 == 0))
+        self._meteo_box.append(self._entete_peuple(
+            _("Excellentes — %s") % meteo.nom_saison(releve.saison)))
+        for rang, (moment, groupes) in enumerate(armory.EXCELLENTES.get(cle, {}).items()):
+            # Il fait nuit sur Atys de 22 h à 3 h : dire laquelle des deux
+            # listes vaut en ce moment évite d'aller forer ce qui ne sortira
+            # que dans huit heures.
+            actuel = (moment == "NUIT") == releve.nuit
+            titre = _("De jour") if moment == "JOUR" else _("De nuit")
+            if actuel:
+                titre += _("  ·  en ce moment")
+            self._meteo_box.append(
+                self._bloc_matieres(titre, groupes, rang % 2 == 0, actuel))
+
+    def _bloc_matieres(self, titre: str, groupes: dict, zebre: bool,
+                       souligne: bool = False) -> Gtk.ListBoxRow:
+        row = Gtk.ListBoxRow()
+        if zebre:
+            row.add_css_class("zebre")
+        boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        self._pad(boite)
+        entete = Gtk.Label(label=titre, xalign=0.0)
+        entete.add_css_class("heading")
+        if souligne:
+            entete.add_css_class("fini")
+        boite.append(entete)
+        grille = Gtk.Grid(column_spacing=12, row_spacing=1)
+        for ligne, (groupe, matieres) in enumerate(sorted(groupes.items())):
+            g = Gtk.Label(label=groupe, xalign=0.0)
+            g.add_css_class("dim-label")
+            g.set_size_request(90, -1)
+            grille.attach(g, 0, ligne, 1, 1)
+            m = Gtk.Label(label=", ".join(matieres), xalign=0.0, wrap=True)
+            grille.attach(m, 1, ligne, 1, 1)
+        boite.append(grille)
+        row.set_child(boite)
+        return row
+
+    def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
+        """L'humidité dans le temps, **en marches d'escalier**.
+
+        Le jeu ne fait pas varier la météo en continu : une valeur vaut pour
+        tout un cycle — trois heures d'Atys, neuf minutes réelles — puis saute
+        à la suivante. Relier les points par des obliques dessinerait des
+        crêtes qui n'existent pas, et déplacerait les moments intéressants : la
+        fenêtre excellente n'est pas un sommet qu'on rate, c'est un palier qui
+        dure.
+
+        Les trois traits en pointillé sont les seuils du jeu, qui découpent les
+        conditions de gisement ; les bandes sombres sont les nuits d'Atys, que
+        le jeu compte de 22 h à 3 h.
+        """
+        releve = self._meteo_releve
+        if releve is None:
+            return
+        cycles = releve.cycles_des_primes()
+        if len(cycles) < 2:
+            return
+
+        marge_g, marge_b = 34.0, 20.0
+        large = largeur - marge_g
+        haut = hauteur - marge_b
+        if large <= 0 or haut <= 0:
+            return
+        cases = float(len(cycles))
+
+        def x(position: float) -> float:
+            return marge_g + large * position / cases
+
+        def y(valeur: float) -> float:
+            return haut * (1.0 - min(1.0, max(0.0, valeur)))
+
+        # Les nuits, comptées par heure et non par cycle : un cycle de trois
+        # heures enjambe volontiers le lever du jour.
+        cr.set_source_rgba(1, 1, 1, 0.06)
+        heure0 = cycles[0].cycle * meteo.HEURES_PAR_CYCLE
+        par_cycle = 1.0 / meteo.HEURES_PAR_CYCLE
+        for h in range(len(cycles) * meteo.HEURES_PAR_CYCLE):
+            if meteo.est_la_nuit(int((heure0 + h) % 24)):
+                cr.rectangle(x(h * par_cycle), 0, large * par_cycle / cases, haut)
+                cr.fill()
+
+        # Les seuils, et leur étiquette.
+        cr.set_line_width(1.0)
+        cr.set_dash([4.0, 4.0])
+        cr.select_font_face("Sans")
+        cr.set_font_size(10)
+        for seuil, etiquette in zip(meteo.SEUILS, ("16", "50", "83")):
+            yy = y(seuil)
+            cr.set_source_rgba(0.9, 0.4, 0.4, 0.55)
+            cr.move_to(marge_g, yy)
+            cr.line_to(largeur, yy)
+            cr.stroke()
+            cr.set_source_rgba(1, 1, 1, 0.55)
+            cr.move_to(2, yy - 3)
+            cr.show_text(etiquette)
+        cr.set_dash([])
+
+        # La courbe en marches, et son aire.
+        cr.set_source_rgba(0.25, 0.48, 0.41, 0.35)
+        cr.move_to(x(0), haut)
+        for i, m in enumerate(cycles):
+            cr.line_to(x(i), y(m.value))
+            cr.line_to(x(i + 1), y(m.value))
+        cr.line_to(x(cases), haut)
+        cr.close_path()
+        cr.fill()
+
+        cr.set_source_rgb(0.35, 0.68, 0.58)
+        cr.set_line_width(2.0)
+        for i, m in enumerate(cycles):
+            cr.line_to(x(i), y(m.value))
+            cr.line_to(x(i + 1), y(m.value))
+        cr.stroke()
+
+        # Le trait du « maintenant », posé à l'intérieur du cycle en cours.
+        indice = next((i for i, m in enumerate(cycles)
+                       if m.cycle == releve.cycle_courant), -1)
+        if indice >= 0:
+            px = x(indice + releve.avancement_du_cycle)
+            cr.set_source_rgb(0.91, 0.76, 0.35)
+            cr.move_to(px, 0)
+            cr.line_to(px, haut)
+            cr.stroke()
+
+        cr.set_source_rgba(1, 1, 1, 0.35)
+        cr.move_to(marge_g, haut)
+        cr.line_to(largeur, haut)
+        cr.stroke()
+
+        # L'heure réelle, à chaque heure ronde : les étiquettes se posent au
+        # temps qu'elles annoncent, non au cycle le plus proche — un cycle vaut
+        # neuf minutes, et six cycles font cinquante-quatre minutes.
+        if indice >= 0:
+            cr.set_source_rgba(1, 1, 1, 0.55)
+            depart = datetime.now() - timedelta(
+                minutes=(indice + releve.avancement_du_cycle) * meteo.MINUTES_PAR_CYCLE)
+            heure = (depart.replace(minute=0, second=0, microsecond=0)
+                     + timedelta(hours=1))
+            total = len(cycles) * meteo.MINUTES_PAR_CYCLE
+            while (decalage := (heure - depart).total_seconds() / 60) < total:
+                px = min(largeur - 22, max(0.0,
+                                           x(decalage / meteo.MINUTES_PAR_CYCLE) - 10))
+                cr.move_to(px, hauteur - 6)
+                cr.show_text(heure.strftime("%Hh"))
+                heure += timedelta(hours=1)
+
     def _build_skills_page(self) -> Gtk.Widget:
         """L'arbre des compétences : quatre branches qui se plient à tous les
         échelons, avec le niveau et l'avancement du niveau en cours."""
@@ -658,6 +1145,13 @@ class MainWindow(Gtk.ApplicationWindow):
             self._load_log()
         elif page == "skills":
             self._refresh_skills()
+        # Ces deux-là vont chercher sur le réseau : elles ne le font qu'à la
+        # première ouverture de l'onglet, et sur demande ensuite. L'annuaire des
+        # guildes pèse un demi-méga-octet, il n'a pas à partir au démarrage.
+        elif page == "outposts":
+            self._load_outposts()
+        elif page == "meteo":
+            self._load_meteo()
 
     def _on_log_copy(self, _btn) -> None:
         lines = [movements.describe(mv, self._names.name)

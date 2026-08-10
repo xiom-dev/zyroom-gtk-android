@@ -57,11 +57,23 @@ fun estLaNuit(heureDuJour: Int): Boolean = heureDuJour >= 22 || heureDuJour < 3
 /** Heures d'Atys dans un cycle météo. */
 const val HEURES_PAR_CYCLE = 3
 
-/** Le temps qu'il fait, en français. Le jeu ne rend que sa clé. */
+/**
+ * Le temps qu'il fait, en français. Le jeu ne rend que sa clé.
+ *
+ * Les quatre premières sont les seules que l'API emploie réellement : relevé
+ * sur les dix continents et quatre-vingts cycles, elle ne rend que `uiFair`,
+ * `uiRainy`, `uiSapThundery` et `uiThundery`. Les autres sont gardées parce que
+ * le client du jeu les connaît, et qu'une saison ou une région pourrait les
+ * sortir un jour.
+ */
 fun texteMeteo(cle: String): String = when (cle) {
     "uiFair" -> "Beau"
     "uiRainy" -> "Pluie"
-    "uiStormy" -> "Orage"
+    "uiThundery" -> "Orage"
+    // L'orage de sève : la pluie de sève d'Atys, qui n'a pas d'équivalent
+    // terrestre. « Orage » seul se confondrait avec le précédent.
+    "uiSapThundery" -> "Orage de sève"
+    "uiStormy" -> "Tempête"
     "uiSnowy" -> "Neige"
     "uiWindy" -> "Vent"
     "uiFoggy" -> "Brouillard"

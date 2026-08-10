@@ -104,6 +104,49 @@ def kotlin(supremes: dict, excellentes: dict) -> str:
     return "\n".join(l) + "\n"
 
 
+def python(supremes: dict, excellentes: dict) -> str:
+    """Le même relevé, pour le portage GTK.
+
+    Deux fichiers produits d'un seul geste : une table recopiée à la main d'un
+    langage à l'autre finit toujours par diverger, et personne ne s'en aperçoit
+    avant de comparer les deux applications côte à côte."""
+    l = ['"""Les matières suprêmes et excellentes, par saison.',
+         '',
+         'Fichier produit par ../zyroom-android/outils/table_armory.py — ne pas',
+         'modifier à la main. Relevé de Ryzom Armory, figé ici : ces listes ne',
+         "changent qu'avec le jeu, et l'application doit tenir le jour où ce site",
+         'fermera.',
+         '"""',
+         '',
+         '#: {saison: {zone des Primes: {groupe: [noms]}}}',
+         'SUPREMES = {']
+    for saison, zones in supremes.items():
+        l.append(f'    "{saison}": {{')
+        for zone, groupes in zones.items():
+            l.append(f'        "{zone}": {{')
+            for groupe, noms in groupes.items():
+                l.append(f'            "{groupe}": [' +
+                         ", ".join(f'"{n}"' for n in noms) + '],')
+            l.append('        },')
+        l.append('    },')
+    l += ['}', '',
+          '#: {saison: {"JOUR"|"NUIT": {groupe: [noms]}}}',
+          "#: L'API ne les répartit pas par zone mais par moment de la journée :",
+          "#: c'est ainsi que le jeu les fait apparaître.",
+          'EXCELLENTES = {']
+    for saison, moments in excellentes.items():
+        l.append(f'    "{saison}": {{')
+        for moment, groupes in moments.items():
+            l.append(f'        "{moment}": {{')
+            for groupe, noms in groupes.items():
+                l.append(f'            "{groupe}": [' +
+                         ", ".join(f'"{n}"' for n in noms) + '],')
+            l.append('        },')
+        l.append('    },')
+    l.append('}')
+    return "\n".join(l) + "\n"
+
+
 def main() -> int:
     supremes, excellentes = collections.OrderedDict(), collections.OrderedDict()
     for saison, anglais in SAISONS.items():
@@ -123,11 +166,21 @@ def main() -> int:
         print(f"{saison:10} {n_sup:3} suprêmes ({len(par_zone)} zones), "
               f"{n_exc:3} excellentes ({', '.join(moments)})")
 
-    cible = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                         "app/src/main/kotlin/net/ryzom/zyroom/model/ArmoryTable.kt")
-    with open(cible, "w", encoding="utf-8") as fh:
-        fh.write(kotlin(supremes, excellentes))
-    print("→", cible)
+    android = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    depot = os.path.dirname(android)
+    for chemin, contenu in (
+        (os.path.join(android,
+                      "app/src/main/kotlin/net/ryzom/zyroom/model/ArmoryTable.kt"),
+         kotlin(supremes, excellentes)),
+        (os.path.join(depot, "zyroom-gtk/zyroom/armory.py"),
+         python(supremes, excellentes)),
+    ):
+        if not os.path.isdir(os.path.dirname(chemin)):
+            print("passé :", chemin, "(dossier absent)")
+            continue
+        with open(chemin, "w", encoding="utf-8") as fh:
+            fh.write(contenu)
+        print("→", chemin)
     return 0
 
 
