@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -202,10 +203,6 @@ fun EntitiesScreen(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("Météo et sources…") },
-                                onClick = { menu = false; onMeteo() },
-                            )
-                            DropdownMenuItem(
                                 text = { Text("À propos") },
                                 onClick = { menu = false; apropos = true },
                             )
@@ -213,9 +210,6 @@ fun EntitiesScreen(
                     }
                 },
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { ajout = true }) { Text("+") }
         },
     ) { marges ->
       Column(Modifier.fillMaxSize().padding(marges)) {
@@ -299,6 +293,13 @@ fun EntitiesScreen(
             }
           }
         }
+        // La météo ne dépend d'aucune entité : elle a sa carte, à la suite des
+        // autres, plutôt qu'une ligne dans un menu qu'il fallait savoir ouvrir.
+        CarteMeteo(onMeteo)
+        // Le bouton d'ajout, centré au-dessus du crédit : posé en flottant, il
+        // couvrait le coin de la dernière carte et il fallait faire défiler
+        // pour lire ce qu'il cachait.
+        BoutonAjouter { ajout = true }
         // Le crédit reste sous les yeux, en dehors de la liste qui défile : la
         // licence veut que l'interface le porte, pas seulement le dépôt.
         LigneSignature { apropos = true }
@@ -338,6 +339,50 @@ fun EntitiesScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * La météo d'Atys, en bas de l'accueil.
+ *
+ * Même cadre vert que les entités suivies : c'est une destination comme les
+ * autres, et elle se voit sans avoir à ouvrir un menu.
+ */
+@Composable
+private fun CarteMeteo(onMeteo: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clickable(onClick = onMeteo),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("🌦", fontSize = 30.sp, modifier = Modifier.padding(end = 12.dp))
+            Column {
+                Text("Météo d'Atys", style = MaterialTheme.typography.titleMedium)
+                Text("Prévisions, suprêmes et excellentes",
+                     style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/**
+ * Le bouton d'ajout d'une entité.
+ *
+ * Le carré garde la taille d'un bouton flottant — c'est la cible du doigt, et
+ * elle est réglée pour ça. Seul le signe grossit : dessiné au corps du texte
+ * ordinaire, il flottait au milieu de son carré comme s'il avait été oublié là.
+ */
+@Composable
+private fun BoutonAjouter(onClick: () -> Unit) {
+    Box(Modifier.fillMaxWidth().padding(top = 8.dp), Alignment.Center) {
+        FloatingActionButton(onClick = onClick) {
+            Icon(Icons.Filled.Add, "Ajouter une entité", Modifier.size(38.dp))
+        }
     }
 }
 
