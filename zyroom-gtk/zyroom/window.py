@@ -550,8 +550,11 @@ class MainWindow(Gtk.ApplicationWindow):
         label.add_css_class("title-4")
         label.add_css_class("peuple")
         label.props.margin_top = 10
-        label.props.margin_start = 8
         label.props.margin_bottom = 2
+        # Aligné sur le bloc des lignes, qui est centré : un titre resté contre
+        # le bord gauche n'aurait plus rien coiffé.
+        label.set_halign(Gtk.Align.CENTER)
+        label.set_size_request(616, -1)
         row.set_child(label)
         return row
 
@@ -559,9 +562,13 @@ class MainWindow(Gtk.ApplicationWindow):
         row = Gtk.ListBoxRow()
         if zebre:
             row.add_css_class("zebre")
+        # Les trois colonnes forment un bloc centré, à largeur fixe. Le nom
+        # tenait auparavant toute la largeur disponible, ce qui repoussait le
+        # niveau et la guilde contre le bord droit : sur un écran large, l'œil
+        # devait traverser vingt centimètres de vide pour relier un
+        # avant-poste à son propriétaire.
         line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        line.props.margin_start = 8
-        line.props.margin_end = 8
+        line.set_halign(Gtk.Align.CENTER)
         line.props.margin_top = 3
         line.props.margin_bottom = 3
 
@@ -574,19 +581,20 @@ class MainWindow(Gtk.ApplicationWindow):
         line.append(image)
 
         nom = Gtk.Label(label=self._names.name(avant_poste.name_key), xalign=0.0)
-        nom.set_hexpand(True)
+        nom.set_size_request(330, -1)
+        nom.set_ellipsize(Pango.EllipsizeMode.END)
         if mien:
             nom.add_css_class("fini")     # le vert de l'application
         line.append(nom)
 
         niveau = Gtk.Label(label=str(avant_poste.level) if avant_poste.level else "—",
                            xalign=1.0)
-        niveau.set_size_request(48, -1)
+        niveau.set_size_request(40, -1)
         niveau.add_css_class("dim-label")
         line.append(niveau)
 
-        guilde = Gtk.Label(label=avant_poste.guild, xalign=1.0)
-        guilde.set_size_request(220, -1)
+        guilde = Gtk.Label(label=avant_poste.guild, xalign=0.0)
+        guilde.set_size_request(230, -1)
         guilde.set_ellipsize(Pango.EllipsizeMode.END)
         if mien:
             guilde.add_css_class("fini")
@@ -635,13 +643,28 @@ class MainWindow(Gtk.ApplicationWindow):
         self._pad(self._meteo_courbe)
         page.append(self._meteo_courbe)
 
-        self._meteo_box = Gtk.ListBox()
-        self._meteo_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_vexpand(True)
-        scrolled.set_child(self._meteo_box)
-        page.append(scrolled)
+        # Deux colonnes : les suprêmes à gauche, les excellentes à droite.
+        # Empilées, il fallait faire défiler tout le tableau des unes pour
+        # atteindre les autres, alors qu'on les compare.
+        #
+        # Chacune défile pour son compte. Sous un seul défilement, la colonne
+        # de gauche — quatre zones de dix lignes — emportait celle de droite,
+        # deux fois plus courte : on se retrouvait au milieu des suprêmes avec
+        # une moitié d'écran vide en face.
+        self._meteo_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                                  spacing=12, homogeneous=True)
+        self._pad(self._meteo_box)
+        self._meteo_supremes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                                       spacing=2)
+        self._meteo_excellentes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                                          spacing=2)
+        for colonne in (self._meteo_supremes, self._meteo_excellentes):
+            defilement = Gtk.ScrolledWindow()
+            defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            defilement.set_vexpand(True)
+            defilement.set_child(colonne)
+            self._meteo_box.append(defilement)
+        page.append(self._meteo_box)
 
         self._meteo_releve = None
         self._meteo_charge = False
@@ -726,19 +749,21 @@ class MainWindow(Gtk.ApplicationWindow):
             self._meteo_entete.set_markup("".join(morceaux))
         self._meteo_courbe.queue_draw()
 
-        while (child := self._meteo_box.get_first_child()) is not None:
-            self._meteo_box.remove(child)
+        for colonne in (self._meteo_supremes, self._meteo_excellentes):
+            while (child := colonne.get_first_child()) is not None:
+                colonne.remove(child)
         cle = releve.saison_cle
-        self._meteo_box.append(self._ligne_simple(
-            _("Les Primes partagent une seule météo : celle-ci vaut pour les "
-              "quatre zones."), dim=True))
-        self._meteo_box.append(self._entete_peuple(
-            _("Suprêmes — %s") % meteo.nom_saison(releve.saison)))
+        saison = meteo.nom_saison(releve.saison)
+
+        self._meteo_supremes.append(self._entete_colonne(_("Suprêmes — %s") % saison))
         for rang, (zone, groupes) in enumerate(armory.SUPREMES.get(cle, {}).items()):
-            self._meteo_box.append(self._bloc_matieres(zone, groupes, rang % 2 == 0))
-        self._meteo_box.append(self._entete_peuple(
-            _("Excellentes — %s") % meteo.nom_saison(releve.saison)))
-        for rang, (moment, groupes) in enumerate(armory.EXCELLENTES.get(cle, {}).items()):
+            self._meteo_supremes.append(
+                self._bloc_matieres(zone, groupes, rang % 2 == 0))
+
+        self._meteo_excellentes.append(
+            self._entete_colonne(_("Excellentes — %s") % saison))
+        for rang, (moment, groupes) in enumerate(
+                armory.EXCELLENTES.get(cle, {}).items()):
             # Il fait nuit sur Atys de 22 h à 3 h : dire laquelle des deux
             # listes vaut en ce moment évite d'aller forer ce qui ne sortira
             # que dans huit heures.
@@ -746,15 +771,30 @@ class MainWindow(Gtk.ApplicationWindow):
             titre = _("De jour") if moment == "JOUR" else _("De nuit")
             if actuel:
                 titre += _("  ·  en ce moment")
-            self._meteo_box.append(
+            self._meteo_excellentes.append(
                 self._bloc_matieres(titre, groupes, rang % 2 == 0, actuel))
+        self._meteo_excellentes.append(self._note(
+            _("Les Primes partagent une seule météo : celle-ci vaut pour les "
+              "quatre zones.")))
+
+    def _entete_colonne(self, titre: str) -> Gtk.Widget:
+        label = Gtk.Label(label=titre, xalign=0.0)
+        label.add_css_class("title-4")
+        label.add_css_class("peuple")
+        label.props.margin_bottom = 4
+        return label
+
+    def _note(self, texte: str) -> Gtk.Widget:
+        label = Gtk.Label(label=texte, xalign=0.0, wrap=True)
+        label.add_css_class("dim-label")
+        label.props.margin_top = 10
+        return label
 
     def _bloc_matieres(self, titre: str, groupes: dict, zebre: bool,
-                       souligne: bool = False) -> Gtk.ListBoxRow:
-        row = Gtk.ListBoxRow()
-        if zebre:
-            row.add_css_class("zebre")
+                       souligne: bool = False) -> Gtk.Widget:
         boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        if zebre:
+            boite.add_css_class("zebre")
         self._pad(boite)
         entete = Gtk.Label(label=titre, xalign=0.0)
         entete.add_css_class("heading")
@@ -770,8 +810,7 @@ class MainWindow(Gtk.ApplicationWindow):
             m = Gtk.Label(label=", ".join(matieres), xalign=0.0, wrap=True)
             grille.attach(m, 1, ligne, 1, 1)
         boite.append(grille)
-        row.set_child(boite)
-        return row
+        return boite
 
     def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
         """L'humidité dans le temps, **en marches d'escalier**.
@@ -1683,7 +1722,9 @@ class MainWindow(Gtk.ApplicationWindow):
         provider.load_from_data(
             b".motd { background: mix(@theme_bg_color, @theme_fg_color, 0.13);"
             b" border-radius: 8px; padding: 8px 10px; }"
-            b" row.zebre { background: mix(@theme_bg_color, @theme_selected_bg_color, 0.10); }"
+            # `.zebre` et non `row.zebre` : le zébrage sert aussi aux blocs de
+            # matières, qui sont des boîtes et non des lignes de liste.
+            b" .zebre { background: mix(@theme_bg_color, @theme_selected_bg_color, 0.10); }"
             # Le vert de l'application — celui du coffre de l'icône, le même que
             # sur Android — pour ce qui est monté au maximum. Éclairci sur fond
             # sombre, assombri sur fond clair : mélangé au texte du thème, il
