@@ -1,0 +1,23 @@
+package net.ryzom.zyroom
+
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * La variante distribuée masque le petit coffre. C'est sa raison d'être.
+ *
+ * Les autres tests comparent le réglage à ce que fait l'analyseur : ils
+ * passeraient tout aussi bien si la variante guilde était compilée avec
+ * `MASQUE_COFFRES = false`, l'un et l'autre étant alors faux ensemble. Celui-ci
+ * fixe la valeur elle-même, et il ne vit que dans le jeu de tests de la
+ * variante guilde — inverser les deux fichiers de `src/<variante>/kotlin/`
+ * ferait donc échouer la livraison au lieu de la faire partir masque baissé.
+ */
+class MasqueGuildeTest {
+
+    @Test
+    fun `la variante guilde masque les coffres`() {
+        assertTrue("la variante distribuée doit masquer le petit coffre",
+                   MASQUE_COFFRES)
+    }
+}
