@@ -13,3 +13,17 @@ dist/
 
 # Bruit de l'outillage Kotlin
 .kotlin/
+
+# Le binaire du wrapper Gradle. F-Droid construit lui-même depuis les sources
+# et son analyseur refuse tout exécutable pré-compilé dans l'arbre : un .jar
+# qu'on ne peut ni lire ni reconstruire est précisément ce qu'une logithèque
+# libre ne veut pas distribuer.
+#
+# `gradlew` et `gradle-wrapper.properties` restent versionnés — ce sont des
+# fichiers texte, et le second dit quelle version de Gradle employer. Pour
+# retrouver le binaire après un clone :
+#
+#     gradle wrapper --gradle-version 8.9
+#
+# ou construire avec le Gradle du système, qui n'a pas besoin du wrapper.
+gradle/wrapper/gradle-wrapper.jar

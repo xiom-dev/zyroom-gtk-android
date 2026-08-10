@@ -80,6 +80,17 @@ d'inclusion de la logithèque :
 ./gradlew assembleFdroidRelease   # app/build/outputs/apk/fdroid/release/
 ```
 
+Le binaire du wrapper Gradle n'est **pas** dans le dépôt : F-Droid construit
+depuis les sources et son analyseur refuse tout exécutable pré-compilé dans
+l'arbre. `gradlew` et `gradle-wrapper.properties` y sont, eux — ce sont des
+fichiers texte. Après un clone, retrouver le binaire :
+
+```
+gradle wrapper --gradle-version 8.9
+```
+
+ou construire avec le Gradle du système, qui n'en a pas besoin.
+
 Le nom au lanceur de la variante dev porte son numéro : les deux applications
 cohabitant sur le même téléphone, c'est le seul endroit qui dise du premier coup
 d'œil quelle version d'essai est en place. Il se déduit de `version.properties`

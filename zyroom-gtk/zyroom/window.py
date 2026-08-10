@@ -509,29 +509,50 @@ class MainWindow(Gtk.ApplicationWindow):
             self._remplir_effectif_roster(ent)
 
     def _remplir_effectif_roster(self, ent) -> None:
+        """L'effectif, par grade, en autant de colonnes que la fenêtre en tient.
+
+        Cent soixante-dix noms sur une seule colonne faisaient un ruban plus
+        haut que dix écrans, où l'on ne trouvait rien. Une `FlowBox` les
+        répartit et suit la largeur de la fenêtre : six colonnes au large, une
+        seule si on la rétrécit."""
         # Le chef d'abord, les membres ensuite : on lit une liste de guilde par
         # le haut, et l'API la rend dans un ordre qui n'en est pas un.
         membres = sorted(ent.members,
                          key=lambda nm: (roster.rang_grade(nm[1]), nm[0].lower()))
-        grade_courant = None
-        rang = 0
+        par_grade: dict[str, list[str]] = {}
         for nom, grade in membres:
-            if grade != grade_courant:
-                grade_courant = grade
-                self._roster_box.append(
-                    self._entete_peuple(roster.nom_grade(grade)))
-                rang = 0
+            par_grade.setdefault(grade, []).append(nom)
+
+        for grade, noms in par_grade.items():
+            entete = Gtk.ListBoxRow()
+            entete.set_activatable(False)
+            titre = Gtk.Label(label=f"{roster.nom_grade(grade)} · {len(noms)}",
+                              xalign=0.0)
+            titre.add_css_class("title-4")
+            titre.add_css_class("peuple")
+            titre.props.margin_top = 10
+            titre.props.margin_start = 8
+            titre.props.margin_bottom = 2
+            entete.set_child(titre)
+            self._roster_box.append(entete)
+
             row = Gtk.ListBoxRow()
-            if rang % 2 == 0:
-                row.add_css_class("zebre")
-            label = Gtk.Label(label=nom, xalign=0.0)
-            label.set_size_request(456, -1)
-            label.set_halign(Gtk.Align.CENTER)
-            label.props.margin_top = 3
-            label.props.margin_bottom = 3
-            row.set_child(label)
+            row.set_activatable(False)
+            flow = Gtk.FlowBox()
+            flow.set_selection_mode(Gtk.SelectionMode.NONE)
+            flow.set_homogeneous(True)
+            flow.set_min_children_per_line(1)
+            flow.set_max_children_per_line(6)
+            flow.set_column_spacing(4)
+            flow.set_row_spacing(1)
+            self._pad(flow)
+            for nom in noms:
+                label = Gtk.Label(label=nom, xalign=0.0)
+                label.add_css_class("compact")
+                label.set_ellipsize(Pango.EllipsizeMode.END)
+                flow.append(label)
+            row.set_child(flow)
             self._roster_box.append(row)
-            rang += 1
 
     def _remplir_mouvements_roster(self, changements: list) -> None:
         if not changements:
@@ -674,6 +695,13 @@ class MainWindow(Gtk.ApplicationWindow):
         # Deux peuples par colonne, dans l'ordre de la carte.
         for colonne, peuples in ((self._op_gauche, self.PEUPLES[:2]),
                                  (self._op_droite, self.PEUPLES[2:])):
+            # Un jeu de groupes de taille par colonne : ils imposent à tous
+            # leurs membres la largeur du plus large, ce qui aligne les trois
+            # colonnes d'une ligne à l'autre. Un jeu par côté, et non un seul :
+            # les deux colonnes n'ont pas les mêmes noms, et leur imposer une
+            # largeur commune gâcherait la place de l'une.
+            groupes = tuple(Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+                            for _ in range(3))
             rang = 0
             for code, nom in peuples:
                 # Du plus haut niveau au plus bas, comme on lit une carte de
@@ -685,7 +713,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 colonne.append(self._entete_peuple(nom))
                 for avant_poste in siens:
                     colonne.append(self._ligne_outpost(
-                        avant_poste, avant_poste.guild == ma_guilde, rang % 2 == 0))
+                        avant_poste, avant_poste.guild == ma_guilde,
+                        rang % 2 == 0, groupes))
                     rang += 1
         orphelins = [o for o in carte if o.people not in connus]
         if orphelins:
@@ -731,7 +760,8 @@ class MainWindow(Gtk.ApplicationWindow):
         row.set_child(label)
         return row
 
-    def _ligne_outpost(self, avant_poste, mien: bool, zebre: bool) -> Gtk.ListBoxRow:
+    def _ligne_outpost(self, avant_poste, mien: bool, zebre: bool,
+                       groupes) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         if zebre:
             row.add_css_class("zebre")
@@ -753,24 +783,34 @@ class MainWindow(Gtk.ApplicationWindow):
             lambda chemin, img=image: img.set_from_file(chemin) if chemin else None)
         line.append(image)
 
+        # `set_size_request` ne fixe qu'un **minimum** : un nom long débordait et
+        # poussait le niveau et la guilde plus loin, si bien qu'aucune colonne
+        # n'était alignée d'une ligne à l'autre. Les groupes de taille, eux,
+        # imposent à tous leurs membres la largeur du plus large — c'est
+        # exactement ce qu'on veut d'une colonne.
         nom = Gtk.Label(label=self._names.name(avant_poste.name_key), xalign=0.0)
-        nom.set_size_request(250, -1)
         nom.set_ellipsize(Pango.EllipsizeMode.END)
+        nom.set_max_width_chars(26)
+        nom.add_css_class("compact")
         if mien:
             nom.add_css_class("fini")     # le vert de l'application
+        groupes[0].add_widget(nom)
         line.append(nom)
 
         niveau = Gtk.Label(label=str(avant_poste.level) if avant_poste.level else "—",
                            xalign=1.0)
-        niveau.set_size_request(40, -1)
         niveau.add_css_class("dim-label")
+        niveau.add_css_class("compact")
+        groupes[1].add_widget(niveau)
         line.append(niveau)
 
         guilde = Gtk.Label(label=avant_poste.guild, xalign=0.0)
-        guilde.set_size_request(150, -1)
         guilde.set_ellipsize(Pango.EllipsizeMode.END)
+        guilde.set_max_width_chars(18)
+        guilde.add_css_class("compact")
         if mien:
             guilde.add_css_class("fini")
+        groupes[2].add_widget(guilde)
         line.append(guilde)
 
         row.set_child(line)
@@ -1904,7 +1944,11 @@ class MainWindow(Gtk.ApplicationWindow):
             # sur Android — pour ce qui est monté au maximum. Éclairci sur fond
             # sombre, assombri sur fond clair : mélangé au texte du thème, il
             # reste lisible dans les deux sens.
-            b" .fini { color: mix(#3f7a68, @theme_fg_color, 0.35); font-weight: bold; }")
+            b" .fini { color: mix(#3f7a68, @theme_fg_color, 0.35); font-weight: bold; }"
+            # Un cran sous le corps courant : trois colonnes doivent tenir dans
+            # une moitié de fenêtre, et un nom d'avant-poste va jusqu'à
+            # quarante signes.
+            b" .compact { font-size: 0.92em; }")
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
