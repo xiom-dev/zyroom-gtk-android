@@ -1,5 +1,7 @@
 # ZyRoom — portages libres pour Linux et Android
 
+**Licence : GNU GPLv3 — voir le fichier `LICENSE` à la racine du dépôt.**
+
 Outils compagnons du MMORPG **Ryzom** : consulter hors-ligne les inventaires de
 ses personnages et des coffres de sa guilde, via l'API web officielle.
 
@@ -42,9 +44,8 @@ traite comme un mot de passe, et n'a rien à faire dans un dépôt.
 
 ## Licence
 
-**GNU AGPLv3**, comme le zyRoom d'origine dont ces portages dérivent —
-https://github.com/misugi/zyroom. Le texte complet est dans le `LICENSE.md` de
-chaque projet.
+**GNU General Public License v3 (GPL‑3.0)** — le texte complet est dans le
+fichier `LICENSE` à la racine du dépôt.
 
 En clair : ces applications sont libres, et quiconque en reçoit une copie a
 droit au code source correspondant, sous la même licence.
