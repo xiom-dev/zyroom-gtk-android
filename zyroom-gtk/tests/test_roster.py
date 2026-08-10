@@ -13,7 +13,7 @@ from zyroom import roster                                          # noqa: E402
 class Grades(unittest.TestCase):
 
     def test_les_grades_se_disent_en_francais(self):
-        self.assertEqual("Haut officier", roster.nom_grade("HighOfficer"))
+        self.assertEqual("Officier supérieur", roster.nom_grade("HighOfficer"))
         self.assertEqual("Chef", roster.nom_grade("Leader"))
 
     def test_un_grade_inconnu_reste_lisible(self):

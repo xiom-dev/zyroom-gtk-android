@@ -223,7 +223,8 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Ligne 1 : portrait, sélecteurs d'entité et d'inventaire, dappers
         bar1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        self._pad(bar1)
+        # Le même gris sombre qu'en bas : les deux bandes encadrent le tableau.
+        bar1.add_css_class("barre-etat")
         root.append(bar1)
         bar1.append(Gtk.Label(label=_("Entité :")))
         self._entity_dd = Gtk.DropDown(model=Gtk.StringList())
@@ -344,9 +345,12 @@ class MainWindow(Gtk.ApplicationWindow):
         statusbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         # Les marges passent à l'intérieur : la bande grise doit aller d'un bord
         # à l'autre, comme la barre de titre qui lui répond en haut.
-        statusbar.add_css_class("barre-etat")
-        statusbar.props.margin_top = 4
-        root.append(statusbar)
+        # La barre d'état et la signature ne font qu'une bande : la signature
+        # posée dessous, sur le fond clair, coupait le gris en deux.
+        pied = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        pied.add_css_class("barre-etat")
+        root.append(pied)
+        pied.append(statusbar)
         self._portrait = Gtk.Image()
         # Quarante-quatre, et de l'air au-dessus : c'est une signature, pas une
         # illustration du tableau. Aux tailles précédentes — soixante-douze
@@ -375,8 +379,8 @@ class MainWindow(Gtk.ApplicationWindow):
         signature.get_child().add_css_class("caption")
         signature.set_tooltip_text(_("À propos de ZyRoom-GTK"))
         signature.connect("clicked", self._on_about)
-        signature.props.margin_bottom = 6
-        root.append(signature)
+        signature.props.margin_bottom = 2
+        pied.append(signature)
 
         if not self._names.loaded:
             self._set_status("Astuce : chargez string_client.pack (icône dossier) "
@@ -489,15 +493,12 @@ class MainWindow(Gtk.ApplicationWindow):
                 bouton.handler_block_by_func(self._on_nav_toggled)
                 bouton.set_active(actif)
                 bouton.handler_unblock_by_func(self._on_nav_toggled)
-        # Le bouton porte le nom de l'écran affiché : sans cela, « Plus » ne
-        # dirait pas ce qu'on est en train de regarder.
+        # Le bouton s'appelle « Plus », toujours : c'est un menu, et un menu ne
+        # prend pas le nom de ce qu'on y a choisi. Seul son état enfoncé dit
+        # qu'on est dans l'une de ses pages.
         if page == "plus":
-            courant = self._plus_stack.get_visible_child_name()
-            nom = dict(self.PLUS_PAGES).get(courant, "")
-            self._plus_btn.set_label(_(nom) if nom else _("Plus"))
             self._plus_btn.add_css_class("suggested-action")
         else:
-            self._plus_btn.set_label(_("Plus"))
             self._plus_btn.remove_css_class("suggested-action")
 
     # --------------------------------------------------------------- Plus
@@ -611,9 +612,10 @@ class MainWindow(Gtk.ApplicationWindow):
         """L'effectif, par grade, en autant de colonnes que la fenêtre en tient.
 
         Cent soixante-dix noms sur une seule colonne faisaient un ruban plus
-        haut que dix écrans, où l'on ne trouvait rien. Une `FlowBox` les
-        range sur six colonnes, et une rangée sur deux est teintée — sans quoi
-        l'œil saute d'une ligne à l'autre en cherchant un nom."""
+        haut que dix écrans, où l'on ne trouvait rien. Ils se rangent sur six
+        colonnes, et **c'est le grade qui est teinté, non la ligne** : le
+        zébrage sert ici à séparer les groupes, pas à suivre une ligne — un
+        nom n'a rien à droite de lui qu'on doive relier."""
         # Le chef d'abord, les membres ensuite : on lit une liste de guilde par
         # le haut, et l'API la rend dans un ordre qui n'en est pas un.
         membres = sorted(ent.members,
@@ -622,9 +624,12 @@ class MainWindow(Gtk.ApplicationWindow):
         for nom, grade in membres:
             par_grade.setdefault(grade, []).append(nom)
 
-        for grade, noms in par_grade.items():
+        for rang_groupe, (grade, noms) in enumerate(par_grade.items()):
+            teinte = rang_groupe % 2 == 0
             entete = Gtk.ListBoxRow()
             entete.set_activatable(False)
+            if teinte:
+                entete.add_css_class("zebre")
             titre = Gtk.Label(label=f"{roster.nom_grade(grade)} · {len(noms)}",
                               xalign=0.0)
             titre.add_css_class("title-4")
@@ -642,7 +647,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 tranche = noms[depart:depart + self.ROSTER_COLONNES]
                 row = Gtk.ListBoxRow()
                 row.set_activatable(False)
-                if (depart // self.ROSTER_COLONNES) % 2 == 0:
+                if teinte:
                     row.add_css_class("zebre")
                 grille = Gtk.Grid(column_spacing=4, column_homogeneous=True)
                 self._pad(grille)

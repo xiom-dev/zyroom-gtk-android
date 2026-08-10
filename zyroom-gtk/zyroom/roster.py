@@ -28,7 +28,7 @@ from dataclasses import dataclass
 #: classement du registre : on lit une liste de guilde par le haut.
 GRADES = (
     ("Leader", "Chef"),
-    ("HighOfficer", "Haut officier"),
+    ("HighOfficer", "Officier supérieur"),
     ("Officer", "Officier"),
     ("Member", "Membre"),
 )
@@ -46,7 +46,7 @@ _NOM = dict(GRADES)
 
 
 def nom_grade(code: str) -> str:
-    """« HighOfficer » → « Haut officier ». Un grade inconnu reste lisible."""
+    """« HighOfficer » → « Officier supérieur ». Un grade inconnu reste lisible."""
     return _NOM.get(code, code or "—")
 
 
