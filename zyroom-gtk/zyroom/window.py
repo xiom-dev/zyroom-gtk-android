@@ -1045,6 +1045,29 @@ class MainWindow(Gtk.ApplicationWindow):
         self._betes_carte = Gtk.DrawingArea()
         self._betes_carte.set_content_height(300)
         self._betes_carte.set_draw_func(self._dessiner_carte_betes)
+        self._betes_zoom = 1.0
+        self._betes_glissement = [0.0, 0.0]
+
+        # Trois façons d'agrandir, parce que trois matériels : le pincement du
+        # pavé tactile, la molette de la souris, et le glissement au bouton pour
+        # se déplacer une fois agrandi. Le monde entier tient dans la hauteur
+        # d'une carte de visite : sans agrandissement, deux bêtes séparées de
+        # cinq cents mètres sont au même endroit.
+        pincement = Gtk.GestureZoom()
+        pincement.connect("scale-changed", self._on_betes_pincement)
+        self._betes_carte.add_controller(pincement)
+
+        molette = Gtk.EventControllerScroll(
+            flags=Gtk.EventControllerScrollFlags.VERTICAL)
+        molette.connect("scroll", self._on_betes_molette)
+        self._betes_carte.add_controller(molette)
+
+        glisse = Gtk.GestureDrag()
+        glisse.connect("drag-update", self._on_betes_glisse)
+        glisse.connect("drag-end", self._on_betes_glisse_fin)
+        self._betes_carte.add_controller(glisse)
+        self._betes_glisse_depart = [0.0, 0.0]
+
         page.append(self._betes_carte)
 
         self._betes_entete = Gtk.Label(xalign=0.0)
@@ -1067,6 +1090,58 @@ class MainWindow(Gtk.ApplicationWindow):
         if (self._stack.get_visible_child_name() == "plus"
                 and self._plus_stack.get_visible_child_name() == "betes"):
             self._remplir_betes(self._entity)
+
+    #: Jusqu'où l'agrandissement va. Au-delà, on n'ajoute plus que du flou.
+    ZOOM_MAX = 6.0
+
+    def _borner_glissement(self) -> None:
+        """Empêche la carte de s'échapper de son cadre.
+
+        Sans cette borne, on se retrouve devant du vide sans savoir comment
+        revenir."""
+        largeur = self._betes_carte.get_width()
+        hauteur = self._betes_carte.get_height()
+        debord_x = largeur * (self._betes_zoom - 1) / 2
+        debord_y = hauteur * (self._betes_zoom - 1) / 2
+        self._betes_glissement[0] = max(-debord_x,
+                                        min(debord_x, self._betes_glissement[0]))
+        self._betes_glissement[1] = max(-debord_y,
+                                        min(debord_y, self._betes_glissement[1]))
+
+    def _regler_zoom_betes(self, facteur: float) -> None:
+        avant = self._betes_zoom
+        self._betes_zoom = max(1.0, min(self.ZOOM_MAX, self._betes_zoom * facteur))
+        if self._betes_zoom == avant:
+            return
+        rapport = self._betes_zoom / avant
+        self._betes_glissement[0] *= rapport
+        self._betes_glissement[1] *= rapport
+        self._borner_glissement()
+        self._betes_carte.queue_draw()
+
+    def _on_betes_pincement(self, gesture, echelle) -> None:
+        # Le geste rend une échelle absolue depuis son début ; on la ramène à un
+        # facteur relatif pour la composer avec l'agrandissement en cours.
+        depart = getattr(self, "_betes_pince_depart", None)
+        if depart is None or not gesture.is_active():
+            self._betes_pince_depart = self._betes_zoom
+            depart = self._betes_zoom
+        self._betes_zoom = max(1.0, min(self.ZOOM_MAX, depart * echelle))
+        self._borner_glissement()
+        self._betes_carte.queue_draw()
+
+    def _on_betes_molette(self, _controller, _dx, dy) -> bool:
+        self._regler_zoom_betes(0.9 if dy > 0 else 1.1)
+        return True
+
+    def _on_betes_glisse(self, _gesture, dx, dy) -> None:
+        self._betes_glissement[0] = self._betes_glisse_depart[0] + dx
+        self._betes_glissement[1] = self._betes_glisse_depart[1] + dy
+        self._borner_glissement()
+        self._betes_carte.queue_draw()
+
+    def _on_betes_glisse_fin(self, _gesture, _dx, _dy) -> None:
+        self._betes_glisse_depart = list(self._betes_glissement)
 
     def _remplir_betes(self, ent) -> None:
         while (child := self._betes_box.get_first_child()) is not None:
@@ -1132,9 +1207,16 @@ class MainWindow(Gtk.ApplicationWindow):
             except GLib.Error:
                 return
         pb = self._betes_pixbuf
-        echelle = min(largeur / pb.get_width(), hauteur / pb.get_height())
+        echelle = min(largeur / pb.get_width(),
+                      hauteur / pb.get_height()) * self._betes_zoom
+        marge_x = ((largeur - pb.get_width() * echelle) / 2
+                   + self._betes_glissement[0])
+        marge_y = ((hauteur - pb.get_height() * echelle) / 2
+                   + self._betes_glissement[1])
         cr.save()
-        cr.translate((largeur - pb.get_width() * echelle) / 2, 0)
+        cr.rectangle(0, 0, largeur, hauteur)
+        cr.clip()
+        cr.translate(marge_x, marge_y)
         cr.scale(echelle, echelle)
         Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
         cr.paint()
@@ -1143,18 +1225,20 @@ class MainWindow(Gtk.ApplicationWindow):
         # Les bêtes trop proches n'en font qu'une : quatre mektoubs attachés
         # ensemble tombent sur le même pixel, et quatre noms superposés ne se
         # lisent plus.
-        marge = (largeur - pb.get_width() * echelle) / 2
+        cr.save()
+        cr.rectangle(0, 0, largeur, hauteur)
+        cr.clip()
         groupes: dict[tuple[int, int], list] = {}
         for b in betes:
             px, py = carte.pixel(b.x, b.y)
-            cle = (int(px * echelle / self.SEUIL_GROUPE),
-                   int(py * echelle / self.SEUIL_GROUPE))
+            cle = (int((marge_x + px * echelle) / self.SEUIL_GROUPE),
+                   int((marge_y + py * echelle) / self.SEUIL_GROUPE))
             groupes.setdefault(cle, []).append(b)
         cr.select_font_face("Sans")
         cr.set_font_size(11)
         for groupe in groupes.values():
             px, py = carte.pixel(groupe[0].x, groupe[0].y)
-            x, y = marge + px * echelle, py * echelle
+            x, y = marge_x + px * echelle, marge_y + py * echelle
             for rayon, couleur in ((4.5, (0.09, 0.13, 0.15)),
                                    (3.0, (0.91, 0.76, 0.35)),
                                    (1.2, (0.09, 0.13, 0.15))):
@@ -1172,6 +1256,7 @@ class MainWindow(Gtk.ApplicationWindow):
             cr.set_source_rgb(0.91, 0.76, 0.35)
             cr.move_to(x + 7, y - 5)
             cr.show_text(nom)
+        cr.restore()
 
     def _build_meteo_page(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
