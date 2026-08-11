@@ -135,6 +135,15 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Les noms d'avant-postes viennent d'un dépôt tiers sous LGPL :
+                // la licence oblige à le dire et à nommer son auteur.
+                Text(
+                    "Noms des avant-postes : RyzomExtra, © Meelis Mägi, sous " +
+                        "GNU LGPL v3 — employés quand le pack du jeu n'est pas " +
+                        "disponible.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text(
                     "V-RyLune n'est pas affiliée à Winch Gate, éditeur de Ryzom.",
                     style = MaterialTheme.typography.bodySmall,

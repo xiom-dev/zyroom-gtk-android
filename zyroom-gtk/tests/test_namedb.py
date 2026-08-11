@@ -15,6 +15,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from zyroom import namedb
 from zyroom.namedb import NameDb, _parse_pack   # noqa: E402
 
 PACK_DU_JEU = os.path.expanduser("~/.local/share/Ryzom/0/save/string_client.pack")
@@ -115,6 +116,46 @@ class SurLeVraiPack(unittest.TestCase):
         # correction : ceux-ci servent de témoins.
         self.assertEqual("Expert en création de manches lourdes", noms["scahse"])
         self.assertEqual("Ferme de Malmontagne", noms["fyros_outpost_04.outpost"])
+
+class NomsDAvantPostes(unittest.TestCase):
+    """Le recours quand le pack du client n'est pas là.
+
+    La variante F-Droid ne peut pas l'embarquer — sa licence n'est pas établie
+    — et affichait « fyros_outpost_04 » là où il faut lire un nom.
+    """
+
+    def _vide(self):
+        magasin = namedb.NameDb.__new__(namedb.NameDb)
+        magasin._map = {}
+        return magasin
+
+    def test_un_avant_poste_se_nomme_sans_le_pack(self):
+        self.assertEqual("Ferme de Malmontagne",
+                         self._vide().name("fyros_outpost_04.outpost"))
+
+    def test_le_pack_reste_prioritaire(self):
+        """C'est la source du jeu : elle suit ses mises à jour, pas nous."""
+        magasin = self._vide()
+        magasin._map = {"fyros_outpost_04.outpost": "Nom venu du pack"}
+        self.assertEqual("Nom venu du pack",
+                         magasin.name("fyros_outpost_04.outpost"))
+
+    def test_un_avant_poste_inconnu_rend_sa_cle(self):
+        """Les quatre avant-postes des Primes sont écartés du relevé : ils
+        portent « ((En test, instable)) » et n'ont jamais été ouverts."""
+        self.assertEqual("primes_outpost_01.outpost",
+                         self._vide().name("primes_outpost_01.outpost"))
+
+    def test_les_autres_fiches_ne_sont_pas_touchees(self):
+        self.assertEqual("bidule.sitem", self._vide().name("bidule.sitem"))
+
+    def test_chaque_avant_poste_de_notre_table_a_un_nom(self):
+        """Sinon l'onglet afficherait un code brut pour celui-là."""
+        from zyroom import outposts
+        magasin = self._vide()
+        for code in outposts.NIVEAUX:
+            nom = magasin.name(f"{code}.outpost")
+            self.assertNotIn("_outpost_", nom, code)
 
 
 if __name__ == "__main__":

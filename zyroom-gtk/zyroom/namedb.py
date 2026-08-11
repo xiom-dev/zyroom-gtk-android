@@ -18,6 +18,8 @@ quasi instantané aux lancements suivants.
 """
 from __future__ import annotations
 
+from .noms_avant_postes import NOMS_AVANT_POSTES
+
 import json
 import re
 import os
@@ -100,8 +102,19 @@ class NameDb:
         return bool(self._map)
 
     def name(self, sheet: str) -> str:
-        """Nom lisible de la fiche, ou l'identifiant lui-même si inconnu."""
-        return self._map.get(sheet, sheet)
+        """Nom lisible de la fiche, ou l'identifiant lui-même si inconnu.
+
+        Le pack du client passe en premier : c'est la source du jeu, et elle
+        suit ses mises à jour. À son défaut, les avant-postes ont une table
+        embarquée — sans elle, une installation sans pack affiche
+        « fyros_outpost_04 » là où il faut lire « Ferme de Malmontagne ».
+        """
+        connu = self._map.get(sheet)
+        if connu is not None:
+            return connu
+        if sheet.endswith(".outpost"):
+            return NOMS_AVANT_POSTES.get(sheet[:-len(".outpost")], sheet)
+        return sheet
 
     def load_cache(self) -> bool:
         """Reprend les noms déjà extraits, sans le pack.

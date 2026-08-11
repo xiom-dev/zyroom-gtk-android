@@ -1,5 +1,6 @@
 package net.ryzom.zyroom.names
 
+import net.ryzom.zyroom.model.NOMS_AVANT_POSTES
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -29,7 +30,18 @@ class NameDb private constructor(private val names: Map<String, String>) {
     val isLoaded: Boolean get() = names.isNotEmpty()
 
     /** Nom lisible d'une fiche, ou son identifiant quand il est inconnu. */
-    fun nameOf(sheet: String): String = names[sheet] ?: sheet
+    /**
+     * Le nom lisible d'une fiche, ou sa clé si personne ne sait la nommer.
+     *
+     * Le pack du client passe en premier : c'est la source du jeu, et elle
+     * suit ses mises à jour. À son défaut, les avant-postes ont une table
+     * embarquée — la variante F-Droid ne peut pas emporter le pack, et
+     * affichait « fyros_outpost_04 » là où il faut lire « Ferme de
+     * Malmontagne ».
+     */
+    fun nameOf(sheet: String): String = names[sheet]
+        ?: NOMS_AVANT_POSTES[sheet.removeSuffix(".outpost")]
+        ?: sheet
 
     companion object {
 
