@@ -194,7 +194,11 @@ private fun Mouvements(mouvements: List<MouvementMembre>, premierReleve: Boolean
                 Modifier.fillMaxWidth()
                     .background(fondZebre(rang % 2 == 0))
                     .padding(horizontal = 14.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                // En haut, et non centré : une ligne qui déborde sur deux
+                // lignes emportait la date et le signe au milieu, entre les
+                // deux — on les cherchait. Ils tiennent maintenant le rang de
+                // la première ligne, celle où le nom se lit.
+                verticalAlignment = Alignment.Top,
             ) {
                 Text(
                     DATE.format(Instant.ofEpochSecond(m.at).atZone(ZoneId.systemDefault())),

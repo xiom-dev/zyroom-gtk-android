@@ -334,10 +334,26 @@ private fun CeQuiSort(releve: MeteoAtys) {
     val condition = texteCondition(maintenant.condition)
     val humidite = (maintenant.value * 100).toInt()
     TitreTableau("Ce qui sort — $condition, $humidite %")
-    ZONES.forEachIndexed { rang, zone ->
-        val groupes = popDe(releve.saison, zone, maintenant.condition)
-        if (groupes.isEmpty()) return@forEachIndexed
-        BlocMatieres(zone, groupes, rang % 2 == 0)
+    // Deux zones par rangée : les quatre tenaient sur quatre écrans, et c'est
+    // le tableau qu'on consulte en jouant. Le fond teinté est porté par la
+    // rangée et non par chaque zone — l'une est souvent plus courte que
+    // l'autre, et deux fonds séparés laissaient un trou sous la plus courte.
+    val remplies = ZONES.map { it to popDe(releve.saison, it, maintenant.condition) }
+        .filter { (_, groupes) -> groupes.isNotEmpty() }
+    remplies.chunked(2).forEachIndexed { rang, rangee ->
+        Row(
+            Modifier.fillMaxWidth()
+                .background(fondZebre(rang % 2 == 0))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        ) {
+            rangee.forEach { (zone, groupes) ->
+                Box(Modifier.weight(1f)) { CorpsMatieres(zone, groupes) }
+            }
+            // La rangée impaire garde sa moitié vide, pour que la colonne de
+            // gauche reste alignée d'une rangée à l'autre.
+            if (rangee.size == 1) Box(Modifier.weight(1f)) {}
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
     }
 }
 
@@ -404,6 +420,25 @@ private fun BlocMatieres(
             .background(fondZebre(zebre))
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
+        CorpsMatieres(titre, groupes, souligne)
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+}
+
+/**
+ * Le contenu d'un bloc — son titre et ses familles — sans fond ni filet.
+ *
+ * Séparé de `BlocMatieres` pour qu'une rangée puisse en tenir deux et porter
+ * elle-même la teinte : posée sur chaque bloc, elle s'arrêtait au bas du plus
+ * court des deux.
+ */
+@Composable
+private fun CorpsMatieres(
+    titre: String?,
+    groupes: Map<String, List<String>>,
+    souligne: Boolean = false,
+) {
+    Column {
         if (titre != null) {
             Text(
                 titre,
@@ -441,7 +476,6 @@ private fun BlocMatieres(
             }
         }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 }
 
 @Composable
