@@ -42,13 +42,33 @@ private const val FENETRE_HEURES = 24.0
 private const val ANCRE = 0.15
 
 /**
- * L'humidité dans le temps, **en marches d'escalier**.
+ * Durée de la bascule d'un palier au suivant, en heures d'Atys.
  *
- * Le jeu ne fait pas varier la météo en continu : une valeur vaut pour tout un
- * cycle — trois heures d'Atys, neuf minutes réelles — puis saute à la suivante.
- * Relier les points par des obliques dessinait des crêtes qui n'existent pas et
- * déplaçait les moments intéressants : la fenêtre excellente n'est pas un
- * sommet qu'on rate, c'est un palier qui dure.
+ * L'API ne donne qu'une valeur par cycle : le palier, lui, est exact, et c'est
+ * lui qui décide de la condition de gisement. Le temps que met le taux à passer
+ * d'un palier au suivant, en revanche, **n'est pas mesuré** — l'API n'en dit
+ * rien. Une heure d'Atys, soit trois minutes réelles, est un choix de tracé : le
+ * trait vertical laissait croire à une bascule instantanée, alors que le taux
+ * monte et descend graduellement.
+ *
+ * Rien d'autre n'en dépend : les comptes à rebours (« Excellente dans 22 min »)
+ * se calculent sur les cycles, pas sur ce tracé.
+ */
+private const val TRANSITION_HEURES = 1.0
+
+/**
+ * L'humidité dans le temps, **en paliers reliés par des obliques**.
+ *
+ * Une valeur vaut pour tout un cycle — trois heures d'Atys, neuf minutes
+ * réelles : c'est le palier, et c'est lui qui décide de la condition de
+ * gisement. Relier simplement les points par des obliques dessinait des crêtes
+ * qui n'existent pas et déplaçait les moments intéressants : la fenêtre
+ * excellente n'est pas un sommet qu'on rate, c'est un palier qui dure.
+ *
+ * La bascule d'un palier au suivant, elle, n'est pas instantanée : le taux monte
+ * et descend graduellement, et le trait vertical laissait croire au contraire.
+ * Elle se dessine donc en oblique — voir `TRANSITION_HEURES`, qui dit ce qui est
+ * mesuré et ce qui ne l'est pas.
  *
  * **C'est le graphique qui défile, pas le trait.** Le présent se tient près du
  * bord gauche et la courbe glisse dessous, comme un sismographe : on garde
@@ -119,8 +139,8 @@ fun CourbeMeteo(
                 val aire = Path()
                 aire.moveTo(x(cycles.first().cycle * HEURES_PAR_CYCLE.toDouble()), haut)
                 cycles.forEachIndexed { i, m ->
-                    val debut = x(m.cycle * HEURES_PAR_CYCLE.toDouble())
-                    val fin = x((m.cycle + 1) * HEURES_PAR_CYCLE.toDouble())
+                    val debut = x(m.cycle * HEURES_PAR_CYCLE + TRANSITION_HEURES / 2)
+                    val fin = x((m.cycle + 1) * HEURES_PAR_CYCLE - TRANSITION_HEURES / 2)
                     val py = y(m.value)
                     if (i == 0) trace.moveTo(debut, py) else trace.lineTo(debut, py)
                     trace.lineTo(fin, py)
@@ -133,7 +153,18 @@ fun CourbeMeteo(
                 drawPath(trace, couleurCourbe, style = Stroke(width = 3.5f))
             }
 
-            // Les seuils, par-dessus la courbe, et leur étiquette dans la marge.
+            // Deux traits de graduation, plus discrets que les seuils : ils ne
+            // veulent rien dire pour le jeu, ils servent seulement à situer un
+            // taux à l'œil entre deux seuils écartés de trente points.
+            listOf(0.30f to "30", 0.70f to "70").forEach { (v, texte) ->
+                val yy = y(v.toDouble())
+                drawLine(couleurAxe, Offset(margeGauche, yy), Offset(size.width, yy),
+                         strokeWidth = 1f)
+                etiquette(mesure, texte, Offset(0f, (yy - 14f).coerceAtLeast(0f)),
+                          couleurAxe)
+            }
+
+            // Les seuils du jeu, par-dessus, et leur étiquette dans la marge.
             val pointille = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
             listOf(0.1666f to "16", 0.5f to "50", 0.8333f to "83").forEach { (v, texte) ->
                 val yy = y(v.toDouble())

@@ -19,8 +19,23 @@ import os
 import urllib.request
 
 BASE = "https://api.ryzomarmory.com/gamedata/tracker"
+
+#: D'où viennent les symboles des familles de matières.
+#:
+#: Relevé dans le code du site — `/images/tracker_icon/` + le nom de l'icône
+#: avec sa première lettre en capitale. Ce sont les symboles du jeu : une
+#: coquille pour la carapace, une goutte pour la sève. Ils sont **téléchargés
+#: une fois et embarqués**, comme le reste du relevé : l'application doit tenir
+#: le jour où ce site fermera.
+ICONES = "https://www.ryzomarmory.com/images/tracker_icon"
 SAISONS = {"PRINTEMPS": "spring", "ETE": "summer",
            "AUTOMNE": "autumn", "HIVER": "winter"}
+
+#: {groupe français: nom de l'icône}, rempli en lisant l'API.
+#:
+#: Recopier cette correspondance à la main la ferait diverger du jour où Ryzom
+#: ajouterait une famille : elle se déduit du flux, comme le reste.
+SYMBOLES: "collections.OrderedDict[str, str]" = collections.OrderedDict()
 
 #: Groupes de matières, de l'anglais de l'API vers le français du jeu.
 GROUPES = {
@@ -52,6 +67,9 @@ def matieres(groupes: list) -> "collections.OrderedDict[str, list[str]]":
     for groupe in groupes:
         nom_en = groupe["materialGroup"]["name"]
         nom_fr = GROUPES.get(nom_en, nom_en)
+        icone = groupe["materialGroup"].get("icon")
+        if icone:
+            SYMBOLES[nom_fr] = icone
         noms = []
         for famille in groupe["materialFamilies"]:
             court = famille["name"]
@@ -100,6 +118,17 @@ def kotlin(supremes: dict, excellentes: dict) -> str:
                          ", ".join(f'"{n}"' for n in noms) + '),')
             l.append('        ),')
         l.append('    ),')
+    l += [')', '',
+          '/**',
+          ' * Le symbole de chaque famille de matières.',
+          ' *',
+          " * Le nom d'une ressource Android, sans extension : « Carapace » se",
+          ' * dessine `R.drawable.mp_shell`. Les images sont embarquées, comme les',
+          ' * listes — rien ne se télécharge à la lecture du tableau.',
+          ' */',
+          'val SYMBOLES: Map<String, String> = mapOf(']
+    for groupe, icone in SYMBOLES.items():
+        l.append(f'    "{groupe}" to "{icone}",')
     l.append(')')
     return "\n".join(l) + "\n"
 
@@ -143,6 +172,11 @@ def python(supremes: dict, excellentes: dict) -> str:
                          ", ".join(f'"{n}"' for n in noms) + '],')
             l.append('        },')
         l.append('    },')
+    l += ['}', '',
+          '#: {groupe: nom du symbole}, sans extension ni chemin.',
+          'SYMBOLES = {']
+    for groupe, icone in SYMBOLES.items():
+        l.append(f'    "{groupe}": "{icone}",')
     l.append('}')
     return "\n".join(l) + "\n"
 
@@ -168,6 +202,21 @@ def main() -> int:
 
     android = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     depot = os.path.dirname(android)
+
+    # Les symboles, une fois pour toutes. `drawable-nodpi` : ces images font
+    # quarante pixels de côté et l'écran leur donne une taille en points — les
+    # ranger dans un seuil de densité les ferait redimensionner deux fois.
+    dessins = os.path.join(android, "app/src/main/res/drawable-nodpi")
+    os.makedirs(dessins, exist_ok=True)
+    for icone in SYMBOLES.values():
+        cible = os.path.join(dessins, icone + ".png")
+        if os.path.isfile(cible):
+            continue
+        nom = icone[0].upper() + icone[1:]
+        with urllib.request.urlopen(f"{ICONES}/{nom}.png", timeout=60) as reponse:
+            with open(cible, "wb") as fh:
+                fh.write(reponse.read())
+        print("symbole →", cible)
     for chemin, contenu in (
         (os.path.join(android,
                       "app/src/main/kotlin/net/ryzom/zyroom/model/ArmoryTable.kt"),

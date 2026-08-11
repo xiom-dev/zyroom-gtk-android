@@ -123,6 +123,16 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Les symboles des familles de matières sont des images du jeu,
+                // reprises de Ryzom Armory et embarquées dans l'APK : elles ne
+                // sont ni de nous, ni libres de mention.
+                Text(
+                    "Relevé des matières suprêmes et excellentes, et symboles " +
+                        "des familles : Ryzom Armory. Les symboles sont des " +
+                        "images du jeu, © Winch Gate.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text(
                     "V-RyLune n'est pas affiliée à Winch Gate, éditeur de Ryzom.",
                     style = MaterialTheme.typography.bodySmall,

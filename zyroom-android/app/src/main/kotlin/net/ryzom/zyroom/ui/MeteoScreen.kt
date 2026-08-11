@@ -1,5 +1,7 @@
 package net.ryzom.zyroom.ui
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,17 +37,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import net.ryzom.zyroom.R
 import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
 import net.ryzom.zyroom.model.EXCELLENTES
 import net.ryzom.zyroom.model.SAISONS
 import net.ryzom.zyroom.model.SUPREMES
+import net.ryzom.zyroom.model.SYMBOLES
 import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
@@ -320,13 +325,6 @@ private fun TitreTableau(titre: String) {
 @Composable
 private fun TableauxMatieres(releve: MeteoAtys) {
     val saison = saisonCle(releve.saison)
-    // Il fait nuit sur Atys de 22 h à 3 h, et le jeu ne fait pas sortir les
-    // mêmes matières excellentes de jour et de nuit — les deux listes n'ont
-    // aucune matière en commun. Afficher les deux obligeait à chercher laquelle
-    // vaut ; on ne montre que celle qui vaut, et elle change toute seule à la
-    // tombée de la nuit d'Atys, soit toutes les soixante-douze minutes réelles.
-    val excellentes = EXCELLENTES[saison]?.get(if (releve.nuit) "NUIT" else "JOUR")
-        .orEmpty()
     Row(Modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f)) {
             TitreTableau("Suprêmes — " + nomSaison(releve.saison))
@@ -336,8 +334,23 @@ private fun TableauxMatieres(releve: MeteoAtys) {
                 }
         }
         Column(Modifier.weight(1f)) {
-            TitreTableau("Excellentes — en ce moment")
-            BlocMatieres(null, excellentes, zebre = true)
+            TitreTableau("Excellentes")
+            // Il fait nuit sur Atys de 22 h à 3 h, et le jeu n'y fait pas
+            // sortir les mêmes matières. Les deux listes sont montrées — ce qui
+            // sortira dans une heure vaut la peine d'être su —, et celle qui
+            // vaut maintenant est dite et mise en couleur : sans cela, il
+            // fallait connaître l'heure d'Atys pour savoir laquelle lire.
+            EXCELLENTES[saison]?.entries?.toList().orEmpty()
+                .forEachIndexed { rang, (moment, groupes) ->
+                    val maintenant = (moment == "NUIT") == releve.nuit
+                    BlocMatieres(
+                        titre = (if (moment == "JOUR") "De jour" else "De nuit") +
+                            if (maintenant) " · en ce moment" else "",
+                        groupes = groupes,
+                        zebre = rang % 2 == 0,
+                        souligne = maintenant,
+                    )
+                }
         }
     }
 }
@@ -355,6 +368,7 @@ private fun BlocMatieres(
     titre: String?,
     groupes: Map<String, List<String>>,
     zebre: Boolean,
+    souligne: Boolean = false,
 ) {
     Column(
         Modifier.fillMaxWidth()
@@ -365,7 +379,8 @@ private fun BlocMatieres(
             Text(
                 titre,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (souligne) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
             )
         }
         groupes.toSortedMap().forEach { (groupe, matieres) ->
@@ -373,12 +388,24 @@ private fun BlocMatieres(
                 // Deux colonnes valent deux fois moins de largeur. Le nom du
                 // groupe s'y serre, mais pas au-delà de « Carapace » : plus
                 // étroit, le plus long des dix se coupait en deux lignes.
-                Text(
-                    groupe,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(68.dp),
-                )
+                Column(Modifier.width(68.dp)) {
+                    Text(
+                        groupe,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // Le symbole du jeu sous le nom de la famille : une
+                    // coquille pour la carapace, une goutte pour la sève. Ce
+                    // sont ceux qu'on a sous les yeux en forant, et l'œil les
+                    // reconnaît plus vite qu'il ne lit « Carapace ».
+                    symboleDe(groupe)?.let { dessin ->
+                        Image(
+                            painterResource(dessin),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp).padding(top = 1.dp),
+                        )
+                    }
+                }
                 Text(matieres.joinToString(", "),
                      style = MaterialTheme.typography.bodySmall,
                      modifier = Modifier.weight(1f))
@@ -386,6 +413,31 @@ private fun BlocMatieres(
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+}
+
+/**
+ * Le dessin du symbole d'une famille, ou rien si elle n'en a pas.
+ *
+ * La correspondance est nommée ici, une ressource à la fois, plutôt que
+ * résolue par `getIdentifier` : une ressource qu'aucun code ne nomme est
+ * retirée de l'APK au rétrécissement, et le symbole aurait disparu de la
+ * version publiée sans jamais manquer à l'essai. Une famille que Ryzom
+ * ajouterait n'aurait pas de symbole ici — elle s'affichera sans, plutôt que
+ * de faire tomber l'écran.
+ */
+@DrawableRes
+private fun symboleDe(groupe: String): Int? = when (SYMBOLES[groupe]) {
+    "mp_amber" -> R.drawable.mp_amber
+    "mp_bark" -> R.drawable.mp_bark
+    "mp_fiber" -> R.drawable.mp_fiber
+    "mp_oil" -> R.drawable.mp_oil
+    "mp_resin" -> R.drawable.mp_resin
+    "mp_sap" -> R.drawable.mp_sap
+    "mp_seed" -> R.drawable.mp_seed
+    "mp_shell" -> R.drawable.mp_shell
+    "mp_wood" -> R.drawable.mp_wood
+    "mp_wood_node" -> R.drawable.mp_wood_node
+    else -> null
 }
 
 @Composable
