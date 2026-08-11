@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.21"
+APP_NAME = ("ZyRoom-GTK-dev-0.22"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.11")
 
@@ -1227,10 +1227,24 @@ class MainWindow(Gtk.ApplicationWindow):
         boite.append(entete)
         grille = Gtk.Grid(column_spacing=12, row_spacing=1)
         for ligne, (groupe, matieres) in enumerate(sorted(groupes.items())):
+            # Le nom de la famille, et sous lui son symbole du jeu : une
+            # coquille pour la carapace, une goutte pour la sève. Ce sont ceux
+            # qu'on a sous les yeux en forant, et l'œil les reconnaît plus vite
+            # qu'il ne lit « Carapace ».
+            cellule = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            cellule.set_size_request(90, -1)
             g = Gtk.Label(label=groupe, xalign=0.0)
             g.add_css_class("dim-label")
-            g.set_size_request(90, -1)
-            grille.attach(g, 0, ligne, 1, 1)
+            cellule.append(g)
+            chemin = meteo.symbole(groupe)
+            if chemin:
+                image = Gtk.Picture.new_for_filename(chemin)
+                image.set_can_shrink(True)
+                image.set_content_fit(Gtk.ContentFit.CONTAIN)
+                image.set_halign(Gtk.Align.START)
+                image.set_size_request(20, 20)
+                cellule.append(image)
+            grille.attach(cellule, 0, ligne, 1, 1)
             m = Gtk.Label(label=", ".join(matieres), xalign=0.0, wrap=True)
             grille.attach(m, 1, ligne, 1, 1)
         boite.append(grille)

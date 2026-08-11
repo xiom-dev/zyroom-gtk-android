@@ -15,8 +15,11 @@ afficher.
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
+
+from . import armory
 
 #: Heures d'Atys dans un cycle météo.
 HEURES_PAR_CYCLE = 3
@@ -225,3 +228,29 @@ def duree(minutes: int) -> str:
 
 def nom_saison(index: int) -> str:
     return ("Printemps", "Été", "Automne", "Hiver")[index] if 0 <= index < 4 else "?"
+
+#: Le dossier des symboles de familles, à côté du paquet.
+#:
+#: Les images sont dans `zyroom/symboles/`, que le Makefile recopie avec le
+#: reste du paquet : rien à déclarer pour qu'elles suivent l'installation.
+_SYMBOLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "symboles")
+
+
+def symbole(groupe: str) -> str | None:
+    """Le chemin du symbole d'une famille de matières, ou None.
+
+    Ce sont les images du jeu — une coquille pour la carapace, une goutte pour
+    la sève —, relevées une fois par `table_armory.py` et embarquées : rien ne
+    se télécharge à l'affichage du tableau.
+
+    La correspondance vit dans `armory.py`, qui est produit par cet outil ;
+    cette fonction, non — un fichier généré perd à chaque régénération ce qu'on
+    y ajoute à la main. Une famille que Ryzom ajouterait n'aurait pas encore de
+    symbole : le tableau l'affichera sans, plutôt que de tomber.
+    """
+    icone = armory.SYMBOLES.get(groupe)
+    if not icone:
+        return None
+    chemin = os.path.join(_SYMBOLES_DIR, icone + ".png")
+    return chemin if os.path.isfile(chemin) else None

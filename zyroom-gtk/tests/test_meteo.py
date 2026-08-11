@@ -138,3 +138,28 @@ class AvanceToutSeul(unittest.TestCase):
     def test_sans_temps_ecoule_rien_ne_change(self):
         depart = self.releve()
         self.assertEqual(depart.cycle_courant, depart.a_present().cycle_courant)
+
+
+class Symboles(unittest.TestCase):
+    """Les symboles des familles, embarqués avec le paquet.
+
+    Ils viennent du jeu, relevés une fois par `table_armory.py` : rien ne se
+    télécharge à l'affichage du tableau. Le fichier doit donc être là — un
+    chemin rendu pour une image absente ferait un cadre vide dans la grille.
+    """
+
+    def test_chaque_famille_du_releve_a_son_symbole(self):
+        for saison, zones in armory.SUPREMES.items():
+            for zone, groupes in zones.items():
+                for groupe in groupes:
+                    chemin = meteo.symbole(groupe)
+                    self.assertIsNotNone(chemin, f"{groupe} ({saison}, {zone})")
+                    self.assertTrue(os.path.isfile(chemin), chemin)
+
+    def test_une_famille_inconnue_ne_rend_rien(self):
+        """Plutôt que de tomber : Ryzom peut en ajouter une."""
+        self.assertIsNone(meteo.symbole("Bidule"))
+
+    def test_le_symbole_est_une_image(self):
+        with open(meteo.symbole("Sève"), "rb") as fh:
+            self.assertEqual(b"\x89PNG", fh.read(4))

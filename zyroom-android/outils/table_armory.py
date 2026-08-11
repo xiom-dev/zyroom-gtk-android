@@ -209,17 +209,24 @@ def main() -> int:
     # `drawable-nodpi` : ces images font quarante pixels de côté et l'écran leur
     # donne une taille en points — les ranger dans un seuil de densité les
     # ferait redimensionner deux fois.
-    dessins = os.path.join(android, "app/src/packRes/drawable-nodpi")
-    os.makedirs(dessins, exist_ok=True)
-    for icone in SYMBOLES.values():
-        cible = os.path.join(dessins, icone + ".png")
-        if os.path.isfile(cible):
+    # Deux destinations, comme pour les tables : le portage GTK les range dans
+    # son paquet Python, que le Makefile recopie en entier — rien à déclarer.
+    dossiers = [os.path.join(android, "app/src/packRes/drawable-nodpi"),
+                os.path.join(depot, "zyroom-gtk/zyroom/symboles")]
+    for dessins in dossiers:
+        if not os.path.isdir(os.path.dirname(dessins)):
+            print("passé :", dessins, "(dossier absent)")
             continue
-        nom = icone[0].upper() + icone[1:]
-        with urllib.request.urlopen(f"{ICONES}/{nom}.png", timeout=60) as reponse:
-            with open(cible, "wb") as fh:
-                fh.write(reponse.read())
-        print("symbole →", cible)
+        os.makedirs(dessins, exist_ok=True)
+        for icone in SYMBOLES.values():
+            cible = os.path.join(dessins, icone + ".png")
+            if os.path.isfile(cible):
+                continue
+            nom = icone[0].upper() + icone[1:]
+            with urllib.request.urlopen(f"{ICONES}/{nom}.png", timeout=60) as rep:
+                with open(cible, "wb") as fh:
+                    fh.write(rep.read())
+            print("symbole →", cible)
     for chemin, contenu in (
         (os.path.join(android,
                       "app/src/main/kotlin/net/ryzom/zyroom/model/ArmoryTable.kt"),
