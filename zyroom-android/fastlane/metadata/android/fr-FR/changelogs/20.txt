@@ -1,0 +1,8 @@
+* La météo range ses deux tableaux côte à côte : les suprêmes à gauche, les
+  excellentes à droite, avec le symbole de chaque famille sous son nom.
+* Les excellentes disent laquelle des deux listes vaut à l'heure d'Atys : « De
+  jour · en ce moment », ou « De nuit ».
+* Le graphique gagne deux traits de graduation à 30 et 70 %, et la bascule d'un
+  palier au suivant s'y dessine en oblique plutôt qu'à la verticale.
+* Le bouton d'une nouvelle version se voit enfin : il reprend l'orange du
+  coffre au lieu du vert du cadre qui l'entoure.
