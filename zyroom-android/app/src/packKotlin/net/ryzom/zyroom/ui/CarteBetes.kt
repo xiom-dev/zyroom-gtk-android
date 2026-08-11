@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +25,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextMeasurer
@@ -55,6 +58,14 @@ private const val REDUCTION = 2
 
 /** Jusqu'où le pincement agrandit. Au-delà, on n'ajoute plus que du flou. */
 private const val ZOOM_MAX = 6f
+
+/**
+ * L'agrandissement d'un double-tap.
+ *
+ * Trois fois : de quoi séparer un troupeau de mektoubs attachés ensemble, sans
+ * perdre de vue la région où l'on se trouve.
+ */
+private const val ZOOM_DOUBLE_TAP = 3f
 
 /**
  * En deçà de cette distance à l'écran, deux bêtes n'en font qu'une.
@@ -100,22 +111,29 @@ fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
     var cadre by remember { mutableStateOf(IntSize.Zero) }
 
     /**
-     * Le geste se lit dans la passe initiale, comme celui de l'écran météo, et
-     * n'est retenu qu'à partir de deux doigts.
+     * Le geste se lit dans la passe initiale, comme celui de l'écran météo.
      *
-     * Le composant standard `transformable` se serait fait voler le
-     * déplacement par la liste qui défile autour : ici on consomme l'événement
-     * avant elle, et un glissement à un doigt lui reste acquis — on continue
-     * donc de faire défiler la liste en passant sur la carte.
+     * Deux doigts agrandissent et déplacent, toujours. **Un doigt ne déplace
+     * que si la carte est agrandie** : à l'échelle 1 elle tient entière dans
+     * son cadre, il n'y a rien à déplacer, et le glissement doit rester acquis
+     * à la liste qui défile autour — sinon on ne pourrait plus la parcourir en
+     * passant le doigt sur la carte, qui en occupe le tiers.
+     *
+     * Le composant standard `transformable` ne sait pas faire cette
+     * distinction, et se serait de toute façon fait voler le déplacement par
+     * la liste : ici on consomme l'événement avant elle, mais seulement quand
+     * il nous revient.
      */
     val gestes = Modifier.pointerInput(Unit) {
         awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             do {
                 val evenement = awaitPointerEvent(PointerEventPass.Initial)
-                if (evenement.changes.size >= 2) {
-                    val facteur = evenement.calculateZoom()
-                    val deplacement = evenement.calculatePan()
+                val doigts = evenement.changes.size
+                if (doigts >= 2 || (doigts == 1 && zoom > 1f)) {
+                    val facteur = if (doigts >= 2) evenement.calculateZoom() else 1f
+                    val deplacement = if (doigts >= 2) evenement.calculatePan()
+                                      else evenement.changes[0].positionChange()
                     if (facteur != 1f || deplacement != Offset.Zero) {
                         val avant = zoom
                         zoom = (zoom * facteur).coerceIn(1f, ZOOM_MAX)
@@ -137,15 +155,33 @@ fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
         }
     }
 
+    /**
+     * Le double-tap agrandit, et ramène à l'échelle 1 quand on y est déjà.
+     *
+     * Le pincement demande deux doigts et une main libre ; le double-tap se
+     * fait d'un pouce, en jouant. C'est aussi ce qui rend le déplacement à un
+     * doigt atteignable sans pincer.
+     */
+    val doubleTap = Modifier.pointerInput(Unit) {
+        detectTapGestures(onDoubleTap = {
+            zoom = if (zoom > 1f) 1f else ZOOM_DOUBLE_TAP
+            glissement = Offset.Zero
+        })
+    }
+
     val couleurMarque = MaterialTheme.colorScheme.secondary
     val couleurOmbre = MaterialTheme.colorScheme.surface
     Box(modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
         Canvas(
             Modifier.fillMaxWidth()
                 .height((image.height * 1f / image.width * 340).dp)
+                // La taille se relève à la mesure, jamais au dessin : y écrire
+                // un état relance une recomposition à chaque image, et le
+                // geste ne s'installe plus jamais tranquillement.
+                .onSizeChanged { cadre = it }
                 .then(gestes)
+                .then(doubleTap)
         ) {
-            cadre = IntSize(size.width.toInt(), size.height.toInt())
             // L'échelle qui fait tenir la carte dans le cadre, multipliée par
             // l'agrandissement demandé. Le glissement est déjà en pixels
             // d'écran : il s'ajoute après.
@@ -174,6 +210,13 @@ fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
                     Pair((p.x / SEUIL_GROUPE).toInt(), (p.y / SEUIL_GROUPE).toInt())
                 }.values.forEach { groupe ->
                     val p = place(groupe[0])
+                    // Ce qui sort du cadre ne se dessine pas. `drawText` ne se
+                    // contente pas d'être invisible hors du canevas : il lève
+                    // « maxHeight must be >= minHeight » et fait tomber
+                    // l'application. Le déplacement en sortait forcément.
+                    if (p.x !in 0f..size.width || p.y !in 0f..size.height) {
+                        return@forEach
+                    }
                     marqueur(p.x, p.y, couleurMarque, couleurOmbre)
                     val nom = groupe[0].nom.ifEmpty { groupe[0].etiquette }
                     etiquetteBete(mesure,
@@ -225,14 +268,19 @@ private val CERNE = Color(0xFF101418)
 private fun DrawScope.etiquetteBete(
     mesure: TextMeasurer, texte: String, position: Offset, teinte: Color, ombre: Color,
 ) {
+    // L'origine du texte est ramenée dans le canevas, liseré compris : posée
+    // dehors, elle fait lever une exception plutôt que de rester invisible.
+    val marge = 2.dp.toPx()
+    val ancre = Offset(position.x.coerceIn(marge, (size.width - marge).coerceAtLeast(marge)),
+                       position.y.coerceIn(marge, (size.height - marge).coerceAtLeast(marge)))
     val style = TextStyle(fontSize = 12.sp)
     val cerne = style.copy(color = CERNE)
     for (dx in -1..1) for (dy in -1..1) {
         if (dx != 0 || dy != 0) {
             drawText(mesure, texte,
-                     position + Offset(dx * 0.7f.dp.toPx(), dy * 0.7f.dp.toPx()),
+                     ancre + Offset(dx * 0.7f.dp.toPx(), dy * 0.7f.dp.toPx()),
                      style = cerne)
         }
     }
-    drawText(mesure, texte, position, style = style.copy(color = Color.White))
+    drawText(mesure, texte, ancre, style = style.copy(color = Color.White))
 }
