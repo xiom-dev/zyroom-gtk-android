@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
-from . import (alerts, armory, backup, chatlog, detail, i18n, meteo, movements,
-               outposts, roster, ryzom_api, sorting)
+from . import (alerts, armory, backup, carte, chatlog, detail, i18n, meteo,
+               movements, outposts, roster, ryzom_api, sorting)
 from . import skills as skills_mod
 from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.26"
+APP_NAME = ("ZyRoom-GTK-dev-0.27"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.16")
 
@@ -443,7 +443,8 @@ class MainWindow(Gtk.ApplicationWindow):
     #: Le nom interne de la page reste `plus` : il ne paraît nulle part, et le
     #: renommer toucherait l'action D-Bus, la pile et six méthodes pour rien.
     PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
-                  ("outposts", "Avant-postes"), ("meteo", "Météo"))
+                  ("betes", "Bêtes"), ("outposts", "Avant-postes"),
+                  ("meteo", "Météo"))
 
     def _build_navigation(self) -> Gtk.Widget:
         """La navigation de la barre de titre : deux boutons et un menu.
@@ -521,6 +522,7 @@ class MainWindow(Gtk.ApplicationWindow):
                                     _("Compétences"))
         self._plus_stack.add_titled(self._build_roster_page(), "roster",
                                     _("Effectif"))
+        self._plus_stack.add_titled(self._build_betes_page(), "betes", _("Bêtes"))
         self._plus_stack.add_titled(self._build_outposts_page(), "outposts",
                                     _("Avant-postes"))
         self._plus_stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
@@ -540,6 +542,8 @@ class MainWindow(Gtk.ApplicationWindow):
             self._refresh_skills()
         elif page == "roster":
             self._refresh_roster()
+        elif page == "betes":
+            self._remplir_betes(self._entity)
         # Ces deux-là vont chercher sur le réseau : elles ne le font qu'à la
         # première ouverture, et sur demande ensuite. L'annuaire des guildes
         # pèse un demi-méga-octet, il n'a pas à partir au démarrage.
@@ -1018,6 +1022,156 @@ class MainWindow(Gtk.ApplicationWindow):
     # sources : l'API officielle pour le temps — calculé par le jeu, donc connu
     # quarante cycles à l'avance — et un relevé de Ryzom Armory figé dans
     # `armory.py`, qui ne changera qu'avec le jeu.
+
+    #: En deçà de cette distance à l'écran, deux bêtes n'en font qu'une.
+    #:
+    #: Quarante pixels : de quoi séparer deux troupeaux laissés dans deux
+    #: régions, sans écrire quatre fois le même nom pour quatre mektoubs
+    #: attachés ensemble.
+    SEUIL_GROUPE = 40.0
+
+    def _build_betes_page(self) -> Gtk.Widget:
+        """Où sont les bêtes du joueur.
+
+        Un mektoub de bât laissé en pleine terre y reste, et son propriétaire
+        finit par oublier où. L'API donne sa position à chaque relevé ; c'est la
+        seule chose qu'elle sache dire d'un animal qu'on ne retrouve plus.
+
+        Les coordonnées sont écrites en clair et pas seulement portées sur la
+        carte : ce sont elles qu'on tape en jeu pour poser un repère.
+        """
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+
+        self._betes_carte = Gtk.DrawingArea()
+        self._betes_carte.set_content_height(300)
+        self._betes_carte.set_draw_func(self._dessiner_carte_betes)
+        page.append(self._betes_carte)
+
+        self._betes_entete = Gtk.Label(xalign=0.0)
+        self._betes_entete.add_css_class("dim-label")
+        self._pad(self._betes_entete)
+        page.append(self._betes_entete)
+
+        defilement = Gtk.ScrolledWindow(vexpand=True)
+        self._betes_box = Gtk.ListBox()
+        self._betes_box.add_css_class("compact")
+        self._betes_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        defilement.set_child(self._betes_box)
+        page.append(defilement)
+
+        self._betes_pixbuf = None
+        return page
+
+    def _rafraichir_betes_si_visible(self) -> None:
+        """Recharge la liste si on la regarde : changer d'entité change de bêtes."""
+        if (self._stack.get_visible_child_name() == "plus"
+                and self._plus_stack.get_visible_child_name() == "betes"):
+            self._remplir_betes(self._entity)
+
+    def _remplir_betes(self, ent) -> None:
+        while (child := self._betes_box.get_first_child()) is not None:
+            self._betes_box.remove(child)
+        betes = list(getattr(ent, "betes", []))
+        dehors = [b for b in betes if b.dehors]
+        self._betes_entete.set_text(
+            _("Aucune bête dehors : toutes sont rangées.") if not dehors
+            else _("%d bête dehors") % len(dehors) if len(dehors) == 1
+            else _("%d bêtes dehors") % len(dehors))
+        for rang, bete in enumerate(betes):
+            row = Gtk.ListBoxRow()
+            row.set_activatable(False)
+            if rang % 2 == 0:
+                row.add_css_class("zebre")
+            ligne = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            self._pad(ligne)
+            gauche = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
+            titre = Gtk.Label(label=bete.nom or bete.etiquette, xalign=0.0)
+            titre.add_css_class("heading")
+            gauche.append(titre)
+            detail = Gtk.Label(label=self._etat_bete(bete), xalign=0.0)
+            detail.add_css_class("dim-label")
+            gauche.append(detail)
+            ligne.append(gauche)
+            # À droite, ce qu'on recopie : la position, telle qu'on la tape.
+            pos = Gtk.Label(label=f"{bete.x}  {bete.y}" if bete.dehors else "—",
+                            xalign=1.0)
+            pos.add_css_class("peuple" if bete.dehors else "dim-label")
+            ligne.append(pos)
+            row.set_child(ligne)
+            self._betes_box.append(row)
+        self._betes_carte.queue_draw()
+
+    @staticmethod
+    def _etat_bete(bete) -> str:
+        """L'état d'une bête, en français.
+
+        La satiété n'a pas d'échelle documentée — les valeurs relevées vont de
+        54 à 933 — donc on la donne telle quelle plutôt que d'inventer un
+        pourcentage qui serait faux."""
+        lieux = {"landscape": _("dehors"), "stable": _("à l'écurie"),
+                 "": _("état inconnu")}
+        lieu = lieux.get(bete.statut, bete.statut)
+        detail = f"{bete.etiquette} · {lieu}" if bete.nom else lieu
+        if bete.satiete > 0:
+            detail += _(" · satiété %d") % int(bete.satiete)
+        return detail
+
+    def _dessiner_carte_betes(self, _area, cr, largeur, hauteur) -> None:
+        """La carte d'Atys, et les bêtes qui y sont.
+
+        Ce n'est pas une carte de navigation : elle sert à comprendre d'un coup
+        d'œil dans quelle région une bête a été laissée."""
+        ent = self._entity
+        betes = [b for b in getattr(ent, "betes", [])
+                 if b.dehors and carte.contient(b.x, b.y)] if ent else []
+        if not betes:
+            return
+        if self._betes_pixbuf is None:
+            try:
+                self._betes_pixbuf = GdkPixbuf.Pixbuf.new_from_file(carte.CHEMIN)
+            except GLib.Error:
+                return
+        pb = self._betes_pixbuf
+        echelle = min(largeur / pb.get_width(), hauteur / pb.get_height())
+        cr.save()
+        cr.translate((largeur - pb.get_width() * echelle) / 2, 0)
+        cr.scale(echelle, echelle)
+        Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
+        cr.paint()
+        cr.restore()
+
+        # Les bêtes trop proches n'en font qu'une : quatre mektoubs attachés
+        # ensemble tombent sur le même pixel, et quatre noms superposés ne se
+        # lisent plus.
+        marge = (largeur - pb.get_width() * echelle) / 2
+        groupes: dict[tuple[int, int], list] = {}
+        for b in betes:
+            px, py = carte.pixel(b.x, b.y)
+            cle = (int(px * echelle / self.SEUIL_GROUPE),
+                   int(py * echelle / self.SEUIL_GROUPE))
+            groupes.setdefault(cle, []).append(b)
+        cr.select_font_face("Sans")
+        cr.set_font_size(11)
+        for groupe in groupes.values():
+            px, py = carte.pixel(groupe[0].x, groupe[0].y)
+            x, y = marge + px * echelle, py * echelle
+            for rayon, couleur in ((4.5, (0.09, 0.13, 0.15)),
+                                   (3.0, (0.91, 0.76, 0.35)),
+                                   (1.2, (0.09, 0.13, 0.15))):
+                cr.set_source_rgb(*couleur)
+                cr.arc(x, y, rayon, 0, 6.2832)
+                cr.fill()
+            nom = groupe[0].nom or groupe[0].etiquette
+            if len(groupe) > 1:
+                nom += f" +{len(groupe) - 1}"
+            # Un liseré sombre : un nom clair sur les zones sableuses disparaît.
+            for dx, dy in ((-1, -1), (1, 1)):
+                cr.set_source_rgb(0.09, 0.13, 0.15)
+                cr.move_to(x + 7 + dx, y - 5 + dy)
+                cr.show_text(nom)
+            cr.set_source_rgb(0.91, 0.76, 0.35)
+            cr.move_to(x + 7, y - 5)
+            cr.show_text(nom)
 
     def _build_meteo_page(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -1975,6 +2129,7 @@ class MainWindow(Gtk.ApplicationWindow):
             if ent.skills:
                 self._dernier_perso = ent
         self._update_entity_header(ent, entry)
+        self._rafraichir_betes_si_visible()
         self._populate_inventories()
         self._check_alerts(ent, entry, from_sync, time_data)
         if self._stack.get_visible_child_name() == "log":
