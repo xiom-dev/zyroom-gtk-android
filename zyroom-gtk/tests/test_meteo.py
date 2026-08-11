@@ -290,5 +290,64 @@ class CeQuiSort(unittest.TestCase):
         self.assertEqual({}, meteo.pop_de(-1, "Sources Interdites", "best"))
 
 
+@unittest.skipUnless(_gtk_disponible(), "GTK4 absent de cette machine")
+class Minuteur(unittest.TestCase):
+    """Le battement qui fait avancer l'heure d'Atys.
+
+    Il ne doit jamais cesser d'avancer : la prévision qui manque ne concerne
+    que la droite du graphique, jamais le trait du présent.
+    """
+
+    def _fenetre(self, releve, en_cours=False):
+        import types
+        from zyroom.window import MainWindow
+        faux = types.SimpleNamespace(
+            _meteo_releve=releve, _meteo_affiche=None, _meteo_timer=1,
+            _meteo_en_cours=en_cours, charges=0, refraichi=0)
+        faux._load_meteo = lambda force=False: setattr(
+            faux, "charges", faux.charges + 1)
+        faux._refresh_meteo = lambda: setattr(faux, "refraichi",
+                                              faux.refraichi + 1)
+        MainWindow._meteo_tick(faux)
+        return faux
+
+    def _releve(self, cycles_restants):
+        """Un relevé dont le présent est à `cycles_restants` du bout."""
+        courant = 1000
+        cycles = [meteo.Meteo(cycle=courant + i, condition="good", value=0.5,
+                              text="uiFair")
+                  for i in range(cycles_restants + 1)]
+        return meteo.MeteoAtys(
+            cycle_courant=courant,
+            heure_atys=courant * meteo.HEURES_PAR_CYCLE,
+            saison=0, continents={"sources": cycles})
+
+    def test_au_milieu_de_la_prévision_il_avance_sans_rien_demander(self):
+        faux = self._fenetre(self._releve(20))
+        self.assertIsNotNone(faux._meteo_affiche)
+        self.assertEqual(1, faux.refraichi)
+        self.assertEqual(0, faux.charges)
+
+    def test_près_du_bout_il_avance_ET_redemande(self):
+        """Les deux tenaient dans le même « si » : il redemandait sans avancer."""
+        faux = self._fenetre(self._releve(2))
+        self.assertIsNotNone(faux._meteo_affiche)
+        self.assertEqual(1, faux.refraichi, "la courbe doit avancer quand même")
+        self.assertEqual(1, faux.charges)
+
+    def test_il_ne_redemande_pas_tant_qu_une_requête_est_en_vol(self):
+        """Sinon une requête partait toutes les dix secondes, pour rien."""
+        faux = self._fenetre(self._releve(2), en_cours=True)
+        self.assertEqual(0, faux.charges)
+        self.assertEqual(1, faux.refraichi, "et il avance toujours")
+
+    def test_sans_relevé_le_battement_s_arrête(self):
+        import types
+        from zyroom.window import MainWindow
+        faux = types.SimpleNamespace(_meteo_releve=None, _meteo_timer=1)
+        self.assertFalse(MainWindow._meteo_tick(faux))
+        self.assertIsNone(faux._meteo_timer)
+
+
 if __name__ == "__main__":
     unittest.main()

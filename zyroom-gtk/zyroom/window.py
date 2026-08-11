@@ -1065,24 +1065,34 @@ class MainWindow(Gtk.ApplicationWindow):
         self._meteo_releve = None      #: ce que l'API a rendu, tel quel
         self._meteo_affiche = None     #: le même, recalé sur l'instant présent
         self._meteo_charge = False
+        self._meteo_en_cours = False   #: une requête est-elle en vol ?
         self._meteo_timer = None
         return page
 
     def _meteo_tick(self) -> bool:
         """Fait avancer l'heure d'Atys, sans rien demander à personne.
 
-        Les quarante cycles reçus couvrent six heures réelles : tant que le
-        trait du « maintenant » reste dans la série, il n'y a aucune raison de
-        redemander quoi que ce soit. Quand il en sort, on redemande une fois."""
+        Les cycles reçus couvrent plusieurs heures réelles : tant que le trait
+        du « maintenant » reste dans la série, il n'y a aucune raison de
+        redemander quoi que ce soit. Quand il approche du bout, on redemande —
+        **une fois**, et sans cesser d'avancer pendant ce temps.
+
+        Les deux tenaient dans le même `if`, et c'était le gel : arrivé près du
+        bout de la prévision, chaque battement relançait une requête et rendait
+        la main sans rien recaler. La courbe s'arrêtait donc net, définitivement
+        si l'API ne répondait pas — et une requête partait toutes les dix
+        secondes pour rien.
+        """
         if self._meteo_releve is None:
             self._meteo_timer = None
             return False
         avance = self._meteo_releve.a_present()
         cycles = avance.cycles_des_primes()
-        if cycles and avance.cycle_courant > cycles[-1].cycle - 4:
-            # Bientôt à court de prévision : on va en rechercher, une fois.
+        if (cycles and not self._meteo_en_cours
+                and avance.cycle_courant > cycles[-1].cycle - 4):
             self._load_meteo(force=True)
-            return True
+        # Quoi qu'il arrive, on avance : la prévision manquante ne concerne que
+        # la droite du graphique, pas le trait du présent.
         self._meteo_affiche = avance
         self._refresh_meteo()
         return True
@@ -1091,6 +1101,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if self._meteo_charge and not force:
             return
         self._meteo_charge = True
+        self._meteo_en_cours = True
         self._meteo_refresh.set_sensitive(False)
         self._meteo_entete.set_text(_("Lecture de la météo…"))
 
@@ -1112,6 +1123,7 @@ class MainWindow(Gtk.ApplicationWindow):
                                    saison, releve.continents, releve.pris_a)
 
         def done(res, err):
+            self._meteo_en_cours = False
             self._meteo_refresh.set_sensitive(True)
             if err:
                 self._meteo_entete.set_text(_("Météo indisponible : %s") % err)
