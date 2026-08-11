@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import android.content.res.Configuration
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.Icon
@@ -47,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -504,9 +506,17 @@ private fun BandeauMiseAJour(
                  style = MaterialTheme.typography.titleMedium)
             Text("Version ${disponible.versionName}",
                  style = MaterialTheme.typography.bodySmall)
+            // Orange sur le vert du cadre : le bouton est la seule chose à
+            // faire ici, et il se confondait avec le fond dont il reprenait la
+            // teinte. L'orange vient du coffre de l'icône, comme les nuances de
+            // l'arbre des compétences — il tranche sans être étranger.
             Button(
                 onClick = onInstaller,
                 enabled = !occupe,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = OrangesDuCoffre[1],
+                    contentColor = Color(0xFF231A05),
+                ),
                 modifier = Modifier.padding(top = 10.dp),
             ) {
                 Text(if (occupe) "Téléchargement…" else "Télécharger et installer")

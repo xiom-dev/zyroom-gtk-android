@@ -170,26 +170,7 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                         hauteur = if (paysage) 190 else 200,
                     )
                 }
-                item { TitreTableau("Suprêmes — " + nomSaison(donnees.saison)) }
-                itemsIndexed(SUPREMES[saisonCle(donnees.saison)]
-                                 ?.entries?.toList().orEmpty()) { rang, (zone, groupes) ->
-                    BlocMatieres(zone, groupes, rang % 2 == 0)
-                }
-                item { TitreTableau("Excellentes — " + nomSaison(donnees.saison)) }
-                itemsIndexed(EXCELLENTES[saisonCle(donnees.saison)]
-                                 ?.entries?.toList().orEmpty()) { rang, (moment, groupes) ->
-                    // Il fait nuit sur Atys de 22 h à 3 h : dire laquelle des
-                    // deux listes vaut en ce moment évite d'aller forer ce qui
-                    // ne sortira que dans huit heures.
-                    val maintenant = (moment == "NUIT") == donnees.nuit
-                    BlocMatieres(
-                        titre = (if (moment == "JOUR") "De jour" else "De nuit") +
-                            if (maintenant) "  ·  en ce moment" else "",
-                        groupes = groupes,
-                        zebre = rang % 2 == 0,
-                        souligne = maintenant,
-                    )
-                }
+                item { TableauxMatieres(donnees) }
             }
         }
     }
@@ -317,43 +298,86 @@ private fun maintenantDansLesPrimes(releve: MeteoAtys): Meteo? {
 private fun TitreTableau(titre: String) {
     Text(
         titre,
-        style = MaterialTheme.typography.titleMedium,
+        // Sur une demi-largeur, le corps précédent passait à la ligne au
+        // milieu d'un mot : celui-ci tient le titre sur une ligne, deux au
+        // pire, sans lui ôter son rang de titre.
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.secondary,
-        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 18.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = 10.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
     )
 }
 
 /**
- * Une zone — ou un moment de la journée — et ce qu'on y fore.
+ * Les deux tableaux, côte à côte : les suprêmes à gauche, les excellentes à
+ * droite.
+ *
+ * L'un sous l'autre, il fallait traverser les cinq zones des Primes pour
+ * atteindre les excellentes — celles qu'on va justement forer maintenant. Côte
+ * à côte, les deux se lisent d'un même regard. La colonne de droite est bien
+ * plus courte que celle de gauche : c'est dans l'ordre des choses, il y a moins
+ * de matières excellentes que de suprêmes.
+ */
+@Composable
+private fun TableauxMatieres(releve: MeteoAtys) {
+    val saison = saisonCle(releve.saison)
+    // Il fait nuit sur Atys de 22 h à 3 h, et le jeu ne fait pas sortir les
+    // mêmes matières excellentes de jour et de nuit — les deux listes n'ont
+    // aucune matière en commun. Afficher les deux obligeait à chercher laquelle
+    // vaut ; on ne montre que celle qui vaut, et elle change toute seule à la
+    // tombée de la nuit d'Atys, soit toutes les soixante-douze minutes réelles.
+    val excellentes = EXCELLENTES[saison]?.get(if (releve.nuit) "NUIT" else "JOUR")
+        .orEmpty()
+    Row(Modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f)) {
+            TitreTableau("Suprêmes — " + nomSaison(releve.saison))
+            SUPREMES[saison]?.entries?.toList().orEmpty()
+                .forEachIndexed { rang, (zone, groupes) ->
+                    BlocMatieres(zone, groupes, rang % 2 == 0)
+                }
+        }
+        Column(Modifier.weight(1f)) {
+            TitreTableau("Excellentes — en ce moment")
+            BlocMatieres(null, excellentes, zebre = true)
+        }
+    }
+}
+
+/**
+ * Une zone et ce qu'on y fore.
  *
  * Le groupe à gauche, les matières à droite : c'est la disposition d'un
- * tableau, et elle se lit en travers sans chercher.
+ * tableau, et elle se lit en travers sans chercher. Un titre nul quand il n'y a
+ * rien à nommer — le tableau des excellentes n'a qu'un bloc, et son titre le
+ * dit déjà.
  */
 @Composable
 private fun BlocMatieres(
-    titre: String,
+    titre: String?,
     groupes: Map<String, List<String>>,
     zebre: Boolean,
-    souligne: Boolean = false,
 ) {
     Column(
         Modifier.fillMaxWidth()
             .background(fondZebre(zebre))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        Text(
-            titre,
-            style = MaterialTheme.typography.titleSmall,
-            color = if (souligne) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface,
-        )
+        if (titre != null) {
+            Text(
+                titre,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
         groupes.toSortedMap().forEach { (groupe, matieres) ->
             Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+                // Deux colonnes valent deux fois moins de largeur. Le nom du
+                // groupe s'y serre, mais pas au-delà de « Carapace » : plus
+                // étroit, le plus long des dix se coupait en deux lignes.
                 Text(
                     groupe,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(72.dp),
+                    modifier = Modifier.width(68.dp),
                 )
                 Text(matieres.joinToString(", "),
                      style = MaterialTheme.typography.bodySmall,
