@@ -1,0 +1,8 @@
+* A "Bêtes" tab: where your mounts, pack mektoubs and zigs are. The game gives
+  their position at every refresh — the only thing it can tell you about a
+  mektoub you can no longer find.
+* An embedded map of Atys, with your animals and yourself on it. Pinch or
+  double-tap to zoom, one finger to pan once zoomed.
+* Coordinates are spelled out next to each animal: those are what you type in
+  game to drop a landmark.
+* Animal names now display correctly, accents and spaces included.

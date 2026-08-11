@@ -1,0 +1,8 @@
+* Un onglet « Bêtes » : où sont vos montures, mektoubs et zigs. Le jeu donne
+  leur position à chaque relevé — c'est la seule chose qu'il sache dire d'un
+  mektoub qu'on ne retrouve plus.
+* Une carte d'Atys embarquée, avec vos bêtes et vous. Elle s'agrandit au
+  pincement ou au double-tap, et se déplace à un doigt une fois agrandie.
+* Les coordonnées sont écrites en clair à côté de chaque bête : ce sont elles
+  qu'on tape en jeu pour poser un repère.
+* Le nom des bêtes s'affiche enfin correctement, accents et espaces compris.
