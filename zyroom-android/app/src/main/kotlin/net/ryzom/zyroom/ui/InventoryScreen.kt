@@ -95,7 +95,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Ce que la rangée du haut donne à voir : un contenant, le journal, l'arbre. */
-private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES, AVANTPOSTES, EFFECTIF }
+private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES, AVANTPOSTES, EFFECTIF, BETES }
 
 /**
  * L'inventaire d'une entité : un choix de contenant, puis la grille d'items.
@@ -295,6 +295,18 @@ fun InventoryScreen(
                             )
                         }
                     }
+                    // Les bêtes n'appartiennent qu'à un personnage, et la puce
+                    // ne s'affiche que s'il en a : beaucoup de joueurs n'ont
+                    // qu'une monture, qui ne se perd pas.
+                    if (courant?.betes?.isNotEmpty() == true) {
+                        item {
+                            FilterChip(
+                                selected = vue == Vue.BETES,
+                                onClick = { vue = Vue.BETES },
+                                label = { Text("🐾 Bêtes") },
+                            )
+                        }
+                    }
                     // Les avant-postes appartiennent aux guildes : la puce n'a
                     // rien à faire sur un personnage.
                     if (entry.kind == Entity.Kind.GUILD) {
@@ -351,6 +363,7 @@ fun InventoryScreen(
                     nameOf = { repository.nameOf(it) },
                 )
 
+                vue == Vue.BETES -> BetesView(courant?.betes.orEmpty())
                 vue == Vue.EFFECTIF -> RosterView(
                     membres = courant?.members.orEmpty(),
                     mouvements = mouvements,
