@@ -1023,6 +1023,12 @@ class MainWindow(Gtk.ApplicationWindow):
     # quarante cycles à l'avance — et un relevé de Ryzom Armory figé dans
     # `armory.py`, qui ne changera qu'avec le jeu.
 
+    #: Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton.
+    POINT = (1.0, 0.18, 0.18)
+
+    #: Le noir des cernes et des liserés, jamais tout à fait noir pour l'œil.
+    CERNE = (0.06, 0.08, 0.09)
+
     #: En deçà de cette distance à l'écran, deux bêtes n'en font qu'une.
     #:
     #: Quarante pixels : de quoi séparer deux troupeaux laissés dans deux
@@ -1235,26 +1241,35 @@ class MainWindow(Gtk.ApplicationWindow):
                    int((marge_y + py * echelle) / self.SEUIL_GROUPE))
             groupes.setdefault(cle, []).append(b)
         cr.select_font_face("Sans")
-        cr.set_font_size(11)
+        cr.set_font_size(13)
         for groupe in groupes.values():
             px, py = carte.pixel(groupe[0].x, groupe[0].y)
             x, y = marge_x + px * echelle, marge_y + py * echelle
-            for rayon, couleur in ((4.5, (0.09, 0.13, 0.15)),
-                                   (3.0, (0.91, 0.76, 0.35)),
-                                   (1.2, (0.09, 0.13, 0.15))):
+            # Une cible, pas un anneau : cerne noir, disque blanc, cœur rouge.
+            # La carte passe du vert sombre des forêts au sable clair, au rouge
+            # du désert et au violet des zones corrompues — aucune teinte unique
+            # ne s'y détache partout, mais le contraste noir sur blanc, lui,
+            # tient sur tout.
+            for rayon, couleur in ((7.0, self.CERNE), (5.5, (1.0, 1.0, 1.0)),
+                                   (3.0, self.POINT)):
                 cr.set_source_rgb(*couleur)
                 cr.arc(x, y, rayon, 0, 6.2832)
                 cr.fill()
             nom = groupe[0].nom or groupe[0].etiquette
             if len(groupe) > 1:
                 nom += f" +{len(groupe) - 1}"
-            # Un liseré sombre : un nom clair sur les zones sableuses disparaît.
-            for dx, dy in ((-1, -1), (1, 1)):
-                cr.set_source_rgb(0.09, 0.13, 0.15)
-                cr.move_to(x + 7 + dx, y - 5 + dy)
-                cr.show_text(nom)
-            cr.set_source_rgb(0.91, 0.76, 0.35)
-            cr.move_to(x + 7, y - 5)
+            # Le nom en blanc, cerné de noir sur ses huit côtés : c'est la
+            # solution des cartes de toujours, et la seule qui tienne ici. L'or
+            # du thème se perdait sur le sable ; deux décalages en diagonale
+            # laissaient le liseré manquant au-dessus et sur les côtés.
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    if dx or dy:
+                        cr.set_source_rgb(*self.CERNE)
+                        cr.move_to(x + 11 + dx * 1.2, y - 7 + dy * 1.2)
+                        cr.show_text(nom)
+            cr.set_source_rgb(1.0, 1.0, 1.0)
+            cr.move_to(x + 11, y - 7)
             cr.show_text(nom)
         cr.restore()
 

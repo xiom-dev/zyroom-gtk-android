@@ -178,7 +178,7 @@ fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
                     val nom = groupe[0].nom.ifEmpty { groupe[0].etiquette }
                     etiquetteBete(mesure,
                                   if (groupe.size > 1) "$nom +${groupe.size - 1}" else nom,
-                                  Offset(p.x + 9f, p.y - 12f),
+                                  Offset(p.x + 9.dp.toPx(), p.y - 9.dp.toPx()),
                                   couleurMarque, couleurOmbre)
                 }
             }
@@ -186,26 +186,53 @@ fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
     }
 }
 
-/** Un anneau clair cerné de sombre : lisible sur la forêt comme sur le désert. */
+/**
+ * Le point où se tient la bête : une cible, pas un anneau.
+ *
+ * Trois cercles concentriques — cerne noir, disque blanc, cœur rouge — parce
+ * que la carte passe du vert sombre des forêts au sable clair, au rouge du
+ * désert et au violet des zones corrompues : aucune teinte unique ne s'y
+ * détache partout, mais le contraste noir sur blanc, lui, tient sur tout.
+ */
 private fun DrawScope.marqueur(x: Float, y: Float, teinte: Color, ombre: Color) {
-    drawCircle(ombre, radius = 8f, center = Offset(x, y))
-    drawCircle(teinte, radius = 5f, center = Offset(x, y))
-    drawCircle(ombre, radius = 2f, center = Offset(x, y))
+    // En points, et non en pixels : sur un écran qui compte trois pixels par
+    // point, un rayon de huit pixels donnait un marqueur de cinq points de
+    // large là où le nom en fait douze de haut. Il passait inaperçu.
+    drawCircle(CERNE, radius = 6.dp.toPx(), center = Offset(x, y))
+    drawCircle(Color.White, radius = 4.5f.dp.toPx(), center = Offset(x, y))
+    drawCircle(POINT, radius = 2.5f.dp.toPx(), center = Offset(x, y))
 }
 
+/** Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton. */
+private val POINT = Color(0xFFFF2D2D)
+
+/** Le noir des cernes et des liserés, jamais tout à fait noir pour l'œil. */
+private val CERNE = Color(0xFF101418)
+
 /**
- * Le nom de la bête, doublé d'un liseré sombre.
+ * Le nom de la bête, en blanc, cerné de noir sur ses huit côtés.
  *
- * Sans lui, un nom clair posé sur les zones sableuses de la carte disparaît.
+ * C'est la solution des cartes de toujours, et la seule qui tienne ici : l'or
+ * du thème se perdait sur le sable, et une couleur vive se perd ailleurs. Le
+ * blanc cerné de noir se lit sur la forêt, sur le désert, sur le vide.
+ *
+ * Deux décalages en diagonale ne suffisaient pas — le liseré manquait au-dessus
+ * et sur les côtés, là où le fond est clair. Il en faut huit.
+ *
  * La taille ne suit pas l'agrandissement : un nom grand comme une région se
  * lirait moins bien, pas mieux.
  */
 private fun DrawScope.etiquetteBete(
     mesure: TextMeasurer, texte: String, position: Offset, teinte: Color, ombre: Color,
 ) {
-    val style = TextStyle(fontSize = 11.sp)
-    listOf(-1f, 1f).forEach { d ->
-        drawText(mesure, texte, position + Offset(d, d), style = style.copy(color = ombre))
+    val style = TextStyle(fontSize = 12.sp)
+    val cerne = style.copy(color = CERNE)
+    for (dx in -1..1) for (dy in -1..1) {
+        if (dx != 0 || dy != 0) {
+            drawText(mesure, texte,
+                     position + Offset(dx * 0.7f.dp.toPx(), dy * 0.7f.dp.toPx()),
+                     style = cerne)
+        }
     }
-    drawText(mesure, texte, position, style = style.copy(color = teinte))
+    drawText(mesure, texte, position, style = style.copy(color = Color.White))
 }
