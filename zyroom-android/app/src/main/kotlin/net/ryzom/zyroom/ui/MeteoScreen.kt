@@ -1,6 +1,5 @@
 package net.ryzom.zyroom.ui
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,14 +42,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import net.ryzom.zyroom.R
 import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
 import net.ryzom.zyroom.model.EXCELLENTES
 import net.ryzom.zyroom.model.SAISONS
 import net.ryzom.zyroom.model.SUPREMES
-import net.ryzom.zyroom.model.SYMBOLES
 import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
@@ -413,31 +410,6 @@ private fun BlocMatieres(
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-}
-
-/**
- * Le dessin du symbole d'une famille, ou rien si elle n'en a pas.
- *
- * La correspondance est nommée ici, une ressource à la fois, plutôt que
- * résolue par `getIdentifier` : une ressource qu'aucun code ne nomme est
- * retirée de l'APK au rétrécissement, et le symbole aurait disparu de la
- * version publiée sans jamais manquer à l'essai. Une famille que Ryzom
- * ajouterait n'aurait pas de symbole ici — elle s'affichera sans, plutôt que
- * de faire tomber l'écran.
- */
-@DrawableRes
-private fun symboleDe(groupe: String): Int? = when (SYMBOLES[groupe]) {
-    "mp_amber" -> R.drawable.mp_amber
-    "mp_bark" -> R.drawable.mp_bark
-    "mp_fiber" -> R.drawable.mp_fiber
-    "mp_oil" -> R.drawable.mp_oil
-    "mp_resin" -> R.drawable.mp_resin
-    "mp_sap" -> R.drawable.mp_sap
-    "mp_seed" -> R.drawable.mp_seed
-    "mp_shell" -> R.drawable.mp_shell
-    "mp_wood" -> R.drawable.mp_wood
-    "mp_wood_node" -> R.drawable.mp_wood_node
-    else -> null
 }
 
 @Composable

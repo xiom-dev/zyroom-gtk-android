@@ -2,6 +2,9 @@ package net.ryzom.zyroom
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import net.ryzom.zyroom.ui.SYMBOLES_EMBARQUES
+import net.ryzom.zyroom.ui.symboleDe
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -25,5 +28,18 @@ class MasqueFdroidTest {
     fun `la variante F-Droid ne se met pas à jour elle-même`() {
         assertFalse("F-Droid refuse une application qui installe des APK",
                     MISES_A_JOUR_INTEGREES)
+    }
+
+    /**
+     * Les symboles des familles sont des images du jeu : leur licence n'est pas
+     * établie, et une logithèque ne publie que ce dont elle l'est. Le jour où
+     * un remaniement les remettrait dans `src/main`, ils reviendraient ici sans
+     * que personne le voie — ce test le voit.
+     */
+    @Test
+    fun `la variante F-Droid n'embarque aucun symbole de matière`() {
+        assertFalse("les symboles sont des images du jeu, licence non établie",
+                    SYMBOLES_EMBARQUES)
+        assertNull("aucune famille ne doit rendre de dessin", symboleDe("Sève"))
     }
 }

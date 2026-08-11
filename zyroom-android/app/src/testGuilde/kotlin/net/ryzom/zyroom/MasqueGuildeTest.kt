@@ -1,6 +1,9 @@
 package net.ryzom.zyroom
 
 import org.junit.Assert.assertTrue
+import net.ryzom.zyroom.ui.SYMBOLES_EMBARQUES
+import net.ryzom.zyroom.ui.symboleDe
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 /**
@@ -26,5 +29,19 @@ class MasqueGuildeTest {
         // Elle n'a pas de logithèque pour le faire : sans cela, les joueurs
         // resteraient sur la version du jour de leur installation.
         assertTrue(MISES_A_JOUR_INTEGREES)
+    }
+
+    /**
+     * Les variantes qu'on distribue soi-même embarquent les symboles.
+     *
+     * Ils vivent dans `src/packRes`, un répertoire que seules ces variantes
+     * déclarent : oublier la déclaration les ferait disparaître sans rien
+     * casser à la compilation.
+     */
+    @Test
+    fun `guilde embarque les symboles de matière`() {
+        assertTrue("les symboles doivent être dans la variante guilde",
+                   SYMBOLES_EMBARQUES)
+        assertNotNull("« Sève » a un symbole", symboleDe("Sève"))
     }
 }

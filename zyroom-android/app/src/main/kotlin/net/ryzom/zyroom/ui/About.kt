@@ -127,9 +127,11 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 // reprises de Ryzom Armory et embarquées dans l'APK : elles ne
                 // sont ni de nous, ni libres de mention.
                 Text(
-                    "Relevé des matières suprêmes et excellentes, et symboles " +
-                        "des familles : Ryzom Armory. Les symboles sont des " +
-                        "images du jeu, © Winch Gate.",
+                    "Relevé des matières suprêmes et excellentes : Ryzom Armory." +
+                        if (SYMBOLES_EMBARQUES)
+                            " Les symboles des familles sont des images du jeu, " +
+                                "© Winch Gate."
+                        else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

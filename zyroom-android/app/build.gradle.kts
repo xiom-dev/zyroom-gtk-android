@@ -143,6 +143,16 @@ android {
         // est binaire, et un dépôt git garde chaque copie pour toujours.
         getByName("guilde").assets.srcDir("src/packAssets")
         getByName("dev").assets.srcDir("src/packAssets")
+
+        // Les symboles des familles de matières — coquille, goutte, boucle —
+        // sont eux aussi des images du jeu, reprises de Ryzom Armory : même
+        // règle que le pack, et donc même partage. `src/packKotlin` porte le
+        // code qui les nomme, car une ressource absente ne se compile pas : la
+        // variante F-Droid a sa propre version, qui ne rend aucun symbole.
+        getByName("guilde").res.srcDir("src/packRes")
+        getByName("dev").res.srcDir("src/packRes")
+        getByName("guilde").java.srcDir("src/packKotlin")
+        getByName("dev").java.srcDir("src/packKotlin")
     }
 }
 
