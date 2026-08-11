@@ -1,0 +1,3 @@
+* Outposts now carry their name even without the game's string pack: "Ferme de
+  Malmontagne" instead of "fyros_outpost_04". The pack, when installed, still
+  takes precedence — it is the game's own source.

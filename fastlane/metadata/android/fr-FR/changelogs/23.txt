@@ -1,0 +1,3 @@
+* Les avant-postes portent leur nom même sans le pack du jeu : « Ferme de
+  Malmontagne » au lieu de « fyros_outpost_04 ». Le pack, quand il est
+  installé, reste prioritaire — c'est la source du jeu.
