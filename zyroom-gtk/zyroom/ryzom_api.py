@@ -8,6 +8,7 @@ les appelants (voir icons.py, window.py).
 from __future__ import annotations
 
 import os
+import re
 import unicodedata
 import urllib.error
 import urllib.request
@@ -78,6 +79,32 @@ class Inventory:
         return sum(it.volume for it in self.items)
 
 
+@dataclass(frozen=True)
+class Bete:
+    """Une bête du joueur : sa monture, ses mektoubs de bât, ses zigs.
+
+    Le flux donne leur position — `<position x="10328" y="-2316"/>` — et c'est
+    la seule chose que l'API sache dire d'un animal qu'on ne retrouve plus. Un
+    mektoub laissé en pleine terre y reste, et son propriétaire finit par
+    oublier où.
+    """
+
+    nom: str = ""            #: le nom donné en jeu, déjà décodé
+    etiquette: str = ""      #: « Mektoub 2 », « Zig 1 » — celle de son inventaire
+    statut: str = ""         #: « landscape » dehors, « stable » en écurie…
+    x: int = 0
+    y: int = 0
+    #: Sa satiété. L'échelle n'est pas documentée — les valeurs relevées vont de
+    #: 54 à 933 — donc on la montre telle quelle plutôt que d'inventer un
+    #: pourcentage.
+    satiete: float = 0.0
+
+    @property
+    def dehors(self) -> bool:
+        """Vrai si la bête est dehors, donc si sa position a un sens."""
+        return self.statut == "landscape"
+
+
 @dataclass
 class Entity:
     """Métadonnées + inventaires d'un personnage ou d'une guilde."""
@@ -92,6 +119,7 @@ class Entity:
     icon: str = ""                 # icône (pour une guilde)
     portrait_url: str = ""         # URL du portrait (rendu 3D perso / icône guilde)
     inventories: list[Inventory] = field(default_factory=list)
+    betes: list[Bete] = field(default_factory=list)      # montures, mektoubs, zigs
     skills: list = field(default_factory=list)          # arbre des compétences
     skill_points: dict = field(default_factory=dict)    # points par branche
     members: list = field(default_factory=list)         # [(nom, grade)] d'une guilde
@@ -194,6 +222,62 @@ def fetch_item_icon(item: ItemInfo) -> bytes:
 def fetch_url(url: str) -> bytes:
     """Télécharge le contenu d'une URL (portraits, icônes de guilde…)."""
     return _http_get(url)
+
+
+def nom_multilingue(brut: str) -> str:
+    """Le nom d'une bête, tel que le jeu l'écrit.
+
+    Ryzom range les traductions dans une seule chaîne :
+    `$#[wk]Xiom's Zig[fr]Zig de Xiom` — un segment par langue, précédé de son
+    code entre crochets, le tout encadré de `$`. On garde le français quand il
+    est là, le premier segment sinon.
+
+    Le jeu écrit en outre ses espaces insécables en UTF-8 relu comme du
+    latin-1 : « Zig<Â> de » au lieu de « Zig de ». On répare la paire quand le
+    tour se boucle, et on laisse tel quel sinon — un nom qui contient
+    légitimement un « Â » ne doit pas être abîmé.
+    """
+    texte = brut.strip()
+    try:
+        repare = texte.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
+    else:
+        texte = repare
+    for prefixe in ("$#", "$"):
+        if texte.startswith(prefixe):
+            texte = texte[len(prefixe):]
+            break
+    texte = texte[:-1] if texte.endswith("$") else texte
+    segments = list(re.finditer(r"\[([a-z]{2,3})\]", texte))
+    if segments:
+        choisi = next((m for m in segments if m.group(1) == "fr"), segments[0])
+        suite = next((m for m in segments if m.start() > choisi.end()), None)
+        texte = texte[choisi.end():suite.start() if suite else len(texte)]
+    return texte.replace("\u00a0", " ").strip()
+
+
+def _bete(animal: Element, etiquette: str) -> Bete:
+    """Une bête et sa position, telles que le flux les donne.
+
+    La position est absente d'une bête qui n'est jamais sortie : on rend alors
+    (0, 0), que `carte.contient` écarte de lui-même."""
+    pos = animal.find("position")
+    def entier(nom: str) -> int:
+        if pos is None:
+            return 0
+        try:
+            return int(float(pos.get(nom, "0")))
+        except ValueError:
+            return 0
+    try:
+        satiete = float(animal.findtext("satiety", default="") or 0)
+    except ValueError:
+        satiete = 0.0
+    return Bete(nom=nom_multilingue(animal.findtext("name", default="") or ""),
+                etiquette=etiquette,
+                statut=animal.findtext("status", default=""),
+                x=entier("x"), y=entier("y"), satiete=satiete)
 
 
 def _character_portrait_url(char_node: Element) -> str:
@@ -350,6 +434,7 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
             counters[kind] += 1
             label = f"{_labels[kind]} {counters[kind]}"
             ent.inventories.append(Inventory(f"animal{index}", label, items, capacity))
+            ent.betes.append(_bete(animal, label))
 
     # Ventes (items en vente à l'hôtel des ventes)
     shop = node.find("shop")

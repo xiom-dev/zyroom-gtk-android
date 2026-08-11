@@ -167,5 +167,40 @@ class PortraitDePersonnage(unittest.TestCase):
                 self.assertFalse(os.path.exists(a))
 
 
+
+class NomsDeBetes(unittest.TestCase):
+    """Le nom d'une bête, tel que le jeu l'écrit.
+
+    Ryzom range les traductions dans une seule chaîne et écrit ses espaces
+    insécables en UTF-8 relu comme du latin-1. Sans décodage, la liste des
+    contenants afficherait `$#[wk]Xiom's Zig[fr]Zig de Xiom`.
+    """
+
+    def _nom(self, brut):
+        from zyroom.ryzom_api import nom_multilingue
+        return nom_multilingue(brut)
+
+    def test_le_segment_francais_est_retenu(self):
+        self.assertEqual(
+            "Zig de Xiom",
+            self._nom("$#[wk]Xiom'sÂ Zig[fr]ZigÂ deÂ Xiom"))
+
+    def test_un_nom_simple_ne_bouge_pas(self):
+        self.assertEqual("Mounty", self._nom("Mounty"))
+
+    def test_le_dollar_de_fin_est_retire(self):
+        self.assertEqual("Zig Yubo Premium",
+                         self._nom("ZigÂ YuboÂ Premium$"))
+
+    def test_un_accent_veritable_survit(self):
+        """Un nom qui porte légitimement un « Â » ne doit pas être abîmé."""
+        self.assertEqual("Bête à Â", self._nom("Bête à Â"))
+
+    def test_sans_segment_francais_on_prend_le_premier(self):
+        self.assertEqual("Zig", self._nom("$#[wk]Zig[de]Zig auf Deutsch"))
+
+    def test_un_nom_vide_reste_vide(self):
+        self.assertEqual("", self._nom(""))
+
 if __name__ == "__main__":
     unittest.main()

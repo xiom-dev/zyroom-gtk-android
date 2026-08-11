@@ -1,5 +1,6 @@
 package net.ryzom.zyroom.api
 
+import net.ryzom.zyroom.model.Bete
 import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.Item
@@ -178,6 +179,9 @@ object EntityParser {
 
     private fun character(node: Element): Entity {
 
+        // Les bêtes se relèvent en même temps que leurs contenants : c'est le
+        // même parcours, et leur étiquette — « Zig 2 » — vient du même compte.
+        val betes = mutableListOf<Bete>()
         val inventories = buildList {
             node.child("bag")?.let {
                 add(Inventory("bag", "Sac", items(it), CAPACITY_BAG,
@@ -205,6 +209,7 @@ object EntityParser {
                 add(Inventory("animal${animal.getAttribute("index")}", etiquette,
                               items(inventory), espece.capacity,
                               group = "Animaux"))
+                betes += beteDe(animal, etiquette)
             }
             node.child("shop")?.let {
                 val sales = items(it, tag = "shopitem")
@@ -223,6 +228,7 @@ object EntityParser {
             created = node.getAttribute("created").toLongOrNull() ?: 0,
             cachedUntil = node.getAttribute("cached_until").toLongOrNull() ?: 0,
             inventories = inventories,
+            betes = betes,
             portraitUrl = portraitDe(node),
             skills = skills(node),
             skillPoints = skillPoints(node),
@@ -400,9 +406,15 @@ object EntityParser {
      * code entre crochets, le tout encadré de `$`. Les espaces y sont des
      * espaces insécables. On garde le français quand il est là, le premier
      * segment sinon.
+     *
+     * Le jeu écrit en outre ces espaces en UTF-8 relu comme du latin-1 :
+     * « Zig<Â> de » au lieu de « Zig de ». On répare la paire quand le tour se
+     * boucle, et on laisse tel quel sinon — un nom qui contient légitimement un
+     * « Â » ne doit pas être abîmé.
      */
     fun cleanName(raw: String): String {
-        var texte = raw.trim().removePrefix("$#").removePrefix("$").removeSuffix("$")
+        var texte = repareEncodage(raw.trim())
+            .removePrefix("$#").removePrefix("$").removeSuffix("$")
         val segments = Regex("\\[([a-z]{2,3})\\]").findAll(texte).toList()
         if (segments.isNotEmpty()) {
             val choisi = segments.firstOrNull { it.groupValues[1] == "fr" } ?: segments.first()
@@ -412,6 +424,37 @@ object EntityParser {
             texte = texte.substring(debut, fin)
         }
         return texte.replace('\u00A0', ' ').trim()
+    }
+
+    /**
+     * Une bête et sa position, telles que le flux les donne.
+     *
+     * La position est absente pour une bête qui n'est nulle part — jamais
+     * sortie de l'écurie : on rend alors (0, 0), que `CarteAtys.contient`
+     * écarte de lui-même.
+     */
+    private fun beteDe(animal: Element, etiquette: String): Bete {
+        val position = animal.child("position")
+        return Bete(
+            nom = cleanName(animal.text("name")),
+            etiquette = etiquette,
+            statut = animal.text("status"),
+            x = position?.getAttribute("x")?.toDoubleOrNull()?.toInt() ?: 0,
+            y = position?.getAttribute("y")?.toDoubleOrNull()?.toInt() ?: 0,
+            satiete = animal.text("satiety").toDoubleOrNull() ?: 0.0,
+        )
+    }
+
+    /**
+     * Défait le double encodage du jeu, s'il en est bien un.
+     *
+     * Les octets d'un texte UTF-8 relu comme du latin-1 se relisent en UTF-8 :
+     * le tour se boucle. Quand il ne se boucle pas, le remplacement laisse un
+     * caractère de substitution, et on garde alors le texte d'origine.
+     */
+    private fun repareEncodage(texte: String): String {
+        val repare = String(texte.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
+        return if (repare.contains('\uFFFD')) texte else repare
     }
 
     private fun montureDe(sheet: String): Monture {

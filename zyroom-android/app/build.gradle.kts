@@ -153,6 +153,10 @@ android {
         getByName("dev").res.srcDir("src/packRes")
         getByName("guilde").java.srcDir("src/packKotlin")
         getByName("dev").java.srcDir("src/packKotlin")
+        // Les essais de ce qui n'existe que là : un test qui nomme la carte ne
+        // se compile pas dans la variante qui ne l'embarque pas.
+        getByName("testGuilde").java.srcDir("src/packTestKotlin")
+        getByName("testDev").java.srcDir("src/packTestKotlin")
     }
 }
 

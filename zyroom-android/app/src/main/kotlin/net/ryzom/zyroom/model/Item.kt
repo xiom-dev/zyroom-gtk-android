@@ -121,6 +121,8 @@ data class Entity(
     /** Date jusqu'à laquelle l'API servira ce même document. */
     val cachedUntil: Long = 0,
     val inventories: List<Inventory> = emptyList(),
+    /** Les bêtes du joueur, avec leur position. Vide pour une guilde. */
+    val betes: List<Bete> = emptyList(),
     /**
      * De quoi illustrer l'entité : le rendu 3D du personnage, ou l'emblème de
      * la guilde. Vide quand le flux n'en dit pas assez pour la construire.
