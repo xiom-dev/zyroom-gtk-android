@@ -1,0 +1,8 @@
+* L'écran météo montre en tête ce qui sort en ce moment : l'humidité décide de
+  la condition de gisement, la condition décide de ce qu'on trouve, et le
+  tableau change tout seul à chaque bascule de cycle, sans rien redemander.
+* Les familles de matières portent leur symbole du jeu sous leur nom.
+* Le graphique gagne deux graduations à 30 et 70 %, et la bascule d'un palier
+  au suivant s'y dessine en oblique plutôt qu'à la verticale.
+* Dans le registre, la date et le signe d'un mouvement se calent sur la
+  première ligne.

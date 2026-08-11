@@ -1,0 +1,7 @@
+* The weather screen now leads with what is available **right now**: humidity
+  sets the deposit condition, the condition sets what you find, and the table
+  changes on its own at every cycle shift, without asking again.
+* Material families now carry their in-game symbol below their name.
+* The chart gains gridlines at 30 and 70 %, and the shift from one plateau to
+  the next is drawn as a slope rather than a vertical jump.
+* In the roster, a movement's date and sign now sit on the first line.
