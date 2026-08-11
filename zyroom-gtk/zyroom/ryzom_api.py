@@ -218,7 +218,7 @@ def _character_portrait_url(char_node: Element) -> str:
     chest_el = equip.find("chest") if equip is not None else None
     chest = (chest_el.text or "") if chest_el is not None else ""
     chest_color = chest_el.get("color", "0") if chest_el is not None else "0"
-    return (f"http://api.bmsite.net/char/render/3d/180?race={race}&gender={gender}"
+    return (f"https://api.bmsite.net/char/render/3d/180?race={race}&gender={gender}"
             f"&hair={hairtype}/{haircolor}&tattoo={tattoo}&eyes={eyes}"
             f"&gabarit={gabarit}&morph={morph}&chest={chest}/{chest_color}")
 

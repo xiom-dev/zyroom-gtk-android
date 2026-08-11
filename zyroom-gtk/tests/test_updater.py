@@ -4,6 +4,7 @@ Rien ici ne touche au réseau : ce qui est vérifié, c'est la décision — qua
 proposer une mise à jour, et surtout quand se taire.
 """
 
+import os
 import unittest
 
 from zyroom import updater
@@ -121,6 +122,35 @@ branch=master
 
     def test_un_fichier_incomplet_ne_fait_rien_tomber(self):
         self.assertEqual(("", ""), self.lecture("[Application]\nname=x\n"))
+
+
+class AppelsEnClair(unittest.TestCase):
+    """Aucune adresse en clair dans le code : tout passe par TLS.
+
+    Le portrait des personnages était demandé en `http://` — le service
+    répondait par une redirection 301 vers `https://`, donc l'image finissait
+    par arriver et personne ne voyait rien. Mais la première requête, elle,
+    voyageait en clair : n'importe qui sur le réseau lisait la race, le sexe,
+    la coiffure et l'équipement du personnage.
+    """
+
+    def test_aucune_adresse_en_clair(self):
+        racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        fautifs = []
+        for dossier, _sous, fichiers in os.walk(os.path.join(racine, "zyroom")):
+            for f in fichiers:
+                if not f.endswith(".py"):
+                    continue
+                chemin = os.path.join(dossier, f)
+                for n, ligne in enumerate(open(chemin, encoding="utf-8"), 1):
+                    if "http://" not in ligne:
+                        continue
+                    # Le mandataire est réglé par l'utilisateur : son adresse
+                    # est la sienne, pas la nôtre, et elle peut être locale.
+                    if "proxy" in ligne.lower():
+                        continue
+                    fautifs.append(f"{f}:{n}: {ligne.strip()[:70]}")
+        self.assertEqual([], fautifs)
 
 
 if __name__ == "__main__":
