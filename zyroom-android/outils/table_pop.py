@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fabrique `model/PopTable.kt` à partir du classeur de la guilde.
+"""Fabrique les tables de pop des deux portages, à partir du classeur de la guilde.
 
 Le classeur recense, par saison, par zone des Primes et par condition
 météo, quelles sources de matières premières peuvent apparaître. C'est le
@@ -125,6 +125,52 @@ def kotlin(tout: dict) -> str:
     return "\n".join(lignes) + "\n"
 
 
+def python(tout: dict) -> str:
+    """La même table, pour le portage GTK.
+
+    Deux fichiers produits d'un seul geste, comme pour `table_armory.py` : une
+    table recopiée à la main d'un langage à l'autre finit toujours par
+    diverger, et personne ne s'en aperçoit avant de comparer les deux
+    applications côte à côte."""
+    lignes = ['"""Ce qui peut apparaître, par saison, par zone et par condition météo.',
+              '',
+              'Fichier produit par ../zyroom-android/outils/table_pop.py — ne pas',
+              'modifier à la main.',
+              '',
+              "Le relevé est celui de La Lune Eternelle, et c'est la seule source connue",
+              'pour cette correspondance : les sites publics disent quelles matières sont',
+              'suprêmes à une saison, jamais dans quelle météo elles sortent.',
+              '',
+              'Il est **incomplet par construction** — il se remplit au fil des sorties',
+              "des joueurs. Une case vide veut donc dire « pas encore relevé », et non",
+              '« rien ».',
+              '"""',
+              '',
+              '#: {saison: {zone: {condition: {famille: [matières]}}}}',
+              'POP = {']
+    for saison, zones in tout.items():
+        lignes.append(f'    "{saison}": {{')
+        for zone, conds in zones.items():
+            lignes.append(f'        "{zone}": {{')
+            for cond in CONDITIONS:
+                if cond not in conds:
+                    continue
+                lignes.append(f'            "{cond.upper()}": {{')
+                for famille, mats in conds[cond].items():
+                    liste = ", ".join(f'"{m}"' for m in mats)
+                    lignes.append(f'                "{famille}": [{liste}],')
+                lignes.append('            },')
+            lignes.append('        },')
+        lignes.append('    },')
+    lignes += ['}', '',
+               '#: Zone du relevé -> continent interrogé pour la météo.',
+               'CONTINENT_DE_ZONE = {']
+    for zone, cont in CONTINENTS.items():
+        lignes.append(f'    "{zone}": "{cont}",')
+    lignes.append('}')
+    return "\n".join(lignes) + "\n"
+
+
 def main() -> int:
     dossier = sys.argv[1] if len(sys.argv) > 1 else None
     tout = collections.OrderedDict()
@@ -138,11 +184,20 @@ def main() -> int:
         total = sum(len(m) for z in table.values() for c in z.values()
                     for m in c.values())
         print(f"{saison:10} {len(table)} zones, {total:3} matières")
-    cible = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                         "app/src/main/kotlin/net/ryzom/zyroom/model/PopTable.kt")
-    with open(cible, "w", encoding="utf-8") as fh:
-        fh.write(kotlin(tout))
-    print("→", cible)
+    android = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    depot = os.path.dirname(android)
+    for cible, contenu in (
+        (os.path.join(android,
+                      "app/src/main/kotlin/net/ryzom/zyroom/model/PopTable.kt"),
+         kotlin(tout)),
+        (os.path.join(depot, "zyroom-gtk/zyroom/pop.py"), python(tout)),
+    ):
+        if not os.path.isdir(os.path.dirname(cible)):
+            print("passé :", cible, "(dossier absent)")
+            continue
+        with open(cible, "w", encoding="utf-8") as fh:
+            fh.write(contenu)
+        print("→", cible)
     return 0
 
 

@@ -19,7 +19,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from . import armory
+from . import armory, pop as _pop
 
 #: Heures d'Atys dans un cycle météo.
 HEURES_PAR_CYCLE = 3
@@ -254,3 +254,22 @@ def symbole(groupe: str) -> str | None:
         return None
     chemin = os.path.join(_SYMBOLES_DIR, icone + ".png")
     return chemin if os.path.isfile(chemin) else None
+
+
+#: Les zones du relevé, dans l'ordre du classeur.
+#:
+#: Tirées de la table écrite plus haut, et non de celle que `pop.py` porte
+#: aussi : deux copies de la même correspondance finiraient par diverger, et
+#: c'est celle-ci que le reste du module emploie déjà.
+ZONES = list(CONTINENT_DE_ZONE)
+
+
+def pop_de(saison: int, zone: str, condition: str) -> dict[str, list[str]]:
+    """Ce qui peut sortir ici et maintenant, d'après le relevé de la guilde.
+
+    L'humidité décide de la condition de gisement, et la condition décide de ce
+    qu'on trouve. Le relevé est incomplet par construction : une zone sans rien
+    veut dire « pas encore relevé », et non « rien ne sort ».
+    """
+    cle = SAISONS[saison] if 0 <= saison < len(SAISONS) else ""
+    return _pop.POP.get(cle, {}).get(zone, {}).get(condition.upper(), {})

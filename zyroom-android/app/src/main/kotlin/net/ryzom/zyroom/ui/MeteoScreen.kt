@@ -48,6 +48,8 @@ import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
 import net.ryzom.zyroom.model.EXCELLENTES
 import net.ryzom.zyroom.model.SAISONS
 import net.ryzom.zyroom.model.SUPREMES
+import net.ryzom.zyroom.model.ZONES
+import net.ryzom.zyroom.model.popDe
 import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
@@ -172,6 +174,10 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                         hauteur = if (paysage) 190 else 200,
                     )
                 }
+                // Ce qui sort maintenant, avant les tables figées : c'est la
+                // seule chose de cet écran qui dépende de l'instant, et donc
+                // la seule sur laquelle on agit tout de suite.
+                item { CeQuiSort(donnees) }
                 item { TableauxMatieres(donnees) }
             }
         }
@@ -307,6 +313,32 @@ private fun TitreTableau(titre: String) {
         color = MaterialTheme.colorScheme.secondary,
         modifier = Modifier.padding(start = 10.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
     )
+}
+
+/**
+ * Ce que la météo du moment fait sortir, zone par zone.
+ *
+ * L'humidité décide de la condition de gisement — quatre paliers découpés par
+ * les seuils du jeu — et la condition décide de ce qu'on trouve. Les deux
+ * tableaux du dessous disent ce qui est suprême *à cette saison* ; celui-ci dit
+ * ce qui sort **en ce moment**, et il change tout seul à chaque bascule de
+ * cycle, sans rien redemander.
+ *
+ * Le relevé est celui de La Lune Eternelle, et c'est la seule source connue
+ * pour cette correspondance : les sites publics disent quelles matières sont
+ * suprêmes à une saison, jamais dans quelle météo elles sortent.
+ */
+@Composable
+private fun CeQuiSort(releve: MeteoAtys) {
+    val maintenant = maintenantDansLesPrimes(releve) ?: return
+    val condition = texteCondition(maintenant.condition)
+    val humidite = (maintenant.value * 100).toInt()
+    TitreTableau("Ce qui sort — $condition, $humidite %")
+    ZONES.forEachIndexed { rang, zone ->
+        val groupes = popDe(releve.saison, zone, maintenant.condition)
+        if (groupes.isEmpty()) return@forEachIndexed
+        BlocMatieres(zone, groupes, rang % 2 == 0)
+    }
 }
 
 /**

@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.22"
+APP_NAME = ("ZyRoom-GTK-dev-0.23"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.12")
 
@@ -1178,6 +1178,23 @@ class MainWindow(Gtk.ApplicationWindow):
                 colonne.remove(child)
         cle = releve.saison_cle
         saison = meteo.nom_saison(releve.saison)
+
+        # Ce qui sort maintenant, en tête de la colonne de gauche : c'est la
+        # seule chose de cet écran qui dépende de l'instant, et donc la seule
+        # sur laquelle on agit tout de suite. L'humidité décide de la condition
+        # de gisement, la condition décide de ce qu'on trouve, et le bloc change
+        # tout seul à chaque bascule de cycle — sans rien redemander.
+        actuelle = releve.maintenant()
+        if actuelle is not None:
+            self._meteo_supremes.append(self._entete_colonne(
+                _("Ce qui sort — %(condition)s, %(taux)d %%")
+                % {"condition": meteo.texte_condition(actuelle.condition),
+                   "taux": round(actuelle.value * 100)}))
+            for rang, zone in enumerate(meteo.ZONES):
+                groupes = meteo.pop_de(releve.saison, zone, actuelle.condition)
+                if groupes:
+                    self._meteo_supremes.append(
+                        self._bloc_matieres(zone, groupes, rang % 2 == 0))
 
         self._meteo_supremes.append(self._entete_colonne(_("Suprêmes — %s") % saison))
         for rang, (zone, groupes) in enumerate(armory.SUPREMES.get(cle, {}).items()):

@@ -261,5 +261,34 @@ class Courbe(unittest.TestCase):
         self.assertAlmostEqual(attendu, plat[1][0] - plat[0][0], places=6)
 
 
+class CeQuiSort(unittest.TestCase):
+    """Ce que la météo du moment fait sortir, d'après le relevé de la guilde.
+
+    L'humidité décide de la condition de gisement, et la condition décide de ce
+    qu'on trouve. C'est la seule correspondance qu'aucun site public ne donne.
+    """
+
+    def test_les_deux_tables_nomment_les_mêmes_zones(self):
+        """Une zone du relevé de pop absente d'ici ne s'afficherait jamais."""
+        from zyroom import pop
+        self.assertEqual(set(pop.CONTINENT_DE_ZONE), set(meteo.ZONES))
+
+    def test_chaque_saison_et_chaque_condition_rend_quelque_chose(self):
+        for saison in range(4):
+            for condition in ("worst", "bad", "good", "best"):
+                trouve = [z for z in meteo.ZONES
+                          if meteo.pop_de(saison, z, condition)]
+                self.assertTrue(trouve, f"{saison} / {condition} : aucune zone")
+
+    def test_la_casse_de_la_condition_est_sans_importance(self):
+        """L'API rend « best », le relevé range sous « BEST »."""
+        self.assertEqual(meteo.pop_de(0, "Sources Interdites", "best"),
+                         meteo.pop_de(0, "Sources Interdites", "BEST"))
+
+    def test_une_saison_hors_bornes_ne_rend_rien(self):
+        """Le flux du temps peut ne pas avoir répondu : la saison vaut -1."""
+        self.assertEqual({}, meteo.pop_de(-1, "Sources Interdites", "best"))
+
+
 if __name__ == "__main__":
     unittest.main()
