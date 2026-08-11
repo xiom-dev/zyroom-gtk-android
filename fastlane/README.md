@@ -1,5 +1,12 @@
 # Métadonnées de logithèque
 
+**Ce dossier doit rester à la racine du dépôt.** F-Droid cherche `fastlane/` à
+la racine, ou sous le répertoire du module gradle qu'il construit — jamais
+ailleurs. Il a d'abord vécu dans `zyroom-android/`, où il paraissait à sa
+place puisqu'il ne décrit que l'application Android ; le robot de F-Droid a
+répondu « Fastlane was not found in your repo », et sans lui la fiche n'aurait
+ni capture d'écran ni description modifiable sans passer par leur équipe.
+
 Ce que F-Droid lit dans le dépôt pour composer la fiche de l'application :
 titre, descriptions, journal des versions, images. Rien ici n'entre dans l'APK.
 
