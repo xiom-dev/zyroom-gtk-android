@@ -2404,7 +2404,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if not ent.portrait_url:
             self._portrait.set_from_icon_name("avatar-default-symbolic")
             return
-        path = portrait_path(entry["kind"], entry["id"])
+        path = portrait_path(entry["kind"], entry["id"], ent.portrait_url)
         if os.path.isfile(path) and os.path.getsize(path) > 0:
             self._set_portrait_file(path)
             return

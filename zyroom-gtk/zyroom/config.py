@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import configparser
 import glob
+import hashlib
 import os
 
 APP_ID = "zyroom-gtk"
@@ -78,11 +79,33 @@ def names_cache_path() -> str:
     return os.path.join(cache_dir(), "names.json")
 
 
-def portrait_path(kind: str, entity_id: str) -> str:
-    """Emplacement du cache du portrait d'une entité (rendu 3D / icône)."""
+def portrait_path(kind: str, entity_id: str, url: str = "") -> str:
+    """Emplacement du cache du portrait d'une entité (rendu 3D / icône).
+
+    Le nom porte une empreinte de l'adresse demandée. Sans elle, changer la
+    façon de composer le rendu — le cadrage, l'équipement — ne changeait rien à
+    l'écran : le fichier existait déjà, et il était servi tel quel. Il aurait
+    fallu que chaque joueur vide son cache, ce que personne ne fait ni ne
+    devine.
+
+    Une entité change de portrait quand elle change d'équipement : les anciens
+    fichiers sont donc écartés au passage, sinon le cache grossirait d'une image
+    à chaque tenue.
+    """
     path = os.path.join(cache_dir(), "portrait")
     os.makedirs(path, exist_ok=True)
-    return os.path.join(path, f"{kind}-{entity_id}.png")
+    if not url:
+        return os.path.join(path, f"{kind}-{entity_id}.png")
+    empreinte = hashlib.sha1(url.encode("utf-8")).hexdigest()[:12]
+    courant = os.path.join(path, f"{kind}-{entity_id}-{empreinte}.png")
+    prefixe = f"{kind}-{entity_id}"
+    for nom in os.listdir(path):
+        if nom.startswith(prefixe) and os.path.join(path, nom) != courant:
+            try:
+                os.remove(os.path.join(path, nom))
+            except OSError:
+                pass
+    return courant
 
 
 def entity_xml_path(kind: str, entity_id: str) -> str:

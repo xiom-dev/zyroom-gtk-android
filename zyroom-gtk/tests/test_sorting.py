@@ -96,5 +96,76 @@ class SortKeyTest(unittest.TestCase):
             self._range(noms))
 
 
+class PortraitDePersonnage(unittest.TestCase):
+    """L'adresse du rendu, et le cache qui la suit.
+
+    Le cadrage et l'équipement doivent être **les mêmes que sur le portage
+    Android**, sans quoi le même personnage n'a pas le même visage d'une
+    application à l'autre.
+    """
+
+    XML = (
+        '<character><race>matis</race><gender>male</gender>'
+        '<body><hairtype>88</hairtype><haircolor>4</haircolor><tattoo>0</tattoo>'
+        '<eyescolor>3</eyescolor>'
+        '<gabarit height="0" torso="8" arms="8" legs="7" breast="8"/>'
+        '<morph target1="2" target2="4" target3="6" target4="2" target5="5"'
+        ' target6="0" target7="6" target8="0"/></body>'
+        '<equipment><headdress color="6">casque.sitem</headdress>'
+        '<chest color="6">cuirasse.sitem</chest>'
+        '<handr color="0">epee.sitem</handr>'
+        '<feet color="">bottes.sitem</feet></equipment></character>'
+    )
+
+    def _url(self):
+        import xml.etree.ElementTree as ET
+        from zyroom.ryzom_api import _character_portrait_url
+        return _character_portrait_url(ET.fromstring(self.XML))
+
+    def test_le_cadrage_est_le_gros_plan(self):
+        """Le corps entier montrait un personnage nu de la taille aux pieds :
+        le service n'habille que les créneaux qu'on lui envoie."""
+        self.assertIn("zoom=face", self._url())
+
+    def test_toutes_les_pieces_portees_sont_envoyees(self):
+        u = self._url()
+        for attendu in ("head=casque.sitem/6", "chest=cuirasse.sitem/6",
+                        "handr=epee.sitem/0"):
+            self.assertIn(attendu, u)
+
+    def test_une_couleur_absente_vaut_zero(self):
+        self.assertIn("feet=bottes.sitem/0", self._url())
+
+    def test_un_creneau_vide_n_est_pas_envoye(self):
+        self.assertNotIn("legs=", self._url())
+
+    def test_l_adresse_est_chiffree(self):
+        self.assertTrue(self._url().startswith("https://"))
+
+    def test_le_cache_suit_l_adresse(self):
+        """Sinon changer le rendu ne change rien à l'écran : le fichier est
+        déjà là, et il est servi tel quel."""
+        import tempfile, os
+        from unittest import mock
+        from zyroom import config
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.object(config, "cache_dir", lambda: d):
+                a = config.portrait_path("character", "1", "https://a")
+                b = config.portrait_path("character", "1", "https://b")
+                self.assertNotEqual(a, b)
+
+    def test_l_ancien_portrait_est_ecarte(self):
+        """Une tenue par fichier ferait grossir le cache sans fin."""
+        import tempfile, os
+        from unittest import mock
+        from zyroom import config
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.object(config, "cache_dir", lambda: d):
+                a = config.portrait_path("character", "1", "https://a")
+                open(a, "wb").close()
+                config.portrait_path("character", "1", "https://b")
+                self.assertFalse(os.path.exists(a))
+
+
 if __name__ == "__main__":
     unittest.main()

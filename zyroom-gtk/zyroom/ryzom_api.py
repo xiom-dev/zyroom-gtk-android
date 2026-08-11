@@ -197,7 +197,16 @@ def fetch_url(url: str) -> bytes:
 
 
 def _character_portrait_url(char_node: Element) -> str:
-    """Construit l'URL du rendu 3D du personnage (Ballistic Mystix)."""
+    """L'adresse du rendu du personnage, chez Ballistic Mystix.
+
+    **Le même cadrage et le même équipement que le portage Android**, sans quoi
+    le même personnage n'a pas le même visage d'une application à l'autre : le
+    gros plan (`zoom=face`) plutôt que la silhouette entière, et les huit pièces
+    portées plutôt que la seule cuirasse.
+
+    Les noms de créneaux du service sont ceux du flux, à une exception près : le
+    casque s'appelle `head` là-bas et `headdress` ici.
+    """
     body = char_node.find("body")
     if body is None:
         return ""
@@ -214,14 +223,32 @@ def _character_portrait_url(char_node: Element) -> str:
     mor = body.find("morph")
     morph = (",".join(mor.get(f"target{i}", "0") for i in range(1, 9))
              if mor is not None else "")
-    equip = char_node.find("equipment")
-    chest_el = equip.find("chest") if equip is not None else None
-    chest = (chest_el.text or "") if chest_el is not None else ""
-    chest_color = chest_el.get("color", "0") if chest_el is not None else "0"
-    return (f"https://api.bmsite.net/char/render/3d/180?race={race}&gender={gender}"
-            f"&hair={hairtype}/{haircolor}&tattoo={tattoo}&eyes={eyes}"
-            f"&gabarit={gabarit}&morph={morph}&chest={chest}/{chest_color}")
 
+    equip = char_node.find("equipment")
+    pieces = []
+    for parametre, balise in _CRENEAUX_RENDU:
+        piece = equip.find(balise) if equip is not None else None
+        if piece is None:
+            continue
+        fiche = (piece.text or "").strip()
+        if not fiche:
+            continue
+        pieces.append(f"&{parametre}={fiche}/{piece.get('color', '0') or '0'}")
+
+    return (f"https://api.bmsite.net/char/render/3d/180?zoom=face"
+            f"&race={race}&gender={gender}"
+            f"&hair={hairtype}/{haircolor}&tattoo={tattoo}&eyes={eyes}"
+            f"&gabarit={gabarit}&morph={morph}" + "".join(pieces))
+
+
+#: Les créneaux d'équipement passés au service de rendu, dans l'ordre où le
+#: portage Android les envoie — l'ordre compte, l'adresse doit être la même de
+#: part et d'autre pour que le cache du service serve la même image.
+_CRENEAUX_RENDU = (
+    ("head", "headdress"), ("chest", "chest"), ("arms", "arms"),
+    ("hands", "hands"), ("legs", "legs"), ("feet", "feet"),
+    ("handl", "handl"), ("handr", "handr"),
+)
 
 #: Les quatre branches de l'API, sous le code de leur racine dans le pack.
 _BRANCHES = {"fight": "sf", "magic": "sm", "craft": "sc", "harvest": "sh"}
