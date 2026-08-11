@@ -38,12 +38,16 @@ import androidx.compose.ui.unit.dp
  * flux. C'est une œuvre dérivée, et l'AGPL interdit d'en effacer la paternité
  * d'origine. Se dire seul auteur serait faux, et illégal.
  *
- * Pas d'adresse de courriel : la licence n'en demande aucune, et une adresse
- * dans un APK public est ramassée par les robots. Le dépôt joue ce rôle.
+ * L'adresse de courriel est celle que Xiom a choisi de publier. Elle a un coût
+ * connu — une adresse dans un APK public finit ramassée par les robots — et un
+ * bénéfice : on peut écrire sans compte GitHub, ce que tout le monde n'a pas.
+ * Le dépôt reste le meilleur endroit pour signaler un défaut, puisqu'il en
+ * garde la trace et que d'autres la lisent.
  */
 const val SIGNATURE = "V-RyLune, une application de Xiom"
 
 const val DEPOT = "https://github.com/xiom-dev/zyroom-gtk-android"
+const val COURRIEL = "ludopika@ikmail.com"
 const val DEPOT_ORIGINE = "https://github.com/misugi/zyroom"
 
 /** La ligne discrète, sous la liste : le nom, et l'accès au reste. */
@@ -110,6 +114,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 )
                 Text(
                     "Code source, licence complète et signalement de défauts :\n$DEPOT\n\n" +
+                        "Écrire à l'auteur :\n$COURRIEL\n\n" +
                         "Projet dont elle dérive :\n$DEPOT_ORIGINE",
                     style = MaterialTheme.typography.bodySmall,
                 )

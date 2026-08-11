@@ -54,6 +54,7 @@ SIGNATURE = "Original by Misugi, fork by Xiom"
 #: Où trouver le code de ce portage, et celui dont il dérive. L'AGPL veut que
 #: l'interface dise à qui reçoit l'application où prendre ses sources.
 DEPOT_SOURCES = "https://github.com/xiom-dev/zyroom-gtk-android"
+COURRIEL = "ludopika@ikmail.com"
 DEPOT_ORIGINE = "https://github.com/misugi/zyroom"
 
 _KIND_PREFIX = {KIND_CHARACTER: "👤", KIND_GUILD: "🛡"}
@@ -2839,6 +2840,11 @@ class MainWindow(Gtk.ApplicationWindow):
         about.set_website(DEPOT_SOURCES)
         about.set_website_label("Code source, licence et signalement de défauts")
         about.add_credit_section("Projet d'origine", [DEPOT_ORIGINE])
+        # L'adresse est celle que Xiom a choisi de publier. Le dépôt reste le
+        # meilleur endroit pour signaler un défaut — il garde une trace, et il
+        # est lu par d'autres — mais une adresse permet d'écrire sans compte
+        # GitHub, ce que tout le monde n'a pas.
+        about.add_credit_section("Écrire à l'auteur", [COURRIEL])
         about.set_logo_icon_name(
             os.environ.get("FLATPAK_ID") or "net.ryzom.zyroomgtk")
         about.present()
