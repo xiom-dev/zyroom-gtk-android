@@ -1,0 +1,3 @@
+* Le graphique météo porte un repère d'heure tous les quarts d'heure, avec son
+  trait sous l'axe : la fenêtre ne couvre que soixante-douze minutes réelles, et
+  l'heure ronde n'y tombait qu'une fois, parfois pas du tout.

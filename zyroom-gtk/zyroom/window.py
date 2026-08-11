@@ -1293,6 +1293,20 @@ class MainWindow(Gtk.ApplicationWindow):
     #: du présent se tient à un sixième de la largeur — c'est ce qui vient qui
     #: compte, le passé ne sert qu'à comprendre d'où l'on sort. Pas contre le
     #: bord pour autant : on veut voir le palier qu'on quitte.
+    #: Minutes réelles entre deux repères d'heure sous le graphique.
+    #:
+    #: La fenêtre ne couvre que soixante-douze minutes réelles — vingt-quatre
+    #: heures d'Atys : à l'heure ronde, il n'y aurait qu'un repère, parfois
+    #: zéro. Le quart d'heure en donne quatre ou cinq, assez pour situer un
+    #: creux sans encombrer l'axe.
+    MINUTES_ENTRE_REPERES = 15
+
+    #: Combien de repères on essaie de poser, de part et d'autre.
+    #:
+    #: On part d'une heure en arrière pour attraper le passé qui reste visible,
+    #: et ceux qui tombent hors de la fenêtre sont simplement écartés.
+    PAS_DE_TEMPS = 16
+
     FENETRE_HEURES = 24.0
     ANCRE = 0.15
 
@@ -1428,18 +1442,26 @@ class MainWindow(Gtk.ApplicationWindow):
         cr.line_to(largeur, haut)
         cr.stroke()
 
-        # L'heure réelle, toutes les demi-heures. Une heure d'Atys valant trois
+        # L'heure réelle, tous les quarts d'heure. Une heure d'Atys valant trois
         # minutes, la fenêtre ne couvre que soixante-douze minutes réelles : à
-        # l'heure ronde, il n'y aurait qu'un repère, parfois zéro.
-        cr.set_source_rgba(1, 1, 1, 0.55)
+        # l'heure ronde, il n'y aurait qu'un repère, parfois zéro — et à la
+        # demie, trois pour une heure entière de prévision.
         maintenant = datetime.now()
         repere = maintenant.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
-        for _ in range(8):
-            repere += timedelta(minutes=30)
+        for _ in range(self.PAS_DE_TEMPS):
+            repere += timedelta(minutes=self.MINUTES_ENTRE_REPERES)
             minutes = (repere - maintenant).total_seconds() / 60.0
             atys = releve.heure_atys + minutes / meteo.MINUTES_PAR_HEURE_ATYS
             if not gauche <= atys <= gauche + self.FENETRE_HEURES:
                 continue
+            # Un trait court sous l'axe, puis l'heure : sans lui, on lit bien
+            # l'heure mais on ne sait pas au pixel près où elle tombe.
+            cr.set_source_rgba(1, 1, 1, 0.35)
+            cr.set_line_width(1.0)
+            cr.move_to(x(atys), haut)
+            cr.line_to(x(atys), haut + 3)
+            cr.stroke()
+            cr.set_source_rgba(1, 1, 1, 0.55)
             texte = repere.strftime("%Hh") if repere.minute == 0 \
                 else repere.strftime("%Hh%M")
             cr.move_to(min(largeur - 30, max(0.0, x(atys) - 14)), hauteur - 6)

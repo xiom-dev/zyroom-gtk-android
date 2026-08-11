@@ -230,7 +230,9 @@ class Courbe(unittest.TestCase):
         faux = types.SimpleNamespace(
             _meteo_affiche=releve, _meteo_releve=None,
             ANCRE=MainWindow.ANCRE, FENETRE_HEURES=MainWindow.FENETRE_HEURES,
-            TRANSITION_HEURES=MainWindow.TRANSITION_HEURES)
+            TRANSITION_HEURES=MainWindow.TRANSITION_HEURES,
+            MINUTES_ENTRE_REPERES=MainWindow.MINUTES_ENTRE_REPERES,
+            PAS_DE_TEMPS=MainWindow.PAS_DE_TEMPS)
         cr = FauxCr()
         MainWindow._dessiner_courbe(faux, None, cr, 800.0, 300.0)
         # Le premier segment relève du chemin précédent — l'aire — que ce faux

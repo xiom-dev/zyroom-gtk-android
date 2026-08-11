@@ -57,6 +57,24 @@ private const val ANCRE = 0.15
 private const val TRANSITION_HEURES = 1.0
 
 /**
+ * Minutes réelles entre deux repères d'heure sous le graphique.
+ *
+ * La fenêtre ne couvre que soixante-douze minutes réelles — vingt-quatre heures
+ * d'Atys : à l'heure ronde, il n'y aurait qu'un repère, parfois zéro. Le quart
+ * d'heure en donne quatre ou cinq, assez pour situer un creux sans encombrer
+ * l'axe.
+ */
+private const val MINUTES_ENTRE_REPERES = 15L
+
+/**
+ * Combien de repères on essaie de poser.
+ *
+ * On part d'une heure en arrière pour attraper le passé qui reste visible, et
+ * ceux qui tombent hors de la fenêtre sont simplement écartés.
+ */
+private const val PAS_DE_TEMPS = 16
+
+/**
  * L'humidité dans le temps, **en paliers reliés par des obliques**.
  *
  * Une valeur vaut pour tout un cycle — trois heures d'Atys, neuf minutes
@@ -180,17 +198,23 @@ fun CourbeMeteo(
             drawLine(couleurAxe, Offset(margeGauche, haut), Offset(size.width, haut),
                      strokeWidth = 1f)
 
-            // L'heure réelle, toutes les demi-heures. Une heure d'Atys valant
+            // L'heure réelle, tous les quarts d'heure. Une heure d'Atys valant
             // trois minutes, la fenêtre ne couvre que soixante-douze minutes :
-            // à l'heure ronde, il n'y aurait qu'un repère, parfois zéro.
+            // à l'heure ronde, il n'y aurait qu'un repère, parfois zéro — et à
+            // la demie, trois pour une heure entière de prévision.
             val maintenant = LocalTime.now()
             var repere = maintenant.withMinute(0).withSecond(0).withNano(0)
                 .minusHours(1)
-            repeat(8) {
-                repere = repere.plusMinutes(30)
+            repeat(PAS_DE_TEMPS) {
+                repere = repere.plusMinutes(MINUTES_ENTRE_REPERES)
                 val minutes = minutesEntre(maintenant, repere)
                 val atys = releve.heureAtys + minutes / MINUTES_PAR_HEURE_ATYS
                 if (atys in gauche..(gauche + FENETRE_HEURES)) {
+                    // Un trait court sous l'axe, puis l'heure : sans lui, on lit
+                    // bien l'heure mais on ne sait pas au pixel près où elle
+                    // tombe.
+                    drawLine(couleurAxe, Offset(x(atys), haut),
+                             Offset(x(atys), haut + 3f), strokeWidth = 1f)
                     val texte = if (repere.minute == 0) repere.format(HEURE)
                                 else repere.format(HEURE_MINUTE)
                     etiquette(mesure, texte,

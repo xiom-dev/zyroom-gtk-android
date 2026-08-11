@@ -1,0 +1,3 @@
+* The weather chart now carries an hour marker every fifteen minutes, each with
+  its tick below the axis: the window only spans seventy-two real minutes, and a
+  round hour fell inside it once, sometimes not at all.
