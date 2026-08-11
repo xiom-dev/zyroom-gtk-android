@@ -22,15 +22,31 @@ class CarteAtysTest {
 
     @Test
     fun `un point connu tombe au bon pixel`() {
-        // Mounty, la monture de Xiom, dans le Pays Malade.
-        assertEquals(843.2f, CarteAtys.x(10328), 0.1f)
-        assertEquals(2038.4f, CarteAtys.y(-2316), 0.1f)
+        // Mounty, la monture de Xiom, dans le Pays Malade zoraï.
+        val (px, py) = CarteAtys.pixel(10328, -2316)!!
+        assertEquals(843.0f, px, 0.5f)
+        assertEquals(2038.6f, py, 0.5f)
     }
 
+    /**
+     * Chaque région a son origine, et c'est tout le sujet.
+     *
+     * Fairhaven est dans les Lacs, la monture dans la jungle : avec une origine
+     * unique, l'une des deux tombait forcément à côté.
+     */
     @Test
-    fun `le coin haut-gauche est l'origine`() {
-        assertEquals(0f, CarteAtys.x(CarteAtys.X0), 0.01f)
-        assertEquals(0f, CarteAtys.y(CarteAtys.Y0), 0.01f)
+    fun `deux régions différentes ont deux repères différents`() {
+        assertEquals("tryker", CarteAtys.regionDe(17410, -32849)?.nom)
+        assertEquals("zorai", CarteAtys.regionDe(10328, -2316)?.nom)
+        val (fx, fy) = CarteAtys.pixel(17410, -32849)!!
+        assertEquals(2389.6f, fx, 0.5f)
+        assertEquals(2493.0f, fy, 0.5f)
+    }
+
+    /** La plus petite région gagne : le Nexus est inclus dans les bornes matis. */
+    @Test
+    fun `la région la plus précise l'emporte`() {
+        assertEquals("nexus", CarteAtys.regionDe(8700, -7000)?.nom)
     }
 
     /** Hors de la carte, on ne montre rien plutôt qu'un marqueur au bord. */
@@ -39,6 +55,7 @@ class CarteAtysTest {
         assertFalse(CarteAtys.contient(0, 0))
         assertFalse(CarteAtys.contient(30000, -2000))
         assertTrue(CarteAtys.contient(10328, -2316))
+        assertTrue(CarteAtys.contient(17410, -32849))
     }
 
     /** Une bête jamais sortie n'a pas de position : (0, 0) ne doit rien placer. */

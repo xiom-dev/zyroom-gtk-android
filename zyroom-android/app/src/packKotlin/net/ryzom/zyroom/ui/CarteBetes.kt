@@ -92,9 +92,13 @@ private const val SEUIL_GROUPE = 40f
  * rangée, et sa position ne veut rien dire.
  */
 @Composable
-fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
+fun CarteBetes(
+    betes: List<Bete>,
+    joueur: Triple<String, Int, Int>? = null,
+    modifier: Modifier = Modifier,
+) {
     val dehors = betes.filter { it.dehors && CarteAtys.contient(it.x, it.y) }
-    if (dehors.isEmpty()) return
+    if (dehors.isEmpty() && joueur == null) return
     val contexte = LocalContext.current
     val mesure = rememberTextMeasurer()
     val image = remember {
@@ -156,16 +160,43 @@ fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
     }
 
     /**
-     * Le double-tap agrandit, et ramène à l'échelle 1 quand on y est déjà.
+     * Le double-tap agrandit **sur le point touché**, et ramène à l'échelle 1
+     * quand on y est déjà.
+     *
+     * Sur le centre de la carte, il ne servait à rien : les bêtes sortaient du
+     * cadre au premier agrandissement, et il fallait ensuite les retrouver à
+     * tâtons. Ici le point sous le doigt ne bouge pas — c'est ce que fait
+     * n'importe quelle carte, et ça vise directement le marqueur.
      *
      * Le pincement demande deux doigts et une main libre ; le double-tap se
-     * fait d'un pouce, en jouant. C'est aussi ce qui rend le déplacement à un
-     * doigt atteignable sans pincer.
+     * fait d'un pouce, en jouant.
      */
     val doubleTap = Modifier.pointerInput(Unit) {
-        detectTapGestures(onDoubleTap = {
-            zoom = if (zoom > 1f) 1f else ZOOM_DOUBLE_TAP
-            glissement = Offset.Zero
+        detectTapGestures(onDoubleTap = { touche ->
+            val avant = zoom
+            val apres = if (zoom > 1f) 1f else ZOOM_DOUBLE_TAP
+            if (apres == 1f) {
+                glissement = Offset.Zero
+            } else {
+                // Le point touché doit rester sous le doigt : on résout le
+                // glissement qui laisse son coin de carte invariant.
+                val base = cadre.width / image.width.toFloat()
+                val coinAvant = Offset(
+                    (cadre.width - image.width * base * avant) / 2 + glissement.x,
+                    (cadre.height - image.height * base * avant) / 2 + glissement.y,
+                )
+                val rapport = apres / avant
+                val coinApres = touche - (touche - coinAvant) * rapport
+                glissement = Offset(
+                    coinApres.x - (cadre.width - image.width * base * apres) / 2,
+                    coinApres.y - (cadre.height - image.height * base * apres) / 2,
+                )
+            }
+            zoom = apres
+            val debordX = (cadre.width * (zoom - 1)) / 2f
+            val debordY = (cadre.height * (zoom - 1)) / 2f
+            glissement = Offset(glissement.x.coerceIn(-debordX, debordX),
+                                glissement.y.coerceIn(-debordY, debordY))
         })
     }
 
@@ -201,15 +232,28 @@ fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
                 // tombent sur le même pixel, et quatre étiquettes superposées
                 // ne se lisent plus. On groupe ce qui est trop proche pour être
                 // distingué **à l'écran** — agrandir les sépare donc.
-                fun place(bete: Bete) = Offset(
-                    coin.x + CarteAtys.x(bete.x) / REDUCTION * echelle,
-                    coin.y + CarteAtys.y(bete.y) / REDUCTION * echelle,
-                )
+                fun place(x: Int, y: Int): Offset? {
+                    val (px, py) = CarteAtys.pixel(x, y) ?: return null
+                    return Offset(coin.x + px / REDUCTION * echelle,
+                                  coin.y + py / REDUCTION * echelle)
+                }
+                // Le joueur d'abord, sous les bêtes : c'est un repère, pas ce
+                // qu'on cherche. Sa position est celle de sa dernière
+                // déconnexion, pas un suivi en direct.
+                joueur?.let { (nom, jx, jy) ->
+                    val p = place(jx, jy)
+                    if (p != null && p.x in 0f..size.width && p.y in 0f..size.height) {
+                        marqueurJoueur(p.x, p.y)
+                        etiquetteBete(mesure, nom,
+                                      Offset(p.x + 9.dp.toPx(), p.y - 9.dp.toPx()),
+                                      couleurMarque, couleurOmbre)
+                    }
+                }
                 dehors.groupBy {
-                    val p = place(it)
+                    val p = place(it.x, it.y)!!
                     Pair((p.x / SEUIL_GROUPE).toInt(), (p.y / SEUIL_GROUPE).toInt())
                 }.values.forEach { groupe ->
-                    val p = place(groupe[0])
+                    val p = place(groupe[0].x, groupe[0].y)!!
                     // Ce qui sort du cadre ne se dessine pas. `drawText` ne se
                     // contente pas d'être invisible hors du canevas : il lève
                     // « maxHeight must be >= minHeight » et fait tomber
@@ -246,8 +290,23 @@ private fun DrawScope.marqueur(x: Float, y: Float, teinte: Color, ombre: Color) 
     drawCircle(POINT, radius = 2.5f.dp.toPx(), center = Offset(x, y))
 }
 
-/** Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton. */
+/** Le rouge du point d'une bête. Ce ton n'existe nulle part sur la carte. */
 private val POINT = Color(0xFFFF2D2D)
+
+/**
+ * Le bleu du point du joueur.
+ *
+ * Distinct du rouge des bêtes, et sans équivalent sur la carte hormis les lacs
+ * — que son cerne blanc détache de toute façon.
+ */
+private val POINT_JOUEUR = Color(0xFF3B9BFF)
+
+/** Le repère du joueur : même cible que les bêtes, mais bleue. */
+private fun DrawScope.marqueurJoueur(x: Float, y: Float) {
+    drawCircle(CERNE, radius = 6.dp.toPx(), center = Offset(x, y))
+    drawCircle(Color.White, radius = 4.5f.dp.toPx(), center = Offset(x, y))
+    drawCircle(POINT_JOUEUR, radius = 2.5f.dp.toPx(), center = Offset(x, y))
+}
 
 /** Le noir des cernes et des liserés, jamais tout à fait noir pour l'œil. */
 private val CERNE = Color(0xFF101418)

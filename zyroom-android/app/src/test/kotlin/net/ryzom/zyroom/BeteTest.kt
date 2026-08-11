@@ -77,4 +77,33 @@ class BeteTest {
     fun `un accent véritable survit`() {
         assertEquals("Bête à Â", EntityParser.cleanName("Bête à Â"))
     }
+
+    /**
+     * La position du personnage lui-même, à la racine du flux.
+     *
+     * Elle y est depuis toujours et personne ne la lisait. C'est celle de sa
+     * dernière déconnexion, pas un suivi en direct — mais elle donne le repère
+     * qui manquait sur la carte : à quelle distance de ses bêtes on se trouve.
+     */
+    @Test
+    fun `le personnage porte sa propre position`() {
+        val flux = """
+            <?xml version="1.0"?><ryzomapi><character><id>689325</id>
+            <name>Xiom</name><position x="10064" y="-2604" z="-77"/>
+            <pets/></character></ryzomapi>
+        """.trimIndent()
+        val perso = EntityParser.parseCharacter(flux.toByteArray())
+        assertEquals(10064, perso.x)
+        assertEquals(-2604, perso.y)
+    }
+
+    /** Sans position, on ne prétend pas en avoir une. */
+    @Test
+    fun `un personnage sans position vaut zéro`() {
+        val flux = """
+            <?xml version="1.0"?><ryzomapi><character><id>1</id><name>X</name>
+            </character></ryzomapi>
+        """.trimIndent()
+        assertEquals(0, EntityParser.parseCharacter(flux.toByteArray()).x)
+    }
 }

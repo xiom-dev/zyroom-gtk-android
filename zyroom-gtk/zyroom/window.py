@@ -1236,7 +1236,10 @@ class MainWindow(Gtk.ApplicationWindow):
         cr.clip()
         groupes: dict[tuple[int, int], list] = {}
         for b in betes:
-            px, py = carte.pixel(b.x, b.y)
+            p = carte.pixel(b.x, b.y)
+            if p is None:
+                continue
+            px, py = p
             cle = (int((marge_x + px * echelle) / self.SEUIL_GROUPE),
                    int((marge_y + py * echelle) / self.SEUIL_GROUPE))
             groupes.setdefault(cle, []).append(b)

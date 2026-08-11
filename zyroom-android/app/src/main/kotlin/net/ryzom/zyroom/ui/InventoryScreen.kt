@@ -363,7 +363,10 @@ fun InventoryScreen(
                     nameOf = { repository.nameOf(it) },
                 )
 
-                vue == Vue.BETES -> BetesView(courant?.betes.orEmpty())
+                vue == Vue.BETES -> BetesView(
+                    courant?.betes.orEmpty(),
+                    courant?.let { Triple(it.name, it.x, it.y) },
+                )
                 vue == Vue.EFFECTIF -> RosterView(
                     membres = courant?.members.orEmpty(),
                     mouvements = mouvements,

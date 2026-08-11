@@ -124,6 +124,15 @@ data class Entity(
     /** Les bêtes du joueur, avec leur position. Vide pour une guilde. */
     val betes: List<Bete> = emptyList(),
     /**
+     * Où se tient le personnage, en coordonnées du monde.
+     *
+     * Le flux la donne à chaque relevé — c'est sa position à la dernière
+     * déconnexion, pas en temps réel. (0, 0) quand elle manque, ce que la
+     * carte écarte d'elle-même.
+     */
+    val x: Int = 0,
+    val y: Int = 0,
+    /**
      * De quoi illustrer l'entité : le rendu 3D du personnage, ou l'emblème de
      * la guilde. Vide quand le flux n'en dit pas assez pour la construire.
      */

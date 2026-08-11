@@ -229,6 +229,8 @@ object EntityParser {
             cachedUntil = node.getAttribute("cached_until").toLongOrNull() ?: 0,
             inventories = inventories,
             betes = betes,
+            x = node.child("position")?.getAttribute("x")?.toDoubleOrNull()?.toInt() ?: 0,
+            y = node.child("position")?.getAttribute("y")?.toDoubleOrNull()?.toInt() ?: 0,
             portraitUrl = portraitDe(node),
             skills = skills(node),
             skillPoints = skillPoints(node),

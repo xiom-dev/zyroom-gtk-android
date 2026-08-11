@@ -10,16 +10,10 @@ monde sous licence LGPL-3.0 — le même auteur que les traductions dont nous
 tirons déjà les noms d'avant-postes. Rien n'est emprunté à un service qui
 pourrait fermer : l'image est téléchargée ici, réduite, et embarquée.
 
-**Le repère.** L'image fait 10 000 × 7 500 pixels à **deux unités de jeu par
-pixel**, et son coin haut-gauche vaut (6112, 7876) en coordonnées de jeu. Cette
-correspondance n'est écrite nulle part : la bibliothèque qui la porte est
-absente du dépôt. Elle a été retrouvée par recoupement, en cherchant dans
-l'image une vue dont on connaissait le centre et l'échelle — deux points
-indépendants la confirment à 0,966 et 0,985 de corrélation.
-
-Attention au repère : les coordonnées des primitives de `ryzomcore_leveldesign`
-sont **celles du serveur**, une origine par zone, et ne se comparent pas à
-celles-ci. L'API du jeu, elle, parle bien en coordonnées du monde.
+**Le repère.** L'image fait 10 000 × 7 500 pixels à deux unités de jeu par
+pixel. Mais il n'y a **pas une origine unique** : la carte du monde est un
+assemblage, et les positions que rend l'API sont locales à la région où l'on se
+trouve. Voir `REGIONS` — c'est le cœur de ce fichier.
 
     python3 outils/carte_atys.py
 
@@ -39,9 +33,42 @@ Image.MAX_IMAGE_PIXELS = None
 SOURCE = ("https://raw.githubusercontent.com/nimetu/ryzom_map_tiles/"
           "master/resources/maps/atys/world.png")
 
-#: Échelle et origine de l'image d'origine, en coordonnées de jeu.
+#: Échelle de l'image d'origine : deux unités de jeu par pixel, partout.
 UNITES_PAR_PIXEL_SOURCE = 2
-X0, Y0 = 6112, 7876
+
+#: Chaque région, ses bornes en coordonnées de jeu, et son origine sur la carte.
+#:
+#: **Il n'y a pas une origine mais une par région.** La carte du monde est un
+#: assemblage : les Lacs, la jungle et le désert y sont posés côte à côte, et
+#: les positions que rend l'API sont locales à la région où l'on se trouve. Un
+#: repère unique plaçait donc correctement ce qui était dans une région, et
+#: n'importe où ailleurs le reste.
+#:
+#: Les bornes viennent des polygones de régions que Ryzom publie dans
+#: `ryzom/ryzomcore_leveldesign`. Les origines ont été retrouvées une par une :
+#: on demande au service de cartes une vue centrée sur un point de la région,
+#: on la cherche dans l'image du monde — l'échelle étant connue, il ne reste
+#: qu'une position à trouver — et la différence donne l'origine. Le nombre en
+#: fin de ligne est la corrélation obtenue ; en dessous de 0,9 il faudrait s'en
+#: méfier.
+#:
+#: Cinq zones manquent, faute d'avoir pu les caler : les trois îles, qui sont
+#: incluses dans leur région et en partagent donc le repère, Silan (`newbieland`)
+#: qui ne figure pas sur cette carte, et `indoors` qui n'est pas un lieu.
+REGIONS = (
+    ("bagne", 467, 1611, -11320, -9742, -8473, -6027),   # calage 0.996
+    ("sources", 2445, 3901, -11437, -9626, 1287, -2764),   # calage 0.996
+    ("nexus", 7789, 9786, -8346, -6054, -804, -424),   # calage 0.995
+    ("terre", 122, 3062, -15856, -13100, -2792, -8166),   # calage 0.992
+    ("route_gouffre", 5274, 7371, -16983, -9423, -933, -5459),   # calage 0.995
+    ("fyros", 15753, 26084, -27145, -23672, 12337, -23208),   # calage 0.985
+    ("zorai", 6633, 19068, -5767, -496, 6113, 7877),   # calage 0.97
+    ("tryker", 13428, 27513, -35219, -29117, 5462, -20384),   # calage 0.985
+    ("matis", 30, 18736, -7995, 211, 6111, 7876),   # calage 0.966
+)
+
+#: L'ordre compte : la plus petite région qui contient le point l'emporte. Le
+#: Nexus est inclus dans les bornes matis, et il est plus précis.
 
 #: Largeur de la carte embarquée.
 #:
@@ -58,72 +85,117 @@ def charge() -> Image.Image:
 
 
 def kotlin(largeur: int, hauteur: int, unites: float) -> str:
-    return f'''package net.ryzom.zyroom.model
+    regions = "\n".join(
+        f'        Region("{n}", {x1}, {x2}, {y1}, {y2}, {ox}, {oy}),'
+        for n, x1, x2, y1, y2, ox, oy in REGIONS)
+    return f"""package net.ryzom.zyroom.model
 
 // Fichier produit par outils/carte_atys.py — ne pas modifier à la main.
 
 /**
  * Où tombe un point d'Atys sur la carte embarquée.
  *
- * Les positions du flux — `<position x="10328" y="-2316"/>` — sont en
- * coordonnées du monde. La carte les couvre de ({X0}, {Y0}) au coin haut-gauche
- * jusqu'à ({X0 + int(largeur * unites)}, {Y0 - int(hauteur * unites)}) au coin
- * bas-droit, à raison de {unites:g} unités de jeu par pixel.
+ * Les positions du flux — `<position x="10328" y="-2316"/>` — sont **locales à
+ * la région** où se trouve le personnage : la carte du monde est un assemblage,
+ * et chaque région y est posée à sa place. Un repère unique plaçait donc
+ * correctement ce qui était dans une région, et n'importe où ailleurs le reste.
+ *
+ * La plus petite région qui contient le point l'emporte : le Nexus est inclus
+ * dans les bornes matis, et il est plus précis.
  */
 object CarteAtys {{
     const val LARGEUR = {largeur}
     const val HAUTEUR = {hauteur}
     const val UNITES_PAR_PIXEL = {unites}f
-    const val X0 = {X0}
-    const val Y0 = {Y0}
 
-    /** L'abscisse d'un point du jeu, en pixels de la carte. */
-    fun x(x: Int): Float = (x - X0) / UNITES_PAR_PIXEL
+    /** Une région, ses bornes en coordonnées de jeu, et son origine. */
+    data class Region(
+        val nom: String,
+        val x1: Int, val x2: Int, val y1: Int, val y2: Int,
+        val ox: Int, val oy: Int,
+    ) {{
+        fun contient(x: Int, y: Int) = x in x1..x2 && y in y1..y2
+    }}
 
-    /** L'ordonnée d'un point du jeu. L'axe descend dans l'image, monte dans le jeu. */
-    fun y(y: Int): Float = (Y0 - y) / UNITES_PAR_PIXEL
+    /** De la plus petite à la plus grande : la première qui contient gagne. */
+    val REGIONS = listOf(
+{regions}
+    )
+
+    /** La région d'un point, ou rien si aucune ne le couvre. */
+    fun regionDe(x: Int, y: Int): Region? = REGIONS.firstOrNull {{ it.contient(x, y) }}
+
+    /** Le point du jeu, en pixels de la carte, ou rien s'il n'est sur aucune. */
+    fun pixel(x: Int, y: Int): Pair<Float, Float>? {{
+        val region = regionDe(x, y) ?: return null
+        val px = (x - region.ox) / UNITES_PAR_PIXEL
+        val py = (region.oy - y) / UNITES_PAR_PIXEL
+        if (px !in 0f..LARGEUR.toFloat() || py !in 0f..HAUTEUR.toFloat()) return null
+        return px to py
+    }}
 
     /** Vrai si le point tombe sur la carte : hors d'elle, on ne montre rien. */
-    fun contient(x: Int, y: Int): Boolean =
-        x(x) in 0f..LARGEUR.toFloat() && y(y) in 0f..HAUTEUR.toFloat()
+    fun contient(x: Int, y: Int): Boolean = pixel(x, y) != null
 }}
-'''
+"""
 
 
 def python(largeur: int, hauteur: int, unites: float) -> str:
+    regions = "\n".join(
+        f'    ("{n}", {x1}, {x2}, {y1}, {y2}, {ox}, {oy}),'
+        for n, x1, x2, y1, y2, ox, oy in REGIONS)
     return f'''"""Où tombe un point d'Atys sur la carte embarquée.
 
 Fichier produit par ../zyroom-android/outils/carte_atys.py — ne pas modifier à
 la main.
 
-Les positions du flux sont en coordonnées du monde. La carte les couvre de
-({X0}, {Y0}) au coin haut-gauche jusqu'à
-({X0 + int(largeur * unites)}, {Y0 - int(hauteur * unites)}) au coin bas-droit,
-à raison de {unites:g} unités de jeu par pixel.
+Les positions du flux sont **locales à la région** où se trouve le personnage :
+la carte du monde est un assemblage, et chaque région y est posée à sa place.
+La plus petite région qui contient le point l'emporte — le Nexus est inclus dans
+les bornes matis, et il est plus précis.
 """
 import os
 
 LARGEUR = {largeur}
 HAUTEUR = {hauteur}
 UNITES_PAR_PIXEL = {unites}
-X0, Y0 = {X0}, {Y0}
+
+#: (nom, x1, x2, y1, y2, origine x, origine y), de la plus petite à la plus grande
+REGIONS = (
+{regions}
+)
 
 #: L'image, à côté de ce fichier : le Makefile recopie le paquet en entier.
 CHEMIN = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                       "cartes", "atys.webp")
 
 
-def pixel(x: int, y: int) -> tuple[float, float]:
-    """Le point du jeu, en pixels de la carte.
+def region_de(x: int, y: int):
+    """La région d'un point, ou None si aucune ne le couvre."""
+    for region in REGIONS:
+        _nom, x1, x2, y1, y2, _ox, _oy = region
+        if x1 <= x <= x2 and y1 <= y <= y2:
+            return region
+    return None
+
+
+def pixel(x: int, y: int):
+    """Le point du jeu, en pixels de la carte, ou None s'il n'est sur aucune.
 
     L'axe des ordonnées descend dans l'image et monte dans le jeu."""
-    return ((x - X0) / UNITES_PAR_PIXEL, (Y0 - y) / UNITES_PAR_PIXEL)
+    region = region_de(x, y)
+    if region is None:
+        return None
+    px = (x - region[5]) / UNITES_PAR_PIXEL
+    py = (region[6] - y) / UNITES_PAR_PIXEL
+    if not (0 <= px <= LARGEUR and 0 <= py <= HAUTEUR):
+        return None
+    return (px, py)
 
 
 def contient(x: int, y: int) -> bool:
     """Vrai si le point tombe sur la carte : hors d'elle, on ne montre rien."""
-    px, py = pixel(x, y)
-    return 0 <= px <= LARGEUR and 0 <= py <= HAUTEUR
+    return pixel(x, y) is not None
 '''
 
 

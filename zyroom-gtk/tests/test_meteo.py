@@ -351,5 +351,38 @@ class Minuteur(unittest.TestCase):
         self.assertIsNone(faux._meteo_timer)
 
 
+
+
+
+class CarteDesRegions(unittest.TestCase):
+    """Chaque région a son origine sur la carte du monde, et c'est tout le sujet.
+
+    La carte est un assemblage : les Lacs, la jungle et le désert y sont posés
+    côte à côte, et les positions que rend l'API sont locales à la région où
+    l'on se trouve. Un repère unique plaçait correctement ce qui était dans une
+    région, et n'importe où ailleurs le reste.
+    """
+
+    def test_deux_regions_ont_deux_reperes(self):
+        from zyroom import carte
+        self.assertEqual("tryker", carte.region_de(17410, -32849)[0])
+        self.assertEqual("zorai", carte.region_de(10328, -2316)[0])
+        fx, fy = carte.pixel(17410, -32849)      # Fairhaven, dans les Lacs
+        self.assertAlmostEqual(2389.6, fx, delta=0.5)
+        self.assertAlmostEqual(2493.0, fy, delta=0.5)
+        mx, my = carte.pixel(10328, -2316)       # Mounty, dans la jungle
+        self.assertAlmostEqual(843.0, mx, delta=0.5)
+        self.assertAlmostEqual(2038.6, my, delta=0.5)
+
+    def test_la_region_la_plus_precise_l_emporte(self):
+        """Le Nexus est inclus dans les bornes matis, et il est plus précis."""
+        from zyroom import carte
+        self.assertEqual("nexus", carte.region_de(8700, -7000)[0])
+
+    def test_hors_de_toute_region_on_ne_montre_rien(self):
+        from zyroom import carte
+        self.assertIsNone(carte.pixel(0, 0))
+        self.assertFalse(carte.contient(30000, -2000))
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,5 +19,9 @@ import net.ryzom.zyroom.model.Bete
 const val CARTE_EMBARQUEE = false
 
 @Composable
-fun CarteBetes(betes: List<Bete>, modifier: Modifier = Modifier) {
+fun CarteBetes(
+    betes: List<Bete>,
+    joueur: Triple<String, Int, Int>? = null,
+    modifier: Modifier = Modifier,
+) {
 }

@@ -29,10 +29,10 @@ import net.ryzom.zyroom.model.Bete
  * ce sont elles qu'on tape en jeu pour poser un repère.
  */
 @Composable
-fun BetesView(betes: List<Bete>) {
+fun BetesView(betes: List<Bete>, joueur: Triple<String, Int, Int>? = null) {
     val dehors = betes.filter { it.dehors }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-        item { CarteBetes(dehors) }
+        item { CarteBetes(dehors, joueur) }
         item {
             Text(
                 if (dehors.isEmpty()) "Aucune bête dehors : toutes sont rangées."
