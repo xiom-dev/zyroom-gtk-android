@@ -1267,15 +1267,34 @@ class MainWindow(Gtk.ApplicationWindow):
     FENETRE_HEURES = 24.0
     ANCRE = 0.15
 
-    def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
-        """L'humidité dans le temps, **en marches d'escalier**.
+    #: Durée de la bascule d'un palier au suivant, en heures d'Atys.
+    #:
+    #: L'API ne donne qu'une valeur par cycle : le palier, lui, est exact, et
+    #: c'est lui qui décide de la condition de gisement. Le temps que met le
+    #: taux à passer d'un palier au suivant, en revanche, **n'est pas mesuré**
+    #: — l'API n'en dit rien. Une heure d'Atys, soit trois minutes réelles, est
+    #: un choix de tracé : le trait vertical laissait croire à une bascule
+    #: instantanée, alors que le taux monte et descend graduellement.
+    #:
+    #: Rien d'autre n'en dépend : les comptes à rebours (« Excellente dans
+    #: 22 min ») se calculent sur les cycles, pas sur ce tracé. Même valeur que
+    #: dans le portage Android, pour que les deux courbes se ressemblent.
+    TRANSITION_HEURES = 1.0
 
-        Le jeu ne fait pas varier la météo en continu : une valeur vaut pour
-        tout un cycle — trois heures d'Atys, neuf minutes réelles — puis saute
-        à la suivante. Relier les points par des obliques dessinerait des
+    def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
+        """L'humidité dans le temps, **en paliers reliés par des obliques**.
+
+        Une valeur vaut pour tout un cycle — trois heures d'Atys, neuf minutes
+        réelles : c'est le palier, et c'est lui qui décide de la condition de
+        gisement. Relier simplement les points par des obliques dessinerait des
         crêtes qui n'existent pas, et déplacerait les moments intéressants : la
         fenêtre excellente n'est pas un sommet qu'on rate, c'est un palier qui
         dure.
+
+        La bascule d'un palier au suivant, elle, n'est pas instantanée : le taux
+        monte et descend graduellement, et le trait vertical laissait croire au
+        contraire. Elle se dessine donc en oblique — voir `TRANSITION_HEURES`,
+        qui dit ce qui est mesuré et ce qui ne l'est pas.
 
         **C'est le graphique qui défile, pas le trait.** Le présent se tient
         près du bord gauche et la courbe glisse dessous, comme un sismographe :
@@ -1322,12 +1341,16 @@ class MainWindow(Gtk.ApplicationWindow):
                 cr.rectangle(x(h), 0, large / self.FENETRE_HEURES, haut)
                 cr.fill()
 
-        # La courbe en marches, et son aire. Un cycle couvre trois heures : son
-        # palier va de `cycle * 3` à `(cycle + 1) * 3`.
+        # La courbe et son aire. Un cycle couvre trois heures ; le palier occupe
+        # le milieu, et la demi-heure de part et d'autre sert à rejoindre le
+        # palier voisin en oblique.
         def parcourir():
+            demi = self.TRANSITION_HEURES / 2
             for m in cycles:
                 debut = m.cycle * meteo.HEURES_PAR_CYCLE
-                yield x(debut), x(debut + meteo.HEURES_PAR_CYCLE), y(m.value)
+                yield (x(debut + demi),
+                       x(debut + meteo.HEURES_PAR_CYCLE - demi),
+                       y(m.value))
 
         cr.set_source_rgba(0.25, 0.48, 0.41, 0.35)
         cr.move_to(x(cycles[0].cycle * meteo.HEURES_PAR_CYCLE), haut)

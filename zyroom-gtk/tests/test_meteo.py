@@ -106,10 +106,6 @@ class TableDesMatieres(unittest.TestCase):
             self.assertIn(zone, meteo.CONTINENT_DE_ZONE, zone)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class AvanceToutSeul(unittest.TestCase):
     """Le temps d'Atys avance à cadence fixe : on le suit sans rien redemander."""
 
@@ -163,3 +159,107 @@ class Symboles(unittest.TestCase):
     def test_le_symbole_est_une_image(self):
         with open(meteo.symbole("Sève"), "rb") as fh:
             self.assertEqual(b"\x89PNG", fh.read(4))
+
+
+def _gtk_disponible() -> bool:
+    try:
+        import gi
+        gi.require_version("Gtk", "4.0")
+        gi.require_version("Gdk", "4.0")
+        from gi.repository import Gtk                              # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+@unittest.skipUnless(_gtk_disponible(), "GTK4 absent de cette machine")
+class Courbe(unittest.TestCase):
+    """Ce que la courbe météo trace réellement.
+
+    Le palier est exact — l'API donne une valeur par cycle — mais la bascule
+    d'un palier au suivant ne l'est pas : le taux monte et descend
+    graduellement. Un trait vertical laisserait croire à un saut instantané.
+
+    On relève ici les segments posés sur le contexte Cairo, plutôt que de
+    relire le code : c'est la seule façon de voir qu'une oblique est bien
+    dessinée, et non qu'elle est bien écrite.
+    """
+
+    def _segments(self, valeurs):
+        import types
+        from zyroom.window import MainWindow
+
+        class FauxCr:
+            """Un contexte Cairo qui ne dessine rien mais retient la courbe.
+
+            Elle est le seul chemin tracé au trait de deux points ; on
+            s'arrête à son `stroke()`, sinon le trait du présent — vertical,
+            et lui aussi épais de deux points — viendrait s'y ajouter et
+            passerait pour une bascule.
+            """
+
+            def __init__(self):
+                self.segments, self.dernier = [], None
+                self.trait = self.fini = False
+
+            def set_line_width(self, w):
+                self.trait = (w == 2.0) and not self.fini
+
+            def stroke(self):
+                if self.trait:
+                    self.fini = True
+                self.trait = False
+
+            def move_to(self, x, y):
+                self.dernier = (x, y)
+
+            def line_to(self, x, y):
+                if self.trait and self.dernier:
+                    self.segments.append((self.dernier, (x, y)))
+                self.dernier = (x, y)
+
+            def __getattr__(self, nom):
+                return lambda *a, **k: None
+
+        cycles = [meteo.Meteo(cycle=1000 + i, condition="good", value=v,
+                              text="uiFair")
+                  for i, v in enumerate(valeurs)]
+        releve = types.SimpleNamespace(
+            heure_atys=1000 * meteo.HEURES_PAR_CYCLE + 1.0,
+            cycles_des_primes=lambda: cycles)
+        faux = types.SimpleNamespace(
+            _meteo_affiche=releve, _meteo_releve=None,
+            ANCRE=MainWindow.ANCRE, FENETRE_HEURES=MainWindow.FENETRE_HEURES,
+            TRANSITION_HEURES=MainWindow.TRANSITION_HEURES)
+        cr = FauxCr()
+        MainWindow._dessiner_courbe(faux, None, cr, 800.0, 300.0)
+        # Le premier segment relève du chemin précédent — l'aire — que ce faux
+        # contexte ne sait pas clore ; Cairo, lui, repart d'un point neuf.
+        return cr.segments[1:]
+
+    def test_un_changement_de_palier_se_trace_en_oblique(self):
+        segments = self._segments([0.20, 0.80])
+        montees = [s for s in segments
+                   if abs(s[0][1] - s[1][1]) > 0.5 and abs(s[0][0] - s[1][0]) > 0.5]
+        verticales = [s for s in segments
+                      if abs(s[0][1] - s[1][1]) > 0.5 and abs(s[0][0] - s[1][0]) < 0.5]
+        self.assertEqual(1, len(montees), "la bascule doit être une oblique")
+        self.assertEqual([], verticales, "aucune bascule ne doit être verticale")
+
+    def test_deux_cycles_de_même_valeur_ne_font_pas_de_bascule(self):
+        segments = self._segments([0.50, 0.50])
+        self.assertTrue(all(abs(s[0][1] - s[1][1]) < 0.5 for s in segments),
+                        "rien ne change : la ligne doit rester plate")
+
+    def test_le_palier_occupe_le_milieu_du_cycle(self):
+        """Le palier est exact ; c'est la bascule qui mord de part et d'autre."""
+        from zyroom.window import MainWindow
+        segments = self._segments([0.20, 0.80])
+        plat = next(s for s in segments if abs(s[0][1] - s[1][1]) < 0.5)
+        largeur = (800.0 - 34.0) / MainWindow.FENETRE_HEURES
+        attendu = (meteo.HEURES_PAR_CYCLE - MainWindow.TRANSITION_HEURES) * largeur
+        self.assertAlmostEqual(attendu, plat[1][0] - plat[0][0], places=6)
+
+
+if __name__ == "__main__":
+    unittest.main()
