@@ -114,4 +114,22 @@ class NameDbTest {
         assertEquals("Ambre de choix / Sha de la Jungle",
                      db.nameOf("m0117dxajd01.sitem"))
     }
+
+    /**
+     * Les accents, du pack jusqu'à l'écran.
+     *
+     * Le pack du jeu compte 26 254 noms, dont **12 680 accentués**, et il les
+     * range tous en UTF-16 : la longueur y est un nombre de caractères, et
+     * chacun vaut deux octets. Le format UTF-8, que le code sait lire aussi,
+     * n'apparaît dans aucun enregistrement du pack réel — il est gardé pour un
+     * format que le jeu pourrait employer, et compté en octets.
+     */
+    @Test
+    fun `les accents traversent les deux formats`() {
+        val db = NameDb.parse(
+            record("abcbahp.sitem", "Plan de jambières Erouk'an", 1) +
+            record("aaa.sitem", "Écorce d'Amberité — Sève « supérieure »", 2))
+        assertEquals("Plan de jambières Erouk'an", db.nameOf("abcbahp.sitem"))
+        assertEquals("Écorce d'Amberité — Sève « supérieure »", db.nameOf("aaa.sitem"))
+    }
 }

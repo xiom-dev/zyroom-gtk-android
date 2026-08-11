@@ -158,5 +158,36 @@ class NomsDAvantPostes(unittest.TestCase):
             self.assertNotIn("_outpost_", nom, code)
 
 
+class Accents(unittest.TestCase):
+    """Les accents, du pack jusqu'à l'écran, et de l'API jusqu'à l'écran.
+
+    Le pack du jeu compte 26 254 noms, dont **12 680 accentués**, et il les
+    range tous en UTF-16 : la longueur y est un nombre de caractères, chacun
+    valant deux octets. Le format UTF-8, que le code sait lire aussi, n'apparaît
+    dans aucun enregistrement du pack réel — il est gardé pour un format que le
+    jeu pourrait employer, et sa longueur se compte en octets.
+    """
+
+    def _record(self, cle: str, valeur: str, sep: int) -> bytes:
+        import struct
+        k = cle.encode("latin-1")
+        v = valeur.encode("utf-16-le") if sep == 1 else valeur.encode("utf-8")
+        n = len(valeur) if sep == 1 else len(v)
+        return struct.pack("<I", len(k)) + k + bytes([sep]) + struct.pack("<I", n) + v
+
+    def test_les_accents_traversent_les_deux_formats(self):
+        data = (self._record("abcbahp.sitem", "Plan de jambières Erouk'an", 1)
+                + self._record("aaa.sitem", "Écorce d'Amberité — Sève « supérieure »", 2))
+        noms = _parse_pack(data)
+        self.assertEqual("Plan de jambières Erouk'an", noms["abcbahp.sitem"])
+        self.assertEqual("Écorce d'Amberité — Sève « supérieure »", noms["aaa.sitem"])
+
+    def test_les_accents_de_l_api_sont_decodes(self):
+        """L'API écrit les accents en entités numériques : `&#xE8;` pour è."""
+        import xml.etree.ElementTree as ET
+        n = ET.fromstring("<guild><description>myst&#xE8;re &#xE9;t&#xE0;</description></guild>")
+        self.assertEqual("mystère étà", n.findtext("description"))
+
+
 if __name__ == "__main__":
     unittest.main()
