@@ -373,6 +373,7 @@ private fun CeQuiSort(releve: MeteoAtys) {
 @Composable
 private fun TableauxMatieres(releve: MeteoAtys) {
     val saison = saisonCle(releve.saison)
+    val moments = EXCELLENTES[saisonCle(releve.saison)]?.entries?.toList().orEmpty()
     Column(Modifier.fillMaxWidth()) {
         TitreTableau("Cette saison")
         TitreTableau("Excellentes — " + nomSaison(releve.saison))
@@ -381,18 +382,33 @@ private fun TableauxMatieres(releve: MeteoAtys) {
         // dans une heure vaut la peine d'être su —, et celle qui vaut
         // maintenant est dite et mise en couleur : sans cela, il fallait
         // connaître l'heure d'Atys pour savoir laquelle lire.
-        EXCELLENTES[saison]?.entries?.toList().orEmpty()
-            .forEachIndexed { rang, (moment, groupes) ->
+        //
+        // Jour à gauche, nuit à droite. L'un sous l'autre, il fallait dérouler
+        // la liste de jour pour atteindre celle de nuit, alors que le seul
+        // geste utile est de les comparer. Le fond teinté est porté par la
+        // rangée et non par chaque moitié : l'une est bien plus courte que
+        // l'autre, et deux fonds séparés laissaient un trou sous la plus
+        // courte — c'est la leçon des zones de « ce qui sort ».
+        Row(
+            Modifier.fillMaxWidth()
+                .background(fondZebre(true))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        ) {
+            listOf("JOUR", "NUIT").forEach { moment ->
+                val groupes = moments.firstOrNull { it.key == moment }?.value
                 val maintenant = (moment == "NUIT") == releve.nuit
-                BlocMatieres(
-                    titre = (if (moment == "JOUR") "De jour" else "De nuit") +
-                        if (maintenant) " · en ce moment" else "",
-                    groupes = groupes,
-                    zebre = rang % 2 == 0,
-                    souligne = maintenant,
-                    qualite = "excellent",
-                )
+                Box(Modifier.weight(1f)) {
+                    CorpsMatieres(
+                        titre = (if (moment == "JOUR") "De jour" else "De nuit") +
+                            if (maintenant) " · en ce moment" else "",
+                        groupes = groupes.orEmpty(),
+                        souligne = maintenant,
+                        qualite = "excellent",
+                    )
+                }
             }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
     }
 }
 
