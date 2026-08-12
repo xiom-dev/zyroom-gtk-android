@@ -1128,18 +1128,14 @@ class MainWindow(Gtk.ApplicationWindow):
     ZOOM_MAX = 6.0
 
     def _borner_glissement(self) -> None:
-        """Empêche la carte de s'échapper de son cadre.
+        """Empêche la carte des bêtes de s'échapper de son cadre.
 
-        Sans cette borne, on se retrouve devant du vide sans savoir comment
-        revenir."""
-        largeur = self._betes_carte.get_width()
-        hauteur = self._betes_carte.get_height()
-        debord_x = largeur * (self._betes_zoom - 1) / 2
-        debord_y = hauteur * (self._betes_zoom - 1) / 2
-        self._betes_glissement[0] = max(-debord_x,
-                                        min(debord_x, self._betes_glissement[0]))
-        self._betes_glissement[1] = max(-debord_y,
-                                        min(debord_y, self._betes_glissement[1]))
+        Le débord se mesurait sur la largeur du cadre — `largeur × (zoom − 1)`
+        — alors que la carte y tient en boîte aux lettres : on pouvait donc la
+        pousser dans le vide. `_borner_carte` le mesure sur l'image telle
+        qu'elle est dessinée."""
+        self._borner_carte(self._betes_carte, self._betes_zoom,
+                           self._betes_glissement)
 
     def _regler_zoom_betes(self, facteur: float) -> None:
         avant = self._betes_zoom
@@ -1159,12 +1155,21 @@ class MainWindow(Gtk.ApplicationWindow):
         if depart is None or not gesture.is_active():
             self._betes_pince_depart = self._betes_zoom
             depart = self._betes_zoom
+        avant = self._betes_zoom
         self._betes_zoom = max(1.0, min(self.ZOOM_MAX, depart * echelle))
+        # Le déplacement suit l'agrandissement, sinon la vue part sur le côté :
+        # l'image grandit autour de son propre milieu, pas autour du nôtre.
+        if avant > 0:
+            rapport = self._betes_zoom / avant
+            self._betes_glissement[0] *= rapport
+            self._betes_glissement[1] *= rapport
         self._borner_glissement()
+        self._betes_glisse_depart = list(self._betes_glissement)
         self._betes_carte.queue_draw()
 
     def _on_betes_molette(self, _controller, _dx, dy) -> bool:
-        self._regler_zoom_betes(0.9 if dy > 0 else 1.1)
+        self._regler_zoom_betes(
+            1 / self.PAS_ZOOM if dy > 0 else self.PAS_ZOOM)
         return True
 
     def _on_betes_glisse(self, _gesture, dx, dy) -> None:
@@ -1744,14 +1749,17 @@ class MainWindow(Gtk.ApplicationWindow):
 
         pincement = Gtk.GestureZoom()
         pincement.connect("scale-changed",
-                          lambda g, e: self._gisement_zoom(zone, etat, e))
+                          lambda g, e: self._gisement_zoom(zone, etat, e,
+                                                           pincement=True))
+        pincement.connect("end", lambda g, s: self._gisement_pince_fin(etat))
         zone.add_controller(pincement)
         molette = Gtk.EventControllerScroll(
             flags=Gtk.EventControllerScrollFlags.VERTICAL)
         molette.connect(
             "scroll",
             lambda c, dx, dy: self._gisement_zoom(
-                zone, etat, 0.9 if dy > 0 else 1.1, relatif=True))
+                zone, etat,
+                1 / self.PAS_ZOOM if dy > 0 else self.PAS_ZOOM))
         zone.add_controller(molette)
         glisse = Gtk.GestureDrag()
         glisse.connect("drag-update",
@@ -1783,13 +1791,57 @@ class MainWindow(Gtk.ApplicationWindow):
         win.present()
 
     def _gisement_zoom(self, zone, etat: dict, facteur: float,
-                       relatif: bool = False) -> None:
-        base = etat["zoom"] if relatif else 1.0
-        etat["zoom"] = min(self.ZOOM_MAX, max(1.0, base * facteur))
-        if etat["zoom"] <= 1.0:
-            etat["glissement"][:] = [0.0, 0.0]
-            etat["depart"][:] = [0.0, 0.0]
+                       pincement: bool = False) -> None:
+        """Agrandit **autour du centre de la vue**, pas du centre de l'image.
+
+        C'était le défaut : le déplacement restait tel quel pendant que l'image
+        grandissait autour de son propre milieu, et la vue partait sur le côté.
+        Le déplacement suit maintenant l'agrandissement — ce qui est au centre y
+        reste, en agrandissant comme en rapetissant.
+
+        Le pincement rend une échelle absolue depuis le début du geste : on la
+        compose avec l'agrandissement qu'on avait alors, sinon le premier
+        frémissement des doigts ramenait brutalement à l'échelle 1.
+        """
+        avant = etat["zoom"]
+        if pincement:
+            if etat.get("pince_depart") is None:
+                etat["pince_depart"] = avant
+            apres = etat["pince_depart"] * facteur
+        else:
+            apres = avant * facteur
+        etat["zoom"] = min(self.ZOOM_MAX, max(1.0, apres))
+        if etat["zoom"] == avant:
+            return
+        rapport = etat["zoom"] / avant
+        etat["glissement"][0] *= rapport
+        etat["glissement"][1] *= rapport
+        self._borner_carte(zone, etat["zoom"], etat["glissement"])
+        etat["depart"][:] = list(etat["glissement"])
         zone.queue_draw()
+
+    def _gisement_pince_fin(self, etat: dict) -> None:
+        """Le geste fini, le prochain repartira de l'agrandissement courant."""
+        etat["pince_depart"] = None
+
+    def _borner_carte(self, zone, zoom: float, glissement: list) -> None:
+        """Empêche la carte de s'échapper de son cadre.
+
+        Le débord se mesure sur l'image telle qu'elle est dessinée, et non sur
+        la largeur du cadre : la carte y tient en boîte aux lettres, et un
+        débord calculé sur le cadre laissait la pousser dans le vide.
+        """
+        if self._betes_pixbuf is None:
+            return
+        pb = self._betes_pixbuf
+        largeur, hauteur = zone.get_width(), zone.get_height()
+        if largeur <= 0 or hauteur <= 0:
+            return
+        echelle = min(largeur / pb.get_width(), hauteur / pb.get_height()) * zoom
+        debord_x = max(0.0, (pb.get_width() * echelle - largeur) / 2)
+        debord_y = max(0.0, (pb.get_height() * echelle - hauteur) / 2)
+        glissement[0] = max(-debord_x, min(debord_x, glissement[0]))
+        glissement[1] = max(-debord_y, min(debord_y, glissement[1]))
 
 
     def _gisement_glisse(self, zone, etat: dict, dx: float, dy: float) -> None:
@@ -1798,7 +1850,14 @@ class MainWindow(Gtk.ApplicationWindow):
         if etat["zoom"] <= 1.0:
             return
         etat["glissement"][:] = [etat["depart"][0] + dx, etat["depart"][1] + dy]
+        self._borner_carte(zone, etat["zoom"], etat["glissement"])
         zone.queue_draw()
+
+    #: Un cran de molette. On agrandit de ce facteur, et on rapetisse de son
+    #: **inverse** : avec 1,1 et 0,9, trois crans dans un sens puis trois dans
+    #: l'autre laissaient la carte à 97 % de sa taille, et on ne retrouvait
+    #: jamais tout à fait la vue qu'on avait.
+    PAS_ZOOM = 1.1
 
     #: Part du cadre que les gisements doivent occuper au premier affichage.
     #:
@@ -1832,8 +1891,13 @@ class MainWindow(Gtk.ApplicationWindow):
                      self.CADRAGE_GISEMENT * hauteur / haute)
         etat["zoom"] = min(self.ZOOM_MAX, max(1.0, voulue / base))
         echelle = base * etat["zoom"]
-        etat["glissement"][:] = [echelle * (carte.LARGEUR / 2 - cx),
-                                 echelle * (carte.HAUTEUR / 2 - cy)]
+        debord_x = max(0.0, (carte.LARGEUR * echelle - largeur) / 2)
+        debord_y = max(0.0, (carte.HAUTEUR * echelle - hauteur) / 2)
+        etat["glissement"][:] = [
+            max(-debord_x, min(debord_x, echelle * (carte.LARGEUR / 2 - cx))),
+            max(-debord_y, min(debord_y, echelle * (carte.HAUTEUR / 2 - cy))),
+        ]
+        etat["pince_depart"] = None
         etat["depart"][:] = list(etat["glissement"])
 
     def _dessiner_gisement(self, cr, largeur, hauteur, points, etat) -> None:
