@@ -1085,11 +1085,18 @@ class MainWindow(Gtk.ApplicationWindow):
         self._pad(self._betes_entete)
         page.append(self._betes_entete)
 
+        # Deux colonnes : les porteurs à gauche — montures et mektoubs de bât —,
+        # les zigs à droite. On cherche rarement les uns en pensant aux autres,
+        # et les zigs sont souvent nombreux.
         defilement = Gtk.ScrolledWindow(vexpand=True)
-        self._betes_box = Gtk.ListBox()
-        self._betes_box.add_css_class("compact")
-        self._betes_box.set_selection_mode(Gtk.SelectionMode.NONE)
-        defilement.set_child(self._betes_box)
+        colonnes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
+                           homogeneous=True)
+        self._pad(colonnes)
+        self._betes_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._betes_zigs = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        colonnes.append(self._betes_box)
+        colonnes.append(self._betes_zigs)
+        defilement.set_child(colonnes)
         page.append(defilement)
 
         self._betes_pixbuf = None
@@ -1154,37 +1161,45 @@ class MainWindow(Gtk.ApplicationWindow):
         self._betes_glisse_depart = list(self._betes_glissement)
 
     def _remplir_betes(self, ent) -> None:
-        while (child := self._betes_box.get_first_child()) is not None:
-            self._betes_box.remove(child)
+        for boite in (self._betes_box, self._betes_zigs):
+            while (child := boite.get_first_child()) is not None:
+                boite.remove(child)
         betes = list(getattr(ent, "betes", []))
         dehors = [b for b in betes if b.dehors]
         self._betes_entete.set_text(
             _("Aucune bête dehors : toutes sont rangées.") if not dehors
             else _("%d bête dehors") % len(dehors) if len(dehors) == 1
             else _("%d bêtes dehors") % len(dehors))
-        for rang, bete in enumerate(betes):
-            row = Gtk.ListBoxRow()
-            row.set_activatable(False)
-            if rang % 2 == 0:
-                row.add_css_class("zebre")
-            ligne = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-            self._pad(ligne)
-            gauche = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, hexpand=True)
-            titre = Gtk.Label(label=bete.nom or bete.etiquette, xalign=0.0)
-            titre.add_css_class("heading")
-            gauche.append(titre)
-            detail = Gtk.Label(label=self._etat_bete(bete), xalign=0.0)
-            detail.add_css_class("dim-label")
-            gauche.append(detail)
-            ligne.append(gauche)
-            # À droite, ce qu'on recopie : la position, telle qu'on la tape.
-            pos = Gtk.Label(label=f"{bete.x}  {bete.y}" if bete.dehors else "—",
-                            xalign=1.0)
-            pos.add_css_class("peuple" if bete.dehors else "dim-label")
-            ligne.append(pos)
-            row.set_child(ligne)
-            self._betes_box.append(row)
+        self._remplir_colonne_betes(self._betes_box, _("Porteurs"),
+                                    [b for b in betes if not b.zig])
+        self._remplir_colonne_betes(self._betes_zigs, _("Zigs"),
+                                    [b for b in betes if b.zig])
         self._betes_carte.queue_draw()
+
+    def _remplir_colonne_betes(self, boite, titre: str, betes: list) -> None:
+        """Une colonne de bêtes, avec son titre. Vide, elle le dit."""
+        entete = Gtk.Label(label=f"{titre} · {len(betes)}", xalign=0.0)
+        entete.add_css_class("title-4")
+        entete.add_css_class("peuple")
+        entete.props.margin_bottom = 4
+        boite.append(entete)
+        for rang, bete in enumerate(betes):
+            ligne = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            if rang % 2 == 0:
+                ligne.add_css_class("zebre")
+            self._pad(ligne)
+            nom = Gtk.Label(label=bete.nom or bete.etiquette, xalign=0.0)
+            nom.add_css_class("heading")
+            ligne.append(nom)
+            detail = Gtk.Label(label=self._etat_bete(bete), xalign=0.0, wrap=True)
+            detail.add_css_class("dim-label")
+            ligne.append(detail)
+            boite.append(ligne)
+        if not betes:
+            vide = Gtk.Label(label=_("aucune"), xalign=0.0)
+            vide.add_css_class("dim-label")
+            self._pad(vide)
+            boite.append(vide)
 
     @staticmethod
     def _etat_bete(bete) -> str:

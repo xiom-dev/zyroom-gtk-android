@@ -11,10 +11,9 @@ import net.ryzom.zyroom.model.Bete
  * même catégorie que les symboles de matières, et même choix — une logithèque
  * ne publie que ce dont la licence est établie de bout en bout.
  *
- * L'écran des bêtes reste utile sans elle : il donne le nom, l'état et les
- * **coordonnées** de chaque bête, et ce sont les coordonnées qu'on tape en jeu
- * pour aller la chercher. La carte ne servait qu'à situer la région d'un coup
- * d'œil.
+ * L'écran des bêtes reste utile sans elle : il dit lesquelles sont dehors, à
+ * l'écurie, et où en est leur satiété. Il ne dit pas où elles sont — c'était le
+ * rôle de la carte.
  */
 const val CARTE_EMBARQUEE = false
 

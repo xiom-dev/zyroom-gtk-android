@@ -106,4 +106,11 @@ class BeteTest {
         """.trimIndent()
         assertEquals(0, EntityParser.parseCharacter(flux.toByteArray()).x)
     }
+
+    /** Porteurs d'un côté, zigs de l'autre : l'espèce vient du flux. */
+    @Test
+    fun `l'espèce sépare les porteurs des zigs`() {
+        assertEquals(listOf("Monture", "Mektoub", "Zig"), betes.map { it.espece })
+        assertEquals(listOf("Zig 1"), betes.filter { it.zig }.map { it.etiquette })
+    }
 }

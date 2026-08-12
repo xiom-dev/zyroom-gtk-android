@@ -91,6 +91,11 @@ class Bete:
 
     nom: str = ""            #: le nom donné en jeu, déjà décodé
     etiquette: str = ""      #: « Mektoub 2 », « Zig 1 » — celle de son inventaire
+    #: Son espèce : « mount », « mektoub » ou « zig ».
+    #:
+    #: Relevée à la lecture plutôt que devinée de l'étiquette : celle-ci porte
+    #: un numéro et se traduit.
+    espece: str = ""
     statut: str = ""         #: « landscape » dehors, « stable » en écurie…
     x: int = 0
     y: int = 0
@@ -103,6 +108,15 @@ class Bete:
     def dehors(self) -> bool:
         """Vrai si la bête est dehors, donc si sa position a un sens."""
         return self.statut == "landscape"
+
+    @property
+    def zig(self) -> bool:
+        """Vrai pour un zig.
+
+        Les zigs sont d'une autre nature : ils ne portent pas, ils suivent, et
+        on en a souvent plusieurs. L'écran les range dans leur propre colonne.
+        """
+        return self.espece == "zig"
 
 
 @dataclass
@@ -263,7 +277,7 @@ def nom_multilingue(brut: str) -> str:
     return texte.replace("\u00a0", " ").strip()
 
 
-def _bete(animal: Element, etiquette: str) -> Bete:
+def _bete(animal: Element, etiquette: str, espece: str) -> Bete:
     """Une bête et sa position, telles que le flux les donne.
 
     La position est absente d'une bête qui n'est jamais sortie : on rend alors
@@ -281,7 +295,7 @@ def _bete(animal: Element, etiquette: str) -> Bete:
     except ValueError:
         satiete = 0.0
     return Bete(nom=nom_multilingue(animal.findtext("name", default="") or ""),
-                etiquette=etiquette,
+                etiquette=etiquette, espece=espece,
                 statut=animal.findtext("status", default=""),
                 x=entier("x"), y=entier("y"), satiete=satiete)
 
@@ -451,7 +465,7 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
             counters[kind] += 1
             label = f"{_labels[kind]} {counters[kind]}"
             ent.inventories.append(Inventory(f"animal{index}", label, items, capacity))
-            ent.betes.append(_bete(animal, label))
+            ent.betes.append(_bete(animal, label, kind))
 
     # Ventes (items en vente à l'hôtel des ventes)
     shop = node.find("shop")

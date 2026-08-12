@@ -413,5 +413,39 @@ class PositionDuJoueur(unittest.TestCase):
         from zyroom import carte
         self.assertFalse(carte.contient(ent.x, ent.y))
 
+
+
+
+class ColonnesDesBetes(unittest.TestCase):
+    """Porteurs à gauche, zigs à droite.
+
+    L'espèce est relevée à la lecture du flux, pas devinée de l'étiquette :
+    celle-ci porte un numéro et se traduit.
+    """
+
+    def _betes(self):
+        from zyroom import ryzom_api
+        xml = (
+            '<?xml version="1.0"?><ryzomapi><character><id>1</id><name>X</name>'
+            '<pets>'
+            '<animal index="0"><sheet>gubani_mount_03.creature</sheet>'
+            '<status>landscape</status><inventory/></animal>'
+            '<animal index="1"><sheet>chjjf3.creature</sheet>'
+            '<status>stable</status><inventory/></animal>'
+            '<animal index="2"><sheet>chxjf_zig.creature</sheet>'
+            '<status>landscape</status><inventory/></animal>'
+            '</pets></character></ryzomapi>')
+        return ryzom_api.parse_character(xml.encode("utf-8")).betes
+
+    def test_l_espece_est_relevee(self):
+        self.assertEqual(["mount", "mektoub", "zig"],
+                         [b.espece for b in self._betes()])
+
+    def test_seul_le_zig_va_dans_sa_colonne(self):
+        betes = self._betes()
+        self.assertEqual(["Zig 1"], [b.etiquette for b in betes if b.zig])
+        self.assertEqual(["Monture 1", "Mektoub 1"],
+                         [b.etiquette for b in betes if not b.zig])
+
 if __name__ == "__main__":
     unittest.main()

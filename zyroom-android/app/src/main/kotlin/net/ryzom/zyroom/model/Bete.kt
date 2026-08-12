@@ -14,6 +14,13 @@ data class Bete(
     /** L'étiquette de son inventaire : « Mektoub 2 », « Zig 1 ». */
     val etiquette: String,
     /**
+     * Son espèce : « Monture », « Mektoub » ou « Zig ».
+     *
+     * Relevée à la lecture plutôt que devinée de l'étiquette : celle-ci porte
+     * un numéro et se traduira peut-être un jour.
+     */
+    val espece: String = "",
+    /**
      * `landscape` — dehors, sur la carte —, `stable` en écurie, `dead`…
      *
      * Seules celles qui sont dehors ont une position qui veuille dire quelque
@@ -32,4 +39,12 @@ data class Bete(
 ) {
     /** Vrai si la bête est dehors, donc si sa position a un sens. */
     val dehors: Boolean get() = statut == "landscape"
+
+    /**
+     * Vrai pour un zig.
+     *
+     * Les zigs sont d'une autre nature : ils ne portent pas, ils suivent, et on
+     * en a souvent plusieurs. L'écran les range dans leur propre colonne.
+     */
+    val zig: Boolean get() = espece == "Zig"
 }

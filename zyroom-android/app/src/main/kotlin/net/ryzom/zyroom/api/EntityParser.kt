@@ -209,7 +209,7 @@ object EntityParser {
                 add(Inventory("animal${animal.getAttribute("index")}", etiquette,
                               items(inventory), espece.capacity,
                               group = "Animaux"))
-                betes += beteDe(animal, etiquette)
+                betes += beteDe(animal, etiquette, espece.label)
             }
             node.child("shop")?.let {
                 val sales = items(it, tag = "shopitem")
@@ -435,11 +435,12 @@ object EntityParser {
      * sortie de l'écurie : on rend alors (0, 0), que `CarteAtys.contient`
      * écarte de lui-même.
      */
-    private fun beteDe(animal: Element, etiquette: String): Bete {
+    private fun beteDe(animal: Element, etiquette: String, espece: String): Bete {
         val position = animal.child("position")
         return Bete(
             nom = cleanName(animal.text("name")),
             etiquette = etiquette,
+            espece = espece,
             statut = animal.text("status"),
             x = position?.getAttribute("x")?.toDoubleOrNull()?.toInt() ?: 0,
             y = position?.getAttribute("y")?.toDoubleOrNull()?.toInt() ?: 0,
