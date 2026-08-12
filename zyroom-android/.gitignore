@@ -27,3 +27,7 @@ dist/
 #
 # ou construire avec le Gradle du système, qui n'a pas besoin du wrapper.
 gradle/wrapper/gradle-wrapper.jar
+
+# Bytecode des outils Python de `outils/` : produit à chaque exécution.
+__pycache__/
+*.py[cod]
