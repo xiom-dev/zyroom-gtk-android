@@ -1,0 +1,3 @@
+* The animals tab is now called "Perdu ?" and splits carriers on the left,
+  zigs on the right.
+* Your character now appears on the map, in blue, next to your animals.

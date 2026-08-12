@@ -1,0 +1,3 @@
+* L'onglet des bêtes s'appelle « Perdu ? » et range les porteurs à gauche, les
+  zigs à droite.
+* Votre personnage apparaît sur la carte, en bleu, à côté de vos bêtes.
