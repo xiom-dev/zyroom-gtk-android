@@ -64,11 +64,14 @@ fun CarteGisement(
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     CarteDesGisements(points, Modifier)
-                    points.forEach { point ->
-                        Text(
-                            "${point.lieu} · ${point.x} ; ${point.y}",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    // Pas de coordonnées : la carte les porte, et elles
+                    // encombraient l'écran d'un téléphone. Les noms de lieux ne
+                    // restent que dans la variante qui n'a pas de carte — sans
+                    // eux, elle ne dirait plus rien du tout de l'endroit.
+                    if (!GISEMENTS_EMBARQUES) {
+                        points.map { it.lieu }.distinct().forEach { lieu ->
+                            Text(lieu, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
                 Text(

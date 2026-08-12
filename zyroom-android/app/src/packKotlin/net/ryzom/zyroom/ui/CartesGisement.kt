@@ -1,6 +1,11 @@
 package net.ryzom.zyroom.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,6 +18,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +56,9 @@ const val GISEMENTS_EMBARQUES = true
  */
 private const val CADRAGE = 0.55f
 
+/** Jusqu'où le pincement peut agrandir, au-delà du cadrage d'ouverture. */
+private const val ZOOM_MAX_GISEMENT = 8f
+
 /**
  * Où sortent les gisements d'une matière, sur la carte d'Atys.
  *
@@ -77,6 +88,81 @@ fun CarteDesGisements(points: List<Gisements.Point>, modifier: Modifier) {
     var zoom by remember { mutableFloatStateOf(1f) }
     var glissement by remember { mutableStateOf(Offset.Zero) }
     var cadré by remember { mutableStateOf(false) }
+    // Le zoom d'ouverture, celui qui cadre sur les gisements : c'est là que le
+    // double-tap ramène, et non à la carte du monde entier.
+    var zoomInitial by remember { mutableFloatStateOf(1f) }
+
+    /** Ce que le zoom laisse dépasser du cadre, de part et d'autre. */
+    fun borne() {
+        val debordX = (cadre.width * (zoom - 1)) / 2f
+        val debordY = (cadre.height * (zoom - 1)) / 2f
+        glissement = Offset(glissement.x.coerceIn(-debordX, debordX),
+                            glissement.y.coerceIn(-debordY, debordY))
+    }
+
+    /**
+     * Le geste se lit dans la passe initiale, comme sur la carte des bêtes.
+     *
+     * Deux doigts agrandissent et déplacent, toujours. **Un doigt ne déplace que
+     * si l'on a agrandi au-delà du cadrage d'ouverture** : la carte s'ouvre déjà
+     * agrandie sur les gisements, et si un doigt la déplaçait dès cet instant,
+     * il n'y aurait plus moyen de faire défiler la boîte de dialogue — dont la
+     * carte occupe la moitié, et dont le bouton « Fermer » tombe hors de vue sur
+     * un écran couché.
+     */
+    val gestes = Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            do {
+                val evenement = awaitPointerEvent(PointerEventPass.Initial)
+                val doigts = evenement.changes.size
+                if (doigts >= 2 || (doigts == 1 && zoom > zoomInitial * 1.05f)) {
+                    val facteur = if (doigts >= 2) evenement.calculateZoom() else 1f
+                    val deplacement = if (doigts >= 2) evenement.calculatePan()
+                                      else evenement.changes[0].positionChange()
+                    if (facteur != 1f || deplacement != Offset.Zero) {
+                        val avant = zoom
+                        zoom = (zoom * facteur).coerceIn(1f, ZOOM_MAX_GISEMENT)
+                        glissement = Offset(
+                            glissement.x * zoom / avant + deplacement.x,
+                            glissement.y * zoom / avant + deplacement.y,
+                        )
+                        borne()
+                        evenement.changes.forEach { it.consume() }
+                    }
+                }
+            } while (evenement.changes.any { it.pressed })
+        }
+    }
+
+    /**
+     * Le double-tap agrandit **sur le point touché**, et revient au cadrage
+     * d'origine quand on y est déjà.
+     *
+     * Le pincement demande deux doigts et une main libre ; le double-tap se fait
+     * d'un pouce, en jouant. Sur le centre il ne servirait à rien : les
+     * marqueurs sortiraient du cadre au premier agrandissement.
+     */
+    val doubleTap = Modifier.pointerInput(Unit) {
+        detectTapGestures(onDoubleTap = { touche ->
+            val avant = zoom
+            val apres = if (zoom > zoomInitial * 1.05f) zoomInitial
+                        else (zoomInitial * 2f).coerceAtMost(ZOOM_MAX_GISEMENT)
+            val base = cadre.width / image.width.toFloat()
+            val coinAvant = Offset(
+                (cadre.width - image.width * base * avant) / 2 + glissement.x,
+                (cadre.height - image.height * base * avant) / 2 + glissement.y,
+            )
+            val rapport = apres / avant
+            val coinApres = touche - (touche - coinAvant) * rapport
+            zoom = apres
+            glissement = Offset(
+                coinApres.x - (cadre.width - image.width * base * apres) / 2,
+                coinApres.y - (cadre.height - image.height * base * apres) / 2,
+            )
+            borne()
+        })
+    }
 
     val couleurMarque = MaterialTheme.colorScheme.secondary
     val couleurOmbre = MaterialTheme.colorScheme.surface
@@ -87,7 +173,9 @@ fun CarteDesGisements(points: List<Gisements.Point>, modifier: Modifier) {
                 .height((image.height * 1f / image.width * 340).dp)
                 // La taille se relève à la mesure, jamais au dessin : y écrire
                 // un état relance une recomposition à chaque image.
-                .onSizeChanged { cadre = it },
+                .onSizeChanged { cadre = it }
+                .then(gestes)
+                .then(doubleTap),
         ) {
             // Le cadrage a besoin de la taille du cadre : il ne peut donc se
             // calculer qu'ici, et une seule fois.
@@ -105,7 +193,8 @@ fun CarteDesGisements(points: List<Gisements.Point>, modifier: Modifier) {
                     val base = size.width / image.width
                     val voulue = minOf(CADRAGE * size.width / large,
                                        CADRAGE * size.height / haute)
-                    zoom = (voulue / base).coerceIn(1f, 6f)
+                    zoom = (voulue / base).coerceIn(1f, ZOOM_MAX_GISEMENT)
+                    zoomInitial = zoom
                     val echelle = base * zoom
                     glissement = Offset(echelle * (image.width / 2f - cx),
                                         echelle * (image.height / 2f - cy))
