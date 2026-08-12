@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.29"
+APP_NAME = ("ZyRoom-GTK-dev-0.30"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.18")
 
@@ -1341,28 +1341,43 @@ class MainWindow(Gtk.ApplicationWindow):
         self._pad(self._meteo_courbe)
         page.append(self._meteo_courbe)
 
-        # Deux colonnes : les suprêmes à gauche, les excellentes à droite.
-        # Empilées, il fallait faire défiler tout le tableau des unes pour
-        # atteindre les autres, alors qu'on les compare.
-        #
-        # Chacune défile pour son compte. Sous un seul défilement, la colonne
-        # de gauche — quatre zones de dix lignes — emportait celle de droite,
-        # deux fois plus courte : on se retrouvait au milieu des suprêmes avec
-        # une moitié d'écran vide en face.
+        # Deux colonnes, et **un seul défilement pour tout**. Chacune a d'abord
+        # eu le sien, de peur que la colonne de gauche — plus longue — n'entraîne
+        # la droite et ne laisse une moitié d'écran vide. À l'usage, deux barres
+        # sont pires : on ne sait plus laquelle on tient, et comparer deux
+        # tableaux qui glissent séparément demande de les recaler à la main.
+        defilement = Gtk.ScrolledWindow()
+        defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        defilement.set_vexpand(True)
+        dedans = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._pad(dedans)
+        defilement.set_child(dedans)
+
+        # Ce qui sort maintenant, en tête et sur toute la largeur : c'est la
+        # seule chose de cet écran qui dépende de l'instant, et donc la seule
+        # sur laquelle on agit tout de suite.
+        self._meteo_pop_titre = Gtk.Label(xalign=0.0)
+        self._meteo_pop_titre.add_css_class("title-4")
+        self._meteo_pop_titre.add_css_class("peuple")
+        dedans.append(self._meteo_pop_titre)
+        pop = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
+                      homogeneous=True)
+        self._meteo_pop_g = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._meteo_pop_d = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        pop.append(self._meteo_pop_g)
+        pop.append(self._meteo_pop_d)
+        dedans.append(pop)
+
         self._meteo_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
                                   spacing=12, homogeneous=True)
-        self._pad(self._meteo_box)
         self._meteo_supremes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                        spacing=2)
         self._meteo_excellentes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                           spacing=2)
-        for colonne in (self._meteo_supremes, self._meteo_excellentes):
-            defilement = Gtk.ScrolledWindow()
-            defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-            defilement.set_vexpand(True)
-            defilement.set_child(colonne)
-            self._meteo_box.append(defilement)
-        page.append(self._meteo_box)
+        self._meteo_box.append(self._meteo_supremes)
+        self._meteo_box.append(self._meteo_excellentes)
+        dedans.append(self._meteo_box)
+        page.append(defilement)
 
         self._meteo_releve = None      #: ce que l'API a rendu, tel quel
         self._meteo_affiche = None     #: le même, recalé sur l'instant présent
@@ -1487,28 +1502,33 @@ class MainWindow(Gtk.ApplicationWindow):
             self._meteo_entete.set_markup("".join(morceaux))
         self._meteo_courbe.queue_draw()
 
-        for colonne in (self._meteo_supremes, self._meteo_excellentes):
+        for colonne in (self._meteo_supremes, self._meteo_excellentes,
+                        self._meteo_pop_g, self._meteo_pop_d):
             while (child := colonne.get_first_child()) is not None:
                 colonne.remove(child)
         cle = releve.saison_cle
         saison = meteo.nom_saison(releve.saison)
 
-        # Ce qui sort maintenant, en tête de la colonne de gauche : c'est la
-        # seule chose de cet écran qui dépende de l'instant, et donc la seule
-        # sur laquelle on agit tout de suite. L'humidité décide de la condition
-        # de gisement, la condition décide de ce qu'on trouve, et le bloc change
-        # tout seul à chaque bascule de cycle — sans rien redemander.
+        # Ce qui sort maintenant, sur deux colonnes lui aussi : l'humidité décide
+        # de la condition de gisement, la condition décide de ce qu'on trouve, et
+        # le bloc change tout seul à chaque bascule de cycle — sans rien
+        # redemander. Les quatre zones tiennent ainsi sur deux rangées au lieu de
+        # quatre écrans.
         actuelle = releve.maintenant()
-        if actuelle is not None:
-            self._meteo_supremes.append(self._entete_colonne(
+        if actuelle is None:
+            self._meteo_pop_titre.set_text("")
+        else:
+            self._meteo_pop_titre.set_text(
                 _("Ce qui sort — %(condition)s, %(taux)d %%")
                 % {"condition": meteo.texte_condition(actuelle.condition),
-                   "taux": round(actuelle.value * 100)}))
-            for rang, zone in enumerate(meteo.ZONES):
-                groupes = meteo.pop_de(releve.saison, zone, actuelle.condition)
-                if groupes:
-                    self._meteo_supremes.append(
-                        self._bloc_matieres(zone, groupes, rang % 2 == 0))
+                   "taux": round(actuelle.value * 100)})
+            remplies = [(zone, meteo.pop_de(releve.saison, zone,
+                                            actuelle.condition))
+                        for zone in meteo.ZONES]
+            remplies = [(z, g) for z, g in remplies if g]
+            for rang, (zone, groupes) in enumerate(remplies):
+                colonne = self._meteo_pop_g if rang % 2 == 0 else self._meteo_pop_d
+                colonne.append(self._bloc_matieres(zone, groupes, rang // 2 % 2 == 0))
 
         self._meteo_supremes.append(self._entete_colonne(_("Suprêmes — %s") % saison))
         for rang, (zone, groupes) in enumerate(armory.SUPREMES.get(cle, {}).items()):
