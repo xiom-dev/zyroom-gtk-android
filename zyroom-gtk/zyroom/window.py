@@ -443,7 +443,7 @@ class MainWindow(Gtk.ApplicationWindow):
     #: Le nom interne de la page reste `plus` : il ne paraît nulle part, et le
     #: renommer toucherait l'action D-Bus, la pile et six méthodes pour rien.
     PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
-                  ("betes", "Bêtes"), ("outposts", "Avant-postes"),
+                  ("betes", "Perdu ?"), ("outposts", "Avant-postes"),
                   ("meteo", "Météo"))
 
     def _build_navigation(self) -> Gtk.Widget:
@@ -522,7 +522,8 @@ class MainWindow(Gtk.ApplicationWindow):
                                     _("Compétences"))
         self._plus_stack.add_titled(self._build_roster_page(), "roster",
                                     _("Effectif"))
-        self._plus_stack.add_titled(self._build_betes_page(), "betes", _("Bêtes"))
+        self._plus_stack.add_titled(self._build_betes_page(), "betes",
+                                    _("Perdu ?"))
         self._plus_stack.add_titled(self._build_outposts_page(), "outposts",
                                     _("Avant-postes"))
         self._plus_stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))

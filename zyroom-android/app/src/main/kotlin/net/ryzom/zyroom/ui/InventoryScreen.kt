@@ -303,7 +303,10 @@ fun InventoryScreen(
                             FilterChip(
                                 selected = vue == Vue.BETES,
                                 onClick = { vue = Vue.BETES },
-                                label = { Text("🐾 Bêtes") },
+                                // « Perdu ? » plutôt que « Bêtes » : l'onglet
+                                // répond à une question qu'on se pose, il ne
+                                // nomme pas un contenu qu'on chercherait.
+                                label = { Text("🐾 Perdu ?") },
                             )
                         }
                     }
