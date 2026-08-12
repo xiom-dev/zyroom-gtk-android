@@ -23,9 +23,9 @@ import net.ryzom.zyroom.model.Bete
  * par oublier où. L'API donne sa position à chaque relevé ; c'est la seule
  * chose qu'elle sache dire d'un animal qu'on ne retrouve plus.
  *
- * Deux colonnes : les porteurs à gauche — montures et mektoubs de bât —, les
- * zigs à droite. On cherche rarement les uns en pensant aux autres, et les zigs
- * sont souvent nombreux.
+ * Deux colonnes : les mektoubs à gauche — de monte comme de bât —, les zigs à
+ * droite. On cherche rarement les uns en pensant aux autres, et les zigs sont
+ * souvent nombreux.
  */
 @Composable
 fun BetesView(betes: List<Bete>, joueur: Triple<String, Int, Int>? = null) {
@@ -45,7 +45,7 @@ fun BetesView(betes: List<Bete>, joueur: Triple<String, Int, Int>? = null) {
         }
         item {
             Row(Modifier.fillMaxWidth()) {
-                Colonne("Porteurs", porteurs, Modifier.weight(1f))
+                Colonne("Mektoubs", porteurs, Modifier.weight(1f))
                 Colonne("Zigs", zigs, Modifier.weight(1f))
             }
         }

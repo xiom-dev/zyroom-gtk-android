@@ -1097,9 +1097,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._pad(self._betes_entete)
         page.append(self._betes_entete)
 
-        # Deux colonnes : les porteurs à gauche — montures et mektoubs de bât —,
-        # les zigs à droite. On cherche rarement les uns en pensant aux autres,
-        # et les zigs sont souvent nombreux.
+        # Deux colonnes : les mektoubs à gauche — de monte comme de bât —, les
+        # zigs à droite. On cherche rarement les uns en pensant aux autres, et
+        # les zigs sont souvent nombreux.
         defilement = Gtk.ScrolledWindow(vexpand=True)
         colonnes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
                            homogeneous=True)
@@ -1182,7 +1182,7 @@ class MainWindow(Gtk.ApplicationWindow):
             _("Aucune bête dehors : toutes sont rangées.") if not dehors
             else _("%d bête dehors") % len(dehors) if len(dehors) == 1
             else _("%d bêtes dehors") % len(dehors))
-        self._remplir_colonne_betes(self._betes_box, _("Porteurs"),
+        self._remplir_colonne_betes(self._betes_box, _("Mektoubs"),
                                     [b for b in betes if not b.zig])
         self._remplir_colonne_betes(self._betes_zigs, _("Zigs"),
                                     [b for b in betes if b.zig])
