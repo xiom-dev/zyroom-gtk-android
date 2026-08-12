@@ -13,13 +13,14 @@ pourrait fermer : l'image est téléchargée ici, réduite, et embarquée.
 **Le repère.** L'image fait 10 000 × 7 500 pixels à deux unités de jeu par
 pixel. Mais il n'y a **pas une origine unique** : la carte du monde est un
 assemblage, et les positions que rend l'API sont locales à la région où l'on se
-trouve. Voir `REGIONS` — c'est le cœur de ce fichier.
+trouve. Voir `regions()` — c'est le cœur de ce fichier.
 
     python3 outils/carte_atys.py
 
 À relancer si Ryzom redessine sa carte.
 """
 import io
+import json
 import os
 import urllib.request
 
@@ -36,39 +37,59 @@ SOURCE = ("https://raw.githubusercontent.com/nimetu/ryzom_map_tiles/"
 #: Échelle de l'image d'origine : deux unités de jeu par pixel, partout.
 UNITES_PAR_PIXEL_SOURCE = 2
 
-#: Chaque région, ses bornes en coordonnées de jeu, et son origine sur la carte.
+#: Les deux tables de Ballistic Mystix : les bornes de chaque continent en
+#: coordonnées de jeu, et la boîte qu'il occupe sur la carte du monde.
 #:
 #: **Il n'y a pas une origine mais une par région.** La carte du monde est un
 #: assemblage : les Lacs, la jungle et le désert y sont posés côte à côte, et
-#: les positions que rend l'API sont locales à la région où l'on se trouve. Un
-#: repère unique plaçait donc correctement ce qui était dans une région, et
-#: n'importe où ailleurs le reste.
+#: chaque continent y est placé à sa propre position. Un repère unique plaçait
+#: donc correctement ce qui était dans une région, et n'importe où ailleurs le
+#: reste.
 #:
-#: Les bornes viennent des polygones de régions que Ryzom publie dans
-#: `ryzom/ryzomcore_leveldesign`. Les origines ont été retrouvées une par une :
-#: on demande au service de cartes une vue centrée sur un point de la région,
-#: on la cherche dans l'image du monde — l'échelle étant connue, il ne reste
-#: qu'une position à trouver — et la différence donne l'origine. Le nombre en
-#: fin de ligne est la corrélation obtenue ; en dessous de 0,9 il faudrait s'en
-#: méfier.
+#: Ces deux fichiers **donnent la correspondance directement**. On l'avait
+#: d'abord retrouvée région par région, en cherchant une vue du service de
+#: cartes dans l'image du monde ; huit des neuf origines ainsi calées tombaient
+#: à moins de sept unités de jeu — un pixel et demi — de celles-ci. La neuvième,
+#: matis, était fausse de quatorze mille unités : le calage avait accroché
+#: ailleurs, et **aucune position des terres matis ne s'affichait**. C'est
+#: exactement ce qu'un relevé fait à la main peut rater sans rien dire.
 #:
-#: Cinq zones manquent, faute d'avoir pu les caler : les trois îles, qui sont
-#: incluses dans leur région et en partagent donc le repère, Silan (`newbieland`)
-#: qui ne figure pas sur cette carte, et `indoors` qui n'est pas un lieu.
-REGIONS = (
-    ("bagne", 467, 1611, -11320, -9742, -8473, -6027),   # calage 0.996
-    ("sources", 2445, 3901, -11437, -9626, 1287, -2764),   # calage 0.996
-    ("nexus", 7789, 9786, -8346, -6054, -804, -424),   # calage 0.995
-    ("terre", 122, 3062, -15856, -13100, -2792, -8166),   # calage 0.992
-    ("route_gouffre", 5274, 7371, -16983, -9423, -933, -5459),   # calage 0.995
-    ("fyros", 15753, 26084, -27145, -23672, 12337, -23208),   # calage 0.985
-    ("zorai", 6633, 19068, -5767, -496, 6113, 7877),   # calage 0.97
-    ("tryker", 13428, 27513, -35219, -29117, 5462, -20384),   # calage 0.985
-    ("matis", 30, 18736, -7995, 211, 6111, 7876),   # calage 0.966
-)
+#: Même auteur et même licence que la carte elle-même : LGPL-3.0, Meelis Mägi.
+SOURCE_MONDE = ("https://raw.githubusercontent.com/nimetu/ryzom_maps/"
+                "master/src/Bmsite/Maps/Resources/world.json")
+SOURCE_SERVEUR = ("https://raw.githubusercontent.com/nimetu/ryzom_maps/"
+                  "master/src/Bmsite/Maps/Resources/server.json")
 
-#: L'ordre compte : la plus petite région qui contient le point l'emporte. Le
-#: Nexus est inclus dans les bornes matis, et il est plus précis.
+#: Ce qui figure dans `world.json` sans être une région.
+PAS_UNE_REGION = ("world", "grid")
+
+
+def regions() -> tuple:
+    """(nom, x1, x2, y1, y2, origine x, origine y), de la plus petite à la plus
+    grande.
+
+    L'ordre compte : la plus petite région qui contient le point l'emporte. Les
+    sous-terrains du Nexus tiennent dans le Nexus, qui tient lui-même dans les
+    bornes matis, et c'est toujours le plus précis qu'on veut.
+    """
+    monde = json.loads(_telecharge(SOURCE_MONDE))
+    serveur = json.loads(_telecharge(SOURCE_SERVEUR))
+    trouvees = []
+    for cle, ((px1, py1), _coin) in monde.items():
+        if cle in PAS_UNE_REGION or cle not in serveur:
+            continue
+        (gx1, gy1), (gx2, gy2) = serveur[cle]
+        nom = cle.split("_", 1)[1] if "_" in cle else cle
+        # L'échelle est de un pour un : la carte du monde ne redimensionne rien,
+        # elle déplace. L'origine est donc une simple différence.
+        trouvees.append((nom, gx1, gx2, gy1, gy2, gx1 - px1, py1 + gy1))
+    trouvees.sort(key=lambda r: (r[2] - r[1]) * (r[4] - r[3]))
+    return tuple(trouvees)
+
+
+def _telecharge(adresse: str) -> bytes:
+    with urllib.request.urlopen(adresse, timeout=120) as reponse:
+        return reponse.read()
 
 #: Largeur de la carte embarquée.
 #:
@@ -84,10 +105,10 @@ def charge() -> Image.Image:
         return Image.open(io.BytesIO(reponse.read())).convert("RGB")
 
 
-def kotlin(largeur: int, hauteur: int, unites: float) -> str:
+def kotlin(largeur: int, hauteur: int, unites: float, table: tuple) -> str:
     regions = "\n".join(
         f'        Region("{n}", {x1}, {x2}, {y1}, {y2}, {ox}, {oy}),'
-        for n, x1, x2, y1, y2, ox, oy in REGIONS)
+        for n, x1, x2, y1, y2, ox, oy in table)
     return f"""package net.ryzom.zyroom.model
 
 // Fichier produit par outils/carte_atys.py — ne pas modifier à la main.
@@ -140,10 +161,10 @@ object CarteAtys {{
 """
 
 
-def python(largeur: int, hauteur: int, unites: float) -> str:
+def python(largeur: int, hauteur: int, unites: float, table: tuple) -> str:
     regions = "\n".join(
         f'    ("{n}", {x1}, {x2}, {y1}, {y2}, {ox}, {oy}),'
-        for n, x1, x2, y1, y2, ox, oy in REGIONS)
+        for n, x1, x2, y1, y2, ox, oy in table)
     return f'''"""Où tombe un point d'Atys sur la carte embarquée.
 
 Fichier produit par ../zyroom-android/outils/carte_atys.py — ne pas modifier à
@@ -200,6 +221,8 @@ def contient(x: int, y: int) -> bool:
 
 
 def main() -> int:
+    table = regions()
+    print(f"{len(table)} régions lues chez Ballistic Mystix")
     monde = charge()
     unites = UNITES_PAR_PIXEL_SOURCE * monde.width / LARGEUR
     hauteur = round(monde.height * LARGEUR / monde.width)
@@ -214,9 +237,9 @@ def main() -> int:
         (os.path.join(depot, "zyroom-gtk/zyroom/cartes/atys.webp"), None),
         (os.path.join(android,
                       "app/src/packKotlin/net/ryzom/zyroom/model/CarteAtys.kt"),
-         kotlin(LARGEUR, hauteur, unites)),
+         kotlin(LARGEUR, hauteur, unites, table)),
         (os.path.join(depot, "zyroom-gtk/zyroom/carte.py"),
-         python(LARGEUR, hauteur, unites)),
+         python(LARGEUR, hauteur, unites, table)),
     )
     for cible, contenu in sorties:
         racine = os.path.dirname(os.path.dirname(cible))

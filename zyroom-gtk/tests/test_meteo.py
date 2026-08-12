@@ -361,6 +361,9 @@ class CarteDesRegions(unittest.TestCase):
     côte à côte, et les positions que rend l'API sont locales à la région où
     l'on se trouve. Un repère unique plaçait correctement ce qui était dans une
     région, et n'importe où ailleurs le reste.
+
+    Le repère vient des tables que Ballistic Mystix publie, et non plus d'un
+    calage fait à la main dans l'image.
     """
 
     def test_deux_regions_ont_deux_reperes(self):
@@ -368,16 +371,37 @@ class CarteDesRegions(unittest.TestCase):
         self.assertEqual("tryker", carte.region_de(17410, -32849)[0])
         self.assertEqual("zorai", carte.region_de(10328, -2316)[0])
         fx, fy = carte.pixel(17410, -32849)      # Fairhaven, dans les Lacs
-        self.assertAlmostEqual(2389.6, fx, delta=0.5)
-        self.assertAlmostEqual(2493.0, fy, delta=0.5)
+        self.assertAlmostEqual(2390.0, fx, delta=0.5)
+        self.assertAlmostEqual(2493.8, fy, delta=0.5)
         mx, my = carte.pixel(10328, -2316)       # Mounty, dans la jungle
-        self.assertAlmostEqual(843.0, mx, delta=0.5)
-        self.assertAlmostEqual(2038.6, my, delta=0.5)
+        self.assertAlmostEqual(844.0, mx, delta=0.5)
+        self.assertAlmostEqual(2039.2, my, delta=0.5)
 
     def test_la_region_la_plus_precise_l_emporte(self):
         """Le Nexus est inclus dans les bornes matis, et il est plus précis."""
         from zyroom import carte
         self.assertEqual("nexus", carte.region_de(8700, -7000)[0])
+
+    def test_les_terres_matis_se_placent(self):
+        """Elles ne se plaçaient pas, et rien ne le disait.
+
+        L'origine matis calée à la main était celle de la jungle, à quatorze
+        mille unités de la vraie : tout point de la forêt tombait hors de
+        l'image et `pixel()` rendait `None`. **Aucune bête laissée chez les
+        Matis n'apparaissait sur la carte.** C'est la table publiée qui l'a
+        révélé, en désaccord d'un seul chiffre sur neuf.
+        """
+        from zyroom import carte
+        for x, y in ((320, -7840), (3280, -4080), (6240, -320)):
+            self.assertEqual("matis", carte.region_de(x, y)[0])
+            self.assertTrue(carte.contient(x, y), f"({x}, {y}) devrait se placer")
+
+    def test_les_regions_venues_de_la_table_publiee(self):
+        """Silan et les sous-terrains du Nexus, que le calage n'avait pas eus."""
+        from zyroom import carte
+        self.assertEqual("newbieland", carte.region_de(9500, -11000)[0])
+        self.assertTrue(carte.contient(9500, -11000))
+        self.assertEqual(13, len(carte.REGIONS))
 
     def test_hors_de_toute_region_on_ne_montre_rien(self):
         from zyroom import carte

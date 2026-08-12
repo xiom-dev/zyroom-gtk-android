@@ -29,15 +29,19 @@ object CarteAtys {
 
     /** De la plus petite à la plus grande : la première qui contient gagne. */
     val REGIONS = listOf(
-        Region("bagne", 467, 1611, -11320, -9742, -8473, -6027),
-        Region("sources", 2445, 3901, -11437, -9626, 1287, -2764),
-        Region("nexus", 7789, 9786, -8346, -6054, -804, -424),
-        Region("terre", 122, 3062, -15856, -13100, -2792, -8166),
-        Region("route_gouffre", 5274, 7371, -16983, -9423, -933, -5459),
-        Region("fyros", 15753, 26084, -27145, -23672, 12337, -23208),
-        Region("zorai", 6633, 19068, -5767, -496, 6113, 7877),
-        Region("tryker", 13428, 27513, -35219, -29117, 5462, -20384),
-        Region("matis", 30, 18736, -7995, 211, 6111, 7876),
+        Region("matis_island_1", 14080, 15360, -1600, -320, -552, 1740),
+        Region("kitiniere", 1760, 3040, -17440, -16160, -13512, -10228),
+        Region("bagne", 480, 1600, -11360, -9760, -8480, -6020),
+        Region("sources", 2560, 3840, -11360, -9760, 1284, -2760),
+        Region("undernexus", 7680, 11040, -9600, -8480, -808, -424),
+        Region("newbieland", 8160, 11360, -12320, -10240, -7660, -10040),
+        Region("terre", 160, 3040, -15840, -13120, -2796, -8160),
+        Region("nexus", 7680, 11040, -9440, -5920, -808, -424),
+        Region("route_gouffre", 5440, 7360, -16960, -9600, -936, -5456),
+        Region("fyros", 15840, 20320, -27040, -23840, 12336, -23204),
+        Region("zorai", 6880, 12480, -5920, -960, 6108, 7880),
+        Region("tryker", 13760, 20000, -34880, -29440, 5460, -20380),
+        Region("matis", 320, 6240, -7840, -320, -8480, 396),
     )
 
     /** La région d'un point, ou rien si aucune ne le couvre. */
