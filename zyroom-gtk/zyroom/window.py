@@ -1063,8 +1063,9 @@ class MainWindow(Gtk.ApplicationWindow):
         finit par oublier où. L'API donne sa position à chaque relevé ; c'est la
         seule chose qu'elle sache dire d'un animal qu'on ne retrouve plus.
 
-        Les coordonnées sont écrites en clair et pas seulement portées sur la
-        carte : ce sont elles qu'on tape en jeu pour poser un repère.
+        Seule la carte dit où : les coordonnées ne sont pas affichées. Le jeu ne
+        permet pas d'en saisir pour poser un repère, donc deux nombres de plus
+        n'auraient servi à rien.
         """
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
 
@@ -1770,12 +1771,14 @@ class MainWindow(Gtk.ApplicationWindow):
         zone.add_controller(glisse)
         boite.append(zone)
 
-        # Les coordonnées en clair : c'est ce qu'on tape en jeu pour poser un
-        # repère, et la carte seule ne les donne pas au mètre près.
-        for x, y, lieu in points:
+        # Les lieux, sans leurs coordonnées : le jeu ne permet pas de taper une
+        # position pour y poser un repère — je l'avais cru, Ludo l'a corrigé —
+        # et deux nombres qu'on ne peut ni saisir ni recopier nulle part
+        # n'apprennent rien. Le nom du lieu, lui, dit où aller.
+        for lieu in dict.fromkeys(lieu for _x, _y, lieu in points):
             ligne = Gtk.Label(xalign=0.0)
             ligne.add_css_class("compact")
-            ligne.set_text(f"{lieu} · {x} ; {y}")
+            ligne.set_text(lieu)
             boite.append(ligne)
 
         credit = Gtk.Label(xalign=0.0, wrap=True)

@@ -10,9 +10,9 @@ import net.ryzom.zyroom.model.Gisements
  * **Mais elle a les positions.** Elles viennent du relevé de
  * ballisticmystix.net, dont l'auteur a donné son accord écrit pour qu'on s'en
  * serve et qu'on le redistribue : ce sont des faits, pas des images du jeu, et
- * rien n'empêche une logithèque de les publier. L'écran dit donc le lieu et les
- * coordonnées — « Sources Interdites · 3291 ; -10981 » —, ce qui est ce qu'on
- * tape en jeu pour poser un repère.
+ * rien n'empêche une logithèque de les publier. L'écran nomme donc les lieux —
+ * « Sources Interdites », « Porte des Vents ». Sans les coordonnées : le jeu ne
+ * permet pas d'en saisir, elles n'apprendraient rien.
  *
  * C'est un gain, pas un manque : avant, cette variante ne disait rien du tout de
  * l'endroit où sortent les matières.

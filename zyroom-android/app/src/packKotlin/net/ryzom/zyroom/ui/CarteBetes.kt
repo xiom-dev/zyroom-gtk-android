@@ -81,8 +81,9 @@ private const val SEUIL_GROUPE = 40f
  * La carte d'Atys, et les bêtes qui y sont.
  *
  * Ce n'est pas une carte de navigation : elle sert à comprendre d'un coup d'œil
- * dans quelle région une bête a été laissée. Les coordonnées exactes sont
- * écrites sous chaque bête, dans la liste — c'est elles qu'on tape en jeu.
+ * dans quelle région une bête a été laissée. Les coordonnées ne sont écrites
+ * nulle part : le jeu ne permet pas d'en saisir pour poser un repère, donc deux
+ * nombres de plus n'apprendraient rien.
  *
  * Elle s'agrandit au pincement et se déplace au doigt, parce que le monde
  * entier tient dans la hauteur d'une carte de visite : deux bêtes séparées de

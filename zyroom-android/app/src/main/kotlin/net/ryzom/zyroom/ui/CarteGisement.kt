@@ -20,18 +20,17 @@ import androidx.compose.ui.window.Dialog
 import net.ryzom.zyroom.model.Gisements
 
 /**
- * Où sort une matière : nos propres marqueurs sur la carte d'Atys, et les
- * coordonnées en clair.
+ * Où sort une matière : nos propres marqueurs sur la carte d'Atys.
  *
  * L'écran météo dit *quoi* sort ; ceci dit *où*. On embarquait les vues rendues
  * par le tracker d'atys.us — trois mégaoctets d'images figées. Ballistic Mystix
  * a donné les coordonnées : sept kilooctets, notre carte, un zoom libre, et le
  * nom du lieu écrit à côté de chaque point.
  *
- * Les coordonnées sont écrites même quand la carte les porte : ce sont elles
- * qu'on tape en jeu pour poser un repère, et un point sur une carte ne les donne
- * pas au mètre près. Dans la variante F-Droid, qui n'embarque pas la carte, elles
- * sont tout ce qu'il y a — et c'est déjà plus que rien, ce qu'elle avait avant.
+ * **Pas de coordonnées.** Le jeu ne permet pas d'en saisir pour poser un
+ * repère — on l'avait cru, Ludo l'a corrigé — et deux nombres qu'on ne peut
+ * recopier nulle part n'apprennent rien. C'est le nom du lieu qui dit où aller.
+ * La variante F-Droid, qui n'embarque pas la carte, n'affiche que ces noms.
  */
 @Composable
 fun CarteGisement(
