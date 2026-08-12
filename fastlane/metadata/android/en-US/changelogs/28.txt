@@ -1,0 +1,7 @@
+* Weather: tapping a material now tells you **where** it comes up. The
+  places come from ballisticmystix.net's survey, whose author gave his
+  permission — the first time this build has been able to show it.
+* Day and night excellents now read side by side instead of one below the
+  other: you can compare them at a glance.
+* Three megabytes lighter: the deposit views used to be images, they are
+  now positions.

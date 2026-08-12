@@ -1,0 +1,7 @@
+* Météo : toucher une matière dit enfin **où** elle sort. Les lieux
+  viennent du relevé de ballisticmystix.net, dont l'auteur a donné son
+  accord — c'est la première fois que cette version-ci peut le montrer.
+* Les excellentes de jour et de nuit se lisent côte à côte au lieu de
+  l'une sous l'autre : on les compare d'un regard.
+* L'application est plus légère de trois mégaoctets : les vues de
+  gisements étaient des images, ce sont maintenant des positions.
