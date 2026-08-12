@@ -384,5 +384,34 @@ class CarteDesRegions(unittest.TestCase):
         self.assertIsNone(carte.pixel(0, 0))
         self.assertFalse(carte.contient(30000, -2000))
 
+
+
+
+class PositionDuJoueur(unittest.TestCase):
+    """La position du personnage, à la racine du flux.
+
+    Elle y est depuis toujours et personne ne la lisait. C'est le repère qui
+    manquait sur la carte, et il dit du même coup à quelle distance de ses
+    bêtes on se trouve.
+    """
+
+    def _ent(self, xml: str):
+        from zyroom import ryzom_api
+        return ryzom_api.parse_character(xml.encode("utf-8"))
+
+    def test_le_personnage_porte_sa_position(self):
+        ent = self._ent(
+            '<?xml version="1.0"?><ryzomapi><character><id>1</id>'
+            '<name>Xiom</name><position x="17410" y="-32849" z="-7"/>'
+            '</character></ryzomapi>')
+        self.assertEqual((17410, -32849), (ent.x, ent.y))
+
+    def test_sans_position_on_ne_pretend_rien(self):
+        ent = self._ent('<?xml version="1.0"?><ryzomapi><character><id>1</id>'
+                        '<name>X</name></character></ryzomapi>')
+        self.assertEqual((0, 0), (ent.x, ent.y))
+        from zyroom import carte
+        self.assertFalse(carte.contient(ent.x, ent.y))
+
 if __name__ == "__main__":
     unittest.main()

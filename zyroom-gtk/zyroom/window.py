@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.27"
+APP_NAME = ("ZyRoom-GTK-dev-0.28"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.17")
 
@@ -1030,6 +1030,9 @@ class MainWindow(Gtk.ApplicationWindow):
     #: Le noir des cernes et des liserés, jamais tout à fait noir pour l'œil.
     CERNE = (0.06, 0.08, 0.09)
 
+    #: Le bleu du repère du joueur, distinct du rouge des bêtes.
+    POINT_JOUEUR = (0.23, 0.61, 1.0)
+
     #: En deçà de cette distance à l'écran, deux bêtes n'en font qu'une.
     #:
     #: Quarante pixels : de quoi séparer deux troupeaux laissés dans deux
@@ -1206,7 +1209,9 @@ class MainWindow(Gtk.ApplicationWindow):
         ent = self._entity
         betes = [b for b in getattr(ent, "betes", [])
                  if b.dehors and carte.contient(b.x, b.y)] if ent else []
-        if not betes:
+        # La carte s'affiche aussi quand seul le joueur est plaçable : savoir où
+        # l'on est vaut d'être montré, même sans bête dehors.
+        if ent is None or (not betes and not carte.contient(ent.x, ent.y)):
             return
         if self._betes_pixbuf is None:
             try:
@@ -1228,6 +1233,29 @@ class MainWindow(Gtk.ApplicationWindow):
         Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
         cr.paint()
         cr.restore()
+
+        # Le joueur d'abord, sous les bêtes : c'est un repère, pas ce qu'on
+        # cherche. Sa position est celle de sa dernière déconnexion.
+        p = carte.pixel(ent.x, ent.y) if (ent.x or ent.y) else None
+        if p is not None:
+            jx, jy = marge_x + p[0] * echelle, marge_y + p[1] * echelle
+            if 0 <= jx <= largeur and 0 <= jy <= hauteur:
+                for rayon, couleur in ((7.0, self.CERNE), (5.5, (1.0, 1.0, 1.0)),
+                                       (3.0, self.POINT_JOUEUR)):
+                    cr.set_source_rgb(*couleur)
+                    cr.arc(jx, jy, rayon, 0, 6.2832)
+                    cr.fill()
+                cr.select_font_face("Sans")
+                cr.set_font_size(13)
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        if dx or dy:
+                            cr.set_source_rgb(*self.CERNE)
+                            cr.move_to(jx + 11 + dx * 1.2, jy - 7 + dy * 1.2)
+                            cr.show_text(ent.name)
+                cr.set_source_rgb(1.0, 1.0, 1.0)
+                cr.move_to(jx + 11, jy - 7)
+                cr.show_text(ent.name)
 
         # Les bêtes trop proches n'en font qu'une : quatre mektoubs attachés
         # ensemble tombent sur le même pixel, et quatre noms superposés ne se

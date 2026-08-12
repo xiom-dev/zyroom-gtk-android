@@ -120,6 +120,12 @@ class Entity:
     portrait_url: str = ""         # URL du portrait (rendu 3D perso / icône guilde)
     inventories: list[Inventory] = field(default_factory=list)
     betes: list[Bete] = field(default_factory=list)      # montures, mektoubs, zigs
+    #: Où se tient le personnage, en coordonnées du monde.
+    #:
+    #: C'est sa position à la dernière déconnexion, pas un suivi en direct.
+    #: (0, 0) quand elle manque, ce que la carte écarte d'elle-même.
+    x: int = 0
+    y: int = 0
     skills: list = field(default_factory=list)          # arbre des compétences
     skill_points: dict = field(default_factory=dict)    # points par branche
     members: list = field(default_factory=list)         # [(nom, grade)] d'une guilde
@@ -420,6 +426,17 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     if room is not None:
         ent.inventories.append(Inventory("room", _("Appartement"), _build_items(room, resolve_sheet),
                                          volume_mod.CAP_ROOM))
+
+    # La position du personnage lui-même, à la racine du flux. Elle y est depuis
+    # toujours ; c'est le repère qui manquait sur la carte, et il dit du même
+    # coup à quelle distance de ses bêtes on se trouve.
+    pos = node.find("position")
+    if pos is not None:
+        for attr, champ in (("x", "x"), ("y", "y")):
+            try:
+                setattr(ent, champ, int(float(pos.get(attr, "0"))))
+            except ValueError:
+                pass
 
     pets = node.find("pets")
     if pets is not None:
