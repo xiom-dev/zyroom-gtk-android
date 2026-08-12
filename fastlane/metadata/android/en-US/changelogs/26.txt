@@ -1,0 +1,2 @@
+* In "Perdu ?", the left column is now called "Mektoubs" — the game's own word
+  rather than a made-up category.
