@@ -1,0 +1,8 @@
+* Weather: supreme materials are no longer listed twice. The seasonal
+  table is gone — "what's out" already names them, and for the current
+  weather rather than the whole season. It now reads "Supremes — what's
+  out".
+* Beasts left in the Matis lands appeared nowhere: the forest's origin on
+  the map was wrong and their positions were silently dropped. Fixed, and
+  four more regions are covered, Silan among them.
+* The About screen now credits every source we borrow from.

@@ -1,0 +1,8 @@
+* Météo : les suprêmes ne sont plus données deux fois. Le tableau de la
+  saison disparaît, « ce qui sort » les annonce déjà — et au temps qu'il
+  fait, pas à la saison entière. Il s'appelle maintenant « Suprêmes — ce
+  qui sort ».
+* Les bêtes laissées dans les terres matis ne s'affichaient nulle part :
+  le repère de la forêt était faux, et la carte les écartait en silence.
+  Corrigé, et quatre régions de plus sont couvertes, dont Silan.
+* L'À propos nomme enfin toutes les sources qu'on emprunte.
