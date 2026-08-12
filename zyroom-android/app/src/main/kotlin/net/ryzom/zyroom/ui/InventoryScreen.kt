@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
@@ -307,16 +306,7 @@ fun InventoryScreen(
                                 // « Perdu ? » plutôt que « Bêtes » : l'onglet
                                 // répond à une question qu'on se pose, il ne
                                 // nomme pas un contenu qu'on chercherait.
-                                label = { Text("Perdu ?") },
-                                // Une loupe dessinée plutôt qu'un émoji : celui
-                                // des autres puces vient de la police du
-                                // système et n'a pas nos couleurs. Celle-ci
-                                // prend le vert de l'application.
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Search, contentDescription = null,
-                                         tint = VertClair,
-                                         modifier = Modifier.size(20.dp))
-                                },
+                                label = { Text("🔎 Perdu ?") },
                             )
                         }
                     }

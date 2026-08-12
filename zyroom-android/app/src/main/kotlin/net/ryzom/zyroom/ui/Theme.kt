@@ -78,17 +78,6 @@ val OrangesDuCoffre = listOf(
 )
 
 /**
- * Le vert clair des petites icônes posées sur fond sombre.
- *
- * Le sarcelle du thème est fait pour de larges aplats ; réduit à une loupe de
- * vingt points, il s'éteint à côté des émojis voisins, qui sont dessinés par le
- * système en couleurs vives. Celui-ci est le même vert, éclairci de ce qu'il
- * faut pour tenir son rang dans la rangée — et il reste lisible quand la puce
- * est sélectionnée et que son fond devient vert sombre.
- */
-val VertClair = Color(0xFF6FCBAA)
-
-/**
  * Le fond d'une ligne sur deux, dans les listes qui se lisent en travers.
  *
  * Le vert de l'application, très dilué : sur des colonnes étroites l'œil perd
