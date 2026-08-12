@@ -53,7 +53,6 @@ import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
 import net.ryzom.zyroom.model.EXCELLENTES
 import net.ryzom.zyroom.model.SAISONS
-import net.ryzom.zyroom.model.SUPREMES
 import net.ryzom.zyroom.model.ZONES
 import net.ryzom.zyroom.model.popDe
 import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
@@ -339,7 +338,7 @@ private fun CeQuiSort(releve: MeteoAtys) {
     val maintenant = maintenantDansLesPrimes(releve) ?: return
     val condition = texteCondition(maintenant.condition)
     val humidite = (maintenant.value * 100).toInt()
-    TitreTableau("Ce qui sort — $condition, $humidite %")
+    TitreTableau("Suprêmes — ce qui sort : $condition, $humidite %")
     // Deux zones par rangée : les quatre tenaient sur quatre écrans, et c'est
     // le tableau qu'on consulte en jouant. Le fond teinté est porté par la
     // rangée et non par chaque zone — l'une est souvent plus courte que
@@ -364,46 +363,36 @@ private fun CeQuiSort(releve: MeteoAtys) {
 }
 
 /**
- * Les deux tableaux, côte à côte : les suprêmes à gauche, les excellentes à
- * droite.
+ * Ce que la saison fait sortir d'excellent.
  *
- * L'un sous l'autre, il fallait traverser les cinq zones des Primes pour
- * atteindre les excellentes — celles qu'on va justement forer maintenant. Côte
- * à côte, les deux se lisent d'un même regard. La colonne de droite est bien
- * plus courte que celle de gauche : c'est dans l'ordre des choses, il y a moins
- * de matières excellentes que de suprêmes.
+ * Le tableau des suprêmes de la saison a été retiré : « ce qui sort » les donne
+ * déjà, et au temps qu'il fait plutôt qu'à la saison entière — c'est la même
+ * liste, mais à jour. Les excellentes restent, seules et sur toute la largeur :
+ * elles ne dépendent que du jour et de la nuit, que la météo ne change pas.
  */
 @Composable
 private fun TableauxMatieres(releve: MeteoAtys) {
     val saison = saisonCle(releve.saison)
-    Row(Modifier.fillMaxWidth()) {
-        Column(Modifier.weight(1f)) {
-            TitreTableau("Suprêmes — " + nomSaison(releve.saison))
-            SUPREMES[saison]?.entries?.toList().orEmpty()
-                .forEachIndexed { rang, (zone, groupes) ->
-                    BlocMatieres(zone, groupes, rang % 2 == 0)
-                }
-        }
-        Column(Modifier.weight(1f)) {
-            TitreTableau("Excellentes")
-            // Il fait nuit sur Atys de 22 h à 3 h, et le jeu n'y fait pas
-            // sortir les mêmes matières. Les deux listes sont montrées — ce qui
-            // sortira dans une heure vaut la peine d'être su —, et celle qui
-            // vaut maintenant est dite et mise en couleur : sans cela, il
-            // fallait connaître l'heure d'Atys pour savoir laquelle lire.
-            EXCELLENTES[saison]?.entries?.toList().orEmpty()
-                .forEachIndexed { rang, (moment, groupes) ->
-                    val maintenant = (moment == "NUIT") == releve.nuit
-                    BlocMatieres(
-                        titre = (if (moment == "JOUR") "De jour" else "De nuit") +
-                            if (maintenant) " · en ce moment" else "",
-                        groupes = groupes,
-                        zebre = rang % 2 == 0,
-                        souligne = maintenant,
-                        qualite = "excellent",
-                    )
-                }
-        }
+    Column(Modifier.fillMaxWidth()) {
+        TitreTableau("Cette saison")
+        TitreTableau("Excellentes — " + nomSaison(releve.saison))
+        // Il fait nuit sur Atys de 22 h à 3 h, et le jeu n'y fait pas sortir
+        // les mêmes matières. Les deux listes sont montrées — ce qui sortira
+        // dans une heure vaut la peine d'être su —, et celle qui vaut
+        // maintenant est dite et mise en couleur : sans cela, il fallait
+        // connaître l'heure d'Atys pour savoir laquelle lire.
+        EXCELLENTES[saison]?.entries?.toList().orEmpty()
+            .forEachIndexed { rang, (moment, groupes) ->
+                val maintenant = (moment == "NUIT") == releve.nuit
+                BlocMatieres(
+                    titre = (if (moment == "JOUR") "De jour" else "De nuit") +
+                        if (maintenant) " · en ce moment" else "",
+                    groupes = groupes,
+                    zebre = rang % 2 == 0,
+                    souligne = maintenant,
+                    qualite = "excellent",
+                )
+            }
     }
 }
 

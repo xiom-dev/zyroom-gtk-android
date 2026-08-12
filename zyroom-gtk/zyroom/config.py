@@ -351,6 +351,51 @@ class Settings:
     def proxy_password(self, value: str) -> None:
         self._proxy_set("Password", value)
 
+    #: Taille de la fenêtre au premier lancement, avant qu'on en sache plus.
+    FENETRE_DEFAUT = (960, 680)
+
+    @property
+    def window_size(self) -> tuple:
+        """La taille de la fenêtre à la dernière fermeture.
+
+        Une taille aberrante — écran débranché depuis, réglage recopié d'une
+        autre machine — ramène au défaut plutôt qu'à une fenêtre de trois
+        pixels de haut qu'on ne saurait plus attraper. Une valeur illisible
+        aussi : ce réglage est lu avant que la fenêtre existe, et une exception
+        ici empêcherait l'application de démarrer du tout.
+        """
+        try:
+            largeur = self._ini.getint("GENERAL", "WindowWidth",
+                                       fallback=self.FENETRE_DEFAUT[0])
+            hauteur = self._ini.getint("GENERAL", "WindowHeight",
+                                       fallback=self.FENETRE_DEFAUT[1])
+        except ValueError:
+            return self.FENETRE_DEFAUT
+        if not (360 <= largeur <= 10000 and 300 <= hauteur <= 10000):
+            return self.FENETRE_DEFAUT
+        return (largeur, hauteur)
+
+    @window_size.setter
+    def window_size(self, value: tuple) -> None:
+        largeur, hauteur = value
+        self._ini.set("GENERAL", "WindowWidth", str(int(largeur)))
+        self._ini.set("GENERAL", "WindowHeight", str(int(hauteur)))
+        self._flush()
+
+    @property
+    def window_maximized(self) -> bool:
+        """Agrandie à la dernière fermeture ? On la rouvre comme on l'a laissée."""
+        try:
+            return self._ini.getboolean("GENERAL", "WindowMaximized",
+                                        fallback=False)
+        except ValueError:
+            return False
+
+    @window_maximized.setter
+    def window_maximized(self, value: bool) -> None:
+        self._ini.set("GENERAL", "WindowMaximized", "1" if value else "0")
+        self._flush()
+
     def _flush(self) -> None:
         with open(self._path, "w", encoding="utf-8") as fh:
             self._ini.write(fh)

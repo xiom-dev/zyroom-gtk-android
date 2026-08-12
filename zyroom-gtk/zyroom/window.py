@@ -83,11 +83,15 @@ class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application)
         self.set_title(APP_NAME)
-        self.set_default_size(960, 680)
 
         self._char_store = EntityStore("characters.ini")
         self._guild_store = EntityStore("guilds.ini")
         self._settings = Settings()
+        # La fenêtre se rouvre comme on l'a laissée. Après `Settings` et non
+        # avant : c'est lui qui sait de quelle taille il s'agit.
+        self.set_default_size(*self._settings.window_size)
+        if self._settings.window_maximized:
+            self.maximize()
         i18n.set_language(self._settings.language)
         self._apply_proxy()
 
@@ -1380,15 +1384,14 @@ class MainWindow(Gtk.ApplicationWindow):
         pop.append(self._meteo_pop_d)
         dedans.append(pop)
 
-        self._meteo_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
-                                  spacing=12, homogeneous=True)
-        self._meteo_supremes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-                                       spacing=2)
+        # Le tableau des suprêmes de la saison a été retiré : « ce qui sort »
+        # les donne déjà, et au temps qu'il fait plutôt qu'à la saison entière.
+        # Il ne reste que les excellentes, posées directement dans la page — la
+        # boîte à deux colonnes qui les portait réclamait deux cents pixels de
+        # plus que son contenu une fois seule, et la page finissait sur du vide.
         self._meteo_excellentes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                           spacing=2)
-        self._meteo_box.append(self._meteo_supremes)
-        self._meteo_box.append(self._meteo_excellentes)
-        dedans.append(self._meteo_box)
+        dedans.append(self._meteo_excellentes)
         page.append(defilement)
 
         self._meteo_releve = None      #: ce que l'API a rendu, tel quel
@@ -1514,7 +1517,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self._meteo_entete.set_markup("".join(morceaux))
         self._meteo_courbe.queue_draw()
 
-        for colonne in (self._meteo_supremes, self._meteo_excellentes,
+        for colonne in (self._meteo_excellentes,
                         self._meteo_pop_g, self._meteo_pop_d):
             while (child := colonne.get_first_child()) is not None:
                 colonne.remove(child)
@@ -1531,7 +1534,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self._meteo_pop_titre.set_text("")
         else:
             self._meteo_pop_titre.set_text(
-                _("Ce qui sort — %(condition)s, %(taux)d %%")
+                _("Suprêmes — ce qui sort : %(condition)s, %(taux)d %%")
                 % {"condition": meteo.texte_condition(actuelle.condition),
                    "taux": round(actuelle.value * 100)})
             remplies = [(zone, meteo.pop_de(releve.saison, zone,
@@ -1547,12 +1550,7 @@ class MainWindow(Gtk.ApplicationWindow):
                                                    rang // 2 % 2 == 0,
                                                    qualite="supreme"))
 
-        self._meteo_supremes.append(self._entete_colonne(_("Suprêmes — %s") % saison))
-        for rang, (zone, groupes) in enumerate(armory.SUPREMES.get(cle, {}).items()):
-            self._meteo_supremes.append(
-                self._bloc_matieres(zone, groupes, rang % 2 == 0,
-                                    qualite="supreme"))
-
+        self._meteo_excellentes.append(self._entete_colonne(_("Cette saison")))
         self._meteo_excellentes.append(
             self._entete_colonne(_("Excellentes — %s") % saison))
         for rang, (moment, groupes) in enumerate(
@@ -2741,6 +2739,13 @@ class MainWindow(Gtk.ApplicationWindow):
             # sombre, assombri sur fond clair : mélangé au texte du thème, il
             # reste lisible dans les deux sens.
             b" .fini { color: mix(#3f7a68, @theme_fg_color, 0.35); font-weight: bold; }"
+            # L'or de l'application — celui du titre et du logo, `secondary`
+            # côté Android — pour les intitulés de section. La classe était
+            # posée depuis longtemps sur cinq titres, mais **jamais définie** :
+            # ils s'affichaient dans la couleur ordinaire. Mélangé au texte du
+            # thème comme le vert au-dessus, il tient sur fond clair comme sur
+            # fond sombre.
+            b" .peuple { color: mix(#e8c15a, @theme_fg_color, 0.30); }"
             # Un cran sous le corps courant : trois colonnes doivent tenir dans
             # une moitié de fenêtre, et un nom d'avant-poste va jusqu'à
             # quarante signes.
@@ -3422,6 +3427,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._status.set_text(text)
 
     def _on_close(self, *_):
+        # La taille qu'on retrouvera au prochain lancement. `get_default_size`
+        # et non `get_width` : agrandie, la fenêtre doit se souvenir de la
+        # taille qu'elle avait avant de l'être, sinon on ne peut plus la
+        # réduire qu'à la main.
+        self._settings.window_size = self.get_default_size()
+        self._settings.window_maximized = self.is_maximized()
         self._icons.shutdown()
         self._updater.close()
         if self._settings.backup_auto:
