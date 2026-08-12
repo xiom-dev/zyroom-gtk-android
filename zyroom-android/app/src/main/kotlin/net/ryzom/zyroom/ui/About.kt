@@ -149,6 +149,24 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Même auteur, même licence, même obligation : la carte d'Atys
+                // vient de son dépôt de tuiles.
+                if (CARTE_EMBARQUEE) {
+                    Text(
+                        "Carte d'Atys : Ryzom Map Tiles, © Meelis Mägi, sous " +
+                            "GNU LGPL v3.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (GISEMENTS_EMBARQUES) {
+                    Text(
+                        "Cartes des gisements : tracker d'atys.us, de Tgwaste ; " +
+                            "données de gisements de ballisticmystix.net.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
                     "V-RyLune n'est pas affiliée à Winch Gate, éditeur de Ryzom.",
                     style = MaterialTheme.typography.bodySmall,

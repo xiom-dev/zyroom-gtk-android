@@ -14,8 +14,8 @@ from datetime import datetime, timedelta
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
-from . import (alerts, armory, backup, carte, chatlog, detail, i18n, meteo,
-               movements, outposts, roster, ryzom_api, sorting)
+from . import (alerts, armory, backup, carte, chatlog, detail, gisements, i18n,
+               meteo, movements, outposts, roster, ryzom_api, sorting)
 from . import skills as skills_mod
 from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
@@ -1540,12 +1540,18 @@ class MainWindow(Gtk.ApplicationWindow):
             remplies = [(z, g) for z, g in remplies if g]
             for rang, (zone, groupes) in enumerate(remplies):
                 colonne = self._meteo_pop_g if rang % 2 == 0 else self._meteo_pop_d
-                colonne.append(self._bloc_matieres(zone, groupes, rang // 2 % 2 == 0))
+                # Le relevé de la guilde porte sur les quatre zones des Primes,
+                # là où sortent les suprêmes : c'est cette qualité-là qu'on
+                # montre en carte.
+                colonne.append(self._bloc_matieres(zone, groupes,
+                                                   rang // 2 % 2 == 0,
+                                                   qualite="supreme"))
 
         self._meteo_supremes.append(self._entete_colonne(_("Suprêmes — %s") % saison))
         for rang, (zone, groupes) in enumerate(armory.SUPREMES.get(cle, {}).items()):
             self._meteo_supremes.append(
-                self._bloc_matieres(zone, groupes, rang % 2 == 0))
+                self._bloc_matieres(zone, groupes, rang % 2 == 0,
+                                    qualite="supreme"))
 
         self._meteo_excellentes.append(
             self._entete_colonne(_("Excellentes — %s") % saison))
@@ -1559,7 +1565,8 @@ class MainWindow(Gtk.ApplicationWindow):
             if actuel:
                 titre += _("  ·  en ce moment")
             self._meteo_excellentes.append(
-                self._bloc_matieres(titre, groupes, rang % 2 == 0, actuel))
+                self._bloc_matieres(titre, groupes, rang % 2 == 0, actuel,
+                                    qualite="excellent"))
         self._meteo_excellentes.append(self._note(
             _("Les Primes partagent une seule météo : celle-ci vaut pour les "
               "quatre zones.")))
@@ -1578,7 +1585,8 @@ class MainWindow(Gtk.ApplicationWindow):
         return label
 
     def _bloc_matieres(self, titre: str, groupes: dict, zebre: bool,
-                       souligne: bool = False) -> Gtk.Widget:
+                       souligne: bool = False,
+                       qualite: str = "supreme") -> Gtk.Widget:
         boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         if zebre:
             boite.add_css_class("zebre")
@@ -1611,10 +1619,83 @@ class MainWindow(Gtk.ApplicationWindow):
                 image.set_halign(Gtk.Align.START)
                 cellule.append(image)
             grille.attach(cellule, 0, ligne, 1, 1)
-            m = Gtk.Label(label=", ".join(matieres), xalign=0.0, wrap=True)
+            m = Gtk.Label(xalign=0.0, wrap=True)
+            m.set_markup(self._matieres_markup(qualite, groupe, matieres))
+            m.connect("activate-link", self._on_gisement)
             grille.attach(m, 1, ligne, 1, 1)
         boite.append(grille)
         return boite
+
+    @staticmethod
+    def _matieres_markup(qualite: str, famille: str, matieres: list) -> str:
+        """La liste des matières, celles qu'on sait situer devenant des liens.
+
+        Un lien plutôt qu'un bouton : la liste garde son allure de phrase et
+        continue de se replier toute seule quand la colonne rétrécit. Une
+        matière sans carte reste du texte ordinaire — rien n'invite à cliquer
+        sur ce qui ne répondrait pas.
+        """
+        morceaux = []
+        for matiere in matieres:
+            texte = GLib.markup_escape_text(matiere)
+            if gisements.cartes(qualite, famille, matiere):
+                cible = GLib.markup_escape_text(f"{qualite}|{famille}|{matiere}")
+                morceaux.append(f'<a href="{cible}">{texte}</a>')
+            else:
+                morceaux.append(texte)
+        return ", ".join(morceaux)
+
+    def _on_gisement(self, _label, adresse: str) -> bool:
+        self._montre_gisement(*adresse.split("|", 2))
+        return True         # sinon GTK tente d'ouvrir l'adresse dans un navigateur
+
+    def _montre_gisement(self, qualite: str, famille: str, matiere: str) -> None:
+        """Où sort cette matière : les vues du tracker, l'une sous l'autre.
+
+        Plusieurs vues quand le gisement sort à plusieurs endroits — jusqu'à six
+        pour certaines excellentes. Chacune porte son marqueur et son nom, tels
+        que le site les dessine.
+        """
+        chemins = gisements.cartes(qualite, famille, matiere)
+        if not chemins:
+            return
+        win = Gtk.Window(title=f"{matiere} — {famille}", transient_for=self)
+        win.set_default_size(gisements.LARGEUR + 80, 640)
+        boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self._pad(boite)
+
+        mot = _("Suprême") if qualite == "supreme" else _("Excellente")
+        fourchettes = gisements.humidites(qualite, famille, matiere)
+        # Sans espace autour du tiret, et la virgule décimale du français : deux
+        # fourchettes doivent tenir sur la ligne du titre.
+        humidite = ", ".join(f"{bas:g}–{haut:g} %".replace(".", ",")
+                             for bas, haut in fourchettes)
+        entete = Gtk.Label(xalign=0.0, wrap=True)
+        entete.set_markup(
+            f"<b>{GLib.markup_escape_text(mot)}</b>"
+            + (f"  ·  {_('humidité')} {GLib.markup_escape_text(humidite)}"
+               if humidite else ""))
+        boite.append(entete)
+
+        for chemin in chemins:
+            image = Gtk.Picture.new_for_filename(chemin)
+            # Sans cela l'image s'étire à la largeur de la fenêtre et le nom
+            # incrusté devient flou : ces vues n'ont qu'une taille juste.
+            image.set_can_shrink(False)
+            image.set_halign(Gtk.Align.CENTER)
+            boite.append(image)
+
+        credit = Gtk.Label(xalign=0.0, wrap=True)
+        credit.add_css_class("dim-label")
+        credit.add_css_class("caption")
+        credit.set_text(_("Cartes : tracker d'atys.us · données de "
+                          "ballisticmystix.net"))
+        boite.append(credit)
+
+        scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+        scroll.set_child(boite)
+        win.set_child(scroll)
+        win.present()
 
     #: Combien de noms par rangée dans l'effectif.
     #:
@@ -3182,6 +3263,18 @@ class MainWindow(Gtk.ApplicationWindow):
         # est lu par d'autres — mais une adresse permet d'écrire sans compte
         # GitHub, ce que tout le monde n'a pas.
         about.add_credit_section("Écrire à l'auteur", [COURRIEL])
+        # Ce qui n'est pas de nous et qu'on embarque. Deux de ces relevés sont
+        # sous LGPL, qui **oblige** à nommer leur auteur : ils manquaient ici
+        # alors que l'application Android les cite depuis toujours.
+        about.add_credit_section("Données et images", [
+            "Matières suprêmes et excellentes : Ryzom Armory",
+            "Noms des avant-postes : RyzomExtra, © Meelis Mägi, GNU LGPL v3",
+            "Carte d'Atys : Ryzom Map Tiles, © Meelis Mägi, GNU LGPL v3",
+            "Cartes des gisements : tracker d'atys.us, de Tgwaste ;"
+            " données de ballisticmystix.net",
+            "Symboles des familles et fonds de carte : images du jeu,"
+            " © Winch Gate",
+        ])
         about.set_logo_icon_name(
             os.environ.get("FLATPAK_ID") or "net.ryzom.zyroomgtk")
         about.present()

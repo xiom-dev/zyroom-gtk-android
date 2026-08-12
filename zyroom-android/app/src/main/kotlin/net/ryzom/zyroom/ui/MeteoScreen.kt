@@ -37,8 +37,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -394,6 +400,7 @@ private fun TableauxMatieres(releve: MeteoAtys) {
                         groupes = groupes,
                         zebre = rang % 2 == 0,
                         souligne = maintenant,
+                        qualite = "excellent",
                     )
                 }
         }
@@ -414,13 +421,14 @@ private fun BlocMatieres(
     groupes: Map<String, List<String>>,
     zebre: Boolean,
     souligne: Boolean = false,
+    qualite: String = "supreme",
 ) {
     Column(
         Modifier.fillMaxWidth()
             .background(fondZebre(zebre))
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        CorpsMatieres(titre, groupes, souligne)
+        CorpsMatieres(titre, groupes, souligne, qualite)
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 }
@@ -437,7 +445,15 @@ private fun CorpsMatieres(
     titre: String?,
     groupes: Map<String, List<String>>,
     souligne: Boolean = false,
+    qualite: String = "supreme",
 ) {
+    // La matière dont on regarde la carte. Portée par le bloc et non par
+    // l'écran : deux blocs ne sont jamais ouverts en même temps, et la remonter
+    // plus haut ferait recomposer tout le tableau à chaque ouverture.
+    var choix by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    choix?.let { (q, famille, matiere) ->
+        CarteGisement(q, famille, matiere) { choix = null }
+    }
     Column {
         if (titre != null) {
             Text(
@@ -470,9 +486,37 @@ private fun CorpsMatieres(
                         )
                     }
                 }
-                Text(matieres.joinToString(", "),
-                     style = MaterialTheme.typography.bodySmall,
-                     modifier = Modifier.weight(1f))
+                // Les matières qu'on sait situer deviennent des liens. Un lien
+                // et non un bouton : la liste garde son allure de phrase et
+                // continue de se replier toute seule dans une demi-largeur.
+                // Celles qu'on ne sait pas situer restent du texte ordinaire —
+                // rien n'invite à toucher ce qui ne répondrait pas.
+                val couleur = MaterialTheme.colorScheme.primary
+                Text(
+                    buildAnnotatedString {
+                        matieres.forEachIndexed { rang, matiere ->
+                            if (rang > 0) append(", ")
+                            if (cartesGisement(qualite, groupe, matiere).isEmpty()) {
+                                append(matiere)
+                            } else {
+                                withLink(
+                                    LinkAnnotation.Clickable(
+                                        tag = matiere,
+                                        styles = TextLinkStyles(
+                                            SpanStyle(
+                                                color = couleur,
+                                                textDecoration =
+                                                    TextDecoration.Underline,
+                                            ),
+                                        ),
+                                    ) { choix = Triple(qualite, groupe, matiere) },
+                                ) { append(matiere) }
+                            }
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
