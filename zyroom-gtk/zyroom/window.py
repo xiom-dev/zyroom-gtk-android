@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.30"
+APP_NAME = ("ZyRoom-GTK-dev-0.31"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.18")
 
@@ -1024,6 +1024,13 @@ class MainWindow(Gtk.ApplicationWindow):
     # quarante cycles à l'avance — et un relevé de Ryzom Armory figé dans
     # `armory.py`, qui ne changera qu'avec le jeu.
 
+    #: Taille des symboles de familles de matières, en points.
+    #:
+    #: Fixée, et non demandée : une taille demandée n'est qu'un plancher, et les
+    #: symboles grossissaient au gré de la place laissée par le nom de leur
+    #: famille.
+    TAILLE_SYMBOLE = 20
+
     #: Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton.
     POINT = (1.0, 0.18, 0.18)
 
@@ -1589,11 +1596,14 @@ class MainWindow(Gtk.ApplicationWindow):
             cellule.append(g)
             chemin = meteo.symbole(groupe)
             if chemin:
-                image = Gtk.Picture.new_for_filename(chemin)
-                image.set_can_shrink(True)
-                image.set_content_fit(Gtk.ContentFit.CONTAIN)
+                # `Gtk.Image` et non `Gtk.Picture` : la seconde s'étire pour
+                # remplir ce qu'on lui donne, et `set_size_request` n'est qu'un
+                # **minimum** — d'où des symboles de tailles différentes d'une
+                # colonne à l'autre, selon la place laissée par le nom de la
+                # famille. `set_pixel_size` fixe la taille pour de bon.
+                image = Gtk.Image.new_from_file(chemin)
+                image.set_pixel_size(self.TAILLE_SYMBOLE)
                 image.set_halign(Gtk.Align.START)
-                image.set_size_request(20, 20)
                 cellule.append(image)
             grille.attach(cellule, 0, ligne, 1, 1)
             m = Gtk.Label(label=", ".join(matieres), xalign=0.0, wrap=True)
