@@ -1386,12 +1386,25 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Le tableau des suprêmes de la saison a été retiré : « ce qui sort »
         # les donne déjà, et au temps qu'il fait plutôt qu'à la saison entière.
-        # Il ne reste que les excellentes, posées directement dans la page — la
-        # boîte à deux colonnes qui les portait réclamait deux cents pixels de
-        # plus que son contenu une fois seule, et la page finissait sur du vide.
+        # Il ne reste que les excellentes : les titres, puis le jour et la nuit
+        # côte à côte, puis la note.
         self._meteo_excellentes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
                                           spacing=2)
         dedans.append(self._meteo_excellentes)
+
+        # Jour à gauche, nuit à droite. L'un sous l'autre, il fallait dérouler
+        # la liste de jour pour atteindre celle de nuit — alors que le seul
+        # geste utile est de les comparer.
+        moments = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
+                          homogeneous=True)
+        self._meteo_jour = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self._meteo_nuit = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        moments.append(self._meteo_jour)
+        moments.append(self._meteo_nuit)
+        dedans.append(moments)
+
+        self._meteo_note = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        dedans.append(self._meteo_note)
         page.append(defilement)
 
         self._meteo_releve = None      #: ce que l'API a rendu, tel quel
@@ -1517,7 +1530,8 @@ class MainWindow(Gtk.ApplicationWindow):
             self._meteo_entete.set_markup("".join(morceaux))
         self._meteo_courbe.queue_draw()
 
-        for colonne in (self._meteo_excellentes,
+        for colonne in (self._meteo_excellentes, self._meteo_jour,
+                        self._meteo_nuit, self._meteo_note,
                         self._meteo_pop_g, self._meteo_pop_d):
             while (child := colonne.get_first_child()) is not None:
                 colonne.remove(child)
@@ -1562,10 +1576,14 @@ class MainWindow(Gtk.ApplicationWindow):
             titre = _("De jour") if moment == "JOUR" else _("De nuit")
             if actuel:
                 titre += _("  ·  en ce moment")
-            self._meteo_excellentes.append(
-                self._bloc_matieres(titre, groupes, rang % 2 == 0, actuel,
-                                    qualite="excellent"))
-        self._meteo_excellentes.append(self._note(
+            # Les deux teintés pareil : côte à côte, un seul des deux le serait
+            # ferait croire à une différence de nature, alors qu'ils ne sont que
+            # les deux moitiés d'une même journée.
+            colonne = (self._meteo_jour if moment == "JOUR"
+                       else self._meteo_nuit)
+            colonne.append(self._bloc_matieres(titre, groupes, True, actuel,
+                                               qualite="excellent"))
+        self._meteo_note.append(self._note(
             _("Les Primes partagent une seule météo : celle-ci vaut pour les "
               "quatre zones.")))
 
@@ -1761,8 +1779,10 @@ class MainWindow(Gtk.ApplicationWindow):
         le trait dériver vers le bord jusqu'à sortir de la vue.
 
         Les trois traits en pointillé sont les seuils du jeu, qui découpent les
-        conditions de gisement ; les bandes sombres sont les nuits d'Atys, que
-        le jeu compte de 22 h à 3 h.
+        conditions de gisement ; les deux traits pleins à 30 et 70 % ne sont que
+        des graduations, pour situer un taux entre deux seuils écartés de trente
+        points. Les bandes sombres sont les nuits d'Atys, que le jeu compte de
+        22 h à 3 h.
         """
         releve = self._meteo_affiche or self._meteo_releve
         if releve is None:
@@ -1828,11 +1848,28 @@ class MainWindow(Gtk.ApplicationWindow):
         cr.stroke()
         cr.restore()
 
-        # Les seuils, par-dessus la courbe, et leur étiquette dans la marge.
-        cr.set_line_width(1.0)
-        cr.set_dash([4.0, 4.0])
         cr.select_font_face("Sans")
         cr.set_font_size(10)
+
+        # Deux graduations, plus discrètes que les seuils : elles ne veulent
+        # rien dire pour le jeu, elles servent seulement à situer un taux à
+        # l'œil entre deux seuils écartés de trente points. Traits pleins et
+        # non pointillés, pour qu'on ne les confonde pas avec les seuils.
+        # L'application Android les a depuis toujours ; celle-ci ne les avait
+        # pas, et les deux courbes ne se lisaient pas pareil.
+        cr.set_line_width(1.0)
+        for graduation, etiquette in ((0.30, "30"), (0.70, "70")):
+            yy = y(graduation)
+            cr.set_source_rgba(1, 1, 1, 0.18)
+            cr.move_to(marge_g, yy)
+            cr.line_to(largeur, yy)
+            cr.stroke()
+            cr.set_source_rgba(1, 1, 1, 0.35)
+            cr.move_to(2, yy - 3)
+            cr.show_text(etiquette)
+
+        # Les seuils, par-dessus la courbe, et leur étiquette dans la marge.
+        cr.set_dash([4.0, 4.0])
         for seuil, etiquette in zip(meteo.SEUILS, ("16", "50", "83")):
             yy = y(seuil)
             cr.set_source_rgba(0.9, 0.4, 0.4, 0.55)
