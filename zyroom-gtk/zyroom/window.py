@@ -43,7 +43,7 @@ MAJ_INTERVALLE = 15 * 60
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.31"
+APP_NAME = ("ZyRoom-GTK-dev-0.32"
             if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
             else "ZyRoom-GTK-0.18")
 
@@ -1029,7 +1029,12 @@ class MainWindow(Gtk.ApplicationWindow):
     #: Fixée, et non demandée : une taille demandée n'est qu'un plancher, et les
     #: symboles grossissaient au gré de la place laissée par le nom de leur
     #: famille.
-    TAILLE_SYMBOLE = 20
+    #:
+    #: Vingt-six et non vingt : sur un écran de bureau, à côté d'un nom de
+    #: famille et d'une ligne de matières, vingt points faisaient une vignette
+    #: qu'on devinait plus qu'on ne la reconnaissait. Au-delà, le symbole
+    #: prendrait le pas sur le texte qu'il accompagne.
+    TAILLE_SYMBOLE = 26
 
     #: Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton.
     POINT = (1.0, 0.18, 0.18)
