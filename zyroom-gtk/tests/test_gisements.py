@@ -1,13 +1,13 @@
-"""Les cartes de gisements : la table, et ce qu'elle promet.
+"""Les gisements : la table, et ce qu'elle promet.
 
 Le piège de cette table est qu'elle échoue en silence. Une matière mal
-rapprochée n'affiche pas d'erreur : elle affiche **la carte de la voisine**, et
-personne ne s'en aperçoit avant d'avoir traversé les Primes pour rien.
+rapprochée n'affiche pas d'erreur : elle affiche **le gisement de la voisine**,
+et personne ne s'en aperçoit avant d'avoir traversé les Primes pour rien.
 
-D'où ces contrôles : chaque libellé affiché mène quelque part, chaque fichier
-promis existe, et les deux façons de nommer une même matière — le français du
-classeur de la guilde et l'anglais des listes de suprêmes — mènent au même
-endroit.
+D'où ces contrôles : chaque libellé affiché mène quelque part, chaque position
+tombe sur la carte embarquée, et les deux façons de nommer une même matière — le
+français du relevé de la guilde et l'anglais des listes de suprêmes — mènent au
+même endroit.
 """
 
 import os
@@ -16,7 +16,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from zyroom import armory, gisements                              # noqa: E402
+from zyroom import armory, carte, gisements                       # noqa: E402
 from zyroom.pop import POP                                        # noqa: E402
 
 
@@ -44,39 +44,59 @@ class Table(unittest.TestCase):
                          "l'écran affiche des matières que la table ignore ; "
                          "relance outils/table_gisements.py")
 
-    def test_tout_libelle_mene_a_une_carte(self):
-        # Sauf une : le tracker n'a aucune vue pour la résine Fung suprême,
-        # alors que le classeur de la guilde la donne dans les Sources. C'est un
-        # trou du site, pas du rapprochement — on le fige ici pour que le jour
-        # où il se comble, le test le dise.
-        muets = [(f, m) for f, m in gisements.LIBELLES
-                 if not gisements.cartes("supreme", f, m)
-                 and not gisements.cartes("excellent", f, m)]
-        self.assertEqual([], muets)
-        self.assertEqual([], gisements.cartes("supreme", "Résine", "Fung"))
-        self.assertTrue(gisements.cartes("excellent", "Résine", "Fung"))
+    def test_toute_matiere_a_ses_gisements_dans_les_deux_qualites(self):
+        """Le relevé de bmsite couvre les 47 matières en suprême et en excellent.
 
-    def test_les_fichiers_promis_existent(self):
-        absents = []
+        Le tracker, lui, n'avait aucune vue pour la résine Fung suprême, que le
+        relevé de la guilde donne pourtant dans les Sources. Le trou est comblé.
+        """
+        for qualite in ("supreme", "excellent"):
+            muets = [(f, m) for f, m in gisements.LIBELLES
+                     if not gisements.points(qualite, f, m)]
+            self.assertEqual([], muets, f"sans gisement en {qualite}")
+        self.assertTrue(gisements.points("supreme", "Résine", "Fung"))
+
+    def test_toutes_les_positions_tombent_sur_la_carte(self):
+        """Un gisement qu'on ne saurait pas placer ne servirait à rien."""
+        perdus = []
         for qualite in ("supreme", "excellent"):
             for famille, matiere in gisements.LIBELLES:
-                for chemin in gisements.cartes(qualite, famille, matiere):
-                    if not os.path.exists(chemin):
-                        absents.append(os.path.basename(chemin))
-        self.assertEqual([], sorted(set(absents)))
+                for x, y, lieu in gisements.points(qualite, famille, matiere):
+                    if carte.pixel(x, y) is None:
+                        perdus.append((famille, matiere, x, y))
+        self.assertEqual([], sorted(set(perdus)))
 
-    def test_aucune_image_orpheline(self):
-        """Rien ne traîne dans le dossier qui ne soit dans la table."""
-        citees = {os.path.basename(c)
-                  for qualite in ("supreme", "excellent")
-                  for famille, matiere in gisements.LIBELLES
-                  for c in gisements.cartes(qualite, famille, matiere)}
-        presentes = set(os.listdir(gisements.DOSSIER))
-        self.assertEqual(set(), presentes - citees)
+    def test_chaque_position_porte_un_nom_de_lieu(self):
+        """Un point sans nom ne dit pas où aller."""
+        sans = []
+        for qualite in ("supreme", "excellent"):
+            for famille, matiere in gisements.LIBELLES:
+                for _x, _y, lieu in gisements.points(qualite, famille, matiere):
+                    if not lieu or lieu.startswith(("region_", "continent_")):
+                        sans.append((famille, matiere, lieu))
+        self.assertEqual([], sorted(set(sans)))
+
+    def test_les_suprêmes_sont_dans_les_quatre_zones_du_classeur(self):
+        """Les zones que la guilde relève, et pas d'autres.
+
+        C'est le recoupement qui vaut : le relevé de la guilde et celui de
+        Ballistic Mystix ont été établis séparément, et ils nomment les mêmes
+        quatre zones.
+        """
+        lieux = {lieu for f, m in gisements.LIBELLES
+                 for _x, _y, lieu in gisements.points("supreme", f, m)}
+        self.assertEqual({"Sources Interdites", "Terre de la Continuité",
+                          "Cité Engloutie", "Profondeurs Interdites"}, lieux)
+
+    def test_les_excellentes_sont_ailleurs_dans_les_primes(self):
+        lieux = {lieu for f, m in gisements.LIBELLES
+                 for _x, _y, lieu in gisements.points("excellent", f, m)}
+        self.assertEqual(set(), lieux & {"Sources Interdites", "Cité Engloutie"})
+        self.assertIn("Gouffre d'Ichor", lieux)
 
 
 class DeuxNomsUneMatiere(unittest.TestCase):
-    """Le classeur dit « Colle », les listes de suprêmes disent « Glue »."""
+    """Le relevé dit « Colle », les listes de suprêmes disent « Glue »."""
 
     PAIRES = (
         ("Carapace", "Grosse", "Big"),
@@ -90,12 +110,12 @@ class DeuxNomsUneMatiere(unittest.TestCase):
         ("Boucles", "Scratch", "Scrath"),
     )
 
-    def test_les_deux_noms_donnent_les_memes_cartes(self):
+    def test_les_deux_noms_donnent_les_memes_gisements(self):
         for famille, francais, anglais in self.PAIRES:
             for qualite in ("supreme", "excellent"):
                 self.assertEqual(
-                    gisements.cartes(qualite, famille, francais),
-                    gisements.cartes(qualite, famille, anglais),
+                    gisements.points(qualite, famille, francais),
+                    gisements.points(qualite, famille, anglais),
                     f"{francais} et {anglais} devraient mener au même endroit")
 
     def test_les_annotations_des_joueurs_sont_suivies(self):
@@ -106,22 +126,21 @@ class DeuxNomsUneMatiere(unittest.TestCase):
                                         ("Sève", "Visc agro KKT", "Visc"),
                                         ("Carapace", "Migno Omg AGGRO",
                                          "Mignonne")):
-            self.assertEqual(gisements.cartes("supreme", famille, propre),
-                             gisements.cartes("supreme", famille, annote))
+            self.assertEqual(gisements.points("supreme", famille, propre),
+                             gisements.points("supreme", famille, annote))
 
     def test_enola_est_une_seve_meme_classee_en_huile(self):
-        """Le classeur la range en Huile, Ballistic Mystix en Sève."""
-        cartes = gisements.cartes("supreme", "Huile", "Enola")
-        self.assertTrue(cartes)
-        self.assertEqual(gisements.cartes("supreme", "Sève", "Enola"), cartes)
-        self.assertIn("sap_enola", os.path.basename(cartes[0]))
+        """Le classeur la range en Huile, le jeu en Sève."""
+        points = gisements.points("supreme", "Huile", "Enola")
+        self.assertTrue(points)
+        self.assertEqual(gisements.points("supreme", "Sève", "Enola"), points)
 
 
 class Inconnues(unittest.TestCase):
 
     def test_une_matiere_inconnue_ne_rend_rien(self):
-        self.assertEqual([], gisements.cartes("supreme", "Ambres", "Zorglub"))
-        self.assertEqual([], gisements.cartes("supreme", "Zorglub", "Beng"))
+        self.assertEqual([], gisements.points("supreme", "Ambres", "Zorglub"))
+        self.assertEqual([], gisements.points("supreme", "Zorglub", "Beng"))
         self.assertEqual([], gisements.humidites("supreme", "Ambres", "Zorglub"))
 
     def test_les_fourchettes_d_humidite_sont_plausibles(self):

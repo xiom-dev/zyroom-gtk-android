@@ -324,7 +324,7 @@ private val CERNE = Color(0xFF101418)
  * La taille ne suit pas l'agrandissement : un nom grand comme une région se
  * lirait moins bien, pas mieux.
  */
-private fun DrawScope.etiquetteBete(
+internal fun DrawScope.etiquetteBete(
     mesure: TextMeasurer, texte: String, position: Offset, teinte: Color, ombre: Color,
 ) {
     // L'origine du texte est ramenée dans le canevas, liseré compris : posée
@@ -342,4 +342,18 @@ private fun DrawScope.etiquetteBete(
         }
     }
     drawText(mesure, texte, ancre, style = style.copy(color = Color.White))
+}
+
+/**
+ * Le point d'un gisement : la même cible que pour une bête.
+ *
+ * Trois cercles concentriques — cerne noir, disque blanc, cœur rouge — parce que
+ * la carte passe du vert sombre des forêts au sable clair, au rouge du désert et
+ * au violet des zones corrompues : aucune teinte unique ne s'y détache partout,
+ * mais le contraste noir sur blanc, lui, tient sur tout.
+ */
+internal fun DrawScope.marqueurGisement(x: Float, y: Float) {
+    drawCircle(CERNE, radius = 6.dp.toPx(), center = Offset(x, y))
+    drawCircle(Color.White, radius = 4.5f.dp.toPx(), center = Offset(x, y))
+    drawCircle(POINT, radius = 2.5f.dp.toPx(), center = Offset(x, y))
 }

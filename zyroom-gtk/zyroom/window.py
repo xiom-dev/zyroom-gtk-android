@@ -1232,6 +1232,59 @@ class MainWindow(Gtk.ApplicationWindow):
             detail += _(" · satiété %d") % int(bete.satiete)
         return detail
 
+    def _peindre_carte(self, cr, largeur: float, hauteur: float, zoom: float,
+                       glissement: list):
+        """Peint la carte d'Atys, agrandie et déplacée, et rend sa pose.
+
+        Rend `(échelle, marge_x, marge_y)` — de quoi placer un point de la carte
+        à l'écran — ou None si l'image manque. Partagé par l'écran des bêtes et
+        par les cartes de gisements : c'est la même image, la même mise à
+        l'échelle et le même découpage.
+        """
+        if self._betes_pixbuf is None:
+            try:
+                self._betes_pixbuf = GdkPixbuf.Pixbuf.new_from_file(carte.CHEMIN)
+            except GLib.Error:
+                return None
+        pb = self._betes_pixbuf
+        echelle = min(largeur / pb.get_width(),
+                      hauteur / pb.get_height()) * zoom
+        marge_x = (largeur - pb.get_width() * echelle) / 2 + glissement[0]
+        marge_y = (hauteur - pb.get_height() * echelle) / 2 + glissement[1]
+        cr.save()
+        cr.rectangle(0, 0, largeur, hauteur)
+        cr.clip()
+        cr.translate(marge_x, marge_y)
+        cr.scale(echelle, echelle)
+        Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
+        cr.paint()
+        cr.restore()
+        return (echelle, marge_x, marge_y)
+
+    def _marqueur(self, cr, x: float, y: float, texte: str, couleur) -> None:
+        """Un point cerné et son nom, lisible sur n'importe quel fond.
+
+        Le blanc cerné de noir sur ses huit côtés : l'or du thème se perd sur
+        les zones sableuses, c'est la solution des cartes de toujours.
+        """
+        for rayon, teinte in ((6.5, self.CERNE), (4.0, couleur)):
+            cr.set_source_rgb(*teinte)
+            cr.arc(x, y, rayon, 0, 6.2832)
+            cr.fill()
+        if not texte:
+            return
+        cr.select_font_face("Sans")
+        cr.set_font_size(13)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx or dy:
+                    cr.set_source_rgb(*self.CERNE)
+                    cr.move_to(x + 10 + dx * 1.2, y - 6 + dy * 1.2)
+                    cr.show_text(texte)
+        cr.set_source_rgb(1.0, 1.0, 1.0)
+        cr.move_to(x + 10, y - 6)
+        cr.show_text(texte)
+
     def _dessiner_carte_betes(self, _area, cr, largeur, hauteur) -> None:
         """La carte d'Atys, et les bêtes qui y sont.
 
@@ -1244,26 +1297,11 @@ class MainWindow(Gtk.ApplicationWindow):
         # l'on est vaut d'être montré, même sans bête dehors.
         if ent is None or (not betes and not carte.contient(ent.x, ent.y)):
             return
-        if self._betes_pixbuf is None:
-            try:
-                self._betes_pixbuf = GdkPixbuf.Pixbuf.new_from_file(carte.CHEMIN)
-            except GLib.Error:
-                return
-        pb = self._betes_pixbuf
-        echelle = min(largeur / pb.get_width(),
-                      hauteur / pb.get_height()) * self._betes_zoom
-        marge_x = ((largeur - pb.get_width() * echelle) / 2
-                   + self._betes_glissement[0])
-        marge_y = ((hauteur - pb.get_height() * echelle) / 2
-                   + self._betes_glissement[1])
-        cr.save()
-        cr.rectangle(0, 0, largeur, hauteur)
-        cr.clip()
-        cr.translate(marge_x, marge_y)
-        cr.scale(echelle, echelle)
-        Gdk.cairo_set_source_pixbuf(cr, pb, 0, 0)
-        cr.paint()
-        cr.restore()
+        pose = self._peindre_carte(cr, largeur, hauteur, self._betes_zoom,
+                                   self._betes_glissement)
+        if pose is None:
+            return
+        echelle, marge_x, marge_y = pose
 
         # Le joueur d'abord, sous les bêtes : c'est un repère, pas ce qu'on
         # cherche. Sa position est celle de sa dernière déconnexion.
@@ -1654,7 +1692,7 @@ class MainWindow(Gtk.ApplicationWindow):
         morceaux = []
         for matiere in matieres:
             texte = GLib.markup_escape_text(matiere)
-            if gisements.cartes(qualite, famille, matiere):
+            if gisements.points(qualite, famille, matiere):
                 cible = GLib.markup_escape_text(f"{qualite}|{famille}|{matiere}")
                 morceaux.append(f'<a href="{cible}">{texte}</a>')
             else:
@@ -1666,17 +1704,18 @@ class MainWindow(Gtk.ApplicationWindow):
         return True         # sinon GTK tente d'ouvrir l'adresse dans un navigateur
 
     def _montre_gisement(self, qualite: str, famille: str, matiere: str) -> None:
-        """Où sort cette matière : les vues du tracker, l'une sous l'autre.
+        """Où sort cette matière : nos propres marqueurs sur la carte d'Atys.
 
-        Plusieurs vues quand le gisement sort à plusieurs endroits — jusqu'à six
-        pour certaines excellentes. Chacune porte son marqueur et son nom, tels
-        que le site les dessine.
+        On embarquait les vues rendues par le tracker — trois mégaoctets
+        d'images figées. Ballistic Mystix a donné les coordonnées : sept
+        kilooctets, notre carte, et un zoom libre. Le nom du lieu est écrit
+        aussi, parce qu'un point ne dit pas où aller.
         """
-        chemins = gisements.cartes(qualite, famille, matiere)
-        if not chemins:
+        points = gisements.points(qualite, famille, matiere)
+        if not points:
             return
         win = Gtk.Window(title=f"{matiere} — {famille}", transient_for=self)
-        win.set_default_size(gisements.LARGEUR + 80, 640)
+        win.set_default_size(720, 640)
         boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self._pad(boite)
 
@@ -1690,28 +1729,144 @@ class MainWindow(Gtk.ApplicationWindow):
         entete.set_markup(
             f"<b>{GLib.markup_escape_text(mot)}</b>"
             + (f"  ·  {_('humidité')} {GLib.markup_escape_text(humidite)}"
-               if humidite else ""))
+               if humidite else "")
+            + f"  ·  {len(points)} "
+            + (_("gisements") if len(points) > 1 else _("gisement")))
         boite.append(entete)
 
-        for chemin in chemins:
-            image = Gtk.Picture.new_for_filename(chemin)
-            # Sans cela l'image s'étire à la largeur de la fenêtre et le nom
-            # incrusté devient flou : ces vues n'ont qu'une taille juste.
-            image.set_can_shrink(False)
-            image.set_halign(Gtk.Align.CENTER)
-            boite.append(image)
+        # L'état du zoom vit sur la fenêtre : deux gisements ouverts en même
+        # temps ne doivent pas se déplacer ensemble.
+        etat = {"zoom": 1.0, "glissement": [0.0, 0.0], "depart": [0.0, 0.0]}
+        zone = Gtk.DrawingArea(vexpand=True)
+        zone.set_content_height(340)
+        zone.set_draw_func(
+            lambda _a, cr, l, h: self._dessiner_gisement(cr, l, h, points, etat))
+
+        pincement = Gtk.GestureZoom()
+        pincement.connect("scale-changed",
+                          lambda g, e: self._gisement_zoom(zone, etat, e))
+        zone.add_controller(pincement)
+        molette = Gtk.EventControllerScroll(
+            flags=Gtk.EventControllerScrollFlags.VERTICAL)
+        molette.connect(
+            "scroll",
+            lambda c, dx, dy: self._gisement_zoom(
+                zone, etat, 0.9 if dy > 0 else 1.1, relatif=True))
+        zone.add_controller(molette)
+        glisse = Gtk.GestureDrag()
+        glisse.connect("drag-update",
+                       lambda g, dx, dy: self._gisement_glisse(zone, etat, dx, dy))
+        glisse.connect("drag-end",
+                       lambda g, dx, dy: etat["depart"].__setitem__(
+                           slice(None), list(etat["glissement"])))
+        zone.add_controller(glisse)
+        boite.append(zone)
+
+        # Les coordonnées en clair : c'est ce qu'on tape en jeu pour poser un
+        # repère, et la carte seule ne les donne pas au mètre près.
+        for x, y, lieu in points:
+            ligne = Gtk.Label(xalign=0.0)
+            ligne.add_css_class("compact")
+            ligne.set_text(f"{lieu} · {x} ; {y}")
+            boite.append(ligne)
 
         credit = Gtk.Label(xalign=0.0, wrap=True)
         credit.add_css_class("dim-label")
         credit.add_css_class("caption")
-        credit.set_text(_("Cartes : tracker d'atys.us · données de "
-                          "ballisticmystix.net"))
+        credit.set_text(_("Positions : relevé de ballisticmystix.net, avec "
+                          "l'accord de son auteur"))
         boite.append(credit)
 
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scroll.set_child(boite)
         win.set_child(scroll)
         win.present()
+
+    def _gisement_zoom(self, zone, etat: dict, facteur: float,
+                       relatif: bool = False) -> None:
+        base = etat["zoom"] if relatif else 1.0
+        etat["zoom"] = min(self.ZOOM_MAX, max(1.0, base * facteur))
+        if etat["zoom"] <= 1.0:
+            etat["glissement"][:] = [0.0, 0.0]
+            etat["depart"][:] = [0.0, 0.0]
+        zone.queue_draw()
+
+
+    def _gisement_glisse(self, zone, etat: dict, dx: float, dy: float) -> None:
+        # Agrandie seulement : à l'échelle 1 la carte tient entière dans son
+        # cadre, et la déplacer ne montrerait que du vide.
+        if etat["zoom"] <= 1.0:
+            return
+        etat["glissement"][:] = [etat["depart"][0] + dx, etat["depart"][1] + dy]
+        zone.queue_draw()
+
+    #: Part du cadre que les gisements doivent occuper au premier affichage.
+    #:
+    #: Les quatre zones des Primes tiennent dans un dixième de la carte du
+    #: monde : sans cadrage, on voyait quatre points collés au milieu d'Atys et
+    #: leurs noms se chevauchaient. On garde de la marge autour, pour situer la
+    #: zone dans le continent plutôt que de la montrer hors contexte.
+    CADRAGE_GISEMENT = 0.55
+
+    def _cadre_gisement(self, largeur, hauteur, points, etat) -> None:
+        """Cadre la vue sur les gisements, une fois, au premier dessin.
+
+        On ne peut pas le faire à la construction : il faut connaître la taille
+        du cadre, et elle n'existe qu'à la mesure."""
+        etat["cadre"] = True
+        pixels = [carte.pixel(x, y) for x, y, _l in points]
+        pixels = [p for p in pixels if p is not None]
+        if not pixels:
+            return
+        xs = [p[0] for p in pixels]
+        ys = [p[1] for p in pixels]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        # Un seul gisement n'a pas d'étendue : on lui en donne une, sinon le
+        # zoom partirait au maximum sur un point.
+        large = max(max(xs) - min(xs), 300.0)
+        haute = max(max(ys) - min(ys), 260.0)
+        base = min(largeur / carte.LARGEUR, hauteur / carte.HAUTEUR)
+        if base <= 0:
+            return
+        voulue = min(self.CADRAGE_GISEMENT * largeur / large,
+                     self.CADRAGE_GISEMENT * hauteur / haute)
+        etat["zoom"] = min(self.ZOOM_MAX, max(1.0, voulue / base))
+        echelle = base * etat["zoom"]
+        etat["glissement"][:] = [echelle * (carte.LARGEUR / 2 - cx),
+                                 echelle * (carte.HAUTEUR / 2 - cy)]
+        etat["depart"][:] = list(etat["glissement"])
+
+    def _dessiner_gisement(self, cr, largeur, hauteur, points, etat) -> None:
+        """La carte d'Atys, et les gisements d'une matière."""
+        if not etat.get("cadre"):
+            self._cadre_gisement(largeur, hauteur, points, etat)
+        pose = self._peindre_carte(cr, largeur, hauteur, etat["zoom"],
+                                   etat["glissement"])
+        if pose is None:
+            return
+        echelle, marge_x, marge_y = pose
+        cr.save()
+        cr.rectangle(0, 0, largeur, hauteur)
+        cr.clip()
+        # Les points trop proches n'en font qu'un : deux gisements d'une même
+        # zone tombent sur le même pixel à l'échelle 1, et deux noms superposés
+        # ne se lisent plus.
+        vus = {}
+        for x, y, lieu in points:
+            p = carte.pixel(x, y)
+            if p is None:
+                continue
+            px, py = marge_x + p[0] * echelle, marge_y + p[1] * echelle
+            cle = (int(px / self.SEUIL_GROUPE), int(py / self.SEUIL_GROUPE))
+            vus.setdefault(cle, (px, py, lieu, 0))
+            ex, ey, elieu, n = vus[cle]
+            vus[cle] = (ex, ey, elieu, n + 1)
+        for px, py, lieu, n in vus.values():
+            if not (-40 <= px <= largeur + 40 and -40 <= py <= hauteur + 40):
+                continue
+            self._marqueur(cr, px, py, lieu if n == 1 else f"{lieu} ×{n}",
+                           self.POINT)
+        cr.restore()
 
     #: Combien de noms par rangée dans l'effectif.
     #:
@@ -3312,8 +3467,8 @@ class MainWindow(Gtk.ApplicationWindow):
             "Matières suprêmes et excellentes : Ryzom Armory",
             "Noms des avant-postes : RyzomExtra, © Meelis Mägi, GNU LGPL v3",
             "Carte d'Atys : Ryzom Map Tiles, © Meelis Mägi, GNU LGPL v3",
-            "Cartes des gisements : tracker d'atys.us, de Tgwaste ;"
-            " données de ballisticmystix.net",
+            "Positions des gisements : relevé de ballisticmystix.net,"
+            " avec l'accord de son auteur",
             "Symboles des familles et fonds de carte : images du jeu,"
             " © Winch Gate",
         ])

@@ -1,10 +1,8 @@
 package net.ryzom.zyroom.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,23 +14,24 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import net.ryzom.zyroom.model.Gisements
 
 /**
- * Où sort une matière : les vues du tracker, l'une sous l'autre.
+ * Où sort une matière : nos propres marqueurs sur la carte d'Atys, et les
+ * coordonnées en clair.
  *
- * L'écran météo dit *quoi* sort ; ceci dit *où*. Plusieurs vues quand le
- * gisement sort à plusieurs endroits — jusqu'à six pour certaines excellentes.
- * Chacune porte son marqueur et son nom, tels que le site les dessine : on ne
- * redessine rien par-dessus, ce serait doubler ce qui est déjà écrit.
+ * L'écran météo dit *quoi* sort ; ceci dit *où*. On embarquait les vues rendues
+ * par le tracker d'atys.us — trois mégaoctets d'images figées. Ballistic Mystix
+ * a donné les coordonnées : sept kilooctets, notre carte, un zoom libre, et le
+ * nom du lieu écrit à côté de chaque point.
  *
- * La variante F-Droid n'embarque pas ces images ; elle n'ouvre donc jamais
- * cette fenêtre, puisque rien n'y est cliquable.
+ * Les coordonnées sont écrites même quand la carte les porte : ce sont elles
+ * qu'on tape en jeu pour poser un repère, et un point sur une carte ne les donne
+ * pas au mètre près. Dans la variante F-Droid, qui n'embarque pas la carte, elles
+ * sont tout ce qu'il y a — et c'est déjà plus que rien, ce qu'elle avait avant.
  */
 @Composable
 fun CarteGisement(
@@ -41,41 +40,40 @@ fun CarteGisement(
     matiere: String,
     onFermer: () -> Unit,
 ) {
-    val cartes = cartesGisement(qualite, famille, matiere)
-    if (cartes.isEmpty()) return
+    val points = Gisements.points(qualite, famille, matiere)
+    if (points.isEmpty()) return
     Dialog(onDismissRequest = onFermer) {
         Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 6.dp) {
-            Column(Modifier.padding(16.dp)) {
+            // Tout défile, pas seulement la carte : un écran couché ne fait que
+            // quatre cents points de haut, et avec le défilement à l'intérieur
+            // seulement, le bouton « Fermer » tombait hors de vue.
+            Column(
+                Modifier.padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 Text(
                     "$matiere — $famille",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    entete(qualite, famille, matiere),
+                    entete(qualite, famille, matiere, points.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
-                Column(
-                    // Bornée en hauteur : six vues dépassent l'écran, et une
-                    // boîte de dialogue qui déborde ne se referme plus.
-                    Modifier.heightIn(max = 460.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    cartes.forEach { dessin ->
-                        Image(
-                            painterResource(dessin),
-                            contentDescription = null,
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp)),
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CarteDesGisements(points, Modifier)
+                    points.forEach { point ->
+                        Text(
+                            "${point.lieu} · ${point.x} ; ${point.y}",
+                            style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
                 Text(
-                    "Cartes : tracker d'atys.us · données de ballisticmystix.net",
+                    "Positions : relevé de ballisticmystix.net, avec l'accord " +
+                        "de son auteur",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 10.dp),
@@ -89,19 +87,21 @@ fun CarteGisement(
 }
 
 /**
- * « Suprême · humidité 0–16,6 %, 83,4–100 % ».
+ * « Suprême · humidité 0–16,6 % · 4 gisements ».
  *
  * La virgule décimale du français, et pas d'espace autour du tiret : deux
  * fourchettes doivent tenir sur une ligne de boîte de dialogue.
  */
-private fun entete(qualite: String, famille: String, matiere: String): String {
+private fun entete(qualite: String, famille: String, matiere: String,
+                   combien: Int): String {
     val mot = if (qualite == "supreme") "Suprême" else "Excellente"
-    val fourchettes = humiditesGisement(qualite, famille, matiere)
-    if (fourchettes.isEmpty()) return mot
+    val fourchettes = Gisements.humidites(qualite, famille, matiere)
     val taux = fourchettes.joinToString(", ") { (bas, haut) ->
         "${nombre(bas)}–${nombre(haut)} %"
     }
-    return "$mot · humidité $taux"
+    val combien_ = if (combien > 1) "$combien gisements" else "1 gisement"
+    return if (taux.isEmpty()) "$mot · $combien_"
+           else "$mot · humidité $taux · $combien_"
 }
 
 /** 16.6 -> « 16,6 », 100.0 -> « 100 ». */

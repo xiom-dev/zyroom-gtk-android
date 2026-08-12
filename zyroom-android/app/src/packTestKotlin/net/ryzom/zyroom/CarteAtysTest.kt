@@ -2,6 +2,7 @@ package net.ryzom.zyroom
 
 import net.ryzom.zyroom.api.EntityParser
 import net.ryzom.zyroom.model.CarteAtys
+import net.ryzom.zyroom.model.Gisements
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -96,5 +97,27 @@ class CarteAtysTest {
         """.trimIndent()
         val bete = EntityParser.parseCharacter(flux.toByteArray()).betes.single()
         assertFalse(CarteAtys.contient(bete.x, bete.y))
+    }
+
+    /**
+     * Chaque gisement tombe sur la carte.
+     *
+     * Il vit ici et non avec les autres essais de la table : la carte n'existe
+     * que dans les variantes qui l'embarquent, et un essai qui la nomme ne se
+     * compile pas dans celle de F-Droid.
+     */
+    @Test
+    fun `chaque gisement tombe sur la carte`() {
+        val perdus = mutableListOf<String>()
+        for (qualite in listOf("supreme", "excellent")) {
+            for ((famille, matiere) in Gisements.LIBELLES.keys) {
+                for (point in Gisements.points(qualite, famille, matiere)) {
+                    if (CarteAtys.pixel(point.x, point.y) == null) {
+                        perdus += "$famille/$matiere ${point.x},${point.y}"
+                    }
+                }
+            }
+        }
+        assertEquals(emptyList<String>(), perdus.sorted().distinct())
     }
 }

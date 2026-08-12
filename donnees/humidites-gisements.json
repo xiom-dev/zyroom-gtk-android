@@ -1,0 +1,748 @@
+{
+ "_source": "Relevé des fourchettes d'humidité, une par gisement, extrait une fois des fiches du tracker d'atys.us (Tgwaste) — données de gisements de ballisticmystix.net.",
+ "_pourquoi_ici": "Le tracker ne se consulte qu'avec le jeton personnel de Xiom, qui ne doit pas entrer dans le dépôt. Le relevé est donc figé ici, une fois pour toutes, plutôt que refait à chaque fabrication.",
+ "humidites": {
+  "excellent|amber|beng": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|amber|hash": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|amber|pha": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|amber|sha": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|amber|soo": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "excellent|amber|zun": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|bark|adriel": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|bark|beckers": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|bark|mitexi": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|bark|oath": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|bark|perfling": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|fiber|anete": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "excellent|fiber|buo": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|fiber|dzao": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|fiber|shu": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|oil|gulatch": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "excellent|oil|irin": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|oil|koorin": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|oil|pilan": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|resin|dung": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|resin|fung": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|resin|glue": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|resin|moon": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|sap|dante": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|sap|enola": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|sap|redhot": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|sap|silverweed": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "excellent|sap|viscous": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|seed|caprice": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "excellent|seed|sarina": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|seed|saurona": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|seed|silvio": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|shell|big": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|shell|cuty": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|shell|horny": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|shell|smart": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "excellent|shell|splinter": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|wood|abhaya": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|wood|eyota": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|wood|kachine": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|wood|motega": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|wood|tama": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "excellent|wood_node|nita": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "excellent|wood_node|patee": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "excellent|wood_node|scrath": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "excellent|wood_node|tansy": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "excellent|wood_node|yana": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|amber|beng": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|amber|hash": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|amber|pha": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|amber|sha": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|amber|soo": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|amber|zun": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "supreme|bark|adriel": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|bark|beckers": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|bark|mitexi": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "supreme|bark|oath": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|bark|perfling": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|fiber|anete": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|fiber|buo": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "supreme|fiber|dzao": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|fiber|shu": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|oil|gulatch": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|oil|irin": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|oil|koorin": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|oil|pilan": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "supreme|resin|dung": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|resin|glue": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|resin|moon": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|sap|dante": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "supreme|sap|enola": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|sap|redhot": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|sap|silverweed": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|sap|viscous": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|seed|caprice": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|seed|sarina": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|seed|saurona": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|seed|silvio": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|shell|big": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|shell|cuty": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|shell|horny": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|shell|smart": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|shell|splinter": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|wood|abhaya": [
+   [
+    16.7,
+    49.9
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|wood|eyota": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|wood|kachine": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|wood|motega": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "supreme|wood|tama": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ],
+  "supreme|wood_node|nita": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    83.4,
+    100.0
+   ]
+  ],
+  "supreme|wood_node|patee": [
+   [
+    0.0,
+    49.9
+   ]
+  ],
+  "supreme|wood_node|scrath": [
+   [
+    16.7,
+    83.3
+   ]
+  ],
+  "supreme|wood_node|tansy": [
+   [
+    50.0,
+    100.0
+   ]
+  ],
+  "supreme|wood_node|yana": [
+   [
+    0.0,
+    16.6
+   ],
+   [
+    50.0,
+    83.3
+   ]
+  ]
+ }
+}

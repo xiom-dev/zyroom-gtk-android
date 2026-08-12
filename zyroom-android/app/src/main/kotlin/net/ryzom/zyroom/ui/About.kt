@@ -159,14 +159,15 @@ fun AboutDialog(onDismiss: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (GISEMENTS_EMBARQUES) {
-                    Text(
-                        "Cartes des gisements : tracker d'atys.us, de Tgwaste ; " +
-                            "données de gisements de ballisticmystix.net.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                // Les positions de gisements ne sont pas des images du jeu
+                // mais des faits, et leur auteur a donné son accord écrit :
+                // toutes les variantes les portent, F-Droid comprise.
+                Text(
+                    "Positions des gisements : relevé de ballisticmystix.net, " +
+                        "avec l'accord de son auteur.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text(
                     "V-RyLune n'est pas affiliée à Winch Gate, éditeur de Ryzom.",
                     style = MaterialTheme.typography.bodySmall,

@@ -52,6 +52,7 @@ import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
 import net.ryzom.zyroom.model.EXCELLENTES
+import net.ryzom.zyroom.model.Gisements
 import net.ryzom.zyroom.model.SAISONS
 import net.ryzom.zyroom.model.ZONES
 import net.ryzom.zyroom.model.popDe
@@ -501,7 +502,7 @@ private fun CorpsMatieres(
                     buildAnnotatedString {
                         matieres.forEachIndexed { rang, matiere ->
                             if (rang > 0) append(", ")
-                            if (cartesGisement(qualite, groupe, matiere).isEmpty()) {
+                            if (Gisements.points(qualite, groupe, matiere).isEmpty()) {
                                 append(matiere)
                             } else {
                                 withLink(
