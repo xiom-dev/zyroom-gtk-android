@@ -28,7 +28,7 @@ from .icons import IconLoader
 from .options import OptionsWindow
 from .namedb import NameDb
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
-                     ItemType)
+                     ItemInfo, ItemType)
 from .ryzom_api import (KIND_CHARACTER, KIND_GUILD, ApiError, Entity)
 from .sheetdb import SheetDb
 from .watch import WatchStore, watch_kind, KIND_DURABILITY
@@ -2392,7 +2392,29 @@ class MainWindow(Gtk.ApplicationWindow):
             out.append(mv)
         return out
 
+    #: Taille des icônes du journal, en pixels.
+    #:
+    #: Vingt-quatre : la hauteur d'une ligne de texte. Plus grand, chaque
+    #: mouvement occupait deux lignes et on en voyait deux fois moins d'un
+    #: coup d'œil — or le journal se parcourt.
+    TAILLE_ICONE_JOURNAL = 24
+
+    def _icone_journal(self, generation: int, image):
+        """Pose l'icône si le journal n'a pas été redessiné entre-temps.
+
+        Il l'est à chaque frappe dans la recherche : sans ce garde, une icône
+        demandée pour l'ancienne liste viendrait se poser sur la ligne qui a
+        pris sa place, et le journal afficherait l'icône du voisin."""
+        def arrivee(chemin):
+            if generation == self._log_generation and chemin:
+                image.set_from_file(chemin)
+                image.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
+            return False
+        return arrivee
+
     def _refresh_log(self) -> None:
+        self._log_generation = getattr(self, "_log_generation", 0) + 1
+        generation = self._log_generation
         child = self._log_grid.get_first_child()
         while child is not None:
             nxt = child.get_next_sibling()
@@ -2421,10 +2443,21 @@ class MainWindow(Gtk.ApplicationWindow):
                              selectable=True)
             self._log_grid.attach(name, 3, row, 1, 1)
 
+            # L'icône de l'objet, sur la ligne, juste avant sa qualité : c'est
+            # elle qu'on reconnaît en parcourant le journal, bien avant de lire
+            # un nom. Elle arrive quand elle arrive — le chargement est en
+            # arrière-plan — et une image générique tient la place en attendant,
+            # pour que la colonne ne se décale pas à l'arrivée.
+            icone = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
+            icone.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
+            self._log_grid.attach(icone, 4, row, 1, 1)
+            self._icons.request(ItemInfo(sheet=mv.sheet, quality=mv.quality),
+                                self._icone_journal(generation, icone))
+
             quality = Gtk.Label(label=f"Q{mv.quality}" if mv.quality else "",
                                 xalign=0.0)
             quality.add_css_class("dim-label")
-            self._log_grid.attach(quality, 4, row, 1, 1)
+            self._log_grid.attach(quality, 5, row, 1, 1)
 
         total = len(self._log_entries)
         if not total:

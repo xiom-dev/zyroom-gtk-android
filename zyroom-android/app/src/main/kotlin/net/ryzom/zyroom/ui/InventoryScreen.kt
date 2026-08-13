@@ -664,11 +664,33 @@ private fun JournalView(
                         modifier = Modifier.width(64.dp).padding(end = 10.dp),
                     )
                     Column {
-                        Text(
-                            nameOf(mouvement.sheet) +
-                                if (mouvement.quality > 0) " Q${mouvement.quality}" else "",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        // Le nom, puis l'icône de l'objet, puis sa qualité —
+                        // sur la même ligne. C'est l'icône qu'on reconnaît en
+                        // parcourant le journal, bien avant de lire un nom.
+                        // Elle est petite : à la hauteur d'une ligne de texte,
+                        // pour qu'un mouvement tienne toujours sur deux lignes.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                nameOf(mouvement.sheet),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            AsyncImage(
+                                model = RyzomApi.itemIconUrl(
+                                    Item(sheet = mouvement.sheet,
+                                         quality = mouvement.quality)),
+                                contentDescription = null,
+                                modifier = Modifier.padding(horizontal = 6.dp)
+                                    .size(22.dp),
+                            )
+                            if (mouvement.quality > 0) {
+                                Text(
+                                    "Q${mouvement.quality}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                         Text(
                             "${HORODATAGE.format(Instant.ofEpochSecond(mouvement.at))} · " +
                                 mouvement.invLabel,
