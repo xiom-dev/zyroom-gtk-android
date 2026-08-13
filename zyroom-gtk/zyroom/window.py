@@ -373,7 +373,14 @@ class MainWindow(Gtk.ApplicationWindow):
         pclick = Gtk.GestureClick()
         pclick.connect("released", self._on_portrait_click)
         self._portrait.add_controller(pclick)
-        gauche = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        # Douze pixels et non huit : à huit, le portrait — ou l'emblème de la
+        # guilde — et les deux lignes de texte formaient un seul bloc, et l'œil
+        # ne savait plus où finissait l'image et où commençait le nom.
+        # Douze et pas davantage : ces pixels sont pris sur la largeur du texte,
+        # et à treize la ligne de la guilde passe à trois lignes dès 1084 px de
+        # fenêtre — mesuré, avec le vrai libellé « Coffre 1 — La Resserre
+        # Lunaire · synchro à l'instant ».
+        gauche = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         gauche.append(self._portrait)
         self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.CENTER)
         # Elle dit qui on regarde, dans quel contenant, et de quand datent les
