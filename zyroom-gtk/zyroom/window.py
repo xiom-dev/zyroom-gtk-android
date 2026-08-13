@@ -370,6 +370,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._portrait.add_controller(pclick)
         statusbar.append(self._portrait)
         self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.END, hexpand=True)
+        # Elle dit qui on regarde, dans quel contenant, et de quand datent les
+        # données : c'est le fil que l'œil retrouve en revenant à l'écran.
+        self._status.add_css_class("peuple")
         statusbar.append(self._status)
         self._dappers_lbl = Gtk.Label(label="", valign=Gtk.Align.END)
         statusbar.append(self._dappers_lbl)
@@ -2419,6 +2422,22 @@ class MainWindow(Gtk.ApplicationWindow):
             return False
         return arrivee
 
+    #: L'or du thème, celui d'Android — repris ici pour le balisage Pango,
+    #: qui ne sait pas lire une classe CSS.
+    OR = "#e8c15a"
+
+    @staticmethod
+    def _sans_parenthese(libelle: str) -> str:
+        """« Coffre 15 — La Lune Des Maraudeurs(Gh Armure » -> sans la fin.
+
+        Les coffres de guilde portent, après leur nom, ce que la guilde y range
+        — et l'API tronque le tout à quarante-quatre signes, si bien que la
+        parenthèse ne se referme presque jamais. Ce reste de phrase coupée
+        n'apprend rien dans un journal et pousse les colonnes ; le nom du coffre
+        suffit à savoir d'où l'objet vient."""
+        coupe = libelle.split("(", 1)[0]
+        return coupe.strip() or libelle
+
     def _refresh_log(self) -> None:
         self._log_generation = getattr(self, "_log_generation", 0) + 1
         generation = self._log_generation
@@ -2429,13 +2448,32 @@ class MainWindow(Gtk.ApplicationWindow):
             child = nxt
 
         shown = self._filtered_log()
-        for row, mv in enumerate(shown[:self._LOG_PAGE_SIZE]):
+        # Un trait entre deux journées. Le journal se lit du plus récent au plus
+        # ancien, et trois relèves d'affilée y produisent trois paquets de
+        # lignes à la même seconde : sans séparation, on ne voyait plus où
+        # finissait une journée. Le jour se prend sur les dix premiers signes de
+        # l'horodatage — « 2026-08-12 22:44:35 » — plutôt que d'analyser une
+        # date pour la recomparer aussitôt.
+        row = 0
+        jour_precedent = None
+        for mv in shown[:self._LOG_PAGE_SIZE]:
+            jour = mv.when[:10]
+            if jour_precedent is not None and jour != jour_precedent:
+                trait = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+                trait.add_css_class("separation-jour")
+                trait.props.margin_top = 6
+                trait.props.margin_bottom = 6
+                self._log_grid.attach(trait, 0, row, 6, 1)
+                row += 1
+            jour_precedent = jour
+
             when = Gtk.Label(label=mv.when, xalign=0.0, selectable=True)
             when.add_css_class("dim-label")
             when.add_css_class("monospace")
             self._log_grid.attach(when, 0, row, 1, 1)
 
-            where = Gtk.Label(label=mv.inv_label, xalign=0.0)
+            where = Gtk.Label(label=self._sans_parenthese(mv.inv_label),
+                              xalign=0.0)
             where.add_css_class("dim-label")
             self._log_grid.attach(where, 1, row, 1, 1)
 
@@ -2465,6 +2503,7 @@ class MainWindow(Gtk.ApplicationWindow):
                                 xalign=0.0)
             quality.add_css_class("dim-label")
             self._log_grid.attach(quality, 5, row, 1, 1)
+            row += 1
 
         total = len(self._log_entries)
         if not total:
@@ -3151,6 +3190,13 @@ class MainWindow(Gtk.ApplicationWindow):
             link:hover, *:link:hover { color: mix(@zy_sarcelle, white, 0.65); }
             link:visited, *:link:visited { color: mix(@zy_sarcelle, white, 0.45); }
 
+            /* Le trait entre deux journées du journal : l'or du thème, mais
+               à peine — c'est un repère qu'on longe, pas une information à
+               lire. Plein plutôt que dégradé : un trait d'un pixel dégradé
+               disparaît sur un écran à forte densité. */
+            .separation-jour { background-color: alpha(@zy_or, 0.55);
+                               min-height: 1px; }
+
             .motd { background: @zy_variante;
                     border-radius: 8px; padding: 8px 10px; }
             /* `.zebre` et non `row.zebre` : le zébrage sert aussi aux blocs de
@@ -3276,8 +3322,11 @@ class MainWindow(Gtk.ApplicationWindow):
                 return
             h = td["minutes_to_next"] // 60
             text = f"{td['season_name']} · {td['next_season_name']} dans {h} h"
+            # L'or du thème, celui des titres : cette ligne dit la saison
+            # d'Atys, qui commande tout le reste de l'écran météo.
             self._season_lbl.set_markup(
-                f'<span foreground="#ffffff">{GLib.markup_escape_text(text)}</span>')
+                f'<span foreground="{self.OR}">'
+                f'{GLib.markup_escape_text(text)}</span>')
 
         run_async(work, done)
 
