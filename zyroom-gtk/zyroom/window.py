@@ -1775,11 +1775,18 @@ class MainWindow(Gtk.ApplicationWindow):
         # position pour y poser un repère — je l'avais cru, Ludo l'a corrigé —
         # et deux nombres qu'on ne peut ni saisir ni recopier nulle part
         # n'apprennent rien. Le nom du lieu, lui, dit où aller.
-        for lieu in dict.fromkeys(lieu for _x, _y, lieu in points):
+        # Sur deux colonnes : les gisements vont jusqu'à cinq lieux, et une
+        # colonne unique repoussait la ligne d'attribution hors de la fenêtre.
+        lieux = list(dict.fromkeys(lieu for _x, _y, lieu in points))
+        grille = Gtk.Grid(column_spacing=24, row_spacing=2)
+        grille.set_column_homogeneous(True)
+        rangs = (len(lieux) + 1) // 2
+        for rang, lieu in enumerate(lieux):
             ligne = Gtk.Label(xalign=0.0)
             ligne.add_css_class("compact")
             ligne.set_text(lieu)
-            boite.append(ligne)
+            grille.attach(ligne, rang // rangs, rang % rangs, 1, 1)
+        boite.append(grille)
 
         credit = Gtk.Label(xalign=0.0, wrap=True)
         credit.add_css_class("dim-label")
@@ -3014,55 +3021,162 @@ class MainWindow(Gtk.ApplicationWindow):
     # --------------------------------------- En-tête entité + saison serveur
     @staticmethod
     def _install_motd_css() -> None:
-        """Le cadre du message du jour, dans les teintes de la fenêtre.
+        """La palette de l'application, la même que sur le téléphone.
 
-        Une couleur fixe jurerait avec un thème clair : `@theme_bg_color`
-        mélangé de blanc suit celui du système, comme le fait l'encadré de
-        l'application Android avec son fond de surface."""
+        L'écran était terne : le portage suivait le thème du système, et les
+        deux applications ne se ressemblaient plus que par leur contenu. Les
+        couleurs sont donc celles d'Android, à l'octet près — le sarcelle du
+        coffre de l'icône, l'or du titre, et le fond bleu-nuit qui les tient.
+
+        **Sobre volontairement.** Le fond reste presque noir et les surfaces
+        n'en sont qu'à un cheveu : la couleur ne sert qu'aux accents, aux
+        titres et à ce qui se choisit. Un tableau de cent soixante-dix lignes se
+        lit longtemps, et un fond teinté fatigue.
+
+        On redéfinit les couleurs nommées d'Adwaita plutôt que de peindre chaque
+        widget : les listes, les champs, les menus déroulants et les boîtes de
+        dialogue suivent alors tout seuls, y compris ceux qu'on n'a pas écrits.
+        Les anciens noms — `theme_bg_color` — sont posés à côté des nouveaux,
+        car les deux ont cours selon la version d'Adwaita installée.
+        """
+        # Le thème sombre est demandé explicitement : la palette est faite pour
+        # lui, et sur un bureau réglé en clair les widgets seraient restés
+        # blancs sous un fond bleu-nuit.
+        reglages = Gtk.Settings.get_default()
+        if reglages is not None:
+            reglages.set_property("gtk-application-prefer-dark-theme", True)
+
         provider = Gtk.CssProvider()
-        provider.load_from_data(
-            b".motd { background: mix(@theme_bg_color, @theme_fg_color, 0.13);"
-            b" border-radius: 8px; padding: 8px 10px; }"
-            # `.zebre` et non `row.zebre` : le zébrage sert aussi aux blocs de
-            # matières, qui sont des boîtes et non des lignes de liste.
-            b" .zebre { background: mix(@theme_bg_color, @theme_selected_bg_color, 0.10); }"
-            # Le vert de l'application — celui du coffre de l'icône, le même que
-            # sur Android — pour ce qui est monté au maximum. Éclairci sur fond
-            # sombre, assombri sur fond clair : mélangé au texte du thème, il
-            # reste lisible dans les deux sens.
-            b" .fini { color: mix(#3f7a68, @theme_fg_color, 0.35); font-weight: bold; }"
-            # L'or de l'application — celui du titre et du logo, `secondary`
-            # côté Android — pour les intitulés de section. La classe était
-            # posée depuis longtemps sur cinq titres, mais **jamais définie** :
-            # ils s'affichaient dans la couleur ordinaire. Mélangé au texte du
-            # thème comme le vert au-dessus, il tient sur fond clair comme sur
-            # fond sombre.
-            b" .peuple { color: mix(#e8c15a, @theme_fg_color, 0.30); }"
-            # Un cran sous le corps courant : trois colonnes doivent tenir dans
-            # une moitié de fenêtre, et un nom d'avant-poste va jusqu'à
-            # quarante signes.
-            b" .compact { font-size: 0.92em; }"
-            # Le survol. Ces listes ne se sélectionnent pas — on n'y clique
-            # rien —, et GTK n'éclaire alors plus la ligne sous le pointeur :
-            # on perdait sa ligne en traversant un tableau de vingt-neuf
-            # avant-postes ou de cent soixante-dix noms. La teinte est celle de
-            # la sélection du thème, très diluée, pour ne pas se confondre avec
-            # un vrai choix.
-            b" .survol row:hover {"
-            b"   background: alpha(@theme_selected_bg_color, 0.28); }"
-            # Les triangles du registre : la couleur porte le sens, la
-            # direction le confirme.
-            b" .tri-arrivee { color: #4caf50; font-weight: bold; }"
-            b" .tri-depart  { color: #e2696a; font-weight: bold; }"
-            b" .tri-grade   { color: @theme_fg_color; font-weight: bold; }"
-            # Les deux bandes qui encadrent la fenêtre — titre en haut, état en
-            # bas — d'un gris un cran plus sombre que le fond. Elles tiennent
-            # ainsi le tableau entre elles au lieu de s'y fondre, et le calcul
-            # part du thème : sur un thème clair, « plus sombre » reste juste.
-            b" headerbar { background: mix(@theme_bg_color, black, 0.22); }"
-            b" .barre-etat {"
-            b"   background: mix(@theme_bg_color, black, 0.22);"
-            b"   padding: 4px 8px; }")
+        provider.load_from_data("""
+            /* Les cinq couleurs d'Android, telles quelles. */
+            @define-color zy_fond        #10171a;   /* background */
+            @define-color zy_surface     #172226;   /* surface    */
+            @define-color zy_variante    #1e2c31;   /* surfaceVariant */
+            @define-color zy_texte       #e2e8e6;   /* onSurface  */
+            @define-color zy_texte_faible #bcc8c6;  /* onSurfaceVariant */
+            @define-color zy_sarcelle    #3f7a68;   /* primary    */
+            @define-color zy_sarcelle_sombre #2b5648;
+            @define-color zy_or          #e8c15a;   /* secondary  */
+            @define-color zy_erreur      #e2696a;   /* error      */
+            /* Les bandes du haut et du bas, un cran sous le fond : elles
+               tiennent le tableau entre elles au lieu de s'y fondre. */
+            @define-color zy_bande       #0b1113;
+
+            @define-color window_bg_color @zy_fond;
+            @define-color window_fg_color @zy_texte;
+            @define-color view_bg_color @zy_surface;
+            @define-color view_fg_color @zy_texte;
+            @define-color card_bg_color @zy_surface;
+            @define-color popover_bg_color @zy_surface;
+            @define-color popover_fg_color @zy_texte;
+            @define-color dialog_bg_color @zy_surface;
+            @define-color dialog_fg_color @zy_texte;
+            @define-color headerbar_bg_color @zy_bande;
+            @define-color headerbar_fg_color @zy_texte;
+            @define-color accent_bg_color @zy_sarcelle;
+            @define-color accent_fg_color #06120e;
+            /* Le sarcelle éclairci : sur du presque noir, celui des aplats
+               serait illisible en texte. */
+            @define-color accent_color #7fb3a2;
+            @define-color destructive_bg_color @zy_erreur;
+            @define-color error_color @zy_erreur;
+            @define-color success_color #4caf50;
+
+            /* Les mêmes sous leurs anciens noms : selon la version d'Adwaita,
+               ce sont les uns ou les autres qui sont consultés. */
+            @define-color theme_bg_color @zy_fond;
+            @define-color theme_fg_color @zy_texte;
+            @define-color theme_base_color @zy_surface;
+            @define-color theme_text_color @zy_texte;
+            @define-color theme_selected_bg_color @zy_sarcelle;
+            @define-color theme_selected_fg_color #06120e;
+            @define-color insensitive_fg_color @zy_texte_faible;
+
+            /* **Les couleurs nommées ne suffisent plus.** Depuis GTK 4.16,
+               Adwaita n'interroge plus `@define-color` pour son propre fond :
+               vérifié à l'octet près sur 4.18, une fenêtre reste grise malgré
+               la redéfinition. Les blocs ci-dessus servent encore aux versions
+               plus anciennes et aux widgets qui les consultent ; ce qui suit
+               peint pour de bon, sélecteur par sélecteur. */
+
+            /* `.background` en plus de `window` : c'est la classe que GTK
+               pose sur le nœud effectivement peint, et `window` seul laissait
+               le fond gris d'Adwaita — mesuré à (40, 40, 40) au lieu du
+               (16, 23, 26) attendu. */
+            window, .background { background-color: @zy_fond; color: @zy_texte; }
+            headerbar { background: @zy_bande; }
+            .barre-etat { background: @zy_bande; padding: 4px 8px; }
+
+            /* Les surfaces où l'on lit : un cheveu au-dessus du fond, pour
+               qu'un tableau se détache sans qu'on voie une boîte. */
+            scrolledwindow, viewport, listview, list, columnview, textview,
+            textview > text, .view {
+                background-color: @zy_surface; color: @zy_texte; }
+            entry, entry text, spinbutton:not(.vertical) {
+                background-color: @zy_variante; color: @zy_texte; }
+            popover > contents, popover > arrow, .background.popup {
+                background-color: @zy_variante; color: @zy_texte; }
+
+            /* Tout ce qui était bleu passe au sarcelle : la jauge de volume,
+               les barres de progression, les cases cochées, ce qui est
+               sélectionné. C'est le seul endroit où la couleur est franche. */
+            levelbar > trough > block.filled,
+            progressbar > trough > progress {
+                background-color: @zy_sarcelle; }
+            /* `background-image: none` en plus de la couleur : Adwaita peint
+               ces cases avec une image, qui l'emporterait sur un simple fond
+               et laissait la coche bleue au milieu d'une fenêtre sarcelle. */
+            check:checked, check:indeterminate,
+            radio:checked, radio:indeterminate, switch:checked {
+                background-image: none; background-color: @zy_sarcelle;
+                color: #06120e; }
+            switch:checked > slider { background-color: @zy_texte; }
+            :selected, row:selected, .view:selected {
+                background-color: @zy_sarcelle_sombre; color: @zy_texte; }
+            button.suggested-action {
+                background-image: none; background-color: @zy_sarcelle;
+                color: #06120e; }
+            button:checked, togglebutton:checked {
+                background-image: none; background-color: @zy_sarcelle_sombre;
+                color: @zy_texte; }
+            entry:focus-within, entry:focus {
+                outline-color: @zy_sarcelle; box-shadow: inset 0 0 0 1px @zy_sarcelle; }
+
+            /* Les liens des matières : le bleu d'Adwaita jurait seul dans
+               une fenêtre sarcelle et or. Sur Android ils portent la couleur
+               primaire, c'est-à-dire le sarcelle — éclairci ici pour rester
+               lisible sur presque noir. Le soulignement suffit à dire qu'on
+               peut cliquer ; la couleur n'a pas à hurler. */
+            link, *:link { color: mix(@zy_sarcelle, white, 0.45); }
+            link:hover, *:link:hover { color: mix(@zy_sarcelle, white, 0.65); }
+            link:visited, *:link:visited { color: mix(@zy_sarcelle, white, 0.45); }
+
+            .motd { background: @zy_variante;
+                    border-radius: 8px; padding: 8px 10px; }
+            /* `.zebre` et non `row.zebre` : le zébrage sert aussi aux blocs de
+               matières, qui sont des boîtes et non des lignes de liste. Une
+               pointe de sarcelle plutôt qu'un gris : c'est ce qui fait la
+               différence entre un tableau terne et un tableau habillé. */
+            .zebre { background: mix(@zy_surface, @zy_sarcelle, 0.14); }
+            /* Le vert de l'application pour ce qui est monté au maximum. */
+            .fini { color: mix(@zy_sarcelle, white, 0.35); font-weight: bold; }
+            /* L'or du titre et du logo, pour les intitulés de section. */
+            .peuple { color: @zy_or; }
+            /* Un cran sous le corps courant : trois colonnes doivent tenir
+               dans une moitié de fenêtre, et un nom d'avant-poste va jusqu'à
+               quarante signes. */
+            .compact { font-size: 0.92em; }
+            /* Le survol. Ces listes ne se sélectionnent pas — on n'y clique
+               rien —, et GTK n'éclaire alors plus la ligne sous le pointeur :
+               on perdait sa ligne en traversant un tableau de vingt-neuf
+               avant-postes. */
+            .survol row:hover { background: alpha(@zy_sarcelle, 0.28); }
+            /* Les triangles du registre : la couleur porte le sens, la
+               direction le confirme. */
+            .tri-arrivee { color: #4caf50; font-weight: bold; }
+            .tri-depart  { color: @zy_erreur; font-weight: bold; }
+            .tri-grade   { color: @zy_texte; font-weight: bold; }
+        """.encode("utf-8"))
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
