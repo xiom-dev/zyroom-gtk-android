@@ -375,7 +375,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._portrait.add_controller(pclick)
         gauche = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         gauche.append(self._portrait)
-        self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.END)
+        self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.CENTER)
         # Elle dit qui on regarde, dans quel contenant, et de quand datent les
         # données : c'est le fil que l'œil retrouve en revenant à l'écran.
         self._status.add_css_class("peuple")
@@ -385,8 +385,15 @@ class MainWindow(Gtk.ApplicationWindow):
         # à sa largeur naturelle, poussait le nom trente-deux pixels à droite —
         # mesuré. Bornée en demande et étirée en allocation, elle s'affiche en
         # entier sans plus déranger personne, et se coupe si la fenêtre rétrécit.
+        # Deux lignes au plus, et la seconde se coupe si elle déborde. La
+        # largeur **demandée** reste petite — c'est elle qui décide du centrage
+        # du nom, pas la largeur obtenue — tandis que `hexpand` lui donne toute
+        # la moitié gauche pour s'afficher.
+        self._status.set_wrap(True)
+        self._status.set_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        self._status.set_lines(2)
         self._status.set_ellipsize(Pango.EllipsizeMode.END)
-        self._status.set_max_width_chars(20)
+        self._status.set_max_width_chars(34)
         self._status.set_hexpand(True)
         gauche.append(self._status)
         gauche.set_hexpand(True)
@@ -3028,8 +3035,12 @@ class MainWindow(Gtk.ApplicationWindow):
         inv_label = ""
         if 0 <= idx < len(ent.inventories):
             inv_label = ent.inventories[idx].label
+        # Deux lignes plutôt qu'une : qui l'on regarde d'abord, puis dans quoi
+        # et de quand. Sur une seule, le nom de l'application venant se centrer
+        # au milieu de la barre, la fin — l'heure de synchro — se coupait dès
+        # qu'on n'avait pas mille deux cent quatre-vingts pixels de large.
         extra = f" - {ent.guild}" if ent.guild else ""
-        line = f"{ent.name}{extra} · {inv_label}"
+        line = f"{ent.name}{extra}\n{self._sans_parenthese(inv_label)}"
 
         # Dater les stocks affichés : sans cela, rien ne distingue une donnée
         # de l'instant d'une donnée vieille de plusieurs jours.
