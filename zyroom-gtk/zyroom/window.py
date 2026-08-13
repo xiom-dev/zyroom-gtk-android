@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
 from . import (alerts, armory, backup, carte, chatlog, detail, gisements, i18n,
-               meteo, movements, outposts, roster, ryzom_api, sorting)
+               meteo, movements, outposts, polices, roster, ryzom_api, sorting)
 from . import skills as skills_mod
 from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
@@ -374,6 +374,15 @@ class MainWindow(Gtk.ApplicationWindow):
         # données : c'est le fil que l'œil retrouve en revenant à l'écran.
         self._status.add_css_class("peuple")
         statusbar.append(self._status)
+
+        # Le nom de l'application, au milieu de la barre du bas. Il n'était
+        # écrit **nulle part** : la fenêtre s'appelait ZyRoom-GTK dans son
+        # titre de bureau, mais rien à l'écran ne le disait. Dans la police du
+        # titre d'Android — une gothique de bois gravé — et dans son or.
+        nom = Gtk.Label(label="ZyRoom", valign=Gtk.Align.END)
+        nom.add_css_class("nom-appli")
+        statusbar.append(nom)
+
         self._dappers_lbl = Gtk.Label(label="", valign=Gtk.Align.END)
         statusbar.append(self._dappers_lbl)
 
@@ -3081,6 +3090,10 @@ class MainWindow(Gtk.ApplicationWindow):
         # Le thème sombre est demandé explicitement : la palette est faite pour
         # lui, et sur un bureau réglé en clair les widgets seraient restés
         # blancs sous un fond bleu-nuit.
+        # La police du nom, ajoutée au catalogue du processus avant que Pango
+        # ne la cherche.
+        polices.charger()
+
         reglages = Gtk.Settings.get_default()
         if reglages is not None:
             reglages.set_property("gtk-application-prefer-dark-theme", True)
@@ -3196,6 +3209,14 @@ class MainWindow(Gtk.ApplicationWindow):
                disparaît sur un écran à forte densité. */
             .separation-jour { background-color: alpha(@zy_or, 0.55);
                                min-height: 1px; }
+
+            /* Le nom de l'application : la gothique du titre d'Android, et
+               son or. La police est embarquée — voir `zyroom/polices` — car
+               elle n'est installée nulle part et le bac à sable ne voit pas
+               celles de l'hôte. Si son chargement échouait, `font-family`
+               retomberait sur la police courante : laid, mais pas cassé. */
+            .nom-appli { font-family: "Pirata One"; font-size: 1.6em;
+                         color: @zy_or; padding: 0 14px; }
 
             .motd { background: @zy_variante;
                     border-radius: 8px; padding: 8px 10px; }
@@ -3727,6 +3748,8 @@ class MainWindow(Gtk.ApplicationWindow):
         # sous LGPL, qui **oblige** à nommer leur auteur : ils manquaient ici
         # alors que l'application Android les cite depuis toujours.
         about.add_credit_section("Données et images", [
+            "Lettrage : Pirata One, © Rodrigo Fuenzalida et Nicolas Massi,"
+            " SIL Open Font License 1.1",
             "Matières suprêmes et excellentes : Ryzom Armory",
             "Noms des avant-postes : RyzomExtra, © Meelis Mägi, GNU LGPL v3",
             "Carte d'Atys : Ryzom Map Tiles, © Meelis Mägi, GNU LGPL v3",
