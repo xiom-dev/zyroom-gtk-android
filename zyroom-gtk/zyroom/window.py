@@ -347,7 +347,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
 
         # Barre d'état : portrait du personnage + texte
-        statusbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        #
+        # Une `CenterBox` et non une boîte : son enfant du milieu est centré sur
+        # la fenêtre, quoi que pèsent ses voisins. Avec une boîte ordinaire, la
+        # ligne d'état prenait toute la place libre et poussait le nom contre
+        # les dappers, à droite — centré sur rien.
+        statusbar = Gtk.CenterBox()
         # Les marges passent à l'intérieur : la bande grise doit aller d'un bord
         # à l'autre, comme la barre de titre qui lui répond en haut.
         # La barre d'état et la signature ne font qu'une bande : la signature
@@ -368,12 +373,24 @@ class MainWindow(Gtk.ApplicationWindow):
         pclick = Gtk.GestureClick()
         pclick.connect("released", self._on_portrait_click)
         self._portrait.add_controller(pclick)
-        statusbar.append(self._portrait)
-        self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.END, hexpand=True)
+        gauche = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        gauche.append(self._portrait)
+        self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.END)
         # Elle dit qui on regarde, dans quel contenant, et de quand datent les
         # données : c'est le fil que l'œil retrouve en revenant à l'écran.
         self._status.add_css_class("peuple")
-        statusbar.append(self._status)
+        # Elle s'étire pour occuper la moitié gauche, mais ne **réclame** que
+        # peu : une `CenterBox` ne centre son enfant du milieu que si les côtés
+        # tiennent dans la moitié qui leur revient, et la ligne d'état, laissée
+        # à sa largeur naturelle, poussait le nom trente-deux pixels à droite —
+        # mesuré. Bornée en demande et étirée en allocation, elle s'affiche en
+        # entier sans plus déranger personne, et se coupe si la fenêtre rétrécit.
+        self._status.set_ellipsize(Pango.EllipsizeMode.END)
+        self._status.set_max_width_chars(20)
+        self._status.set_hexpand(True)
+        gauche.append(self._status)
+        gauche.set_hexpand(True)
+        statusbar.set_start_widget(gauche)
 
         # Le nom de l'application, au milieu de la barre du bas. Il n'était
         # écrit **nulle part** : la fenêtre s'appelait ZyRoom-GTK dans son
@@ -381,10 +398,10 @@ class MainWindow(Gtk.ApplicationWindow):
         # titre d'Android — une gothique de bois gravé — et dans son or.
         nom = Gtk.Label(label="ZyRoom", valign=Gtk.Align.END)
         nom.add_css_class("nom-appli")
-        statusbar.append(nom)
+        statusbar.set_center_widget(nom)
 
         self._dappers_lbl = Gtk.Label(label="", valign=Gtk.Align.END)
-        statusbar.append(self._dappers_lbl)
+        statusbar.set_end_widget(self._dappers_lbl)
 
         # Signature : d'où vient cette application. Pas de traduction, ce sont
         # des noms propres. Cliquable, parce que c'est là qu'on cherche d'où
@@ -3215,8 +3232,8 @@ class MainWindow(Gtk.ApplicationWindow):
                elle n'est installée nulle part et le bac à sable ne voit pas
                celles de l'hôte. Si son chargement échouait, `font-family`
                retomberait sur la police courante : laid, mais pas cassé. */
-            .nom-appli { font-family: "Pirata One"; font-size: 1.6em;
-                         color: @zy_or; padding: 0 14px; }
+            .nom-appli { font-family: "Pirata One"; font-size: 2.4em;
+                         color: @zy_or; padding: 0 18px; }
 
             .motd { background: @zy_variante;
                     border-radius: 8px; padding: 8px 10px; }
