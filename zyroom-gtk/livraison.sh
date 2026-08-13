@@ -4,9 +4,18 @@
 #
 #   ./livraison.sh dev          → variante du mainteneur, numéro inchangé
 #   ./livraison.sh guilde 0.4   → variante des joueurs, renumérotée 0.4
-#   ./livraison.sh tout 0.4     → les deux
+#   ./livraison.sh tout 0.4     → les deux sous le même numéro
+#   ./livraison.sh tout guilde=0.25 dev=0.42  → les deux, chacun le sien
 #   ./livraison.sh dev 0.4 --sans-signature  → renumérote et construit, s'arrête
 #                                             avant tout ce qui demande la clé
+#
+# **Renuméroter les deux : un seul appel, la forme `variante=numéro`.** Les deux
+# variantes n'ont pas le même compteur, et `window.py` porte les **deux** noms —
+# c'est lui qui choisit selon `FLATPAK_ID`, pour que l'application se nomme aussi
+# quand on la lance depuis les sources. Livrer l'une puis l'autre en deux appels
+# fige donc dans la première le numéro que la seconde avait *avant* : la branche
+# est morte dans son bac à sable, mais le fichier ment. En un appel, les deux
+# numéros sont posés avant la moindre construction.
 #
 # Ce que le script fait, dans l'ordre : recopier le numéro là où il s'affiche,
 # construire, verser le résultat dans le dépôt publié, le signer, refaire son
@@ -39,7 +48,7 @@ cle_publique=$HOME/cle-signature-zyroom/cle-publique-zyroom.asc
 proprietes=$racine/version.properties
 builder="flatpak run org.flatpak.Builder"
 
-usage() { sed -n '3,9p' "$0" | sed 's/^# \?//'; exit 2; }
+usage() { sed -n '3,10p' "$0" | sed 's/^# \?//'; exit 2; }
 
 sans_signature=0
 arguments=()
@@ -56,7 +65,31 @@ case ${1:-} in
     tout)       variantes=(guilde dev) ;;
     *)          usage ;;
 esac
-nom_demande=${2:-}
+selection=$1
+shift
+
+# Les numéros demandés, une entrée par variante. Deux écritures : un numéro nu,
+# qui vaut pour toutes les variantes livrées, ou des couples `variante=numéro`.
+# Sans rien, chaque variante garde le sien.
+declare -A numero=()
+for argument in "$@"; do
+    case $argument in
+        guilde=*|dev=*)
+            cible=${argument%%=*}
+            # Renuméroter une variante qu'on ne construit pas laisserait
+            # `version.properties` en avance sur ce qui est publié.
+            [[ " ${variantes[*]} " == *" $cible "* ]] || {
+                echo "Erreur : $argument renumérote « $cible », qui n'est pas livrée ici." >&2
+                echo "Utilise « tout » pour livrer les deux." >&2
+                exit 1
+            }
+            numero[$cible]=${argument#*=}
+            ;;
+        *)  for v in "${variantes[@]}"; do numero[$v]=$argument; done ;;
+    esac
+done
+# Ce qu'il faudra retaper après --sans-signature, à l'identique.
+rappel_arguments=$*
 
 # Garde-fous : mieux vaut refuser tôt que livrer à moitié.
 [ -d "$depot_publie" ] || {
@@ -95,7 +128,7 @@ manifeste_de(){ echo "packaging/$(app_de "$1").yml"; }
 etiquette_de(){ case $1 in guilde) echo "ZyRoom-GTK-$2" ;; dev) echo "ZyRoom-GTK-dev-$2" ;; esac; }
 
 for v in "${variantes[@]}"; do
-    nom=${nom_demande:-$(lire "$v.versionName")}
+    nom=${numero[$v]:-$(lire "$v.versionName")}
     ecrire "$v.versionName" "$nom"
     app=$(app_de "$v")
     etiquette=$(etiquette_de "$v" "$nom")
@@ -164,7 +197,7 @@ if [ "$sans_signature" = 1 ]; then
 Préparé, rien n'est signé ni publié. Les numéros sont posés et la
 construction passe. Pour terminer, la phrase de passe à la main :
 
-    ./livraison.sh ${1:-} ${nom_demande:-}
+    ./livraison.sh $selection $rappel_arguments
 
 FIN
     exit 0
