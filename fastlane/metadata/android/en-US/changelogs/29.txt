@@ -1,0 +1,3 @@
+* The movements journal now shows each item's icon on its line, between
+  the name and the quality. Ten rows all starting with "Fragment of
+  supreme beak" can finally be told apart at a glance.

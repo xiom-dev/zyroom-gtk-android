@@ -1,0 +1,3 @@
+* Le journal des mouvements montre l'icône de chaque objet, sur la ligne,
+  entre son nom et sa qualité. Dix lignes qui commencent par « Fragment de
+  bec suprême » se distinguent enfin d'un coup d'œil.
