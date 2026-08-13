@@ -1087,6 +1087,12 @@ class MainWindow(Gtk.ApplicationWindow):
     #: prendrait le pas sur le texte qu'il accompagne.
     TAILLE_SYMBOLE = 26
 
+    #: Colonnes du bloc « ce qui sort » — une par zone des Primes, pour les
+    #: avoir toutes les quatre sous les yeux à la fois. Sur deux colonnes, il
+    #: fallait comparer une rangée avec celle du dessous alors que le geste
+    #: utile est de choisir entre les quatre.
+    COLONNES_POP = 4
+
     #: Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton.
     POINT = (1.0, 0.18, 0.18)
 
@@ -1469,10 +1475,14 @@ class MainWindow(Gtk.ApplicationWindow):
         dedans.append(self._meteo_pop_titre)
         pop = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
                       homogeneous=True)
-        self._meteo_pop_g = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        self._meteo_pop_d = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        pop.append(self._meteo_pop_g)
-        pop.append(self._meteo_pop_d)
+        self._meteo_pop_colonnes = []
+        # Surtout pas `for _ in range(...)` : `_` est la fonction de traduction,
+        # et l'écraser ici la rendrait locale à la méthode — tous les `_("…")`
+        # de l'écran météo lèveraient alors une UnboundLocalError au démarrage.
+        for _rang in range(self.COLONNES_POP):
+            colonne = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            self._meteo_pop_colonnes.append(colonne)
+            pop.append(colonne)
         dedans.append(pop)
 
         # Le tableau des suprêmes de la saison a été retiré : « ce qui sort »
@@ -1623,17 +1633,17 @@ class MainWindow(Gtk.ApplicationWindow):
 
         for colonne in (self._meteo_excellentes, self._meteo_jour,
                         self._meteo_nuit, self._meteo_note,
-                        self._meteo_pop_g, self._meteo_pop_d):
+                        *self._meteo_pop_colonnes):
             while (child := colonne.get_first_child()) is not None:
                 colonne.remove(child)
         cle = releve.saison_cle
         saison = meteo.nom_saison(releve.saison)
 
-        # Ce qui sort maintenant, sur deux colonnes lui aussi : l'humidité décide
-        # de la condition de gisement, la condition décide de ce qu'on trouve, et
-        # le bloc change tout seul à chaque bascule de cycle — sans rien
-        # redemander. Les quatre zones tiennent ainsi sur deux rangées au lieu de
-        # quatre écrans.
+        # Ce qui sort maintenant, une colonne par zone : l'humidité décide de la
+        # condition de gisement, la condition décide de ce qu'on trouve, et le
+        # bloc change tout seul à chaque bascule de cycle — sans rien redemander.
+        # Les quatre zones des Primes tiennent ainsi sur une seule rangée, ce
+        # qu'on demande d'un tableau qu'on lit pour choisir où aller forer.
         actuelle = releve.maintenant()
         if actuelle is None:
             self._meteo_pop_titre.set_text("")
@@ -1647,13 +1657,13 @@ class MainWindow(Gtk.ApplicationWindow):
                         for zone in meteo.ZONES]
             remplies = [(z, g) for z, g in remplies if g]
             for rang, (zone, groupes) in enumerate(remplies):
-                colonne = self._meteo_pop_g if rang % 2 == 0 else self._meteo_pop_d
+                colonne = self._meteo_pop_colonnes[rang % self.COLONNES_POP]
                 # Le relevé de la guilde porte sur les quatre zones des Primes,
                 # là où sortent les suprêmes : c'est cette qualité-là qu'on
                 # montre en carte.
-                colonne.append(self._bloc_matieres(zone, groupes,
-                                                   rang // 2 % 2 == 0,
-                                                   qualite="supreme"))
+                colonne.append(self._bloc_matieres(
+                    zone, groupes, rang // self.COLONNES_POP % 2 == 0,
+                    qualite="supreme"))
 
         self._meteo_excellentes.append(self._entete_colonne(_("Cette saison")))
         self._meteo_excellentes.append(
