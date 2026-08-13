@@ -382,7 +382,11 @@ class MainWindow(Gtk.ApplicationWindow):
         # Lunaire · synchro à l'instant ».
         gauche = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         gauche.append(self._portrait)
-        self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.CENTER)
+        # Calée en bas, et non centrée : la seconde ligne se pose alors sur le
+        # bas du portrait — ou de l'emblème — au lieu de flotter cinq pixels
+        # au-dessus. Centrée, le texte étant moins haut que l'image, ni le haut
+        # ni le bas ne s'alignaient sur rien.
+        self._status = Gtk.Label(xalign=0.0, valign=Gtk.Align.END)
         # Elle dit qui on regarde, dans quel contenant, et de quand datent les
         # données : c'est le fil que l'œil retrouve en revenant à l'écran.
         self._status.add_css_class("peuple")
