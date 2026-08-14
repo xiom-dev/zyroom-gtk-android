@@ -1,0 +1,8 @@
+* Nothing new on screen: this version only fixes a code comment that had fallen
+  one version behind. It still claimed the "what's out now" table came from the
+  guild's spreadsheet and was incomplete by design — untrue since the previous
+  release.
+* While there, it now states plainly what the screen shows: half of what the
+  season can give, since every node comes out in only two of the four
+  conditions. Compared with Ryzom Armory's season listing, the other half will
+  always be missing — that is not an omission.

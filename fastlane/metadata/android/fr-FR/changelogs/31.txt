@@ -1,0 +1,8 @@
+* Rien de neuf à l'écran : cette version ne corrige qu'un commentaire du code,
+  resté en arrière d'une version. Il disait encore que le tableau « ce qui
+  sort » venait du classeur de la guilde et qu'il était incomplet par
+  construction — ce n'est plus vrai depuis la précédente.
+* Au passage, c'est dit noir sur blanc là où il faut : ce que l'écran montre est
+  la moitié de ce que la saison peut donner, chaque gisement ne sortant que par
+  deux conditions sur quatre. Comparé au relevé de saison de Ryzom Armory, il
+  manquera toujours l'autre moitié : ce n'est pas un oubli.

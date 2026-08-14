@@ -157,7 +157,20 @@ fun nomSaison(index: Int): String = when (index) {
  */
 const val MINUTES_PAR_CYCLE = 9
 
-/** Ce qui peut sortir ici et maintenant, d'après le relevé de la guilde. */
+/**
+ * Ce qui peut sortir ici et maintenant.
+ *
+ * La table ne vient plus du classeur de la guilde : elle se déduit du relevé de
+ * Ryzom Armory pour le couple saison × zone, et des fourchettes d'humidité du
+ * tracker d'atys.us pour la condition. Elle est complète — les quatre
+ * conditions sont remplies partout — donc un vide ne veut pas dire « pas encore
+ * relevé », il signalerait une table mal fabriquée.
+ *
+ * Ce qui sort est **la moitié** de ce que la saison peut donner : chaque
+ * gisement occupe deux des quatre bandes d'humidité. Comparé au relevé
+ * d'Armory, qui donne la saison entière sans notion de météo, il manquera
+ * toujours l'autre moitié — ce n'est pas un trou.
+ */
 fun popDe(saison: Int, zone: String, condition: String): Map<String, List<String>> =
     POP[SAISONS.getOrNull(saison)]?.get(zone)?.get(condition.uppercase()).orEmpty()
 

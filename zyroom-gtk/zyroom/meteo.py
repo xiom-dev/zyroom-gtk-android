@@ -268,8 +268,15 @@ def pop_de(saison: int, zone: str, condition: str) -> dict[str, list[str]]:
     """Ce qui peut sortir ici et maintenant.
 
     L'humidité décide de la condition de gisement, et la condition décide de ce
-    qu'on trouve. Le relevé est incomplet par construction : une zone sans rien
-    veut dire « pas encore relevé », et non « rien ne sort ».
+    qu'on trouve. La table est complète depuis qu'elle se déduit d'Armory et des
+    fourchettes du tracker : les quatre conditions sont remplies dans les quatre
+    zones des quatre saisons. Un vide ne peut donc plus vouloir dire « pas
+    encore relevé » — il signalerait une table mal fabriquée.
+
+    Ce qui sort est **la moitié** de ce que la saison peut donner : chaque
+    gisement occupe deux des quatre bandes d'humidité. Comparé au relevé
+    d'Armory, qui donne la saison entière sans notion de météo, il manquera
+    toujours l'autre moitié — ce n'est pas un trou.
     """
     cle = SAISONS[saison] if 0 <= saison < len(SAISONS) else ""
     return _pop.POP.get(cle, {}).get(zone, {}).get(condition.upper(), {})
