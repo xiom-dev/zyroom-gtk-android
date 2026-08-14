@@ -1,0 +1,5 @@
+* Nothing new on the phone: this release goes along with a desktop fix, where
+  the software centre advertised "6.0.0" — a number inherited from the original
+  zyRoom and never updated — while the app called itself 0.29.
+* All four variants move together, so that one number is enough to know what
+  anyone is running.

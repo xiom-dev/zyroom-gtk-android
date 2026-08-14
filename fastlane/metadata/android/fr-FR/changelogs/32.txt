@@ -1,0 +1,5 @@
+* Rien de neuf sur le téléphone : cette version accompagne une correction du
+  côté bureau, où la logithèque annonçait « 6.0.0 » — un numéro hérité du zyRoom
+  d'origine, jamais remis à jour — pendant que l'application s'appelait 0.29.
+* Les quatre variantes avancent ensemble, pour qu'un numéro suffise à savoir ce
+  que chacun a entre les mains.

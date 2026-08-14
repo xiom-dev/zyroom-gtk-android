@@ -139,6 +139,30 @@ for v in "${variantes[@]}"; do
     # 1. Le numéro, là où il s'affiche : menu, logithèque, barre des tâches.
     sed -i -E "s|^Name=.*|Name=$etiquette|" "data/$app.desktop"
     sed -i -E "0,/<name>.*<\/name>/s||<name>$etiquette</name>|" "data/$app.metainfo.xml"
+
+    # Et dans <releases>, qui est le seul numéro qu'AppStream comprenne comme
+    # une version : `flatpak list`, `flatpak remote-info` et GNOME Logiciels
+    # lisent celui-là, pas le <name>. Il portait « 6.0.0 » du 1er août — hérité
+    # du zyRoom 6 de Misugi et jamais touché — pendant que l'application
+    # s'appelait 0.29 : la logithèque annonçait donc une version que rien
+    # d'autre ne connaissait. Une seule entrée, celle qu'on publie : tenir un
+    # historique demanderait un texte par version, et personne ne le lira dans
+    # une application qui se met à jour toute seule.
+    grep -q '<release version=' "data/$app.metainfo.xml" || {
+        echo "Erreur : pas de ligne <release> dans data/$app.metainfo.xml." >&2
+        echo "Sans elle, la logithèque garderait l'ancien numéro sans rien dire." >&2
+        exit 1
+    }
+    sed -i -E "s|<release version=\"[^\"]*\" date=\"[^\"]*\"/>|<release version=\"$nom\" date=\"$(date +%F)\"/>|" \
+        "data/$app.metainfo.xml"
+    # Relu par le validateur quand il est là : un `sed` sur du XML se trompe en
+    # silence, et le manifeste ne serait refusé qu'à la construction suivante.
+    if command -v appstreamcli >/dev/null; then
+        appstreamcli validate --no-net "data/$app.metainfo.xml" >/dev/null || {
+            echo "Erreur : data/$app.metainfo.xml ne valide plus après renumérotation." >&2
+            exit 1
+        }
+    fi
 done
 
 # APP_NAME choisit selon FLATPAK_ID : les deux noms sont dans le même fichier,
