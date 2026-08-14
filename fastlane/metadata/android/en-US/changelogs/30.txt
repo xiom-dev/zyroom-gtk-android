@@ -1,0 +1,7 @@
+* "What's out now" was wrong, and is fixed. The table came from the guild's
+  spreadsheet, filled in from memory as players dug: of the forty-six
+  materials it listed, only one agreed with the game's humidity range.
+* It now comes from two sources you can check — Ryzom Armory for the season
+  and the zone, the atys.us tracker for humidity. Every node comes out in
+  exactly two conditions, and the table is complete: 1060 derived entries
+  instead of 756 recorded by hand.

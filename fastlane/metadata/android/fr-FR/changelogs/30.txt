@@ -1,0 +1,8 @@
+* « Ce qui sort » était faux, et il est corrigé. Le tableau se déduisait du
+  classeur de la guilde, rempli de mémoire au fil des sorties : sur les
+  quarante-six matières qu'il citait, une seule s'accordait avec la
+  fourchette d'humidité du jeu.
+* Il vient maintenant de deux sources vérifiables — Ryzom Armory pour la
+  saison et la zone, le tracker d'atys.us pour l'humidité. Chaque gisement
+  sort par deux conditions exactement, et la table est complète : 1060
+  cases déduites au lieu de 756 relevées à la main.
