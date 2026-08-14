@@ -6,8 +6,9 @@ local.properties
 keystore.properties
 keystore/
 
-# Artefacts : ils vont dans les Releases GitHub, pas dans l'historique — un APK
-# pèse 8 Mo et un dépôt git conserve chaque version pour toujours.
+# Artefacts : ils vont sur la page publiée, et leur copie datée reste ici sans
+# entrer dans l'historique — un APK pèse 8 Mo et un dépôt git conserve chaque
+# version pour toujours.
 dist/
 *.apk
 

@@ -123,8 +123,10 @@ ecrire() {
 
 app_de()      { case $1 in guilde) echo net.ryzom.zyroomgtk ;; dev) echo net.ryzom.zyroomgtk.dev ;; esac; }
 manifeste_de(){ echo "packaging/$(app_de "$1").yml"; }
-# Le nom affiché : sans parenthèses, GitHub les réécrit en points sur les
-# pièces jointes des Releases et les empreintes publiées ne correspondent plus.
+# Le nom affiché : sans parenthèses, elles finissent dans une URL et dans une
+# ligne de commande, où elles se font réécrire ou avaler. La règle vient des
+# pièces jointes des Releases, que GitHub renommait en points — on ne publie
+# plus ainsi, mais elle reste bonne.
 etiquette_de(){ case $1 in guilde) echo "ZyRoom-GTK-$2" ;; dev) echo "ZyRoom-GTK-dev-$2" ;; esac; }
 
 for v in "${variantes[@]}"; do

@@ -96,16 +96,19 @@ for v in "${variantes[@]}"; do
     construit=$racine/app/build/outputs/apk/$v/release/app-$v-release.apk
     [ -f "$construit" ] || { echo "Erreur : $construit absent après la construction." >&2; exit 1; }
 
-    # Pas de parenthèses dans les noms de fichiers : GitHub les réécrit en
-    # points sur les pièces jointes des Releases, et les empreintes publiées ne
-    # correspondent plus aux noms servis.
+    # Pas de parenthèses dans les noms de fichiers : ils finissent dans une URL
+    # et dans une ligne de commande, où elles se font réécrire ou avaler. La
+    # règle vient des pièces jointes des Releases, que GitHub renommait en
+    # points — on ne publie plus ainsi, mais elle reste bonne.
     # Les deux variantes sont servies depuis la page, sous un nom fixe que
     # version.json annonce une fois pour toutes. Une Release GitHub ferait
     # aussi bien pour le joueur, mais elle demande un jeton d'API : la
     # publication cesserait d'être faisable d'un seul geste, et il faudrait
     # que la Release existe *avant* que version.json l'annonce, sinon les
     # téléphones verraient un numéro neuf et un téléchargement mort.
-    # La copie datée dans dist/ reste, elle, ce qu'on joint à une Release.
+    # La copie datée dans dist/ n'est donc pas ce qu'on joindrait à une
+    # Release : c'est l'archive locale de ce qui est parti, la seule façon de
+    # retrouver l'APK d'un numéro donné une fois la page écrasée par le suivant.
     case $v in
         guilde)
             fichier=V-RyLune-Android_$nom.apk
@@ -155,6 +158,11 @@ Reste à faire, à la main — rien n'a été envoyé :
      déjà effacé une fois.
 
   2. valider le nouveau numéro : git add -u && git commit
-  3. variante guilde seulement : créer la Release GitHub et y joindre
-     l'APK de dist/, puis vérifier que l'URL annoncée par version.json répond.
+  3. vérifier depuis le site, et non depuis dist/ : que l'URL annoncée par
+     version.json répond, que son empreinte est celle de l'APK construit, et
+     que le versionCode relu par « aapt2 dump badging » est le neuf.
+
+     Pas de Release GitHub : les deux APK sont servis par la page, sous un nom
+     fixe que version.json annonce. Une Release demanderait un jeton d'API et
+     devrait exister avant d'être annoncée.
 FIN

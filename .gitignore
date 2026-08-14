@@ -5,8 +5,8 @@
 /zyroom-gtk/pages-repo/
 /.signing-key-id
 
-# Fichiers rassemblés pour une livraison : ils vont dans les Releases GitHub,
-# pas dans l'historique — un APK pèse 8 Mo et git garde chaque version.
+# Fichiers rassemblés pour une livraison : ils vont sur la page publiée, pas
+# dans l'historique — un APK pèse 8 Mo et git garde chaque version.
 /release-v*/
 
 # Mini-cartes de gisements telles que le tracker les rend : une quinzaine de

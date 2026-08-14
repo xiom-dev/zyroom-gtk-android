@@ -19,10 +19,16 @@ l'installer.
 
 ## Télécharger
 
-Les applications prêtes à installer sont dans les
-[**Releases**](../../releases) — un bundle Flatpak pour le bureau, un APK pour
-le téléphone. Elles n'y sont pas versionnées dans l'historique : un binaire pèse
-des mégaoctets et git en garderait chaque version pour toujours.
+Les applications prêtes à installer sont sur la
+[**page de téléchargement**](https://xiom-dev.github.io/zyroom-gtk-android/) —
+un bundle Flatpak pour le bureau, un APK pour le téléphone, chacun sous un nom
+fixe que les applications elles-mêmes interrogent pour se mettre à jour.
+
+Pas de Releases : elles demanderaient un jeton d'API, et la version publiée
+devrait exister avant d'être annoncée — deux façons de casser une publication
+qui tient aujourd'hui en un seul geste. Les binaires ne sont pas versionnés dans
+l'historique non plus : un binaire pèse des mégaoctets et git en garderait chaque
+version pour toujours.
 
 ## Deux variantes de chaque application
 

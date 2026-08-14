@@ -274,9 +274,11 @@ script les fait croître à partir du plus haut des deux — celui du dépôt et
 réellement en ligne. Les deux variantes ont leur propre suite : la dev avance au
 rythme des essais sans entraîner celle des joueurs.
 
-Pas de parenthèses dans les noms de fichiers : GitHub les réécrit en points sur
-les pièces jointes des Releases, et les empreintes publiées ne correspondent
-plus aux noms servis.
+Pas de parenthèses dans les noms de fichiers : ils finissent dans une URL et
+dans une ligne de commande, où elles se font réécrire ou avaler. La règle vient
+des pièces jointes des Releases, que GitHub renommait en points — on ne publie
+plus ainsi, l'APK est servi par la page sous un nom fixe, mais la règle reste
+bonne.
 
 Pour l'installer, un téléphone doit autoriser les applications d'origine
 inconnue — Android le propose au moment de l'ouverture du fichier. L'application
