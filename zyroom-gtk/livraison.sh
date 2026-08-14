@@ -123,20 +123,28 @@ ecrire() {
 
 app_de()      { case $1 in guilde) echo net.ryzom.zyroomgtk ;; dev) echo net.ryzom.zyroomgtk.dev ;; esac; }
 manifeste_de(){ echo "packaging/$(app_de "$1").yml"; }
-# Le nom affiché : sans parenthèses, elles finissent dans une URL et dans une
-# ligne de commande, où elles se font réécrire ou avaler. La règle vient des
-# pièces jointes des Releases, que GitHub renommait en points — on ne publie
-# plus ainsi, mais elle reste bonne.
-etiquette_de(){ case $1 in guilde) echo "ZyRoom-GTK-$2" ;; dev) echo "ZyRoom-GTK-dev-$2" ;; esac; }
+# Le nom affiché — menu, logithèque, alternateur de tâches. **Sans numéro** : il
+# nommait la version autant que l'application, si bien que le menu changeait de
+# ligne à chaque livraison. Le numéro se lit maintenant là où on le cherche : la
+# logithèque le tient de <release>, l'À propos de VERSION.
+etiquette_de(){ case $1 in guilde) echo "ZyRoom-GTK" ;; dev) echo "ZyRoom-GTK(dev)" ;; esac; }
+# Le nom de fichier, lui, garde le numéro — sans quoi chaque livraison
+# écraserait la précédente dans dist/ — et n'aura jamais de parenthèses : ces
+# noms-là finissent dans une URL et dans une ligne de commande, où elles se font
+# réécrire ou avaler. La règle vient des pièces jointes des Releases, que GitHub
+# renommait en points ; on ne publie plus ainsi, mais elle reste bonne.
+fichier_de()  { case $1 in guilde) echo "ZyRoom-GTK-$2" ;; dev) echo "ZyRoom-GTK-dev-$2" ;; esac; }
 
 for v in "${variantes[@]}"; do
     nom=${numero[$v]:-$(lire "$v.versionName")}
     ecrire "$v.versionName" "$nom"
     app=$(app_de "$v")
-    etiquette=$(etiquette_de "$v" "$nom")
-    printf '%-7s %s → %s\n' "$v" "$app" "$etiquette"
+    etiquette=$(etiquette_de "$v")
+    printf '%-7s %s → %s %s\n' "$v" "$app" "$etiquette" "$nom"
 
-    # 1. Le numéro, là où il s'affiche : menu, logithèque, barre des tâches.
+    # 1. Le nom, là où il s'affiche : menu, logithèque, barre des tâches. Il ne
+    # bouge plus d'une livraison à l'autre, mais il est réécrit quand même — un
+    # fichier qu'on ne récrit jamais est un fichier qui dérive en silence.
     sed -i -E "s|^Name=.*|Name=$etiquette|" "data/$app.desktop"
     sed -i -E "0,/<name>.*<\/name>/s||<name>$etiquette</name>|" "data/$app.metainfo.xml"
 
@@ -165,22 +173,26 @@ for v in "${variantes[@]}"; do
     fi
 done
 
-# APP_NAME choisit selon FLATPAK_ID : les deux noms sont dans le même fichier,
-# et doivent suivre les deux variantes même si une seule est livrée.
+# VERSION choisit selon FLATPAK_ID : les deux numéros sont dans le même fichier,
+# et doivent suivre les deux variantes même si une seule est livrée. APP_NAME,
+# lui, ne dépend plus du numéro et n'est plus touché ici.
 python3 - "$(lire guilde.versionName)" "$(lire dev.versionName)" <<'PY'
 import re, sys
 guilde, dev = sys.argv[1], sys.argv[2]
 chemin = "zyroom/window.py"
 source = open(chemin, encoding="utf-8").read()
-source = re.sub(r'APP_NAME = \("ZyRoom-GTK[^"]*"', f'APP_NAME = ("ZyRoom-GTK-dev-{dev}"', source, count=1)
-source = re.sub(r'else "ZyRoom-GTK[^"]*"\)', f'else "ZyRoom-GTK-{guilde}")', source, count=1)
+source, remplaces = re.subn(r'^VERSION = ".*" if _DEV else ".*"$',
+                            f'VERSION = "{dev}" if _DEV else "{guilde}"',
+                            source, count=1, flags=re.M)
+if remplaces != 1:
+    sys.exit("Erreur : la ligne VERSION de zyroom/window.py n'a pas été reconnue.")
 open(chemin, "w", encoding="utf-8").write(source)
 PY
 
 for v in "${variantes[@]}"; do
     app=$(app_de "$v")
     nom=$(lire "$v.versionName")
-    etiquette=$(etiquette_de "$v" "$nom")
+    fichier=$(fichier_de "$v" "$nom")
     suffixe=$([ "$v" = dev ] && echo "-dev" || echo "")
 
     echo
@@ -205,16 +217,16 @@ for v in "${variantes[@]}"; do
     # source de mises à jour et la clé qui la signe. Sans eux, le joueur devrait
     # ajouter le dépôt à la main — trois commandes de terminal que personne ne
     # tapera.
-    flatpak build-bundle "$depot_publie" "dist/$etiquette.flatpak" \
+    flatpak build-bundle "$depot_publie" "dist/$fichier.flatpak" \
         --repo-url="$url_depot" --gpg-keys="$cle_publique" "$app" master
-    (cd dist && sha256sum "$etiquette.flatpak")
+    (cd dist && sha256sum "$fichier.flatpak")
 
     # Une copie sous un nom fixe sur la page : c'est le lien qu'on donne aux
     # joueurs. Il ne change jamais et pointe droit sur le fichier — une adresse
     # qui change à chaque version, ou qui mène à une page où il faut chercher,
     # ne convient pas à des gens qui ne connaissent pas GitHub.
     servi=$([ "$v" = dev ] && echo "ZyRoom-GTK-dev.flatpak" || echo "ZyRoom-GTK.flatpak")
-    cp "dist/$etiquette.flatpak" "$racine/../pages/$servi"
+    cp "dist/$fichier.flatpak" "$racine/../pages/$servi"
 done
 
 if [ "$sans_signature" = 1 ]; then

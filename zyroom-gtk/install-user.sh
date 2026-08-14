@@ -33,7 +33,7 @@ install -m644 "$HERE/data/$APP_ID.svg" "$ICON"
 cat > "$DESKTOP" <<EOF
 [Desktop Entry]
 Type=Application
-Name=ZyRoom GTK
+Name=ZyRoom-GTK
 GenericName=Ryzom inventory viewer
 Comment=Consultez vos inventaires Ryzom hors-ligne
 Comment[en]=View your Ryzom inventories offline
@@ -48,4 +48,4 @@ chmod +x "$DESKTOP"
 refresh
 
 echo "Lanceur installé : $DESKTOP"
-echo "Il apparaît dans le menu des applications sous « ZyRoom GTK »."
+echo "Il apparaît dans le menu des applications sous « ZyRoom-GTK »."

@@ -3,7 +3,7 @@
   <id>net.ryzom.zyroomgtk</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>AGPL-3.0-or-later</project_license>
-  <name>ZyRoom-GTK-0.30</name>
+  <name>ZyRoom-GTK</name>
   <developer id="net.ryzom">
     <name>ZyRoom GTK contributors</name>
   </developer>
@@ -35,6 +35,6 @@
   <url type="homepage">https://github.com/misugi/zyroom</url>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.30" date="2026-08-14"/>
+    <release version="0.31" date="2026-08-14"/>
   </releases>
 </component>

@@ -46,7 +46,7 @@ sudo apt install ./ZyRoom-GTK_6.0.0_all.deb
 ```
 
 `apt` installe automatiquement les dépendances (`python3-gi`, `gir1.2-gtk-4.0`).
-L'application apparaît ensuite dans le menu (« ZyRoom-GTK-0.3 ») ou se lance avec
+L'application apparaît ensuite dans le menu (« ZyRoom-GTK ») ou se lance avec
 `zyroom-gtk`.
 
 ### Flatpak (toutes distributions)

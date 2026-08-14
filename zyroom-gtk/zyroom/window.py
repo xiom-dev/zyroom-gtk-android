@@ -40,12 +40,23 @@ ICON_SIZE = 48
 #: on regarde déjà si quelque chose a changé ailleurs.
 MAJ_INTERVALLE = 15 * 60
 
+#: Vrai dans la variante du mainteneur, qui montre les coffres masqués.
+_DEV = (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
+
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
-APP_NAME = ("ZyRoom-GTK-dev-0.47"
-            if (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
-            else "ZyRoom-GTK-0.30")
+#
+# **Sans numéro de version.** Il en portait un, et l'application changeait donc
+# de nom à chaque livraison : deux joueurs de la même guilde ne parlaient pas de
+# la même chose, et le menu du bureau donnait une ligne différente chaque
+# semaine. Un nom nomme l'application ; le numéro se lit dans l'À propos et dans
+# la logithèque, qui savent l'un et l'autre l'afficher à leur place.
+APP_NAME = "ZyRoom-GTK(dev)" if _DEV else "ZyRoom-GTK"
+
+#: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
+#: c'est `version.properties` qui fait foi.
+VERSION = "0.48" if _DEV else "0.31"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -3775,6 +3786,9 @@ class MainWindow(Gtk.ApplicationWindow):
         """
         about = Gtk.AboutDialog(transient_for=self, modal=True)
         about.set_program_name(APP_NAME)
+        # Le numéro n'est plus dans le nom : c'est ici qu'on vient le lire quand
+        # on demande à un joueur « tu as laquelle ? ».
+        about.set_version(VERSION)
         about.set_comments(
             "Vos inventaires Ryzom et les coffres de la guilde, hors du jeu.\n"
             "Dérivée du zyRoom de Misugi, écrit en Delphi pour Windows :\n"
