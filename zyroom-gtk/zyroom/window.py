@@ -56,7 +56,7 @@ APP_NAME = "ZyRoom-GTK(dev)" if _DEV else "ZyRoom-GTK"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.48" if _DEV else "0.31"
+VERSION = "0.49" if _DEV else "0.32"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -425,7 +425,14 @@ class MainWindow(Gtk.ApplicationWindow):
         # écrit **nulle part** : la fenêtre s'appelait ZyRoom-GTK dans son
         # titre de bureau, mais rien à l'écran ne le disait. Dans la police du
         # titre d'Android — une gothique de bois gravé — et dans son or.
-        nom = Gtk.Label(label="ZyRoom", valign=Gtk.Align.END)
+        #
+        # Le nom entier, pas un raccourci : c'est ici qu'on lit à quelle des
+        # deux variantes on a affaire, et « ZyRoom » tout court ne le disait
+        # pas. Coupable à l'affichage — non pour être coupé, mais pour cesser
+        # d'imposer sa largeur : sans cela, « ZyRoom-GTK(dev) » réclamait 439
+        # pixels que la fenêtre ne pouvait plus rendre en rétrécissant.
+        nom = Gtk.Label(label=APP_NAME, valign=Gtk.Align.END)
+        nom.set_ellipsize(Pango.EllipsizeMode.END)
         nom.add_css_class("nom-appli")
         statusbar.set_center_widget(nom)
 
@@ -440,7 +447,7 @@ class MainWindow(Gtk.ApplicationWindow):
         signature.set_has_frame(False)
         signature.get_child().add_css_class("dim-label")
         signature.get_child().add_css_class("caption")
-        signature.set_tooltip_text(_("À propos de ZyRoom-GTK"))
+        signature.set_tooltip_text(_("À propos de {}").format(APP_NAME))
         signature.connect("clicked", self._on_about)
         signature.props.margin_bottom = 2
         pied.append(signature)
