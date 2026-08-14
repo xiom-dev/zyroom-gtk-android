@@ -54,9 +54,14 @@ _DEV = (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
 # la logithèque, qui savent l'un et l'autre l'afficher à leur place.
 APP_NAME = "ZyRoom-GTK(dev)" if _DEV else "ZyRoom-GTK"
 
+#: La part du nom qui va dans la gothique, en bas de la fenêtre : celle qui
+#: vient du zyRoom d'origine. Le reste — « -GTK », « -GTK(dev) » — dit la
+#: mouture, et s'écrit dans la police du bureau.
+NOM_GRAVE = "ZyRoom"
+
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.49" if _DEV else "0.32"
+VERSION = "0.50" if _DEV else "0.33"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -428,12 +433,32 @@ class MainWindow(Gtk.ApplicationWindow):
         #
         # Le nom entier, pas un raccourci : c'est ici qu'on lit à quelle des
         # deux variantes on a affaire, et « ZyRoom » tout court ne le disait
-        # pas. Coupable à l'affichage — non pour être coupé, mais pour cesser
-        # d'imposer sa largeur : sans cela, « ZyRoom-GTK(dev) » réclamait 439
-        # pixels que la fenêtre ne pouvait plus rendre en rétrécissant.
-        nom = Gtk.Label(label=APP_NAME, valign=Gtk.Align.END)
-        nom.set_ellipsize(Pango.EllipsizeMode.END)
+        # pas. Mais en deux polices : la gothique porte « ZyRoom », qui est le
+        # nom de l'application d'origine ; « -GTK » et « (dev) » disent de
+        # quelle mouture il s'agit, et ce sont des mots d'ingénieur — gravés
+        # dans le bois, ils faisaient partie du titre.
+        #
+        # Les deux morceaux s'alignent sur la ligne d'écriture et non sur le
+        # bas de leur boîte : deux polices de tailles différentes posées sur le
+        # même bord flotteraient l'une par rapport à l'autre.
+        nom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                      valign=Gtk.Align.END)
         nom.add_css_class("nom-appli")
+        grave = Gtk.Label(label=NOM_GRAVE, valign=Gtk.Align.BASELINE)
+        grave.add_css_class("nom-appli-grave")
+        # Coupable — non pour être coupé, ce qui n'arrivera pas, mais pour
+        # cesser d'imposer sa largeur : entier, il réclamait 439 pixels que la
+        # fenêtre ne pouvait plus rendre en rétrécissant.
+        grave.set_ellipsize(Pango.EllipsizeMode.END)
+        nom.append(grave)
+        mouture = Gtk.Label(label=APP_NAME.removeprefix(NOM_GRAVE),
+                            valign=Gtk.Align.BASELINE)
+        mouture.add_css_class("nom-appli-mouture")
+        # Coupable elle aussi, et pour la même raison : à la taille de la
+        # gravure, « -GTK(dev) » interdisait à la fenêtre de descendre sous
+        # 1054 pixels de large — plus que ce qu'elle mesure d'ordinaire.
+        mouture.set_ellipsize(Pango.EllipsizeMode.END)
+        nom.append(mouture)
         statusbar.set_center_widget(nom)
 
         self._dappers_lbl = Gtk.Label(label="", valign=Gtk.Align.END)
@@ -3280,9 +3305,29 @@ class MainWindow(Gtk.ApplicationWindow):
                son or. La police est embarquée — voir `zyroom/polices` — car
                elle n'est installée nulle part et le bac à sable ne voit pas
                celles de l'hôte. Si son chargement échouait, `font-family`
-               retomberait sur la police courante : laid, mais pas cassé. */
-            .nom-appli { font-family: "Pirata One"; font-size: 2.4em;
-                         color: @zy_or; padding: 0 18px; }
+               retomberait sur la police courante : laid, mais pas cassé.
+
+               L'or et la marge tiennent sur la boîte, qui les donne à ses deux
+               morceaux — sinon la marge intérieure se glisserait entre eux. La
+               mouture reste dans une police d'imprimerie : « GTK » et « dev »
+               sont des mots d'ingénieur, la gothique les rendait illisibles.
+
+               Une **étroite**, et grasse, d'un corps en dessous. La police du
+               bureau écrivait « -GTK(dev) » sur 193 pixels quand la gothique
+               n'en prend que 153 pour le même texte : à côté d'elle, elle
+               avait l'air plus grosse alors que ses capitales sont plus
+               courtes — c'était la chasse, pas le corps. La Heros Cn, une
+               Helvetica resserrée, tombe à 163 ; la graisse lui rend la
+               densité du blackletter, sans quoi elle paraît maigre et étirée ;
+               et le corps du dessous l'empêche de disputer la vedette au nom.
+               Elle vient du runtime GNOME, comme la Liberation qui la remplace
+               si jamais elle manquait — rien de plus à embarquer. */
+            .nom-appli { color: @zy_or; padding: 0 18px; }
+            .nom-appli-grave { font-family: "Pirata One"; font-size: 2.4em; }
+            .nom-appli-mouture { font-family: "TeX Gyre Heros Cn",
+                                              "Liberation Sans Narrow", sans-serif;
+                                 font-size: 2.2em; font-weight: bold;
+                                 padding-left: 4px; }
 
             .motd { background: @zy_variante;
                     border-radius: 8px; padding: 8px 10px; }
