@@ -330,9 +330,11 @@ private fun TitreTableau(titre: String) {
  * ce qui sort **en ce moment**, et il change tout seul à chaque bascule de
  * cycle, sans rien redemander.
  *
- * Le relevé est celui de La Lune Eternelle, et c'est la seule source connue
- * pour cette correspondance : les sites publics disent quelles matières sont
- * suprêmes à une saison, jamais dans quelle météo elles sortent.
+ * Deux sources, toutes deux vérifiables : Ryzom Armory pour le couple saison ×
+ * zone, et la fourchette d'humidité que le tracker d'atys.us donne pour chaque
+ * gisement. Le jeu range l'humidité en quatre bandes et chaque gisement en
+ * occupe exactement deux — sec vaut mieux qu'humide, contrairement à ce qu'on
+ * croirait.
  */
 @Composable
 private fun CeQuiSort(releve: MeteoAtys) {

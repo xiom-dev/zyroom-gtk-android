@@ -1658,9 +1658,8 @@ class MainWindow(Gtk.ApplicationWindow):
             remplies = [(z, g) for z, g in remplies if g]
             for rang, (zone, groupes) in enumerate(remplies):
                 colonne = self._meteo_pop_colonnes[rang % self.COLONNES_POP]
-                # Le relevé de la guilde porte sur les quatre zones des Primes,
-                # là où sortent les suprêmes : c'est cette qualité-là qu'on
-                # montre en carte.
+                # Les quatre zones des Primes sont les seules où sortent les
+                # suprêmes : c'est cette qualité-là qu'on montre en carte.
                 colonne.append(self._bloc_matieres(
                     zone, groupes, rang // self.COLONNES_POP % 2 == 0,
                     qualite="supreme"))

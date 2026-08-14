@@ -118,16 +118,25 @@ class DeuxNomsUneMatiere(unittest.TestCase):
                     gisements.points(qualite, famille, anglais),
                     f"{francais} et {anglais} devraient mener au même endroit")
 
-    def test_les_annotations_des_joueurs_sont_suivies(self):
-        """« Beng Agro », « Yana ? », « Migno Omg AGGRO » : le nom reste lisible."""
-        for famille, annote, propre in (("Ambres", "Beng Agro", "Beng"),
-                                        ("Boucles", "Yana ?", "Yana"),
-                                        ("Sève", "Ardente ?", "Ardente"),
-                                        ("Sève", "Visc agro KKT", "Visc"),
-                                        ("Carapace", "Migno Omg AGGRO",
-                                         "Mignonne")):
-            self.assertEqual(gisements.points("supreme", famille, propre),
-                             gisements.points("supreme", famille, annote))
+    def test_aucune_annotation_de_joueur_ne_s_affiche(self):
+        """Le classeur porte les notes de ceux qui l'ont rempli, pas l'écran.
+
+        « Migno Omg AGGRO » était affiché tel quel : l'abréviation d'un nom et
+        l'avertissement d'un joueur, pris pour le nom d'une matière. Le
+        nettoyage se fait maintenant à la fabrication de la table, si bien
+        qu'aucune annotation ne peut plus atteindre l'écran — ni celles-là, ni
+        celles que la guilde écrira demain."""
+        for zones in POP.values():
+            for conditions in zones.values():
+                for familles in conditions.values():
+                    for famille, matieres in familles.items():
+                        for matiere in matieres:
+                            self.assertNotIn(
+                                "?", matiere,
+                                f"{famille} / « {matiere} » porte un doute")
+                            self.assertEqual(
+                                1, len(matiere.split()),
+                                f"{famille} / « {matiere} » porte une note")
 
     def test_enola_est_une_seve_meme_classee_en_huile(self):
         """Le classeur la range en Huile, le jeu en Sève."""

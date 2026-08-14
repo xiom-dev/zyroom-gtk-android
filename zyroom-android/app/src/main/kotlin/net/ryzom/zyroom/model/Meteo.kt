@@ -161,5 +161,5 @@ const val MINUTES_PAR_CYCLE = 9
 fun popDe(saison: Int, zone: String, condition: String): Map<String, List<String>> =
     POP[SAISONS.getOrNull(saison)]?.get(zone)?.get(condition.uppercase()).orEmpty()
 
-/** Les zones du relevé, dans l'ordre du classeur. */
+/** Les zones des Primes, dans l'ordre où l'écran les montre. */
 val ZONES: List<String> get() = CONTINENT_DE_ZONE.keys.toList()

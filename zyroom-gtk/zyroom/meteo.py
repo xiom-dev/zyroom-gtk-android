@@ -256,7 +256,7 @@ def symbole(groupe: str) -> str | None:
     return chemin if os.path.isfile(chemin) else None
 
 
-#: Les zones du relevé, dans l'ordre du classeur.
+#: Les zones des Primes, dans l'ordre où l'écran les montre.
 #:
 #: Tirées de la table écrite plus haut, et non de celle que `pop.py` porte
 #: aussi : deux copies de la même correspondance finiraient par diverger, et
@@ -265,7 +265,7 @@ ZONES = list(CONTINENT_DE_ZONE)
 
 
 def pop_de(saison: int, zone: str, condition: str) -> dict[str, list[str]]:
-    """Ce qui peut sortir ici et maintenant, d'après le relevé de la guilde.
+    """Ce qui peut sortir ici et maintenant.
 
     L'humidité décide de la condition de gisement, et la condition décide de ce
     qu'on trouve. Le relevé est incomplet par construction : une zone sans rien

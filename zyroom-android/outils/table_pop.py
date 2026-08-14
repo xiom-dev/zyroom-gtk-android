@@ -1,38 +1,73 @@
 #!/usr/bin/env python3
-"""Fabrique les tables de pop des deux portages, à partir du classeur de la guilde.
+"""Fabrique les tables de pop des deux portages : ce qui sort, et par quel temps.
 
-Le classeur recense, par saison, par zone des Primes et par condition
-météo, quelles sources de matières premières peuvent apparaître. C'est le
-travail des joueurs de La Lune Eternelle, et la seule source connue pour
-cette correspondance : les sites publics disent *quelles* matières sont
-suprêmes, jamais *quand* elles sortent.
+Deux sources, et **plus le classeur de la guilde**.
 
-    python3 outils/table_pop.py            # va chercher le classeur en ligne
-    python3 outils/table_pop.py dossier/   # relit des CSV déjà téléchargés
+* *quoi, où, quand dans l'année* : `armory.SUPREMES`, le relevé de Ryzom
+  Armory, saison par saison et zone par zone des Primes ;
+* *par quel temps* : la fourchette d'humidité de chaque gisement, relevée au
+  tracker d'atys.us par `outils/humidites.py`.
 
-À relancer quand la guilde complète le tableau. Le classeur est incomplet
-par construction — son premier onglet le dit : « le but n'est pas de camper
-dans les primes pour le remplir, mais de compléter petit à petit ».
+Le jeu range l'humidité en quatre bandes, et **chaque gisement en occupe
+exactement deux** :
+
+    0 – 16,6 %     Excellente      (BEST)
+    16,7 – 49,9 %  Bonne           (GOOD)
+    50 – 83,3 %    Mauvaise        (BAD)
+    83,4 – 100 %   Exécrable       (WORST)
+
+Sec vaut mieux qu'humide — l'inverse de ce qu'on croirait. Mesuré sur l'API du
+jeu, quarante et un cycles sans une exception.
+
+**Pourquoi le classeur a été abandonné.** Il donnait ces conditions de mémoire,
+au fil des sorties des joueurs, et il était à la fois incomplet et faux : sur
+les quarante-six matières qu'il cite, **une seule** s'accordait avec la
+fourchette d'humidité du jeu. Il donnait souvent trois conditions là où le jeu
+en donne toujours deux.
+
+**Ce que le tracker ne peut pas dire.** Il ne connaît qu'une des quatre zones
+des Primes — « Under Spring », nos Sources Interdites. Le couple saison × zone
+vient donc d'Armory. Les deux sources ont été confrontées là où elles se
+recoupent : pour les Sources Interdites en été, **trente-cinq matières sur
+trente-cinq**, famille par famille, sans un écart.
+
+    python3 outils/table_pop.py
+
+À relancer après `outils/humidites.py`, ou quand Ryzom change ses matières.
 """
-import csv
 import collections
-import io
 import os
+import json
 import sys
-import urllib.request
 
-CLASSEUR = "1PatNA8_AjOvrNLSaNffH9ca7rRggWclvCe0oMHjPLA0"
-ONGLETS = {                     # saison -> gid, dans l'ordre de l'API (0..3)
-    "PRINTEMPS": 1931271042,
-    "ETE": 1578394161,
-    "AUTOMNE": 620712349,
-    "HIVER": 1495467871,
-}
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_ANDROID = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DEPOT = os.path.dirname(_ANDROID)
+sys.path.insert(0, os.path.join(_DEPOT, "zyroom-gtk"))
+
+from table_gisements import (FAMILLE_CORRIGEE, FAMILLES_FR,        # noqa: E402
+                             MATIERES_FR, normalise)
+from zyroom import armory                                          # noqa: E402
+
+HUMIDITES = os.path.join(_DEPOT, "donnees", "humidites-gisements.json")
+
+#: Les quatre bandes du jeu, et la condition de gisement qu'elles portent.
+#: L'ordre est celui de l'humidité croissante ; il ne suit donc pas celui des
+#: conditions, puisque c'est le temps sec qui vaut le mieux.
+BANDES = ((0.0, 16.6, "BEST"), (16.7, 49.9, "GOOD"),
+          (50.0, 83.3, "BAD"), (83.4, 100.0, "WORST"))
+
+#: L'ordre d'affichage, du pire au meilleur — celui des colonnes de l'écran.
 CONDITIONS = ("Worst", "Bad", "Good", "Best")
 
-#: Zone du classeur -> continent de l'API météo. Trois des quatre zones
-#: partagent le continent « terre » : elles ont donc, au même instant, la
-#: même météo, mais pas les mêmes gisements.
+FAMILLES = ("Ambres", "Graines", "Fibres", "Résine", "Huile", "Sève",
+            "Carapace", "Écorce", "Bois", "Boucles")
+
+ZONES = ("Sources Interdites", "Terre de la Continuité",
+         "Cité Engloutie", "Profondeurs Interdites")
+
+#: Zone des Primes → continent dont on lit la météo. Les quatre zones ne
+#: partagent que deux séries : vérifié sur quarante cycles.
 CONTINENTS = {
     "Sources Interdites": "sources",
     "Terre de la Continuité": "terre",
@@ -40,77 +75,93 @@ CONTINENTS = {
     "Profondeurs Interdites": "terre",
 }
 
-FAMILLES = ("Ambres", "Graines", "Fibres", "Résine", "Huile", "Sève",
-            "Carapace", "Écorce", "Bois", "Boucles")
+
+def fourchettes() -> dict:
+    with open(HUMIDITES, encoding="utf-8") as fh:
+        return json.load(fh)["humidites"]
 
 
-def lire(texte: str) -> dict:
-    """Un onglet de saison -> {zone: {condition: {famille: [matières]}}}."""
-    table, zone, condition, familles = collections.OrderedDict(), None, None, []
-    for ligne in csv.reader(io.StringIO(texte)):
-        ligne = ligne + [""] * (13 - len(ligne))
-        entete = [c.strip() for c in ligne[3:13]]
-        if entete[:1] == [FAMILLES[0]]:
-            familles = entete
-            continue
-        libelle = ligne[1].strip()
-        if libelle:
-            # Les intitulés hors zones connues sont des titres de section
-            # (« Été changement de saison ») : on les ignore plutôt que de
-            # les prendre pour des lieux.
-            zone = libelle if libelle in CONTINENTS else None
-            condition = None
-        if ligne[2].strip() in CONDITIONS:
-            condition = ligne[2].strip()
-        if not (zone and condition and familles):
-            continue
-        for i, cellule in enumerate(ligne[3:13]):
-            nom = cellule.strip()
-            if not nom or i >= len(familles):
-                continue
-            matieres = (table.setdefault(zone, collections.OrderedDict())
-                             .setdefault(condition, collections.OrderedDict())
-                             .setdefault(familles[i], []))
-            if nom not in matieres:
-                matieres.append(nom)
-    return table
+def conditions_de(humidites: dict, famille: str, brute: str) -> tuple:
+    """Les conditions où cette matière sort, d'après sa fourchette d'humidité.
+
+    Rend aussi le nom propre : le relevé d'Armory écrit « Scrath » ou
+    « Redhot » là où l'écran doit lire « Scratch » et « Ardente ».
+    """
+    nom = normalise(brute)
+    vraie = FAMILLE_CORRIGEE.get(nom, famille)
+    cle = f"supreme|{FAMILLES_FR.get(vraie)}|{MATIERES_FR.get(nom)}"
+    plages = humidites.get(cle)
+    if not plages:
+        return nom, None
+    dedans = tuple(c for bas, haut, c in BANDES
+                   if any(p0 <= bas and haut <= p1 for p0, p1 in plages))
+    return nom, dedans
 
 
-def source(saison: str, gid: int, dossier: str | None) -> str:
-    if dossier:
-        with open(os.path.join(dossier, f"saison-{saison.lower()}.csv"),
-                  encoding="utf-8") as fh:
-            return fh.read()
-    url = (f"https://docs.google.com/spreadsheets/d/{CLASSEUR}"
-           f"/export?format=csv&gid={gid}")
-    with urllib.request.urlopen(url, timeout=60) as reponse:
-        return reponse.read().decode("utf-8")
+def table() -> dict:
+    """{saison: {zone: {condition: {famille: [matières]}}}}."""
+    humidites = fourchettes()
+    tout, orphelines = collections.OrderedDict(), []
+    for saison, zones in armory.SUPREMES.items():
+        par_zone = collections.OrderedDict()
+        for zone in ZONES:
+            groupes = zones.get(zone, {})
+            par_condition = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            for famille in FAMILLES:
+                for brute in groupes.get(famille, []):
+                    nom, conditions = conditions_de(humidites, famille, brute)
+                    if conditions is None:
+                        orphelines.append(f"{famille} / {brute}")
+                        continue
+                    for condition in conditions:
+                        par_condition[condition][famille].append(nom)
+            if par_condition:
+                par_zone[zone] = {
+                    c.upper(): {f: sorted(set(ms))
+                                for f, ms in sorted(par_condition[c.upper()].items(),
+                                                    key=lambda p: FAMILLES.index(p[0]))}
+                    for c in CONDITIONS if c.upper() in par_condition}
+        tout[saison] = par_zone
+    if orphelines:
+        print("Des matières n'ont pas de fourchette d'humidité :", file=sys.stderr)
+        for ligne in sorted(set(orphelines)):
+            print("  " + ligne, file=sys.stderr)
+        raise SystemExit("relance outils/humidites.py, ou complète MATIERES_FR")
+    return tout
+
+
+ENTETE = (
+    "Ce qui peut apparaître, par saison, par zone et par condition météo.",
+    "",
+    "Deux sources : le relevé de Ryzom Armory pour le couple saison × zone, et",
+    "la fourchette d'humidité de chaque gisement, relevée au tracker d'atys.us,",
+    "pour la condition. Le jeu range l'humidité en quatre bandes et chaque",
+    "gisement en occupe exactement deux — sec vaut mieux qu'humide.",
+    "",
+    "La table est donc **complète** : chaque matière de chaque zone y figure",
+    "sous ses deux conditions. Le classeur de la guilde, qu'elle remplace,",
+    "était rempli de mémoire et ne s'accordait avec le jeu que sur une matière",
+    "sur quarante-six.",
+)
 
 
 def kotlin(tout: dict) -> str:
     lignes = ['package net.ryzom.zyroom.model', '',
               '// Fichier produit par outils/table_pop.py — ne pas modifier à la main.',
-              '',
-              '/**',
-              ' * Ce qui peut apparaître, par saison, par zone et par condition météo.',
-              ' *',
-              ' * Le relevé est celui de La Lune Eternelle, et c\'est la seule source connue',
-              ' * pour cette correspondance : les sites publics disent quelles matières sont',
-              ' * suprêmes à une saison, jamais dans quelle météo elles sortent.',
-              ' *',
-              ' * Il est **incomplet par construction** — il se remplit au fil des sorties des',
-              ' * joueurs. Une case vide veut donc dire « pas encore relevé », et non « rien ».',
-              ' */',
-              'val POP: Map<String, Map<String, Map<String, Map<String, List<String>>>>> = mapOf(']
+              '', '/**']
+    lignes += [(" * " + l).rstrip() for l in ENTETE]
+    lignes += [' */',
+               'val POP: Map<String, Map<String, Map<String, Map<String, List<String>>>>> = mapOf(']
     for saison, zones in tout.items():
         lignes.append(f'    "{saison}" to mapOf(')
         for zone, conds in zones.items():
             lignes.append(f'        "{zone}" to mapOf(')
             for cond in CONDITIONS:
-                if cond not in conds:
+                if cond.upper() not in conds:
                     continue
                 lignes.append(f'            "{cond.upper()}" to mapOf(')
-                for famille, mats in conds[cond].items():
+                for famille, mats in conds[cond.upper()].items():
                     liste = ", ".join(f'"{m}"' for m in mats)
                     lignes.append(f'                "{famille}" to listOf({liste}),')
                 lignes.append('            ),')
@@ -132,31 +183,23 @@ def python(tout: dict) -> str:
     table recopiée à la main d'un langage à l'autre finit toujours par
     diverger, et personne ne s'en aperçoit avant de comparer les deux
     applications côte à côte."""
-    lignes = ['"""Ce qui peut apparaître, par saison, par zone et par condition météo.',
-              '',
-              'Fichier produit par ../zyroom-android/outils/table_pop.py — ne pas',
-              'modifier à la main.',
-              '',
-              "Le relevé est celui de La Lune Eternelle, et c'est la seule source connue",
-              'pour cette correspondance : les sites publics disent quelles matières sont',
-              'suprêmes à une saison, jamais dans quelle météo elles sortent.',
-              '',
-              'Il est **incomplet par construction** — il se remplit au fil des sorties',
-              "des joueurs. Une case vide veut donc dire « pas encore relevé », et non",
-              '« rien ».',
-              '"""',
-              '',
-              '#: {saison: {zone: {condition: {famille: [matières]}}}}',
-              'POP = {']
+    lignes = ['"""' + ENTETE[0]]
+    lignes += list(ENTETE[1:])
+    lignes += ['',
+               'Fichier produit par ../zyroom-android/outils/table_pop.py — ne pas',
+               'modifier à la main.',
+               '"""', '',
+               '#: {saison: {zone: {condition: {famille: [matières]}}}}',
+               'POP = {']
     for saison, zones in tout.items():
         lignes.append(f'    "{saison}": {{')
         for zone, conds in zones.items():
             lignes.append(f'        "{zone}": {{')
             for cond in CONDITIONS:
-                if cond not in conds:
+                if cond.upper() not in conds:
                     continue
                 lignes.append(f'            "{cond.upper()}": {{')
-                for famille, mats in conds[cond].items():
+                for famille, mats in conds[cond.upper()].items():
                     liste = ", ".join(f'"{m}"' for m in mats)
                     lignes.append(f'                "{famille}": [{liste}],')
                 lignes.append('            },')
@@ -172,29 +215,17 @@ def python(tout: dict) -> str:
 
 
 def main() -> int:
-    dossier = sys.argv[1] if len(sys.argv) > 1 else None
-    tout = collections.OrderedDict()
-    for saison, gid in ONGLETS.items():
-        table = lire(source(saison, gid, dossier))
-        if not table:
-            print(f"{saison} : rien de lu — classeur privé ou format changé ?",
-                  file=sys.stderr)
-            return 1
-        tout[saison] = table
-        total = sum(len(m) for z in table.values() for c in z.values()
+    tout = table()
+    for saison, zones in tout.items():
+        total = sum(len(m) for z in zones.values() for c in z.values()
                     for m in c.values())
-        print(f"{saison:10} {len(table)} zones, {total:3} matières")
-    android = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    depot = os.path.dirname(android)
+        print(f"{saison:10} {len(zones)} zones, {total:3} entrées")
     for cible, contenu in (
-        (os.path.join(android,
+        (os.path.join(_ANDROID,
                       "app/src/main/kotlin/net/ryzom/zyroom/model/PopTable.kt"),
          kotlin(tout)),
-        (os.path.join(depot, "zyroom-gtk/zyroom/pop.py"), python(tout)),
+        (os.path.join(_DEPOT, "zyroom-gtk/zyroom/pop.py"), python(tout)),
     ):
-        if not os.path.isdir(os.path.dirname(cible)):
-            print("passé :", cible, "(dossier absent)")
-            continue
         with open(cible, "w", encoding="utf-8") as fh:
             fh.write(contenu)
         print("→", cible)
@@ -202,4 +233,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

@@ -126,21 +126,21 @@ class GisementsTest {
         }
     }
 
+    /**
+     * Le classeur porte les notes de ceux qui l'ont rempli, pas l'écran.
+     *
+     * « Migno Omg AGGRO » était affiché tel quel : l'abréviation d'un nom et
+     * l'avertissement d'un joueur, pris pour le nom d'une matière. Le nettoyage
+     * se fait maintenant à la fabrication de la table, si bien qu'aucune
+     * annotation ne peut plus atteindre l'écran — ni celles-là, ni celles que la
+     * guilde écrira demain.
+     */
     @Test
-    fun `les annotations des joueurs sont suivies`() {
-        val annotes = listOf(
-            Triple("Ambres", "Beng Agro", "Beng"),
-            Triple("Boucles", "Yana ?", "Yana"),
-            Triple("Sève", "Ardente ?", "Ardente"),
-            Triple("Sève", "Visc agro KKT", "Visc"),
-            Triple("Carapace", "Migno Omg AGGRO", "Mignonne"),
-        )
-        for ((famille, annote, propre) in annotes) {
-            assertEquals(
-                Gisements.points("supreme", famille, propre),
-                Gisements.points("supreme", famille, annote),
-            )
+    fun `aucune annotation de joueur ne s'affiche`() {
+        val annotees = libellesAffiches().filter { (_, matiere) ->
+            matiere.contains("?") || matiere.trim().split(" ").size > 1
         }
+        assertEquals(emptyList<Pair<String, String>>(), annotees.sortedBy { it.second })
     }
 
     @Test
