@@ -75,6 +75,17 @@ class OptionsWindow(Gtk.Window):
         grid.attach(self._season, 1, row, 1, 1)
         row += 1
 
+        # Notifications du bureau. Le même interrupteur se trouve en bas de la
+        # fenêtre des alertes, là où on est quand elles agacent.
+        self._notifications = Gtk.CheckButton(
+            label=_("Afficher les alertes sur le bureau (bulles près de l'horloge)"))
+        self._notifications.set_active(settings.notifications)
+        self._notifications.set_tooltip_text(_(
+            "Décochée, l'application n'envoie plus rien au bureau. Les alertes "
+            "restent visibles dans la fenêtre de la cloche."))
+        grid.attach(self._notifications, 0, row, 3, 1)
+        row += 1
+
         # Synchronisation automatique
         grid.attach(label("Resynchroniser toutes les (minutes, 0 = jamais)"), 0, row, 1, 1)
         self._sync_interval = Gtk.SpinButton.new_with_range(0, 240, 5)
@@ -156,6 +167,7 @@ class OptionsWindow(Gtk.Window):
         self._settings.season_count = int(self._season.get_value())
         self._settings.sync_interval = int(self._sync_interval.get_value())
         self._settings.sync_on_start = self._sync_on_start.get_active()
+        self._settings.notifications = self._notifications.get_active()
         self._settings.backup_auto = self._backup_auto.get_active()
         self._settings.proxy_enabled = self._proxy_enabled.get_active()
         self._settings.proxy_address = self._proxy_addr.get_text().strip()

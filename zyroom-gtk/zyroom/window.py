@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.50" if _DEV else "0.33"
+VERSION = "0.51" if _DEV else "0.33"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -3661,7 +3661,12 @@ class MainWindow(Gtk.ApplicationWindow):
         n = len(self._alerts)
         self._bell.set_label(f"🔔 {n}" if n else "🔔")
         self._bell.set_sensitive(n > 0)
-        self._bell.set_tooltip_text(f"{n} alerte(s)" if n else "Aucune alerte")
+        infobulle = f"{n} alerte(s)" if n else "Aucune alerte"
+        if not self._settings.notifications:
+            # Sans quoi la coupure ne se voit plus une fois la fenêtre fermée,
+            # et on croit l'application muette alors qu'on l'a fait taire.
+            infobulle += "\n" + _("Notifications du bureau coupées")
+        self._bell.set_tooltip_text(infobulle)
 
     def _on_bell_clicked(self, _btn) -> None:
         dlg = Gtk.Window(title="Alertes", transient_for=self, modal=True)
@@ -3687,12 +3692,46 @@ class MainWindow(Gtk.ApplicationWindow):
             detail.props.margin_start = 18
             listbox.append(detail)
 
-        close = Gtk.Button(label="Fermer", halign=Gtk.Align.END)
+        # Le pied de la fenêtre : la coupure à gauche, la sortie à droite. La
+        # coupure ne touche qu'au bureau — la liste au-dessus reste pleine.
+        pied = Gtk.CenterBox()
+        coupure = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        coupure.append(Gtk.Label(label=_("Notifications du bureau"),
+                                 valign=Gtk.Align.CENTER))
+        bouton = Gtk.Switch(valign=Gtk.Align.CENTER)
+        bouton.set_active(self._settings.notifications)
+        bouton.set_tooltip_text(_(
+            "Coupe les bulles qui s'affichent près de l'horloge à chaque "
+            "synchronisation. Les alertes restent listées ici."))
+        bouton.connect("state-set", self._on_notifications_toggled)
+        coupure.append(bouton)
+        pied.set_start_widget(coupure)
+
+        close = Gtk.Button(label="Fermer")
         close.connect("clicked", lambda *_: dlg.destroy())
-        box.append(close)
+        pied.set_end_widget(close)
+        box.append(pied)
         dlg.present()
 
+    def _on_notifications_toggled(self, _switch, actif: bool) -> bool:
+        """Coupe ou rétablit les bulles du bureau, sans toucher aux alertes."""
+        self._settings.notifications = actif
+        if not actif:
+            # Couper le robinet ne vide pas le seau : celle qui attend déjà
+            # près de l'horloge y resterait, et c'est elle qu'on voulait voir
+            # partir. On la retire donc du même geste.
+            self._retirer_notification()
+        self._update_bell()
+        return False        # laisse l'interrupteur adopter son nouvel état
+
+    def _retirer_notification(self) -> None:
+        app = self.get_application()
+        if app is not None:
+            app.withdraw_notification("zyroom-alerts")
+
     def _notify(self, result) -> None:
+        if not self._settings.notifications:
+            return
         try:
             app = self.get_application()
             notif = Gio.Notification.new("ZyRoom — alertes")
@@ -3889,6 +3928,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._apply_proxy()
         self._load_names(self._settings.pack_file)
         self._schedule_sync()          # nouvel intervalle, sans redémarrer
+        if not self._settings.notifications:
+            self._retirer_notification()
+        self._update_bell()
         self._redisplay_current()
         self._set_status("Options enregistrées.")
 

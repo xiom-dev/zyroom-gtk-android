@@ -281,6 +281,23 @@ class Settings:
         self._flush()
 
     @property
+    def notifications(self) -> bool:
+        """Envoyer les alertes au bureau, en plus de la cloche (défaut : oui).
+
+        Ce sont les bulles qui s'affichent près de l'horloge à chaque
+        synchronisation : avec une resynchronisation au quart d'heure et un
+        coffre plein, elles reviennent quatre fois par heure et rien dans le
+        bureau ne permet de les faire taire. Coupée, l'application n'envoie
+        plus rien ; la cloche et sa fenêtre continuent de tout montrer.
+        """
+        return self._ini.getboolean("GENERAL", "Notifications", fallback=True)
+
+    @notifications.setter
+    def notifications(self, value: bool) -> None:
+        self._ini.set("GENERAL", "Notifications", "1" if value else "0")
+        self._flush()
+
+    @property
     def save_folder(self) -> str:
         """Dossier « save » de Ryzom (pour la sauvegarde automatique)."""
         return self._ini.get("GENERAL", "SaveFolder", fallback="")
