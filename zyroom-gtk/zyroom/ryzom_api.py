@@ -143,10 +143,28 @@ class Entity:
     skills: list = field(default_factory=list)          # arbre des compétences
     skill_points: dict = field(default_factory=dict)    # points par branche
     members: list = field(default_factory=list)         # [(nom, grade)] d'une guilde
+    #: Dernières connexion et déconnexion du personnage, en temps Unix. 0 quand
+    #: l'API se tait — une guilde, ou une clé sans le module qui les porte.
+    lastlogin: int = 0
+    lastlogout: int = 0
 
     @property
     def item_count(self) -> int:
         return sum(len(inv.items) for inv in self.inventories)
+
+    @property
+    def en_ligne(self) -> bool | None:
+        """Le personnage est-il en jeu ? None quand l'API ne le dit pas.
+
+        La règle tient en une comparaison : connecté plus récemment que
+        déconnecté, donc encore là. Ce qu'elle ne dit pas, c'est qu'on lit un
+        instantané de la **sauvegarde** du personnage, écrit à la déconnexion :
+        une connexion toute fraîche peut ne pas s'y voir encore. D'où le mot
+        « vu » plutôt que « déconnecté » dans ce que l'écran en fait.
+        """
+        if not (self.lastlogin or self.lastlogout):
+            return None
+        return self.lastlogin > self.lastlogout
 
 
 # Opener configuré pour le proxy (None = accès direct, urllib respecte alors
@@ -444,6 +462,17 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     # La position du personnage lui-même, à la racine du flux. Elle y est depuis
     # toujours ; c'est le repère qui manquait sur la carte, et il dit du même
     # coup à quelle distance de ses bêtes on se trouve.
+    # Connexion et déconnexion : `<played lastlogin="…" lastlogout="…">`. Le
+    # flux les porte depuis toujours ; ni la page de l'API ni le wiki ne les
+    # documentent, on ne les trouve qu'en vidant la structure du XML.
+    joue = node.find("played")
+    if joue is not None:
+        for attr in ("lastlogin", "lastlogout"):
+            try:
+                setattr(ent, attr, int(joue.get(attr, "0")))
+            except ValueError:
+                pass
+
     pos = node.find("position")
     if pos is not None:
         for attr, champ in (("x", "x"), ("y", "y")):

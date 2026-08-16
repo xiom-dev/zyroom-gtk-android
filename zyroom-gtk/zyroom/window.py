@@ -3103,7 +3103,14 @@ class MainWindow(Gtk.ApplicationWindow):
         # au milieu de la barre, la fin — l'heure de synchro — se coupait dès
         # qu'on n'avait pas mille deux cent quatre-vingts pixels de large.
         extra = f" - {ent.guild}" if ent.guild else ""
-        line = f"{ent.name}{extra}\n{self._sans_parenthese(inv_label)}"
+        # La présence va sur la ligne du nom, et non sur celle du contenant :
+        # elle parle du personnage, et cette ligne-là est la plus courte des
+        # deux — la seconde porte déjà le coffre et l'heure de synchro, et se
+        # coupe la première quand la fenêtre rétrécit.
+        presence = self._presence(ent)
+        vu = f" · {presence[0]}" if presence else ""
+        self._status.set_tooltip_text(presence[1] if presence else None)
+        line = f"{ent.name}{extra}{vu}\n{self._sans_parenthese(inv_label)}"
 
         # Dater les stocks affichés : sans cela, rien ne distingue une donnée
         # de l'instant d'une donnée vieille de plusieurs jours.
@@ -3115,6 +3122,49 @@ class MainWindow(Gtk.ApplicationWindow):
                 _("Resynchroniser depuis l'API") + f"\n{_('Dernière synchro')} : "
                 f"{format_last_sync(when)}")
         self._set_status(line)
+
+    @staticmethod
+    def _presence(ent) -> tuple[str, str] | None:
+        """« en ligne » ou « vu il y a… », et l'infobulle qui dit d'où ça sort.
+
+        Renvoie None quand l'API se tait : une guilde, ou une clé sans le module
+        qui porte la connexion.
+
+        Le mot est « vu » et non « déconnecté » à dessein. On lit un instantané
+        de la sauvegarde du personnage, écrit à la déconnexion : ce que la ligne
+        affirme, c'est la dernière fois qu'on l'a vu, pas l'état du serveur à la
+        seconde présente. L'infobulle le dit en toutes lettres, pour que
+        personne ne conclue d'un « vu il y a 10 min » que la place est vide.
+        """
+        etat = ent.en_ligne
+        if etat is None:
+            return None
+
+        def date(horodatage: int) -> str:
+            return (f"{datetime.fromtimestamp(horodatage):%d/%m à %Hh%M}"
+                    if horodatage else "—")
+
+        detail = (f"{_('Dernière connexion')} : {date(ent.lastlogin)}\n"
+                  f"{_('Dernière déconnexion')} : {date(ent.lastlogout)}\n"
+                  + _("L'API ne montre que la dernière sauvegarde du "
+                      "personnage, écrite à la déconnexion : une connexion "
+                      "toute fraîche peut ne pas s'y voir encore."))
+        if etat:
+            return "🟢 " + _("en ligne"), detail
+
+        minutes = int((datetime.now()
+                       - datetime.fromtimestamp(ent.lastlogout)).total_seconds() // 60)
+        if minutes < 1:
+            vu = _("vu à l'instant")
+        elif minutes < 60:
+            vu = _("vu il y a {} min").format(minutes)
+        elif minutes < 24 * 60:
+            vu = _("vu il y a {} h").format(minutes // 60)
+        elif minutes < 7 * 24 * 60:
+            vu = _("vu il y a {} j").format(minutes // (24 * 60))
+        else:
+            vu = _("vu le {}").format(f"{datetime.fromtimestamp(ent.lastlogout):%d/%m}")
+        return vu, detail
 
     # ------------------------------------------------------------- Alertes
     def _check_alerts(self, ent, entry: dict, from_sync: bool,
