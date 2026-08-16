@@ -73,6 +73,8 @@ import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.data.UpdateChecker
+import net.ryzom.zyroom.data.WatchStore
+import net.ryzom.zyroom.data.volumeAlerts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -90,6 +92,7 @@ import net.ryzom.zyroom.model.Entity
 fun EntitiesScreen(
     store: EntityStore,
     repository: Repository,
+    watches: WatchStore,
     onOpen: (EntityStore.Suivie) -> Unit,
     onMeteo: () -> Unit = {},
 ) {
@@ -134,6 +137,22 @@ fun EntitiesScreen(
             store.rename(entree, connue.name, connue.portraitUrl)
         }
         entrees = store.all()
+    }
+
+    // Le compte d'alertes de chaque entité, pour que la cloche se voie avant
+    // d'ouvrir quoi que ce soit : autrement il fallait entrer dans chaque
+    // personnage et dans chaque guilde pour savoir laquelle avait quelque chose
+    // à dire. Tout est lu dans le cache, sans réseau — une entité jamais
+    // consultée n'a rien à lire et ne porte donc pas de pastille. Le calcul se
+    // refait à chaque retour sur cet écran, donc au retour d'un inventaire.
+    var alertes by remember { mutableStateOf(emptyMap<String, Int>()) }
+    LaunchedEffect(entrees) {
+        alertes = entrees.mapNotNull { entree ->
+            val connue = repository.cached(entree) ?: return@mapNotNull null
+            val compte = watches.alerts(connue) { fiche -> repository.nameOf(fiche) }
+                .size + volumeAlerts(connue).size
+            if (compte > 0) "${entree.kind}-${entree.id}" to compte else null
+        }.toMap()
     }
 
     // Import du `string_client.pack` : sur un téléphone, il n'y a pas
@@ -283,7 +302,7 @@ fun EntitiesScreen(
                                         .padding(end = 12.dp),
                                 )
                             }
-                            Column {
+                            Column(Modifier.weight(1f)) {
                                 Text(
                                     entree.label.ifEmpty { entree.id },
                                     style = MaterialTheme.typography.titleMedium,
@@ -292,6 +311,17 @@ fun EntitiesScreen(
                                     if (entree.kind == Entity.Kind.CHARACTER) "Personnage"
                                     else "Guilde",
                                     style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            // La cloche de l'entité, au bout de sa carte. Rien
+                            // quand il n'y a rien : une pastille à zéro sur
+                            // chaque ligne n'apprendrait rien et se verrait
+                            // autant que celle qui compte.
+                            alertes["${entree.kind}-${entree.id}"]?.let { compte ->
+                                Text(
+                                    "🔔 $compte",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = OrangesDuCoffre[1],
                                 )
                             }
                         }

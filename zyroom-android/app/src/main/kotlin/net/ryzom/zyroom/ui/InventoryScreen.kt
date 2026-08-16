@@ -25,11 +25,16 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -96,6 +101,18 @@ import java.util.Locale
 
 /** Ce que la rangée du haut donne à voir : un contenant, le journal, l'arbre. */
 private enum class Vue { INVENTAIRE, JOURNAL, COMPETENCES, AVANTPOSTES, EFFECTIF, BETES }
+
+/**
+ * Une figure par sorte d'alerte, les mêmes que dans la version pour ordinateur.
+ * Les deux applications se lisent ainsi de la même façon, et la liste se
+ * parcourt sans avoir à lire chaque titre.
+ */
+internal fun figureDe(kind: Alert.Kind): String = when (kind) {
+    Alert.Kind.QUANTITY -> "📉"
+    Alert.Kind.DURABILITY -> "🛡"
+    Alert.Kind.MISSING -> "❓"
+    Alert.Kind.VOLUME -> "📦"
+}
 
 /**
  * L'inventaire d'une entité : un choix de contenant, puis la grille d'items.
@@ -226,9 +243,26 @@ fun InventoryScreen(
                         onClick = { preferences.zoom(Preferences.STEP) },
                         enabled = preferences.canZoomIn,
                     ) { Icon(Icons.Filled.Add, "Agrandir", Modifier.size(30.dp)) }
-                    if (alertes.isNotEmpty()) {
-                        TextButton(onClick = { voirAlertes = true }) {
-                            Text("🔔 ${alertes.size}")
+                    // La cloche, et elle reste là même quand elle n'a rien à
+                    // dire. Elle ne s'affichait qu'en cas d'alerte : tant qu'on
+                    // n'avait posé aucun seuil il n'y avait pas d'alerte, donc
+                    // pas de cloche, donc rien dans l'écran n'apprenait qu'on
+                    // pouvait en poser un. La fonction existait sans que
+                    // personne puisse la découvrir. Éteinte, elle explique ce
+                    // qu'elle guette ; allumée, elle prend l'orange du coffre et
+                    // porte son compte.
+                    IconButton(onClick = { voirAlertes = true }) {
+                        BadgedBox(badge = {
+                            if (alertes.isNotEmpty()) Badge { Text("${alertes.size}") }
+                        }) {
+                            Icon(
+                                Icons.Filled.Notifications,
+                                if (alertes.isEmpty()) "Alertes : aucune"
+                                else "Alertes : ${alertes.size}",
+                                Modifier.size(30.dp),
+                                tint = if (alertes.isEmpty()) LocalContentColor.current
+                                       else OrangesDuCoffre[1],
+                            )
                         }
                     }
                     IconButton(onClick = {
@@ -498,15 +532,36 @@ fun InventoryScreen(
     if (voirAlertes) {
         AlertDialog(
             onDismissRequest = { voirAlertes = false },
-            title = { Text("Alertes") },
+            title = { Text(if (alertes.isEmpty()) "Aucune alerte" else "Alertes") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Une liste d'alertes n'a pas de longueur connue : sur un
+                // téléphone couché, trois suffisent à la pousser hors du cadre.
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                ) {
+                    if (alertes.isEmpty()) {
+                        Text(
+                            "La cloche ne dit que ce qu'on lui a demandé de " +
+                                "guetter.\n\nUn appui long sur une matière ou " +
+                                "sur une pièce d'équipement pose un seuil : " +
+                                "elle prévient quand le stock descend en " +
+                                "dessous, quand l'équipement s'use, et quand " +
+                                "l'objet surveillé a disparu des inventaires. " +
+                                "Elle signale aussi, d'elle-même, les " +
+                                "contenants presque pleins.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     alertes.forEach { alerte ->
-                        Column {
-                            Text(alerte.title,
-                                 style = MaterialTheme.typography.titleSmall)
-                            Text(alerte.detail,
-                                 style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(figureDe(alerte.kind), fontSize = 18.sp)
+                            Column {
+                                Text(alerte.title,
+                                     style = MaterialTheme.typography.titleSmall)
+                                Text(alerte.detail,
+                                     style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
