@@ -31,7 +31,19 @@ aperçoive.
 Deux langues sont tenues : `fr-FR`, celle de la guilde, et `en-US`, celle que
 F-Droid montre par défaut à qui n'a ni l'une ni l'autre.
 
-**Les captures manquent encore.** À prendre sur la variante `fdroid`, qui ne
-porte pas la pastille « DEV » du coin de l'écran, et à déposer dans
-`images/phoneScreenshots/`. Trois ou quatre suffisent : l'accueil, un
-inventaire, l'arbre des compétences, la météo.
+**Les captures sont en place** depuis le 16 août 2026, prises sur la 2.28 :
+l'accueil, un inventaire, l'arbre des compétences déplié, la météo. Les mêmes
+dans les deux langues — l'interface n'existe qu'en français, il n'y a pas de
+`values-en` à traduire.
+
+Elles se prennent sur la variante **`guilde`**, celle qui est déjà installée,
+et surtout **pas sur `fdroid`** comme il était écrit ici : cette variante-là
+porte le même identifiant de paquet mais une autre signature, si bien que
+l'installer obligerait à désinstaller la sienne — donc à perdre ses clés
+d'API, ses journaux et ses surveillances. Les deux montrent le même écran ; ni
+l'une ni l'autre ne porte la pastille « DEV », qui n'appartient qu'à la
+variante `dev`.
+
+À refaire le jour où un écran change de visage. Le téléphone branché :
+
+    adb exec-out screencap -p > 1.png
