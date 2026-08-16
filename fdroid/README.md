@@ -23,10 +23,25 @@ court.
 
 1. Forker `https://gitlab.com/fdroid/fdroiddata` sur GitLab.
 2. Y déposer le fichier sous `metadata/net.ryzom.zyroom.yml`.
-3. Vérifier la mise en forme avec leurs outils, si on les a :
-   `fdroid readmeta && fdroid lint net.ryzom.zyroom && fdroid rewritemeta net.ryzom.zyroom`
-   (`rewritemeta` remet le fichier dans leur ordre canonique — ne pas s'étonner
-   qu'il déplace des lignes.)
+3. Vérifier avec leurs outils. Ils s'installent sans rien toucher au système :
+
+       python3 -m venv /tmp/venv-fdroid
+       /tmp/venv-fdroid/bin/pip install fdroidserver
+       /tmp/venv-fdroid/bin/fdroid readmeta
+       /tmp/venv-fdroid/bin/fdroid lint net.ryzom.zyroom
+       /tmp/venv-fdroid/bin/fdroid rewritemeta net.ryzom.zyroom
+
+   Il faut les lancer **depuis une copie de `fdroiddata`**, ou depuis un
+   dossier qui lui ressemble : `config.yml`, `config/categories.yml` et
+   `metadata/`. Sans le fichier des catégories, le contrôle des catégories se
+   trompe — et sans les icônes qu'il mentionne, il s'interrompt en pleine
+   course ; une liste réduite aux seuls noms suffit à le contenter.
+
+   Ce contrôle a déjà servi : la recette annonçait la catégorie `Games`, qui
+   **n'existe plus**. F-Droid en tient aujourd'hui cent huit, bien plus fines.
+   Retenues ici : `Game Helper` — l'application accompagne un jeu sans en être
+   un — et `Inventory`. `rewritemeta` ne change plus rien au fichier : il est
+   déjà dans leur forme canonique.
 4. Ouvrir la merge request, et **mentionner la RFP #4244** dedans pour que les
    deux se rejoignent.
 
