@@ -3169,6 +3169,16 @@ class MainWindow(Gtk.ApplicationWindow):
     # ------------------------------------------------------------- Alertes
     def _check_alerts(self, ent, entry: dict, from_sync: bool,
                       time_data: dict | None = None) -> None:
+        """Refait la liste de la cloche : rien que ce qui a été demandé.
+
+        Quatre sources, et toutes réglées par le joueur : les seuils qu'il pose
+        lui-même sur un objet (quantité minimale, durabilité), et les trois
+        réglages des options — remplissage d'un contenant, vente qui expire,
+        saison qui tourne. Un objet surveillé qui a disparu s'y ajoute, puisque
+        c'est bien lui qu'on avait demandé à suivre.
+
+        Les déplacements d'objets n'y sont pas : voir plus bas.
+        """
         result = alerts.volume_alerts(ent, self._settings.volume_threshold)
         if self._watch is not None:
             result += alerts.watch_alerts(ent, self._watch, self._names.name)
@@ -3178,11 +3188,14 @@ class MainWindow(Gtk.ApplicationWindow):
             old = alerts.load_snapshot(path)
             new = alerts.build_snapshot(ent)
             if old:
-                moves = movements.diff(old, new, ent)
-                # Le journal garde la trace, les alertes ne signalent que le coup
-                # présent : les deux décrivent les mêmes faits.
-                movements.append(movements_path(entry["kind"], entry["id"]), moves)
-                result.extend(alerts.movement_alerts(moves, ent, self._names.name))
+                # Les mouvements vont au journal, et à lui seul. La cloche ne
+                # doit porter que ce qu'on lui a demandé de guetter — un seuil
+                # posé sur un objet, un réglage des options. Un déplacement
+                # n'est demandé par personne : ranger douze matières faisait
+                # sonner douze fois, et l'alerte qui comptait se perdait dans
+                # le tas. Le journal, lui, garde tout, daté et consultable.
+                movements.append(movements_path(entry["kind"], entry["id"]),
+                                 movements.diff(old, new, ent))
                 if self._stack.get_visible_child_name() == "log":
                     self._load_log()
             alerts.save_snapshot(path, new)
@@ -3732,8 +3745,12 @@ class MainWindow(Gtk.ApplicationWindow):
 
         if not self._alerts:
             listbox.append(Gtk.Label(label="Aucune alerte.", xalign=0.0))
+        # Une figure par sorte d'alerte : la liste se lit d'un coup d'œil, et
+        # l'on voit tout de suite laquelle des quatre surveillances a parlé.
+        figures = {"quantity": "📉", "durability": "🛡", "unfound": "❓",
+                   "volume": "📦", "sales": "💰", "season": "🍂"}
         for al in self._alerts:
-            icon = "📦" if al.kind == "volume" else "🔄"
+            icon = figures.get(al.kind, "🔔")
             title = Gtk.Label(xalign=0.0)
             title.set_markup(f"{icon} <b>{GLib.markup_escape_text(al.title)}</b>")
             listbox.append(title)

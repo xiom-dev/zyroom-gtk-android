@@ -1,12 +1,19 @@
-"""Alertes : surveillance du volume et des mouvements d'objets.
+"""Alertes : ce que la cloche a le droit de dire.
 
-Reproduit deux des surveillances de zyRoom d'origine :
-  - **Volume** : une pièce / un contenant dépasse un seuil de remplissage (%).
-  - **Mouvement** : des objets sont apparus ou ont disparu depuis la dernière
-    synchronisation (comparaison à un instantané, façon watch.dat).
+La règle tient en une phrase : **la cloche ne porte que ce qu'on lui a demandé
+de guetter**. Quatre surveillances, toutes réglées par le joueur :
 
-Les surveillances par item (durabilité d'un équipement, quantité d'une matière)
-viendront ensuite ; elles nécessitent une liste d'objets surveillés par l'utilisateur.
+  - **Objet surveillé** : un seuil posé à la main sur une matière (quantité
+    minimale) ou sur un équipement (durabilité), et le signalement de l'objet
+    surveillé qui a disparu.
+  - **Volume** : un contenant dépasse le seuil de remplissage des options.
+  - **Vente** : une mise en vente expire bientôt.
+  - **Saison** : elle tourne dans moins de tant d'heures.
+
+Les **mouvements** d'objets, eux, ne sont pas des alertes : personne ne les a
+demandés, et ranger douze matières faisait sonner douze fois. Ils vont au
+journal, qui les garde datés — voir `movements.py`. L'instantané qui sert à
+les calculer est construit ici (`build_snapshot`), c'est tout.
 """
 from __future__ import annotations
 
@@ -21,7 +28,7 @@ from .watch import KIND_DURABILITY
 
 @dataclass
 class Alert:
-    kind: str          # 'volume' | 'movement' | 'durability' | 'quantity' | 'unfound' | 'sales' | 'season'
+    kind: str          # 'quantity' | 'durability' | 'unfound' | 'volume' | 'sales' | 'season'
     title: str
     detail: str
 
@@ -43,7 +50,7 @@ def volume_alerts(entity, threshold: int) -> list[Alert]:
     return out
 
 
-# --------------------------------------------------------------- Mouvements
+# ------------------------------------------------ Instantané (pour le journal)
 def build_snapshot(entity) -> dict:
     """Instantané {clé_inventaire: {signature: quantité}}.
     signature = 'sheet|qualité' ; quantité = somme des piles.
@@ -64,43 +71,6 @@ def build_snapshot(entity) -> dict:
             counts[sig] = counts.get(sig, 0) + max(it.stack, 1)
         snap[inv.key] = counts
     return snap
-
-
-def _label(inv_key: str, entity) -> str:
-    for inv in entity.inventories:
-        if inv.key == inv_key:
-            return inv.label
-    return inv_key
-
-
-def movement_alerts(moves, entity, name_fn) -> list[Alert]:
-    """Regroupe des mouvements par inventaire, une alerte par inventaire.
-
-    Les mouvements viennent de `movements.diff` : le journal et les alertes
-    décrivent ainsi exactement les mêmes faits.
-    """
-    by_inv: dict[str, list] = {}
-    for mv in moves:
-        by_inv.setdefault(mv.inv_key, []).append(mv)
-
-    out = []
-    for inv_key, group in by_inv.items():
-        lines = []
-        for mv in sorted(group, key=lambda m: -m.delta):
-            name = name_fn(mv.sheet) if name_fn else mv.sheet
-            lines.append(f"{'+' if mv.delta > 0 else ''}{mv.delta}  {name}")
-        out.append(Alert(
-            "movement",
-            f"{_label(inv_key, entity)} : {len(group)} mouvement(s)",
-            "\n".join(lines),
-        ))
-    return out
-
-
-def diff_snapshots(old: dict, new: dict, entity, name_fn) -> list[Alert]:
-    """Compare deux instantanés et renvoie les mouvements détectés."""
-    from . import movements
-    return movement_alerts(movements.diff(old, new, entity), entity, name_fn)
 
 
 # ------------------------------------------ Surveillance par item (guard)
