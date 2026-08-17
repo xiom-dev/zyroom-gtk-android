@@ -16,12 +16,10 @@ Builds:
     subdir: zyroom-android/app
     gradle:
       - fdroid
-    scandelete:
-      - zyroom-android/app/src/packAssets
-      - zyroom-android/app/src/packRes
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: HTTP
-UpdateCheckData: https://xiom-dev.github.io/zyroom-gtk-android/version.json|net\.ryzom\.zyroom":\s*\{[^}]*"versionCode":\s*(\d+)|.|net\.ryzom\.zyroom":\s*\{[^}]*"versionName":\s*"([^"]+)"
+UpdateCheckData:
+  https://xiom-dev.github.io/zyroom-gtk-android/version.json|net\.ryzom\.zyroom":\s*\{[^}]*"versionCode":\s*(\d+)|.|net\.ryzom\.zyroom":\s*\{[^}]*"versionName":\s*"([^"]+)"
 CurrentVersion: '2.28'
 CurrentVersionCode: 33

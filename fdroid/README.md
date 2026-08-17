@@ -40,8 +40,15 @@ court.
    Ce contrôle a déjà servi : la recette annonçait la catégorie `Games`, qui
    **n'existe plus**. F-Droid en tient aujourd'hui cent huit, bien plus fines.
    Retenues ici : `Game Helper` — l'application accompagne un jeu sans en être
-   un — et `Inventory`. `rewritemeta` ne change plus rien au fichier : il est
-   déjà dans leur forme canonique.
+   un — et `Inventory`.
+
+   Mais il ne remplace pas leur intégration continue, qui en a trouvé deux de
+   plus (le 17 août) : le `scandelete` inutile expliqué plus bas, et un simple
+   **repli de ligne**. Leur version de `rewritemeta` veut la longue valeur de
+   `UpdateCheckData` renvoyée à la ligne suivante, indentée de deux espaces,
+   là où la version installée ici la laissait sur une seule ligne. Ne pas
+   « corriger » ce repli : c'est leur forme canonique qui décide, et un
+   `rewritemeta` local plus ancien le défera.
 4. Ouvrir la merge request, et **mentionner la RFP #4244** dedans pour que les
    deux se rejoignent.
 
@@ -54,11 +61,16 @@ court.
   variante des joueurs débarrassée de ce que les règles de F-Droid refusent :
   elle ne va pas chercher ses mises à jour toute seule, et elle n'embarque pas
   le `string_client.pack` du jeu.
-- **`scandelete`** — les deux dossiers effacés (`packAssets`, `packRes`)
-  contiennent des données et des images tirées du jeu, dont la licence n'est
-  pas établie. La variante `fdroid` ne les compile pas ; on les retire donc
-  aussi de l'arbre avant l'analyse, plutôt que de laisser le scanner buter
-  dessus.
+- **Pas de `scandelete`**, et c'est le piège qui a coûté un premier pipeline
+  rouge. La recette en portait deux lignes, pour écarter `packAssets` et
+  `packRes` — les données et les images tirées du jeu — en croyant que leur
+  analyseur buterait dessus. Il n'en a rien trouvé à dire. Or `scandelete` ne
+  veut pas dire « efface ces dossiers » : il veut dire « si l'analyse **objecte**
+  à un fichier de ce chemin, efface-le au lieu d'échouer ». Une entrée dont
+  l'analyse n'a jamais eu besoin est comptée comme une **erreur** — « Unused
+  scandelete path » — et la construction s'arrête là. Les deux lignes sont donc
+  retirées, et rien ne manque : la variante `fdroid` ne compile ni l'un ni
+  l'autre de ces dossiers, l'APK reste propre.
 - **`UpdateCheckMode: HTTP` et non `Tags`** — c'est le point le moins évident.
   Les numéros de version ne sont pas écrits en clair dans `build.gradle.kts` :
   ils viennent de `version.properties`, que `livraison.sh` fait croître, et
