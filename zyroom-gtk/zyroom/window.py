@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.52" if _DEV else "0.35"
+VERSION = "0.53" if _DEV else "0.35"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -656,15 +656,37 @@ class MainWindow(Gtk.ApplicationWindow):
         self._pad(bar)
         page.append(bar)
 
-        self._roster_vue = Gtk.DropDown.new_from_strings(
-            [_("Effectif"), _("Arrivées et départs")])
-        self._roster_vue.connect("notify::selected",
-                                 lambda *a: self._refresh_roster())
-        bar.append(self._roster_vue)
+        # Deux bascules liées plutôt qu'un menu déroulant, comme les deux
+        # pastilles du téléphone. Le menu cachait la seconde vue à qui ne
+        # pensait pas à le dérouler — et son premier choix s'appelant
+        # « Effectif », du nom de la page elle-même, rien ne laissait deviner
+        # qu'il y avait autre chose dessous. Les arrivées et les départs sont
+        # tenus depuis le premier jour ; ils ne se voyaient pas.
+        self._roster_vue = "effectif"
+        vues = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        vues.add_css_class("linked")
+        self._roster_boutons = {}
+        for nom, etiquette in (("effectif", _("Effectif")),
+                               ("mouvements", _("Arrivées et départs"))):
+            bouton = Gtk.ToggleButton(label=etiquette)
+            bouton.connect("toggled", self._on_roster_vue, nom)
+            self._roster_boutons[nom] = bouton
+            vues.append(bouton)
+        self._roster_boutons["effectif"].set_active(True)
+        bar.append(vues)
 
-        self._roster_status = Gtk.Label(xalign=0.0)
+        # Cent soixante-douze noms sur six colonnes se cherchent encore à l'œil.
+        # Le champ ne paraît que sur l'effectif : le journal se lit par sa date,
+        # et un champ qui ne filtrerait rien serait pire qu'absent.
+        self._roster_recherche = Gtk.SearchEntry()
+        self._roster_recherche.set_placeholder_text(_("Rechercher un membre…"))
+        self._roster_recherche.set_hexpand(True)
+        self._roster_recherche.connect("search-changed",
+                                       lambda *a: self._refresh_roster())
+        bar.append(self._roster_recherche)
+
+        self._roster_status = Gtk.Label(xalign=1.0)
         self._roster_status.add_css_class("dim-label")
-        self._roster_status.set_hexpand(True)
         bar.append(self._roster_status)
 
         self._roster_box = Gtk.ListBox()
@@ -677,9 +699,27 @@ class MainWindow(Gtk.ApplicationWindow):
         page.append(scrolled)
         return page
 
+    def _on_roster_vue(self, bouton, nom: str) -> None:
+        """Deux bascules qui se conduisent comme un choix unique.
+
+        Un bouton bascule se relâche quand on le reclique : recliquer la vue
+        déjà affichée la laisserait donc sans aucune des deux d'active, et la
+        liste se viderait. On le remet enfoncé sans rien redessiner."""
+        if not bouton.get_active():
+            if nom == self._roster_vue:
+                bouton.set_active(True)
+            return
+        if nom == self._roster_vue:
+            return
+        self._roster_vue = nom
+        autre = "mouvements" if nom == "effectif" else "effectif"
+        self._roster_boutons[autre].set_active(False)
+        self._refresh_roster()
+
     def _refresh_roster(self) -> None:
         while (child := self._roster_box.get_first_child()) is not None:
             self._roster_box.remove(child)
+        self._roster_recherche.set_visible(self._roster_vue == "effectif")
         # L'effectif s'ouvre quelle que soit l'entité choisie : c'est celui de
         # la dernière guilde rencontrée, et consulter un registre ne devrait pas
         # obliger à changer d'entité. Le nom de la guilde est rappelé quand ce
@@ -692,6 +732,7 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             ailleurs = False
         if ent is None:
+            self._compter_roster(0, 0)
             self._roster_status.set_text(
                 _("Aucune guilde consultée pour l'instant : ouvrez-en une une "
                   "fois, et son effectif restera consultable d'ici."))
@@ -700,16 +741,35 @@ class MainWindow(Gtk.ApplicationWindow):
         store = (self._roster_store if not ailleurs
                  else roster.RosterStore(data_dir(), ent.entity_id))
         changements = store.history() if store else []
-        self._roster_status.set_text(
-            (_("%s · ") % ent.name if ailleurs else "") +
-            _("%d membres") % len(ent.members) +
-            (_("  ·  %d mouvements sur un mois") % len(changements)
-             if changements else ""))
+        # Les nombres sont sur les boutons, comme sur le téléphone : c'est là
+        # qu'ils disent quelque chose — « il y a trois mouvements à voir » — au
+        # lieu de compter ce qu'on a déjà sous les yeux. Reste au statut ce
+        # qu'un bouton ne peut pas porter : de quelle guilde il s'agit quand ce
+        # n'est pas celle qu'on regarde, et jusqu'où remonte le journal.
+        self._compter_roster(len(ent.members), len(changements))
+        morceaux = []
+        if ailleurs:
+            morceaux.append(ent.name)
+        if self._roster_vue == "mouvements":
+            morceaux.append(_("journal des %d derniers jours")
+                            % roster.RETENTION_JOURS)
+        self._roster_status.set_text(" · ".join(morceaux))
 
-        if self._roster_vue.get_selected() == 1:
+        if self._roster_vue == "mouvements":
             self._remplir_mouvements_roster(changements)
         else:
             self._remplir_effectif_roster(ent)
+
+    def _compter_roster(self, membres: int, mouvements: int) -> None:
+        """Inscrit les deux comptes sur les bascules.
+
+        Zéro ne s'écrit pas : « Arrivées et départs · 0 » se lit comme un compte
+        à vérifier, alors qu'il n'y a rien à aller voir."""
+        self._roster_boutons["effectif"].set_label(
+            _("Effectif · %d") % membres if membres else _("Effectif"))
+        self._roster_boutons["mouvements"].set_label(
+            _("Arrivées et départs · %d") % mouvements if mouvements
+            else _("Arrivées et départs"))
 
     def _remplir_effectif_roster(self, ent) -> None:
         """L'effectif, par grade, en autant de colonnes que la fenêtre en tient.
@@ -721,8 +781,17 @@ class MainWindow(Gtk.ApplicationWindow):
         nom n'a rien à droite de lui qu'on doive relier."""
         # Le chef d'abord, les membres ensuite : on lit une liste de guilde par
         # le haut, et l'API la rend dans un ordre qui n'en est pas un.
-        membres = sorted(ent.members,
+        cherche = _norm(self._roster_recherche.get_text().strip())
+        membres = sorted((nm for nm in ent.members
+                          if not cherche or cherche in _norm(nm[0])),
                          key=lambda nm: (roster.rang_grade(nm[1]), nm[0].lower()))
+        # Le bouton continue d'annoncer l'effectif entier : c'est ce qu'on
+        # cherche à savoir d'une guilde, et un compte qui fond à mesure qu'on
+        # tape ne dit plus rien de l'effectif.
+        if not membres:
+            self._roster_box.append(self._ligne_simple(
+                _("Aucun membre de ce nom."), dim=True))
+            return
         par_grade: dict[str, list[str]] = {}
         for nom, grade in membres:
             par_grade.setdefault(grade, []).append(nom)
