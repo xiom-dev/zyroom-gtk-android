@@ -60,13 +60,21 @@ fun RosterView(
     var journal by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        OutlinedTextField(
-            value = recherche,
-            onValueChange = onRecherche,
-            label = { Text("Rechercher un membre") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-        )
+        // Le champ ne paraît que sur l'effectif : il ne filtre pas le journal,
+        // qui se lit par sa date, et un champ qui ne fait rien est pire qu'un
+        // champ absent — on tape dedans, rien ne bouge, et on croit à une
+        // panne. C'est ZyRoom-GTK qui a tranché ainsi le 20 août ; les deux
+        // écrans se conduisent maintenant pareil.
+        if (!journal) {
+            OutlinedTextField(
+                value = recherche,
+                onValueChange = onRecherche,
+                label = { Text("Rechercher un membre") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -117,8 +125,11 @@ private fun Effectif(membres: List<Member>, cherche: String) {
             .groupBy { it.grade }
     }
     if (parGrade.isEmpty()) {
+        // La puce « Effectif » n'existe que sur une guilde qui a des membres :
+        // une liste vide ici ne peut venir que de la recherche, et le message
+        // peut le dire. Le même qu'en GTK, mot pour mot.
         Box(Modifier.fillMaxSize(), Alignment.Center) {
-            Text("Rien ne correspond", textAlign = TextAlign.Center,
+            Text("Aucun membre de ce nom.", textAlign = TextAlign.Center,
                  modifier = Modifier.padding(24.dp))
         }
         return
