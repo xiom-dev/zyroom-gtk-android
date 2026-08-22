@@ -142,7 +142,7 @@ class Entity:
     y: int = 0
     skills: list = field(default_factory=list)          # arbre des compétences
     skill_points: dict = field(default_factory=dict)    # points par branche
-    members: list = field(default_factory=list)         # [(nom, grade)] d'une guilde
+    members: list = field(default_factory=list)         # [(nom, grade, joined)] d'une guilde
     #: Dernières connexion et déconnexion du personnage, en temps Unix. 0 quand
     #: l'API se tait — une guilde, ou une clé sans le module qui les porte.
     lastlogin: int = 0
@@ -528,15 +528,21 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     ent.modules = node.get("modules", "")
     ent.money = node.findtext("money", default="")
     ent.motd = node.findtext("motd", default="")
-    # Le registre des membres : leur nom et leur grade. La date d'entrée que
-    # rend l'API — un grand entier — n'est pas un temps Unix et rien n'en donne
-    # la clé ; on ne la lit donc pas plutôt que d'afficher une date fausse.
+    # Le registre des membres : nom, grade, et date d'entrée en guilde. Cette
+    # dernière est un compteur de dixièmes de seconde ; `roster.date_entree`
+    # sait la ramener à un temps Unix. On la rend ici telle que l'API la donne,
+    # pour que la clé de lecture n'ait qu'un seul endroit où vivre.
     membres = node.find("members")
     if membres is not None:
         for m in membres.findall("member"):
             nom = (m.findtext("name") or "").strip()
             if nom:
-                ent.members.append((nom, (m.findtext("grade") or "").strip()))
+                try:
+                    joined = int(m.findtext("joined") or 0)
+                except ValueError:
+                    joined = 0
+                ent.members.append((nom, (m.findtext("grade") or "").strip(),
+                                    joined))
 
     ent.icon = node.findtext("icon", default="")
     if ent.icon:

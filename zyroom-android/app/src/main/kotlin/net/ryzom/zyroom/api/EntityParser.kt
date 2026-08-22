@@ -381,16 +381,17 @@ object EntityParser {
     }
 
     /**
-     * Le registre des membres : leur nom et leur grade.
+     * Le registre des membres : nom, grade, et date d'entrée en guilde.
      *
-     * La date d'entrée que rend l'API — un grand entier, 6115304166 — n'est pas
-     * un temps Unix, et rien dans le flux n'en donne la clé. On ne la lit donc
-     * pas : afficher une date fausse serait pire que de n'en afficher aucune.
+     * Cette dernière est un compteur de dixièmes de seconde ; `dateEntree` sait
+     * la ramener à un temps Unix. On la rend ici telle que l'API la donne, pour
+     * que la clé de lecture n'ait qu'un seul endroit où vivre.
      */
     private fun membres(node: Element): List<Member> =
         node.child("members")?.children("member").orEmpty().mapNotNull {
             val nom = it.text("name")
-            if (nom.isEmpty()) null else Member(nom, it.text("grade"))
+            if (nom.isEmpty()) null
+            else Member(nom, it.text("grade"), it.text("joined").toLongOrNull() ?: 0L)
         }
 
     /** Les trois espèces de bête à inventaire, avec ce qu'elles portent. */

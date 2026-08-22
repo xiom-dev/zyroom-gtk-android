@@ -1,8 +1,10 @@
 """Le registre du personnel : arrivées, départs, changements de grade."""
 
+import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,6 +58,140 @@ class Mouvements(unittest.TestCase):
         # couleur, et `promotion` dit lequel choisir.
         self.assertIn("Membre → Officier", roster.decrire(montee))
         self.assertTrue(montee.promotion)
+
+
+class DateEntree(unittest.TestCase):
+    """Le `<joined>` de l'API, ramené à un temps Unix."""
+
+    # Liloulove, entrée dans La Lune Eternelle le 17 août 2026 vers 18 h —
+    # alors que le journal, bâti sur les seuls relevés, la datait du 19.
+    LILOULOVE = 8784019565
+
+    def test_une_entree_connue_retombe_sur_son_jour(self):
+        quand = roster.date_entree(self.LILOULOVE)
+        self.assertEqual("2026-08-17",
+                         time.strftime("%Y-%m-%d", time.localtime(quand)))
+
+    def test_dix_pas_par_seconde(self):
+        self.assertEqual(1, roster.date_entree(self.LILOULOVE + 10)
+                         - roster.date_entree(self.LILOULOVE))
+
+    def test_une_date_absurde_ne_vaut_rien(self):
+        """Champ absent, compteur remis à zéro, horloge locale fausse : mieux
+        vaut zéro — l'appelant retombera sur la date du relevé."""
+        self.assertEqual(0, roster.date_entree(0))
+        self.assertEqual(0, roster.date_entree(""))
+        self.assertEqual(0, roster.date_entree(None))
+        self.assertEqual(0, roster.date_entree(10 ** 12))       # dans l'avenir
+
+    def test_l_arrivee_porte_la_date_de_l_api(self):
+        c = roster.diff({}, {"Liloulove": "Member"},
+                        {"Liloulove": roster.date_entree(self.LILOULOVE)})[0]
+        self.assertEqual(roster.date_entree(self.LILOULOVE), c.at)
+
+    def test_le_depart_et_le_grade_gardent_celle_du_releve(self):
+        """De ceux-là, l'API ne dit rien : ni quand ils sont partis, ni quand
+        ils ont changé de grade."""
+        maintenant = int(time.time())
+        for c in roster.diff({"Nizy": "Officer", "Dale": "Member"},
+                             {"Dale": "Officer"},
+                             {"Dale": roster.date_entree(self.LILOULOVE)}):
+            self.assertAlmostEqual(maintenant, c.at, delta=5)
+
+    def test_une_arrivee_ne_se_date_jamais_de_l_avenir(self):
+        """Une horloge locale en retard la poserait en tête du journal."""
+        avenir = int(time.time()) + 30 * 86400
+        c = roster.diff({}, {"Kiranaa": "Member"}, {"Kiranaa": avenir})[0]
+        self.assertLessEqual(c.at, int(time.time()))
+
+    def test_l_arrivee_ne_precede_pas_le_releve_precedent(self):
+        """Le compteur de l'API dérive ; la fenêtre des deux relevés, non. Un
+        nouveau venu est forcément entré après le relevé qui ne le voyait pas
+        encore."""
+        veille = int(time.time()) - 86400
+        c = roster.diff({}, {"Kiranaa": "Member"},
+                        {"Kiranaa": veille - 90 * 86400}, depuis=veille)[0]
+        self.assertEqual(veille, c.at)
+
+    def test_dans_la_fenetre_la_date_de_l_api_l_emporte(self):
+        veille = int(time.time()) - 86400
+        juste = veille + 3600
+        c = roster.diff({}, {"Kiranaa": "Member"}, {"Kiranaa": juste},
+                        depuis=veille)[0]
+        self.assertEqual(juste, c.at)
+
+
+class Redatage(unittest.TestCase):
+    """Les arrivées déjà journalisées à la date du relevé se corrigent seules."""
+
+    LILOULOVE = 8784019565
+
+    def _journal(self, s, lignes):
+        with open(s._journal(), "w", encoding="utf-8") as fh:
+            for at, nom, kind in lignes:
+                fh.write(json.dumps({"at": at, "member": nom, "kind": kind,
+                                     "from": "", "to": "Member"}) + "\n")
+
+    def test_une_arrivee_mal_datee_reprend_sa_vraie_date(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            constat = int(time.time()) - 3600
+            self._journal(s, [(constat, "Liloulove", "arrivee")])
+            s.record([("Liloulove", "Member", self.LILOULOVE)])
+            ligne = s.history()[0]
+            self.assertEqual(roster.date_entree(self.LILOULOVE), ligne.at)
+
+    def test_un_parti_garde_la_sienne(self):
+        """Il n'est plus dans l'effectif : l'API n'a plus de date à donner."""
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            constat = int(time.time()) - 3600
+            self._journal(s, [(constat, "Nizy", "depart"),
+                              (constat, "Parti", "arrivee")])
+            s.record([("Liloulove", "Member", self.LILOULOVE)])
+            self.assertEqual({constat}, {c.at for c in s.history()
+                                         if c.member in ("Nizy", "Parti")})
+
+    def test_le_redatage_ne_se_fait_qu_une_fois(self):
+        """Sinon chaque relevé relirait et réécrirait tout le journal."""
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            self._journal(s, [(int(time.time()) - 3600, "Liloulove", "arrivee")])
+            s.record([("Liloulove", "Member", self.LILOULOVE)])   # corrige
+            fausse = int(time.time()) - 7200
+            self._journal(s, [(fausse, "Liloulove", "arrivee")])
+            s.record([("Liloulove", "Member", self.LILOULOVE)])   # n'y touche plus
+            self.assertEqual(fausse, s.history()[0].at)
+
+    def test_une_ligne_illisible_survit_au_redatage(self):
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            with open(s._journal(), "w", encoding="utf-8") as fh:
+                fh.write('{"at": 1, "member": "Liloulove", "kind": "arrivee",'
+                         ' "from": "", "to": "Member"}\n')
+                fh.write('{"at": 17, "member": "Tronq\n')
+            s.record([("Liloulove", "Member", self.LILOULOVE)])
+            self.assertIn("Tronq", open(s._journal(), encoding="utf-8").read())
+
+    def test_une_date_posterieure_au_constat_est_refusee(self):
+        """On ne peut pas avoir vu arriver quelqu'un avant qu'il n'arrive : si
+        la date décodée dépasse le constat, c'est elle qui a tort."""
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            constat = int(time.time()) - 10 * 86400
+            self._journal(s, [(constat, "Liloulove", "arrivee")])
+            s.record([("Liloulove", "Member", self.LILOULOVE)])
+            self.assertEqual(constat, s.history()[0].at)
+
+    def test_un_flux_sans_le_champ_ne_touche_a_rien(self):
+        """Une vieille API, ou un flux tronqué : on ne réécrit pas le journal
+        sur la foi de ce qu'on n'a pas reçu."""
+        with tempfile.TemporaryDirectory() as d:
+            s = roster.RosterStore(d, "essai")
+            self._journal(s, [(int(time.time()), "Liloulove", "arrivee")])
+            avant = open(s._journal(), encoding="utf-8").read()
+            s.record([("Liloulove", "Member")])
+            self.assertEqual(avant, open(s._journal(), encoding="utf-8").read())
 
 
 class Journal(unittest.TestCase):

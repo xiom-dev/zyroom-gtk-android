@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.53" if _DEV else "0.36"
+VERSION = "0.54" if _DEV else "0.37"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -793,7 +793,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 _("Aucun membre de ce nom."), dim=True))
             return
         par_grade: dict[str, list[str]] = {}
-        for nom, grade in membres:
+        for nom, grade, *_ in membres:      # le reste, c'est la date d'entrée
             par_grade.setdefault(grade, []).append(nom)
 
         for rang_groupe, (grade, noms) in enumerate(par_grade.items()):
@@ -893,7 +893,12 @@ class MainWindow(Gtk.ApplicationWindow):
         """Quatre signes et leur sens, en tête du journal.
 
         Sans elle, un triangle rouge vers le bas se lit comme une alarme plutôt
-        que comme un départ."""
+        que comme un départ.
+
+        Elle porte aussi ce que les dates ne peuvent pas dire d'elles-mêmes :
+        une arrivée est datée du jour où elle a eu lieu, l'API le sait ; un
+        départ ne l'est que du relevé qui l'a constaté, faute que l'API en
+        garde la moindre trace."""
         row = Gtk.ListBoxRow()
         row.set_activatable(False)
         line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
@@ -911,6 +916,14 @@ class MainWindow(Gtk.ApplicationWindow):
             texte.add_css_class("compact")
             paire.append(texte)
             line.append(paire)
+        note = Gtk.Label(label=_("départs et grades : date du relevé"),
+                         xalign=1.0)
+        note.add_css_class("dim-label")
+        note.add_css_class("compact")
+        note.set_hexpand(True)
+        # Une note ne doit jamais élargir la fenêtre : elle s'efface avant.
+        note.set_ellipsize(Pango.EllipsizeMode.END)
+        line.append(note)
         row.set_child(line)
         return row
 

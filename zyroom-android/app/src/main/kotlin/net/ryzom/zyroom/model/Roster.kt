@@ -1,13 +1,56 @@
 package net.ryzom.zyroom.model
 
 /**
- * Un membre de guilde : son nom et son grade.
+ * Un membre de guilde : son nom, son grade, et le jour de son entrée.
  *
- * L'API rend les grades en anglais ; le jeu les affiche en français. C'est tout
- * ce qu'elle dit d'un membre — la date d'entrée qu'elle donne en plus n'est pas
- * un temps Unix, et rien n'en donne la clé.
+ * L'API rend les grades en anglais ; le jeu les affiche en français. `joined`
+ * est le compteur brut du flux — [dateEntree] le ramène à un temps Unix.
  */
-data class Member(val name: String, val grade: String)
+data class Member(val name: String, val grade: String, val joined: Long = 0L)
+
+/**
+ * L'unité du compteur de dates de l'API : le dixième de seconde.
+ *
+ * `api.ryzom.com/time.php` — qui n'exige aucune clé — rend la même horloge et
+ * avance de dix pas par seconde réelle. C'est le tic du serveur de Ryzom.
+ */
+const val TICK_SECONDES = 0.1
+
+/**
+ * L'origine de ce compteur, en secondes Unix.
+ *
+ * Le flux rend pour chaque membre un `joined` — 6402485271 pour Xiom — que les
+ * deux applications ont longtemps jeté faute d'en connaître la clé. L'unité une
+ * fois trouvée, il ne manquait que l'origine, et elle se déduit de nos propres
+ * relevés : chaque arrivée constatée encadre le `joined` du nouveau venu entre
+ * le relevé qui ne le voyait pas encore et celui qui l'a vu. Sept arrivées de
+ * La Lune Eternelle, dont une constatée trente minutes après le relevé
+ * précédent, la ramènent à un quart d'heure près.
+ *
+ * **Le calage vaut pour les dates récentes**, celles du journal. Loin en
+ * arrière il dérive — un compteur de tics ne compte sans doute pas les arrêts
+ * du serveur — et une entrée de 2012 ne se lit qu'à quelques mois près. C'est
+ * sans conséquence ici : le journal ne garde qu'un mois.
+ *
+ * La même valeur vit dans `roster.py` de ZyRoom-GTK, et pour la même raison.
+ */
+const val ORIGINE_JOINED = 908_581_304L
+
+/** Avant l'ouverture de Ryzom, aucune date d'entrée n'est croyable. */
+private const val OUVERTURE_DU_JEU = 1_095_638_400L      // 20 septembre 2004
+
+/**
+ * Le `joined` de l'API en secondes Unix, ou 0 s'il n'est pas croyable.
+ *
+ * Une date d'avant l'ouverture du jeu, ou dans l'avenir, trahit un champ
+ * absent, un compteur remis à zéro ou une horloge locale fausse. On rend alors
+ * zéro plutôt qu'une date inventée, et l'appelant retombe sur celle du relevé —
+ * la moins bonne des deux, mais jamais absurde.
+ */
+fun dateEntree(joined: Long, maintenant: Long): Long {
+    val quand = ORIGINE_JOINED + (joined * TICK_SECONDES).toLong()
+    return if (quand < OUVERTURE_DU_JEU || quand > maintenant + 3600) 0L else quand
+}
 
 /**
  * Les grades, du plus haut au plus bas, avec leur nom français.
@@ -50,18 +93,35 @@ data class MouvementMembre(
         get() = kind == "grade" && rangGrade(to) < rangGrade(from)
 }
 
-/** Ce qui a changé entre deux relevés : arrivées, départs, grades. */
+/**
+ * Ce qui a changé entre deux relevés : arrivées, départs, grades.
+ *
+ * `entrees` porte, par nom, la date d'entrée en guilde rendue par l'API.
+ * **Seules les arrivées en profitent** : de ceux qui partent ou qui changent de
+ * grade, l'API ne dit rien, et leur ligne garde la date du relevé.
+ *
+ * `depuis` est la date du relevé précédent. Elle borne les arrivées par le bas,
+ * comme l'instant présent les borne par le haut : **un nouveau venu est
+ * forcément entré entre les deux relevés**, puisque le premier ne le voyait pas
+ * encore. Le compteur de l'API dérive — dix pas par seconde mesurés sur cinq
+ * minutes, neuf sur trente — et cette fourchette-là, elle, ne dérive pas : la
+ * date décodée s'y range, ou s'y fait ranger.
+ */
 fun diffMembres(
     avant: Map<String, String>,
     apres: Map<String, String>,
     maintenant: Long,
+    entrees: Map<String, Long> = emptyMap(),
+    depuis: Long = 0L,
 ): List<MouvementMembre> =
     (avant.keys + apres.keys).sorted().mapNotNull { nom ->
         val ancien = avant[nom]
         val nouveau = apres[nom]
         when {
-            ancien == null -> MouvementMembre(maintenant, nom, "arrivee",
-                                              to = nouveau.orEmpty())
+            ancien == null -> MouvementMembre(
+                (entrees[nom]?.takeIf { it > 0 } ?: maintenant)
+                    .coerceIn(minOf(depuis, maintenant), maintenant),
+                nom, "arrivee", to = nouveau.orEmpty())
             nouveau == null -> MouvementMembre(maintenant, nom, "depart", from = ancien)
             ancien != nouveau -> MouvementMembre(maintenant, nom, "grade",
                                                  from = ancien, to = nouveau)

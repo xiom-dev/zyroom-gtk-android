@@ -227,32 +227,41 @@ private fun Mouvements(mouvements: List<MouvementMembre>, premierReleve: Boolean
 }
 
 /**
- * Les quatre signes et leur sens.
+ * Les quatre signes et leur sens, et ce que les dates ne disent pas d'elles-mêmes.
  *
  * Sans elle, un triangle rouge vers le bas se lit comme une alarme plutôt que
  * comme un départ. La couleur porte le sens, la direction le confirme.
+ *
+ * La note du bas dit le reste : une arrivée est datée du jour où elle a eu
+ * lieu, l'API le sait ; un départ ne l'est que du relevé qui l'a constaté,
+ * faute que l'API en garde la moindre trace.
  */
 @Composable
 private fun Legende() {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        listOf(
-            "▲" to ("arrivée" to VERT),
-            "▼" to ("départ" to ROUGE),
-            "▲" to ("montée" to Color.Unspecified),
-            "▼" to ("rétrogradation" to Color.Unspecified),
-        ).forEach { (forme, reste) ->
-            val (sens, couleur) = reste
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(forme, color = if (couleur == Color.Unspecified)
-                    MaterialTheme.colorScheme.onSurface else couleur,
-                     fontWeight = FontWeight.Bold)
-                Text(" $sens", style = MaterialTheme.typography.bodySmall,
-                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            listOf(
+                "▲" to ("arrivée" to VERT),
+                "▼" to ("départ" to ROUGE),
+                "▲" to ("montée" to Color.Unspecified),
+                "▼" to ("rétrogradation" to Color.Unspecified),
+            ).forEach { (forme, reste) ->
+                val (sens, couleur) = reste
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(forme, color = if (couleur == Color.Unspecified)
+                        MaterialTheme.colorScheme.onSurface else couleur,
+                         fontWeight = FontWeight.Bold)
+                    Text(" $sens", style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
+        Text(
+            "Départs et grades : date du relevé.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp),
+        )
     }
 }
 

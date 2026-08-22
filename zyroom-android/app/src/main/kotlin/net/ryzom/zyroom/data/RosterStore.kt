@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.ryzom.zyroom.model.Member
 import net.ryzom.zyroom.model.MouvementMembre
+import net.ryzom.zyroom.model.dateEntree
 import net.ryzom.zyroom.model.diffMembres
 import org.json.JSONObject
 import java.io.File
@@ -20,6 +21,13 @@ import java.io.File
  * puis parti le lendemain, si l'application n'a pas été ouverte entre-temps, ne
  * laisse aucune trace. C'est la limite de tout journal bâti sur des
  * instantanés, et elle vaut mieux que rien — l'API n'a aucune mémoire.
+ *
+ * Les **arrivées** font exception depuis le 22 août 2026 : le flux porte pour
+ * chaque membre sa date d'entrée, et l'on sait maintenant la lire (voir
+ * `ORIGINE_JOINED`). Une arrivée est donc datée du jour où elle a eu lieu, et
+ * non du jour où l'application l'a remarquée. Les **départs** et les
+ * **changements de grade** gardent la date du relevé : de ceux-là, l'API ne dit
+ * rien du tout.
  *
  * Le journal vit dans les fichiers privés et non dans le cache : c'est
  * justement ce que rien ne saura reconstruire.
@@ -41,12 +49,17 @@ class RosterStore(private val dir: File) {
         withContext(Dispatchers.IO) {
             if (membres.isEmpty()) return@withContext emptyList()
             reprendre(guildId)
+            val maintenant = System.currentTimeMillis() / 1000
             val apres = membres.associate { it.name to it.grade }
+            val entrees = membres.associate { it.name to dateEntree(it.joined, maintenant) }
+            redater(guildId, entrees)
             val avant = readSnapshot(guildId)
+            val precedent = readReleve(guildId)
             val changements = if (avant == null) emptyList()
-                              else diffMembres(avant, apres, System.currentTimeMillis() / 1000)
+                              else diffMembres(avant, apres, maintenant, entrees, precedent)
             if (changements.isNotEmpty()) append(guildId, changements)
             writeSnapshot(guildId, apres)
+            writeReleve(guildId, maintenant)
             prune(guildId)
             changements
         }
@@ -144,6 +157,67 @@ class RosterStore(private val dir: File) {
                 .filter { it.at >= depuis && "${it.at}|${it.member}|${it.kind}" !in connus }
             if (neufs.isNotEmpty()) append(id, neufs)
             temoin.writeText("")
+        }
+    }
+
+    /**
+     * Rend aux arrivées déjà journalisées leur vraie date, une fois pour toutes.
+     *
+     * Les lignes écrites avant que l'on sache lire `joined` portent la date du
+     * relevé qui les a vues — parfois deux jours après le fait, si
+     * l'application est restée fermée. L'API sait encore dater ceux qui sont
+     * là ; ceux qui sont repartis entre-temps n'ont plus de date à donner et
+     * gardent la leur.
+     *
+     * Une seule fois, marquée par un témoin : sans lui, chaque relevé relirait
+     * et réécrirait le journal pour rien. Et comme l'élagage, cette passe
+     * **recopie telle quelle toute ligne qu'elle n'a pas comprise** : un
+     * journal ne se remplace pas par ce qu'on a su en relire.
+     */
+    private fun redater(id: String, entrees: Map<String, Long>) {
+        if (entrees.values.none { it > 0 }) return    // flux sans le champ
+        val temoin = File(dir, "roster-$id.dates")
+        if (temoin.isFile) return
+        val toutes = lignes(id)
+        if (toutes.isEmpty()) return                  // pas encore de journal
+        var corrigees = 0
+        val neuves = toutes.map { ligne ->
+            val o = runCatching { JSONObject(ligne) }.getOrNull()
+                ?: return@map ligne                   // illisible : intacte
+            // Le constat borne la correction par le haut : on ne peut pas avoir
+            // vu arriver quelqu'un avant qu'il n'arrive. Si la date décodée le
+            // dépasse, c'est elle qui a tort.
+            val brute = if (o.optString("kind") == "arrivee")
+                entrees[o.optString("member")] ?: 0L else 0L
+            val quand = if (brute > 0L) minOf(brute, o.optLong("at")) else 0L
+            if (quand <= 0L || o.optLong("at") == quand) ligne
+            else { corrigees++; o.put("at", quand).toString() }
+        }
+        runCatching {
+            dir.mkdirs()
+            if (corrigees > 0) {
+                logFile(id).writeText(neuves.joinToString("\n", postfix = "\n"))
+            }
+            temoin.writeText("")
+        }
+    }
+
+    /**
+     * La date du relevé précédent, ou 0 si on ne l'a jamais notée.
+     *
+     * Un fichier à part plutôt qu'une clé dans l'état : l'état est une liste de
+     * noms, et y glisser autre chose ferait passer cette clé pour un membre —
+     * le jour où l'on reviendrait à une version qui l'ignore, elle entrerait
+     * puis sortirait de la guilde toute seule.
+     */
+    private fun readReleve(id: String): Long =
+        runCatching { File(dir, "roster-$id.releve").readText().trim().toLong() }
+            .getOrDefault(0L)
+
+    private fun writeReleve(id: String, quand: Long) {
+        runCatching {
+            dir.mkdirs()
+            File(dir, "roster-$id.releve").writeText(quand.toString())
         }
     }
 

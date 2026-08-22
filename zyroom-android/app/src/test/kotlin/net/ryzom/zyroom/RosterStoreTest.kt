@@ -3,6 +3,7 @@ package net.ryzom.zyroom
 import kotlinx.coroutines.runBlocking
 import net.ryzom.zyroom.data.RosterStore
 import net.ryzom.zyroom.model.Member
+import net.ryzom.zyroom.model.dateEntree
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -90,6 +91,85 @@ class RosterStoreTest {
         magasin.record("42", effectif("Xiom" to "Leader"))
         assertEquals(emptyList<String>(), magasin.record("42", emptyList()).map { it.member })
         assertEquals(emptyList<String>(), magasin.history("42").map { it.member })
+    }
+
+    /** Liloulove, entrée le 17 août 2026 vers 18 h. */
+    private val LILOULOVE = 8_784_019_565L
+
+    private fun ligneArrivee(at: Long, nom: String) =
+        """{"at":$at,"member":"$nom","kind":"arrivee","from":"","to":"Member"}"""
+
+    @Test
+    fun `une arrivée mal datée reprend sa vraie date`() = runBlocking {
+        val dir = dossier.newFolder()
+        val constat = System.currentTimeMillis() / 1000 - 3600
+        File(dir, "roster-42.jsonl").writeText(ligneArrivee(constat, "Liloulove") + "\n")
+        RosterStore(dir).record("42", listOf(Member("Liloulove", "Member", LILOULOVE)))
+        val ligne = RosterStore(dir).history("42").first()
+        assertEquals(dateEntree(LILOULOVE, System.currentTimeMillis() / 1000), ligne.at)
+    }
+
+    /** Il n'est plus dans l'effectif : l'API n'a plus de date à donner. */
+    @Test
+    fun `un parti garde la date du relevé`() = runBlocking {
+        val dir = dossier.newFolder()
+        val constat = System.currentTimeMillis() / 1000 - 3600
+        File(dir, "roster-42.jsonl").writeText(ligneArrivee(constat, "Parti") + "\n")
+        RosterStore(dir).record("42", listOf(Member("Liloulove", "Member", LILOULOVE)))
+        assertEquals(constat, RosterStore(dir).history("42").first { it.member == "Parti" }.at)
+    }
+
+    /** Sinon chaque relevé relirait et réécrirait tout le journal. */
+    @Test
+    fun `le redatage ne se fait qu'une fois`() = runBlocking {
+        val dir = dossier.newFolder()
+        val magasin = RosterStore(dir)
+        val membres = listOf(Member("Liloulove", "Member", LILOULOVE))
+        File(dir, "roster-42.jsonl").writeText(
+            ligneArrivee(System.currentTimeMillis() / 1000 - 3600, "Liloulove") + "\n")
+        magasin.record("42", membres)                       // corrige
+        val fausse = System.currentTimeMillis() / 1000 - 7200
+        File(dir, "roster-42.jsonl").writeText(ligneArrivee(fausse, "Liloulove") + "\n")
+        magasin.record("42", membres)                       // n'y touche plus
+        assertEquals(fausse, magasin.history("42").first().at)
+    }
+
+    /**
+     * On ne peut pas avoir vu arriver quelqu'un avant qu'il n'arrive : si la
+     * date décodée dépasse le constat, c'est elle qui a tort.
+     */
+    @Test
+    fun `une date postérieure au constat est refusée`() = runBlocking {
+        val dir = dossier.newFolder()
+        val constat = System.currentTimeMillis() / 1000 - 10 * 86400
+        File(dir, "roster-42.jsonl").writeText(ligneArrivee(constat, "Liloulove") + "\n")
+        RosterStore(dir).record("42", listOf(Member("Liloulove", "Member", LILOULOVE)))
+        assertEquals(constat, RosterStore(dir).history("42").first().at)
+    }
+
+    /**
+     * Une vieille API, ou un flux tronqué : on ne réécrit pas le journal sur la
+     * foi de ce qu'on n'a pas reçu.
+     */
+    @Test
+    fun `un flux sans date d'entrée ne touche à rien`() = runBlocking {
+        val dir = dossier.newFolder()
+        val constat = System.currentTimeMillis() / 1000 - 3600
+        val journal = File(dir, "roster-42.jsonl")
+        journal.writeText(ligneArrivee(constat, "Liloulove") + "\n")
+        val avant = journal.readText()
+        RosterStore(dir).record("42", effectif("Liloulove" to "Member"))
+        assertEquals(avant, journal.readText())
+    }
+
+    @Test
+    fun `une ligne illisible survit au redatage`() = runBlocking {
+        val dir = dossier.newFolder()
+        File(dir, "roster-42.jsonl").writeText(
+            ligneArrivee(System.currentTimeMillis() / 1000 - 3600, "Liloulove") + "\n" +
+                "ceci n'est pas du json\n")
+        RosterStore(dir).record("42", listOf(Member("Liloulove", "Member", LILOULOVE)))
+        assertTrue("ceci n'est pas du json" in File(dir, "roster-42.jsonl").readLines())
     }
 
     /** Ce qu'on ne sait pas lire, on le garde : un journal n'est pas remplaçable. */

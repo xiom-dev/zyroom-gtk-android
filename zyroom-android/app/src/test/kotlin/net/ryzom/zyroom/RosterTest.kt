@@ -1,6 +1,7 @@
 package net.ryzom.zyroom
 
 import net.ryzom.zyroom.api.EntityParser
+import net.ryzom.zyroom.model.dateEntree
 import net.ryzom.zyroom.model.decrireMouvement
 import net.ryzom.zyroom.model.diffMembres
 import net.ryzom.zyroom.model.nomGrade
@@ -23,6 +24,76 @@ class RosterTest {
         assertEquals("—", nomGrade(""))
         assertTrue(rangGrade("Leader") < rangGrade("Officer"))
         assertTrue(rangGrade("Officer") < rangGrade("Member"))
+    }
+
+    /**
+     * Liloulove est entrée dans La Lune Eternelle le 17 août 2026 vers 18 h —
+     * alors que le journal, bâti sur les seuls relevés, la datait du 19.
+     */
+    private val LILOULOVE = 8_784_019_565L
+
+    @Test
+    fun `la date d'entrée de l'API retombe sur son jour`() {
+        val quand = dateEntree(LILOULOVE, 1_787_400_000L)
+        val jour = java.time.Instant.ofEpochSecond(quand)
+            .atZone(java.time.ZoneId.of("Europe/Paris")).toLocalDate()
+        assertEquals("2026-08-17", jour.toString())
+    }
+
+    @Test
+    fun `dix pas par seconde`() {
+        assertEquals(1L, dateEntree(LILOULOVE + 10, 1_787_400_000L)
+            - dateEntree(LILOULOVE, 1_787_400_000L))
+    }
+
+    /**
+     * Champ absent, compteur remis à zéro, horloge locale fausse : mieux vaut
+     * zéro — l'appelant retombera sur la date du relevé.
+     */
+    @Test
+    fun `une date d'entrée absurde ne vaut rien`() {
+        assertEquals(0L, dateEntree(0L, 1_787_400_000L))
+        assertEquals(0L, dateEntree(1_000_000_000_000L, 1_787_400_000L))
+    }
+
+    @Test
+    fun `l'arrivée porte la date de l'API, le reste celle du relevé`() {
+        val entree = dateEntree(LILOULOVE, 1_787_400_000L)
+        val vus = diffMembres(
+            mapOf("Nizy" to "Officer", "Dale" to "Member"),
+            mapOf("Dale" to "Officer", "Liloulove" to "Member"),
+            1_787_400_000L,
+            mapOf("Liloulove" to entree, "Dale" to entree),
+        ).associateBy { it.member }
+        assertEquals(entree, vus["Liloulove"]!!.at)
+        assertEquals(1_787_400_000L, vus["Nizy"]!!.at)
+        assertEquals(1_787_400_000L, vus["Dale"]!!.at)
+    }
+
+    /** Une horloge locale en retard la poserait en tête du journal. */
+    @Test
+    fun `une arrivée ne se date jamais de l'avenir`() {
+        val vu = diffMembres(emptyMap(), mapOf("Kiranaa" to "Member"), 100L,
+                             mapOf("Kiranaa" to 5_000L)).first()
+        assertEquals(100L, vu.at)
+    }
+
+    /**
+     * Le compteur de l'API dérive ; la fenêtre des deux relevés, non. Un
+     * nouveau venu est forcément entré après le relevé qui ne le voyait pas.
+     */
+    @Test
+    fun `l'arrivée ne précède pas le relevé précédent`() {
+        val vu = diffMembres(emptyMap(), mapOf("Kiranaa" to "Member"), 1_000L,
+                             mapOf("Kiranaa" to 10L), depuis = 900L).first()
+        assertEquals(900L, vu.at)
+    }
+
+    @Test
+    fun `dans la fenêtre, la date de l'API l'emporte`() {
+        val vu = diffMembres(emptyMap(), mapOf("Kiranaa" to "Member"), 1_000L,
+                             mapOf("Kiranaa" to 950L), depuis = 900L).first()
+        assertEquals(950L, vu.at)
     }
 
     @Test
