@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>V-RyLune — La Lune Eternelle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; line-height: 1.65; max-width: 40rem;
+         margin: 3rem auto; padding: 0 1.2rem; }
+  h1 { font-size: 1.7rem; margin-bottom: .2rem; }
+  h2 { font-size: 1.15rem; margin-top: 2.4rem; }
+  .sub { color: #7a7a7a; margin-top: 0; }
+  .bouton { display: inline-block; background: #3f7a68; color: #fff;
+            text-decoration: none; padding: .7rem 1.3rem; border-radius: 7px;
+            font-weight: 600; margin: .3rem .4rem .3rem 0; }
+  pre { background: rgba(127,127,127,.14); padding: .7rem .9rem; border-radius: 6px;
+        overflow-x: auto; font-size: .9rem; }
+  .aparte { border-left: 3px solid rgba(127,127,127,.4); padding-left: 1rem;
+            color: #7a7a7a; font-size: .93rem; }
+  footer { margin-top: 3rem; font-size: .87rem; color: #7a7a7a;
+           border-top: 1px solid rgba(127,127,127,.3); padding-top: 1rem; }
+</style>
+
+<h1>V-RyLune</h1>
+<p class="sub">Vos inventaires Ryzom et les coffres de la guilde, hors du jeu.</p>
+
+<h2>Sur un téléphone Android</h2>
+<p><a class="bouton" href="V-RyLune-Android.apk">Télécharger pour Android</a></p>
+<p>Ouvrez le fichier depuis vos téléchargements. Android demandera
+l'autorisation d'installer une application venant d'ailleurs que du Play
+Store : acceptez. Ensuite, l'application vous prévient elle-même quand une
+nouvelle version paraît.</p>
+
+<h2>Sur un PC Linux</h2>
+<p><a class="bouton" href="ZyRoom-GTK.flatpak">Télécharger pour Linux</a></p>
+<p>Ouvrez le fichier téléchargé. C'est tout : votre système l'installe, et
+l'application saura d'elle-même quand une nouvelle version paraît.</p>
+
+<h2>Au premier démarrage</h2>
+<p>L'application s'ouvre vide. Par le bouton <strong>+</strong>, ajoutez :</p>
+<ul>
+  <li><strong>la clé de la guilde</strong>, que Xiom donne sur le Discord — elle
+      affiche les coffres ;</li>
+  <li><strong>votre clé personnelle</strong>, pour vos sacs, votre appartement
+      et vos montures. Elle se crée sur
+      <a href="https://api.ryzom.com">api.ryzom.com</a>.</li>
+</ul>
+<p class="aparte">Une clé donne accès en lecture aux inventaires qu'elle
+couvre : elle se traite comme un mot de passe.</p>
+
+<h2>Mises à jour</h2>
+<p>Rien à faire. L'application vérifie d'elle-même et vous propose la mise à
+jour ; vous n'avez plus à retélécharger de fichier.</p>
+
+<p class="aparte">Si vous aviez installé une version antérieure à la 0.3, elle
+ne connaît pas encore la source des mises à jour. Retirez-la une fois —
+<code>flatpak uninstall --user net.ryzom.zyroomgtk</code> — puis installez le
+nouveau fichier. Vos réglages et vos clés sont conservés.</p>
+
+<footer>
+  <p>Chaque mise à jour est signée : votre système vérifie qu'elle vient bien
+  d'ici avant de l'installer.</p>
+  <p>Logiciel libre sous GNU AGPLv3, dérivé du
+  <a href="https://github.com/misugi/zyroom">zyRoom de Misugi</a>. Code source :
+  <a href="https://github.com/xiom-dev/zyroom-gtk-android">xiom-dev/zyroom-gtk-android</a>.</p>
+</footer>
