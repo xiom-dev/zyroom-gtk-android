@@ -1,7 +1,7 @@
 """Alertes : ce que la cloche a le droit de dire.
 
 La règle tient en une phrase : **la cloche ne porte que ce qu'on lui a demandé
-de guetter**. Quatre surveillances, toutes réglées par le joueur :
+de guetter**. Cinq surveillances, toutes réglées par le joueur :
 
   - **Objet surveillé** : un seuil posé à la main sur une matière (quantité
     minimale) ou sur un équipement (durabilité), et le signalement de l'objet
@@ -9,11 +9,17 @@ de guetter**. Quatre surveillances, toutes réglées par le joueur :
   - **Volume** : un contenant dépasse le seuil de remplissage des options.
   - **Vente** : une mise en vente expire bientôt.
   - **Saison** : elle tourne dans moins de tant d'heures.
+  - **Trésor** : il a bougé, et l'on a demandé à le savoir.
 
 Les **mouvements** d'objets, eux, ne sont pas des alertes : personne ne les a
 demandés, et ranger douze matières faisait sonner douze fois. Ils vont au
 journal, qui les garde datés — voir `movements.py`. L'instantané qui sert à
 les calculer est construit ici (`build_snapshot`), c'est tout.
+
+Le trésor fait exception, et c'est la même règle qui l'y autorise : un relevé
+rapporte au plus **un** mouvement d'argent, jamais douze. La cloche ne risque
+pas d'être noyée, et personne ne surveille son coffre de guilde sans vouloir
+savoir qu'on y a puisé.
 """
 from __future__ import annotations
 
@@ -23,13 +29,14 @@ import time
 from dataclasses import dataclass
 
 from .models import item_sig
-from .movements import MONEY_KEY, MONEY_SIG
-from .watch import KIND_DURABILITY
+from .movements import MONEY_KEY, MONEY_SIG, montant
+from .watch import KIND_DURABILITY, KIND_MONEY
 
 
 @dataclass
 class Alert:
-    kind: str          # 'quantity' | 'durability' | 'unfound' | 'volume' | 'sales' | 'season'
+    kind: str          # 'quantity' | 'durability' | 'unfound' | 'volume'
+                       # | 'sales' | 'season' | 'money'
     title: str
     detail: str
 
@@ -95,6 +102,11 @@ def watch_alerts(entity, watch_store, name_fn) -> list[Alert]:
     out = []
     to_remove = []
     for sig, watch in list(watch_store.items().items()):
+        # Le tresor n'est pas un objet : il ne se cherche pas dans les
+        # inventaires, et sans cette garde il passerait pour un objet disparu
+        # des le premier releve -- puis serait retire de la liste.
+        if watch.get("kind") == KIND_MONEY:
+            continue
         name = name_fn(watch["sheet"]) if name_fn else watch["sheet"]
         q = watch.get("quality", 0)
         threshold = watch["threshold"]
@@ -116,6 +128,34 @@ def watch_alerts(entity, watch_store, name_fn) -> list[Alert]:
                                  f"Quantité {qty} < seuil {threshold}"))
     for sig in to_remove:
         watch_store.remove_sig(sig)
+    return out
+
+
+# ---------------------------------------------------------------- Trésor
+def money_alerts(mouvements, surveille: bool) -> list[Alert]:
+    """Le trésor a bougé, et quelqu'un a demandé à le savoir.
+
+    Seule alerte que la cloche tire d'un mouvement, et la règle qui l'écarte
+    partout ailleurs est justement ce qui la justifie ici : ranger douze
+    matières fait douze mouvements, alors qu'un relevé rapporte **au plus un**
+    mouvement d'argent. Elle ne peut donc pas noyer les autres.
+
+    Pas de seuil non plus : un trésor de guilde n'a pas de valeur basse qui
+    alarme. Ce qu'un officier veut savoir, c'est qu'il a bougé — et de combien,
+    ce que l'alerte dit d'elle-même.
+    """
+    if not surveille:
+        return []
+    out = []
+    for mv in mouvements:
+        if mv.inv_key != MONEY_KEY:
+            continue
+        sens = "entrés" if mv.delta > 0 else "sortis"
+        out.append(Alert(
+            "money",
+            f"Trésor : {montant(abs(mv.delta))} dappers {sens}",
+            f"{montant(mv.old)} → {montant(mv.new)}",
+        ))
     return out
 
 

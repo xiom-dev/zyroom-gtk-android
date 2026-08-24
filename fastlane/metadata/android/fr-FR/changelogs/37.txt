@@ -1,0 +1,7 @@
+* Le trésor de la guilde s'affiche enfin, sous son nom en haut de l'écran. Le
+  flux le donnait à chaque relevé, mais il fallait ouvrir la version pour
+  ordinateur pour savoir ce qu'il y avait en caisse.
+* La cloche peut prévenir quand il bouge : un interrupteur au bas du panneau
+  d'alertes, puisque l'argent n'a pas d'icône sur laquelle appuyer. Sans seuil
+  — un relevé rapporte au plus un mouvement d'argent, il ne risque pas de
+  noyer les autres alertes.

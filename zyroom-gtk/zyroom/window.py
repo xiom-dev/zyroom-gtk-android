@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.55" if _DEV else "0.38"
+VERSION = "0.56" if _DEV else "0.39"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -143,6 +143,10 @@ class MainWindow(Gtk.ApplicationWindow):
         self._alerts: list[alerts.Alert] = []
         self._log_entries: list = []         # journal de l'entité affichée
         self._watch: WatchStore | None = None
+        # Le mouvement du tresor rapporte par le dernier releve, garde jusqu'au
+        # suivant. Sans cela, l'alerte disparaitrait au premier recalcul sans
+        # reseau -- ouvrir les options suffisait a la faire taire.
+        self._mouvements_argent: list = []
         # État des filtres/tri
         self._sort_index = 0
         self._sort_desc = False
@@ -2906,6 +2910,7 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         self._entity = ent
         self._watch = WatchStore(guard_path(entry["kind"], entry["id"]))
+        self._mouvements_argent = []
         # Le registre suit la guilde affichée. Chaque lecture du flux journalise
         # les arrivées, les départs et les changements de grade : l'API ne rend
         # qu'un effectif, jamais son histoire.
@@ -3278,6 +3283,9 @@ class MainWindow(Gtk.ApplicationWindow):
         if self._watch is not None:
             result += alerts.watch_alerts(ent, self._watch, self._names.name)
         result += alerts.sales_alerts(ent, self._settings.sales_count, self._names.name)
+        if self._watch is not None:
+            result += alerts.money_alerts(self._mouvements_argent,
+                                          self._watch.money_watched())
         if from_sync:
             path = snapshot_path(entry["kind"], entry["id"])
             old = alerts.load_snapshot(path)
@@ -3289,8 +3297,13 @@ class MainWindow(Gtk.ApplicationWindow):
                 # n'est demandé par personne : ranger douze matières faisait
                 # sonner douze fois, et l'alerte qui comptait se perdait dans
                 # le tas. Le journal, lui, garde tout, daté et consultable.
+                mouvements = movements.diff(old, new, ent)
                 movements.append(movements_path(entry["kind"], entry["id"]),
-                                 movements.diff(old, new, ent))
+                                 mouvements)
+                # Le tresor est le seul mouvement que la cloche ait le droit de
+                # reprendre : il y en a au plus un par releve (cf. alerts).
+                self._mouvements_argent = [m for m in mouvements
+                                           if m.inv_key == movements.MONEY_KEY]
                 if self._stack.get_visible_child_name() == "log":
                     self._load_log()
             alerts.save_snapshot(path, new)
@@ -3818,7 +3831,12 @@ class MainWindow(Gtk.ApplicationWindow):
     def _update_bell(self) -> None:
         n = len(self._alerts)
         self._bell.set_label(f"🔔 {n}" if n else "🔔")
-        self._bell.set_sensitive(n > 0)
+        # Toujours cliquable, meme sans alerte : c'est dans son panneau qu'on
+        # pose la surveillance du tresor, et c'est la qu'elle dit ce qu'elle
+        # guette. Grisee, elle ne pouvait plus rien apprendre a personne --
+        # c'est le meme raisonnement qui a rendu la cloche visible sur le
+        # telephone en 2.28.
+        self._bell.set_sensitive(True)
         infobulle = f"{n} alerte(s)" if n else "Aucune alerte"
         if not self._settings.notifications:
             # Sans quoi la coupure ne se voit plus une fois la fenêtre fermée,
@@ -3843,7 +3861,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # Une figure par sorte d'alerte : la liste se lit d'un coup d'œil, et
         # l'on voit tout de suite laquelle des quatre surveillances a parlé.
         figures = {"quantity": "📉", "durability": "🛡", "unfound": "❓",
-                   "volume": "📦", "sales": "💰", "season": "🍂"}
+                   "volume": "📦", "sales": "💰", "season": "🍂", "money": "🪙"}
         for al in self._alerts:
             icon = figures.get(al.kind, "🔔")
             title = Gtk.Label(xalign=0.0)
@@ -3853,6 +3871,26 @@ class MainWindow(Gtk.ApplicationWindow):
             detail.add_css_class("dim-label")
             detail.props.margin_start = 18
             listbox.append(detail)
+
+        # La surveillance du tresor se pose ici, et nulle part ailleurs :
+        # l'argent n'a pas d'icone dans un inventaire ou l'on ferait un clic
+        # droit, comme pour les objets. La cloche etant l'endroit ou l'on vient
+        # voir ce qui est guette, c'est aussi celui ou on le lui demande.
+        tresor = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        tresor.append(Gtk.Label(label=_("Prévenir quand le trésor bouge"),
+                                valign=Gtk.Align.CENTER, xalign=0.0,
+                                hexpand=True))
+        bascule = Gtk.Switch(valign=Gtk.Align.CENTER)
+        bascule.set_sensitive(self._watch is not None)
+        bascule.set_active(self._watch is not None
+                           and self._watch.money_watched())
+        bascule.set_tooltip_text(_(
+            "Une alerte à chaque relevé où les dappers ont bougé, dans un sens "
+            "ou dans l'autre. Sans seuil à régler : un relevé rapporte au plus "
+            "un mouvement d'argent, il ne peut donc pas noyer les autres."))
+        bascule.connect("state-set", self._on_money_watch_toggled)
+        tresor.append(bascule)
+        box.append(tresor)
 
         # Le pied de la fenêtre : la coupure à gauche, la sortie à droite. La
         # coupure ne touche qu'au bureau — la liste au-dessus reste pleine.
@@ -3874,6 +3912,18 @@ class MainWindow(Gtk.ApplicationWindow):
         pied.set_end_widget(close)
         box.append(pied)
         dlg.present()
+
+    def _on_money_watch_toggled(self, _switch, actif: bool) -> bool:
+        """Pose ou lève la surveillance du trésor de l'entité affichée.
+
+        Elle vit dans la liste des objets surveillés, sous la signature
+        réservée du journal : une surveillance de plus, rangée avec les autres,
+        et qui suit l'entité comme elles.
+        """
+        if self._watch is not None:
+            self._watch.set_money_watched(actif)
+            self._recompute_alerts()
+        return False
 
     def _on_notifications_toggled(self, _switch, actif: bool) -> bool:
         """Coupe ou rétablit les bulles du bureau, sans toucher aux alertes."""

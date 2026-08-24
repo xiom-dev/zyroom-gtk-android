@@ -1,0 +1,6 @@
+* Guild money is finally shown, under the name at the top of the screen. The
+  feed had always supplied it, but you had to open the desktop version to know
+  what was in the coffers.
+* The bell can now warn when it moves: a switch at the bottom of the alert
+  panel, since coin has no icon to long-press. No threshold — a reading brings
+  at most one money movement, so it cannot drown the other alerts.

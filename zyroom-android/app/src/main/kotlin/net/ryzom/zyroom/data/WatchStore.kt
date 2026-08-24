@@ -13,12 +13,14 @@ import java.io.File
  * Une entrée est identifiée par la signature de l'item — sa fiche et sa
  * qualité — parce que c'est ce qui distingue deux piles d'une même matière.
  *
- * Deux surveillances : la **quantité** d'une matière qui descend sous un seuil,
- * et la **durabilité** d'un équipement.
+ * Deux surveillances par objet : la **quantité** d'une matière qui descend sous
+ * un seuil, et la **durabilité** d'un équipement. Une troisième ne porte sur
+ * aucun objet — le **trésor**, qui n'a ni fiche ni qualité et se range sous la
+ * signature réservée du journal.
  */
 class WatchStore(private val file: File) {
 
-    enum class Kind { QUANTITY, DURABILITY }
+    enum class Kind { QUANTITY, DURABILITY, MONEY }
 
     data class Watch(
         val sheet: String,
@@ -51,6 +53,25 @@ class WatchStore(private val file: File) {
         if (watches.remove(signatureOf(item)) != null) save()
     }
 
+    /** Vrai si le trésor de cette entité est sous surveillance. */
+    fun isMoneyWatched(): Boolean = MONEY_SIG in watches
+
+    /**
+     * Pose ou lève la surveillance du trésor.
+     *
+     * Sans seuil : elle est posée ou elle ne l'est pas. Un trésor de guilde n'a
+     * pas de valeur basse qui alarme — ce qu'un officier veut savoir, c'est
+     * qu'on y a puisé.
+     */
+    fun setMoneyWatched(actif: Boolean) {
+        if (actif) {
+            watches[MONEY_SIG] = Watch(MONEY_SHEET, 0, 0, Kind.MONEY)
+        } else if (watches.remove(MONEY_SIG) == null) {
+            return
+        }
+        save()
+    }
+
     /**
      * Confronte les surveillances à l'état d'une entité.
      *
@@ -66,6 +87,9 @@ class WatchStore(private val file: File) {
         }
 
         return watches.values.mapNotNull { watch ->
+            // Le tresor ne se cherche pas dans les inventaires : sans cette
+            // garde il passerait pour un objet disparu des le premier releve.
+            if (watch.kind == Kind.MONEY) return@mapNotNull null
             val nom = nameOf(watch.sheet)
             val qualite = if (watch.quality > 0) " (Q${watch.quality})" else ""
             val trouves = presents[watch.signature]
@@ -132,12 +156,39 @@ class WatchStore(private val file: File) {
         fun signatureOf(item: Item): String = signatureOf(item.sheet, item.quality)
 
         fun signatureOf(sheet: String, quality: Int): String = "$sheet|$quality"
+
+        /** La signature du trésor, la même que celle du journal. */
+        const val MONEY_SHEET = MovementStore.MONEY_SHEET
+        const val MONEY_SIG = MovementStore.MONEY_SIG
     }
 }
 
 /** Ce qu'on montre à la cloche. */
 data class Alert(val kind: Kind, val title: String, val detail: String) {
-    enum class Kind { QUANTITY, DURABILITY, MISSING, VOLUME }
+    enum class Kind { QUANTITY, DURABILITY, MISSING, VOLUME, MONEY }
+}
+
+/**
+ * Le trésor a bougé, et quelqu'un a demandé à le savoir.
+ *
+ * Seule alerte que la cloche tire d'un mouvement, et la règle qui l'écarte
+ * partout ailleurs est justement ce qui la justifie ici : ranger douze matières
+ * fait douze mouvements, alors qu'un relevé rapporte **au plus un** mouvement
+ * d'argent. Elle ne peut donc pas noyer les autres.
+ */
+fun moneyAlerts(
+    mouvements: List<MovementStore.Movement>,
+    surveille: Boolean,
+): List<Alert> {
+    if (!surveille) return emptyList()
+    return mouvements.filter { it.invKey == MovementStore.MONEY_KEY }.map { m ->
+        val sens = if (m.delta > 0) "entrés" else "sortis"
+        Alert(
+            Alert.Kind.MONEY,
+            "Trésor : ${MovementStore.montant(kotlin.math.abs(m.delta))} dappers $sens",
+            "${MovementStore.montant(m.before)} → ${MovementStore.montant(m.after)}",
+        )
+    }
 }
 
 /** Contenants dont le remplissage atteint le seuil, en pourcentage. */

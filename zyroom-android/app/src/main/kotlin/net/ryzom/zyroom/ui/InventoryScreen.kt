@@ -49,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -79,6 +80,7 @@ import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.data.Preferences
 import net.ryzom.zyroom.data.RosterStore
 import net.ryzom.zyroom.data.WatchStore
+import net.ryzom.zyroom.data.moneyAlerts
 import net.ryzom.zyroom.data.volumeAlerts
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.Entity
@@ -112,6 +114,7 @@ internal fun figureDe(kind: Alert.Kind): String = when (kind) {
     Alert.Kind.DURABILITY -> "🛡"
     Alert.Kind.MISSING -> "❓"
     Alert.Kind.VOLUME -> "📦"
+    Alert.Kind.MONEY -> "🪙"
 }
 
 /**
@@ -142,6 +145,13 @@ fun InventoryScreen(
     var tri by remember { mutableStateOf(SortOrder.FAMILY) }
     var alertes by remember { mutableStateOf(emptyList<Alert>()) }
     var voirAlertes by remember { mutableStateOf(false) }
+    // Le mouvement du trésor rapporté par le dernier relevé. Gardé jusqu'au
+    // suivant : sans cela, poser une surveillance suffirait à le faire taire,
+    // puisque les alertes sont alors recalculées sans réseau.
+    var mouvementsArgent by remember {
+        mutableStateOf(emptyList<MovementStore.Movement>())
+    }
+    var surveilleArgent by remember { mutableStateOf(false) }
     var surveiller by remember { mutableStateOf<Item?>(null) }
     // Journal et compétences prennent leur place dans la rangée des contenants,
     // mais montrent autre chose que le contenu d'un coffre. Une seule vue à la
@@ -174,12 +184,18 @@ fun InventoryScreen(
             erreur = echec.message
         }
         entity?.let {
-            alertes = watches.alerts(it) { fiche -> repository.nameOf(fiche) } +
-                volumeAlerts(it)
             // Comparer au dernier état connu et journaliser ce qui a bougé. Un
             // état identique ne produit rien, l'appel est donc sans effet quand
-            // l'API a resservi le même document.
-            movements.record(entry, it)
+            // l'API a resservi le même document. C'est fait avant les alertes :
+            // le trésor est le seul mouvement dont la cloche ait le droit de
+            // parler, et il sort d'ici.
+            val bouges = movements.record(entry, it)
+            mouvementsArgent = bouges.filter { m ->
+                m.invKey == MovementStore.MONEY_KEY
+            }
+            surveilleArgent = watches.isMoneyWatched()
+            alertes = watches.alerts(it) { fiche -> repository.nameOf(fiche) } +
+                volumeAlerts(it) + moneyAlerts(mouvementsArgent, surveilleArgent)
             lignes = movements.history(entry)
             // Le registre suit la guilde affichée. Chaque lecture du flux
             // journalise les arrivées, les départs et les changements de grade.
@@ -214,7 +230,37 @@ fun InventoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(courant?.name ?: entry.label.ifEmpty { entry.id }) },
+                title = {
+                    // Le nom, et sous lui le trésor. L'API le donne à chaque
+                    // relevé et le journal en suit les mouvements, mais le
+                    // téléphone ne l'affichait nulle part — il fallait ouvrir
+                    // la version pour ordinateur, qui le porte dans sa barre
+                    // d'état, pour savoir ce que la guilde avait en caisse.
+                    //
+                    // Sous le nom plutôt que sur sa propre ligne : la barre du
+                    // haut a la hauteur pour deux étages, et un bandeau de plus
+                    // aurait mangé la place des contenants.
+                    Column {
+                        Text(
+                            courant?.name ?: entry.label.ifEmpty { entry.id },
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        // Rien tant que l'API se tait : un zéro ferait croire à
+                        // une caisse vide, alors que c'est la clé qui n'a pas
+                        // le module, ou le flux qui est muet.
+                        val tresor = courant?.dappers ?: 0L
+                        if (tresor > 0) {
+                            Text(
+                                "💰 ${MovementStore.montant(tresor)} dappers",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     // Un vrai dessin plutôt qu'un caractère « ← » : le trait de
                     // la police est fin, et la flèche se voyait à peine. Celle-ci
@@ -549,7 +595,9 @@ fun InventoryScreen(
                                 "dessous, quand l'équipement s'use, et quand " +
                                 "l'objet surveillé a disparu des inventaires. " +
                                 "Elle signale aussi, d'elle-même, les " +
-                                "contenants presque pleins.",
+                                "contenants presque pleins.\n\nLe trésor se " +
+                                "surveille ci-dessous : l'argent n'a pas " +
+                                "d'icône sur laquelle appuyer.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
@@ -563,6 +611,35 @@ fun InventoryScreen(
                                      style = MaterialTheme.typography.bodySmall)
                             }
                         }
+                    }
+
+                    // La surveillance du trésor se pose ici, et nulle part
+                    // ailleurs : l'argent n'a pas d'icône dans un contenant sur
+                    // laquelle faire un appui long, comme pour les objets. La
+                    // cloche étant l'endroit où l'on vient voir ce qui est
+                    // guetté, c'est aussi celui où on le lui demande.
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Prévenir quand le trésor bouge",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = surveilleArgent,
+                            onCheckedChange = { actif ->
+                                watches.setMoneyWatched(actif)
+                                surveilleArgent = actif
+                                entity?.let {
+                                    alertes = watches.alerts(it) { f ->
+                                        repository.nameOf(f)
+                                    } + volumeAlerts(it) +
+                                        moneyAlerts(mouvementsArgent, actif)
+                                }
+                            },
+                        )
                     }
                 }
             },
@@ -604,13 +681,13 @@ fun InventoryScreen(
                 watches.remove(item)
                 surveiller = null
                 entity?.let { alertes = watches.alerts(it) { f -> repository.nameOf(f) } +
-                    volumeAlerts(it) }
+                    volumeAlerts(it) + moneyAlerts(mouvementsArgent, surveilleArgent) }
             },
             onWatch = { seuil ->
                 watches.add(item, seuil)
                 surveiller = null
                 entity?.let { alertes = watches.alerts(it) { f -> repository.nameOf(f) } +
-                    volumeAlerts(it) }
+                    volumeAlerts(it) + moneyAlerts(mouvementsArgent, surveilleArgent) }
             },
             onDismiss = { surveiller = null },
         )
