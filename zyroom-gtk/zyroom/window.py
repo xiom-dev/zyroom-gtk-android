@@ -2655,15 +2655,23 @@ class MainWindow(Gtk.ApplicationWindow):
             where.add_css_class("dim-label")
             self._log_grid.attach(where, 1, row, 1, 1)
 
+            # Le trésor n'est pas un objet : pas de fiche à nommer, pas d'icône
+            # à télécharger, et des montants à sept chiffres qu'on ne lit pas
+            # d'un bloc.
+            argent = mv.inv_key == movements.MONEY_KEY
+
             # Vert pour ce qui entre, rouge pour ce qui sort : la couleur est
             # ce qu'on lit en premier en parcourant une colonne de chiffres.
             qty = Gtk.Label(xalign=1.0)
-            qty.set_markup('<span foreground="{}"><tt>{:+d}</tt></span>'.format(
-                "#4caf50" if mv.delta > 0 else "#e05252", mv.delta))
+            qty.set_markup('<span foreground="{}"><tt>{}</tt></span>'.format(
+                "#4caf50" if mv.delta > 0 else "#e05252",
+                f"{mv.delta:+,}".replace(",", " ") if argent
+                else f"{mv.delta:+d}"))
             self._log_grid.attach(qty, 2, row, 1, 1)
 
-            name = Gtk.Label(label=self._names.name(mv.sheet), xalign=0.0,
-                             selectable=True)
+            name = Gtk.Label(label=_("Dappers") if argent
+                             else self._names.name(mv.sheet),
+                             xalign=0.0, selectable=True)
             self._log_grid.attach(name, 3, row, 1, 1)
 
             # L'icône de l'objet, sur la ligne, juste avant sa qualité : c'est
@@ -2671,11 +2679,16 @@ class MainWindow(Gtk.ApplicationWindow):
             # un nom. Elle arrive quand elle arrive — le chargement est en
             # arrière-plan — et une image générique tient la place en attendant,
             # pour que la colonne ne se décale pas à l'arrivée.
-            icone = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
-            icone.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
-            self._log_grid.attach(icone, 4, row, 1, 1)
-            self._icons.request(ItemInfo(sheet=mv.sheet, quality=mv.quality),
-                                self._icone_journal(generation, icone))
+            if argent:
+                icone = Gtk.Label(label="💰")
+                self._log_grid.attach(icone, 4, row, 1, 1)
+            else:
+                icone = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
+                icone.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
+                self._log_grid.attach(icone, 4, row, 1, 1)
+                self._icons.request(
+                    ItemInfo(sheet=mv.sheet, quality=mv.quality),
+                    self._icone_journal(generation, icone))
 
             quality = Gtk.Label(label=f"Q{mv.quality}" if mv.quality else "",
                                 xalign=0.0)

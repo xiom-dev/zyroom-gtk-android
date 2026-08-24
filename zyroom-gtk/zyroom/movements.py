@@ -26,6 +26,23 @@ ADDED = "added"        # l'objet n'était pas là
 REMOVED = "removed"    # l'objet n'y est plus
 MODIFIED = "modified"  # la quantité a changé
 
+#: Le trésor, rangé dans l'instantané comme s'il était un contenant.
+#:
+#: L'argent n'est pas un objet : il ne vit dans aucun coffre, l'API le rend à
+#: part (`<money>`), et il n'a ni fiche, ni qualité, ni icône. Mais il entre et
+#: il sort, et c'est tout ce que le journal demande — lui donner une clé
+#: d'inventaire réservée le fait suivre le même chemin que le reste, de
+#: l'instantané au disque, sans une seule structure de plus.
+MONEY_KEY = "money"
+MONEY_SHEET = "dappers"
+MONEY_SIG = f"{MONEY_SHEET}|0"
+MONEY_LABEL = "Trésor"
+
+
+def montant(nombre: int) -> str:
+    """Un nombre de dappers, groupé par milliers — 79000000 → 79 000 000."""
+    return f"{nombre:,}".replace(",", " ")
+
 #: Au-delà de cette taille, le journal est ramené à `_TRIM_TO` lignes.
 _MAX_LINES = 20000
 _TRIM_TO = 10000
@@ -79,6 +96,8 @@ def diff(old: dict, new: dict, entity, ts: float | None = None) -> list[Movement
     out: list[Movement] = []
 
     for inv_key, new_counts in new.items():
+        if inv_key == MONEY_KEY:
+            continue                      # le trésor a sa propre comparaison
         old_counts = old.get(inv_key, {})
         for sig in set(new_counts) | set(old_counts):
             before = old_counts.get(sig, 0)
@@ -101,9 +120,33 @@ def diff(old: dict, new: dict, entity, ts: float | None = None) -> list[Movement
             ))
 
     # Entrées d'abord, puis sorties, et par inventaire — ordre de lecture le
-    # plus utile quand une synchronisation en rapporte beaucoup d'un coup.
+    # plus utile quand une synchronisation en rapporte beaucoup d'un coup. Le
+    # trésor passe devant : une synchro qui rapporte trente rangements de
+    # matières rapporte au plus un mouvement d'argent, et c'est celui-là qu'on
+    # cherche des yeux.
     out.sort(key=lambda m: (m.inv_key, -m.delta))
-    return out
+    return _diff_money(old, new, ts) + out
+
+
+def _diff_money(old: dict, new: dict, ts: float) -> list[Movement]:
+    """Le mouvement du trésor entre deux instantanés, s'il y en a un.
+
+    Rien tant que l'instantané **précédent** n'en portait pas : sans cette
+    garde, la première synchronisation qui suit la mise à jour journaliserait
+    le trésor entier comme une entrée de soixante-dix-neuf millions.
+    """
+    try:
+        if MONEY_KEY not in old or MONEY_KEY not in new:
+            return []
+        avant = int(old[MONEY_KEY].get(MONEY_SIG, 0))
+        apres = int(new[MONEY_KEY].get(MONEY_SIG, 0))
+    except (AttributeError, TypeError, ValueError):
+        return []                         # instantané d'un format antérieur
+    if avant == apres:
+        return []
+    return [Movement(ts=ts, inv_key=MONEY_KEY, inv_label=MONEY_LABEL,
+                     sheet=MONEY_SHEET, quality=0, kind=MODIFIED,
+                     delta=apres - avant, old=avant, new=apres)]
 
 
 def append(path: str, movements: list[Movement]) -> None:
@@ -167,6 +210,10 @@ def clear(path: str) -> None:
 
 def describe(mv: Movement, name_fn=None) -> str:
     """Ligne lisible, sur le modèle de l'original (RS_ALERT_ADDED/REMOVED/MODIFIED)."""
+    if mv.inv_key == MONEY_KEY:
+        sens = "entrés" if mv.delta > 0 else "sortis"
+        return (f"{mv.when} | {mv.inv_label} : {montant(abs(mv.delta))} "
+                f"dappers {sens} ({montant(mv.old)} > {montant(mv.new)})")
     name = name_fn(mv.sheet) if name_fn else mv.sheet
     quality = f" Q{mv.quality}" if mv.quality else ""
     if mv.kind == ADDED:

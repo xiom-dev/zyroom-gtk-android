@@ -35,10 +35,18 @@ class MovementStore(private val dir: File) {
         val sheet: String,
         val quality: Int,
         val kind: Kind,
-        /** Quantité entrée (positive) ou sortie (négative). */
-        val delta: Int,
-        val before: Int,
-        val after: Int,
+        /**
+         * Quantité entrée (positive) ou sortie (négative).
+         *
+         * En `Long` et non en `Int` à cause du trésor : une pile d'objets se
+         * compte par centaines, un coffre de guilde par dizaines de millions
+         * de dappers. La marge d'un `Int` suffirait aujourd'hui, mais un
+         * débordement ne se verrait qu'au journal, sous la forme d'un nombre
+         * absurde — et il n'y a rien à gagner à le laisser possible.
+         */
+        val delta: Long,
+        val before: Long,
+        val after: Long,
     )
 
     /**
@@ -100,19 +108,32 @@ class MovementStore(private val dir: File) {
      * masque, recopiée dans le journal. `diff` ne parcourant que les clés du
      * nouvel instantané, l'absence suffit à les en tenir dehors.
      */
-    private fun snapshotOf(entity: Entity): Map<String, Map<String, Int>> =
-        entity.inventories.filterNot { it.masked }.associate { inventaire ->
-            val comptes = mutableMapOf<String, Int>()
-            inventaire.items.forEach { item ->
-                val signature = WatchStore.signatureOf(item)
-                comptes[signature] = (comptes[signature] ?: 0) + maxOf(item.stack, 1)
-            }
-            inventaire.key to comptes
+    private fun snapshotOf(entity: Entity): Map<String, Map<String, Long>> {
+        val snap = entity.inventories.filterNot { it.masked }
+            .associate { inventaire ->
+                val comptes = mutableMapOf<String, Long>()
+                inventaire.items.forEach { item ->
+                    val signature = WatchStore.signatureOf(item)
+                    comptes[signature] =
+                        (comptes[signature] ?: 0L) + maxOf(item.stack, 1).toLong()
+                }
+                inventaire.key to comptes
+            }.toMutableMap()
+
+        // Le trésor, sous une clé réservée : ni contenant ni objet, mais il
+        // entre et il sort comme le reste, et le journal n'en demande pas plus.
+        // Absent tant que l'API n'en dit rien — une clé manquante vaut mieux
+        // qu'un zéro, qui ferait croire au relevé suivant que la guilde vient
+        // de tout dépenser.
+        if (entity.dappers > 0) {
+            snap[MONEY_KEY] = mutableMapOf(MONEY_SIG to entity.dappers)
         }
+        return snap
+    }
 
     private fun diff(
-        avant: Map<String, Map<String, Int>>,
-        apres: Map<String, Map<String, Int>>,
+        avant: Map<String, Map<String, Long>>,
+        apres: Map<String, Map<String, Long>>,
         entity: Entity,
     ): List<Movement> {
         val maintenant = System.currentTimeMillis() / 1000
@@ -123,10 +144,11 @@ class MovementStore(private val dir: File) {
         // disparu — une bête vendue — ne doit pas faire croire que tout son
         // contenu vient d'être retiré.
         apres.forEach { (cle, comptesApres) ->
+            if (cle == MONEY_KEY) return@forEach   // le trésor a sa comparaison
             val comptesAvant = avant[cle].orEmpty()
             (comptesApres.keys + comptesAvant.keys).forEach { signature ->
-                val depuis = comptesAvant[signature] ?: 0
-                val vers = comptesApres[signature] ?: 0
+                val depuis = comptesAvant[signature] ?: 0L
+                val vers = comptesApres[signature] ?: 0L
                 if (depuis == vers) return@forEach
                 val fiche = signature.substringBeforeLast('|', signature)
                 val qualite = signature.substringAfterLast('|', "").toIntOrNull() ?: 0
@@ -137,8 +159,8 @@ class MovementStore(private val dir: File) {
                     sheet = fiche,
                     quality = qualite,
                     kind = when {
-                        depuis == 0 -> Kind.ADDED
-                        vers == 0 -> Kind.REMOVED
+                        depuis == 0L -> Kind.ADDED
+                        vers == 0L -> Kind.REMOVED
                         else -> Kind.MODIFIED
                     },
                     delta = vers - depuis,
@@ -148,8 +170,40 @@ class MovementStore(private val dir: File) {
             }
         }
         // Entrées d'abord, puis sorties, groupées par contenant : l'ordre le
-        // plus lisible quand une relève en rapporte beaucoup d'un coup.
-        return out.sortedWith(compareBy({ it.invKey }, { -it.delta }))
+        // plus lisible quand une relève en rapporte beaucoup d'un coup. Le
+        // trésor passe devant : une relève qui rapporte trente rangements de
+        // matières rapporte au plus un mouvement d'argent, et c'est celui-là
+        // qu'on cherche des yeux.
+        return diffMoney(avant, apres, maintenant) +
+            out.sortedWith(compareBy({ it.invKey }, { -it.delta }))
+    }
+
+    /**
+     * Le mouvement du trésor entre deux instantanés, s'il y en a un.
+     *
+     * Rien tant que l'instantané **précédent** n'en portait pas : sans cette
+     * garde, la première relève qui suit la mise à jour journaliserait le
+     * trésor entier comme une entrée de soixante-dix-neuf millions.
+     */
+    private fun diffMoney(
+        avant: Map<String, Map<String, Long>>,
+        apres: Map<String, Map<String, Long>>,
+        maintenant: Long,
+    ): List<Movement> {
+        val depuis = avant[MONEY_KEY]?.get(MONEY_SIG) ?: return emptyList()
+        val vers = apres[MONEY_KEY]?.get(MONEY_SIG) ?: return emptyList()
+        if (depuis == vers) return emptyList()
+        return listOf(Movement(
+            at = maintenant,
+            invKey = MONEY_KEY,
+            invLabel = MONEY_LABEL,
+            sheet = MONEY_SHEET,
+            quality = 0,
+            kind = Kind.MODIFIED,
+            delta = vers - depuis,
+            before = depuis,
+            after = vers,
+        ))
     }
 
     private fun appendLog(entry: EntityStore.Suivie, mouvements: List<Movement>) {
@@ -170,7 +224,7 @@ class MovementStore(private val dir: File) {
         }
     }
 
-    private fun readSnapshot(entry: EntityStore.Suivie): Map<String, Map<String, Int>>? {
+    private fun readSnapshot(entry: EntityStore.Suivie): Map<String, Map<String, Long>>? {
         val file = snapFile(entry)
         if (!file.isFile) return null
         return runCatching {
@@ -178,14 +232,14 @@ class MovementStore(private val dir: File) {
             racine.keys().asSequence().associateWith { cle ->
                 val contenant = racine.getJSONObject(cle)
                 contenant.keys().asSequence()
-                    .associateWith { contenant.getInt(it) }
+                    .associateWith { contenant.getLong(it) }
             }
         }.getOrNull()
     }
 
     private fun writeSnapshot(
         entry: EntityStore.Suivie,
-        etat: Map<String, Map<String, Int>>,
+        etat: Map<String, Map<String, Long>>,
     ) {
         runCatching {
             dir.mkdirs()
@@ -218,17 +272,44 @@ class MovementStore(private val dir: File) {
         sheet = o.optString("sheet"),
         quality = o.optInt("q"),
         kind = runCatching { Kind.valueOf(o.optString("kind")) }.getOrDefault(Kind.MODIFIED),
-        delta = o.optInt("delta"),
-        before = o.optInt("before"),
-        after = o.optInt("after"),
+        delta = o.optLong("delta"),
+        before = o.optLong("before"),
+        after = o.optLong("after"),
     )
 
     companion object {
         private const val MAX_LINES = 20_000
         private const val KEEP_LINES = 10_000
 
+        /**
+         * Le trésor, rangé dans l'instantané comme s'il était un contenant.
+         *
+         * L'argent n'est pas un objet : il ne vit dans aucun coffre, l'API le
+         * rend à part (`<money>`), et il n'a ni fiche, ni qualité, ni icône.
+         * Mais il entre et il sort, et c'est tout ce que le journal demande —
+         * lui donner une clé de contenant réservée le fait suivre le même
+         * chemin que le reste, de l'instantané au disque, sans une seule
+         * structure de plus.
+         */
+        const val MONEY_KEY = "money"
+        const val MONEY_SHEET = "dappers"
+        const val MONEY_SIG = "$MONEY_SHEET|0"
+        const val MONEY_LABEL = "Trésor"
+
+        /** Un nombre de dappers, groupé par milliers — 79000000 → 79 000 000. */
+        fun montant(nombre: Long): String {
+            val chiffres = kotlin.math.abs(nombre).toString().reversed()
+                .chunked(3).joinToString(" ").reversed()
+            return if (nombre < 0) "-$chiffres" else chiffres
+        }
+
         /** Ligne rédigée, sur le modèle de l'original. */
         fun describe(m: Movement, nameOf: (String) -> String): String {
+            if (m.invKey == MONEY_KEY) {
+                val sens = if (m.delta > 0) "entrés" else "sortis"
+                return "${montant(kotlin.math.abs(m.delta))} dappers $sens " +
+                    "(${montant(m.before)} > ${montant(m.after)})"
+            }
             val nom = nameOf(m.sheet)
             val qualite = if (m.quality > 0) " Q${m.quality}" else ""
             return when (m.kind) {

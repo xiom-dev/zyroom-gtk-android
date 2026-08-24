@@ -711,12 +711,19 @@ private fun JournalView(
                         .background(fondZebre(rang % 2 == 0))
                         .padding(horizontal = 12.dp, vertical = 7.dp),
                 ) {
+                    // Le trésor n'est pas un objet : pas de fiche à nommer, pas
+                    // d'icône à télécharger, et des montants à sept chiffres
+                    // qu'on ne lit pas d'un bloc.
+                    val argent = mouvement.invKey == MovementStore.MONEY_KEY
                     Text(
-                        text = (if (mouvement.delta > 0) "+" else "") + mouvement.delta,
+                        text = (if (mouvement.delta > 0) "+" else "") +
+                            if (argent) MovementStore.montant(mouvement.delta)
+                            else mouvement.delta.toString(),
                         color = if (mouvement.delta > 0) ENTREE else SORTIE,
                         style = MaterialTheme.typography.titleSmall,
                         textAlign = TextAlign.End,
-                        modifier = Modifier.width(64.dp).padding(end = 10.dp),
+                        modifier = Modifier.width(if (argent) 96.dp else 64.dp)
+                            .padding(end = 10.dp),
                     )
                     Column {
                         // Le nom, puis l'icône de l'objet, puis sa qualité —
@@ -726,18 +733,26 @@ private fun JournalView(
                         // pour qu'un mouvement tienne toujours sur deux lignes.
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                nameOf(mouvement.sheet),
+                                if (argent) "Dappers" else nameOf(mouvement.sheet),
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            AsyncImage(
-                                model = RyzomApi.itemIconUrl(
-                                    Item(sheet = mouvement.sheet,
-                                         quality = mouvement.quality)),
-                                contentDescription = null,
-                                modifier = Modifier.padding(horizontal = 6.dp)
-                                    .size(22.dp),
-                            )
+                            if (argent) {
+                                Text(
+                                    "💰",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(horizontal = 6.dp),
+                                )
+                            } else {
+                                AsyncImage(
+                                    model = RyzomApi.itemIconUrl(
+                                        Item(sheet = mouvement.sheet,
+                                             quality = mouvement.quality)),
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                        .size(22.dp),
+                                )
+                            }
                             if (mouvement.quality > 0) {
                                 Text(
                                     "Q${mouvement.quality}",

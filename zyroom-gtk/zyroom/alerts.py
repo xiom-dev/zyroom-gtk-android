@@ -23,6 +23,7 @@ import time
 from dataclasses import dataclass
 
 from .models import item_sig
+from .movements import MONEY_KEY, MONEY_SIG
 from .watch import KIND_DURABILITY
 
 
@@ -70,6 +71,14 @@ def build_snapshot(entity) -> dict:
             sig = item_sig(it)
             counts[sig] = counts.get(sig, 0) + max(it.stack, 1)
         snap[inv.key] = counts
+
+    # Le trésor, sous une clé réservée : ni contenant ni objet, mais il entre
+    # et il sort comme le reste, et le journal n'en demande pas plus. Absent
+    # tant que l'API n'en dit rien — une clé manquante vaut mieux qu'un zéro,
+    # qui ferait croire au relevé suivant que la guilde vient de tout dépenser.
+    argent = str(getattr(entity, "money", "") or "").strip()
+    if argent.isdigit():
+        snap[MONEY_KEY] = {MONEY_SIG: int(argent)}
     return snap
 
 

@@ -62,16 +62,16 @@ class MovementStoreTest {
         val parFiche = mouvements.associateBy { it.sheet }
 
         assertEquals(MovementStore.Kind.MODIFIED, parFiche["mp_hard.sitem"]!!.kind)
-        assertEquals(-500, parFiche["mp_hard.sitem"]!!.delta)
-        assertEquals(999, parFiche["mp_hard.sitem"]!!.before)
-        assertEquals(499, parFiche["mp_hard.sitem"]!!.after)
+        assertEquals(-500L, parFiche["mp_hard.sitem"]!!.delta)
+        assertEquals(999L, parFiche["mp_hard.sitem"]!!.before)
+        assertEquals(499L, parFiche["mp_hard.sitem"]!!.after)
 
         assertEquals(MovementStore.Kind.ADDED, parFiche["croc.sitem"]!!.kind)
-        assertEquals(167, parFiche["croc.sitem"]!!.delta)
+        assertEquals(167L, parFiche["croc.sitem"]!!.delta)
         assertEquals(250, parFiche["croc.sitem"]!!.quality)
 
         assertEquals(MovementStore.Kind.REMOVED, parFiche["cuir.sitem"]!!.kind)
-        assertEquals(-50, parFiche["cuir.sitem"]!!.delta)
+        assertEquals(-50L, parFiche["cuir.sitem"]!!.delta)
     }
 
     @Test
@@ -134,8 +134,8 @@ class MovementStoreTest {
 
         val histoire = magasin.history(suivie)
         assertEquals(2, histoire.size)
-        assertEquals(-15, histoire[0].delta)
-        assertEquals(10, histoire[1].delta)
+        assertEquals(-15L, histoire[0].delta)
+        assertEquals(10L, histoire[1].delta)
         assertTrue(histoire[0].at >= histoire[1].at)
     }
 
