@@ -1,0 +1,9 @@
+* Le trésor entre et sort au journal, comme les objets. L'argent n'a ni fiche
+  ni qualité, mais il bouge, et c'est tout ce que le journal demande.
+* Les mouvements portent la date du relevé, et non celle de la relève. L'API
+  ne recalcule pas un flux à la demande : elle sert le dernier qu'elle ait mis
+  en cache, parfois vieux de dix heures. Relever tous les soirs vers la même
+  heure donnait un journal où chaque jour portait la même heure.
+* Le journal se lit en colonnes : icône, qualité et quantité tombent les unes
+  sous les autres au lieu de suivre le nom de l'objet. Les noms de coffres
+  sont coupés à la parenthèse, que l'API ne referme presque jamais.

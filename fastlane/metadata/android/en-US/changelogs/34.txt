@@ -1,0 +1,5 @@
+* The "Search for a member" field now appears only on the roster. It used to
+  sit above arrivals and departures, which it does not filter: you typed into
+  it, nothing moved, and that reads as a breakage.
+* "Nothing matches" becomes "No member by that name." — word for word the
+  desktop message. Both screens now behave the same way.

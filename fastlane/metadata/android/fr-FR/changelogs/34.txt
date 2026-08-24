@@ -1,0 +1,6 @@
+* Le champ « Rechercher un membre » ne paraît plus que sur l'effectif. Il
+  restait affiché devant les arrivées et départs, qu'il ne filtre pas : on
+  tapait dedans, rien ne bougeait, et cela se lit comme une panne.
+* « Rien ne correspond » devient « Aucun membre de ce nom. », le message de la
+  version pour ordinateur mot pour mot. Les deux écrans se conduisent
+  désormais pareil.
