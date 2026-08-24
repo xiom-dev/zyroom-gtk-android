@@ -617,12 +617,49 @@ fun InventoryScreen(
     }
 }
 
-/** Sur un écran de téléphone, la date tient sur la ligne du dessous. */
+/**
+ * Sur un écran de téléphone, la date tient sur la ligne du dessous.
+ *
+ * L'année sur deux chiffres : le journal ne garde que quelques semaines, et
+ * personne n'a jamais douté du millésime en lisant « 24/08 ». Les deux chiffres
+ * gagnés vont au nom du coffre, qui en manquait.
+ */
 private val HORODATAGE: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
+    DateTimeFormatter.ofPattern("dd/MM/yy HH:mm").withZone(ZoneId.systemDefault())
 
 private val ENTREE = Color(0xFF4CAF50)
 private val SORTIE = Color(0xFFE05252)
+
+/**
+ * Largeur de la colonne des quantités — **la même pour les objets et l'argent**.
+ *
+ * Elle valait 64 dp pour un objet et 96 pour un montant en dappers : deux
+ * gabarits, donc deux colonnes qui ne tombaient pas l'une sous l'autre, et un
+ * texte qui repartait d'un cran plus loin dès qu'une ligne de trésor passait.
+ * Un seul chiffre pour tout le monde, calé sur le plus large des deux.
+ */
+private val LARGEUR_QUANTITE = 96.dp
+
+/**
+ * Largeur de la colonne des qualités, juste avant les icônes.
+ *
+ * Elle suivait le nom de l'objet, donc elle tombait où le nom la laissait :
+ * « Q250 » se promenait d'une ligne à l'autre, et l'œil devait le chercher
+ * alors que c'est un repère qu'on balaye. De quoi tenir « Q250 », le plus large
+ * des cas.
+ */
+private val LARGEUR_QUALITE = 40.dp
+
+/** Largeur de la colonne d'icônes, en bout de ligne. */
+private val LARGEUR_ICONE = 34.dp
+
+/**
+ * Taille de l'icône elle-même : la hauteur d'une ligne de texte.
+ *
+ * Plus grande, chaque mouvement occuperait deux lignes et on en verrait deux
+ * fois moins d'un coup d'œil — or le journal se parcourt.
+ */
+private val TAILLE_ICONE = 22.dp
 
 /**
  * Le journal : ce qui est entré et sorti, du plus récent au plus ancien.
@@ -710,6 +747,7 @@ private fun JournalView(
                     Modifier.fillMaxWidth()
                         .background(fondZebre(rang % 2 == 0))
                         .padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // Le trésor n'est pas un objet : pas de fiche à nommer, pas
                     // d'icône à télécharger, et des montants à sept chiffres
@@ -722,51 +760,58 @@ private fun JournalView(
                         color = if (mouvement.delta > 0) ENTREE else SORTIE,
                         style = MaterialTheme.typography.titleSmall,
                         textAlign = TextAlign.End,
-                        modifier = Modifier.width(if (argent) 96.dp else 64.dp)
+                        modifier = Modifier.width(LARGEUR_QUANTITE)
                             .padding(end = 10.dp),
                     )
-                    Column {
-                        // Le nom, puis l'icône de l'objet, puis sa qualité —
-                        // sur la même ligne. C'est l'icône qu'on reconnaît en
-                        // parcourant le journal, bien avant de lire un nom.
-                        // Elle est petite : à la hauteur d'une ligne de texte,
-                        // pour qu'un mouvement tienne toujours sur deux lignes.
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                if (argent) "Dappers" else nameOf(mouvement.sheet),
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            if (argent) {
-                                Text(
-                                    "💰",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(horizontal = 6.dp),
-                                )
-                            } else {
-                                AsyncImage(
-                                    model = RyzomApi.itemIconUrl(
-                                        Item(sheet = mouvement.sheet,
-                                             quality = mouvement.quality)),
-                                    contentDescription = null,
-                                    modifier = Modifier.padding(horizontal = 6.dp)
-                                        .size(22.dp),
-                                )
-                            }
-                            if (mouvement.quality > 0) {
-                                Text(
-                                    "Q${mouvement.quality}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
+                    // Le texte prend ce qui reste. Sans ce poids, un nom
+                    // d'objet a rallonge pousserait l'icone hors de l'ecran,
+                    // et c'est justement ce qu'on ne veut plus.
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (argent) "Dappers" else nameOf(mouvement.sheet),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        // Le libelle est coupe a la parenthese : ce que la
+                        // guilde range dans un coffre ne s'apprend pas d'un
+                        // fragment de phrase, et la ligne y gagne sa largeur.
                         Text(
                             "${HORODATAGE.format(Instant.ofEpochSecond(mouvement.at))} · " +
-                                mouvement.invLabel,
+                                MovementStore.sansParenthese(mouvement.invLabel),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    // La qualite, dans sa propre colonne, calee a gauche : les
+                    // « Q » tombent alors les uns sous les autres et se lisent
+                    // en descendant. Le tresor n'en a pas, mais la colonne
+                    // reste : c'est elle qui tient l'icone en place.
+                    Text(
+                        if (mouvement.quality > 0) "Q${mouvement.quality}" else "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(LARGEUR_QUALITE),
+                    )
+                    // L'icone ferme la ligne, dans une colonne de largeur fixe.
+                    // C'est elle qu'on reconnait en parcourant le journal, bien
+                    // avant de lire un nom — mais elle suivait jusqu'ici le nom
+                    // de l'objet, donc elle changeait de place a chaque ligne et
+                    // ne se laissait plus balayer du regard. Le tresor y met sa
+                    // piece, faute de fiche a dessiner.
+                    Box(
+                        Modifier.width(LARGEUR_ICONE),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (argent) {
+                            Text("💰", style = MaterialTheme.typography.bodyMedium)
+                        } else {
+                            AsyncImage(
+                                model = RyzomApi.itemIconUrl(
+                                    Item(sheet = mouvement.sheet,
+                                         quality = mouvement.quality)),
+                                contentDescription = null,
+                                modifier = Modifier.size(TAILLE_ICONE),
+                            )
+                        }
                     }
                 }
             }

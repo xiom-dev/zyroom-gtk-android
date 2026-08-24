@@ -331,6 +331,22 @@ class MovementStore(private val dir: File) {
             return entity.created
         }
 
+        /**
+         * « Coffre 15 — La Lune Des Maraudeurs(Gh Armure » → sans la fin.
+         *
+         * Les coffres de guilde portent, après leur nom, ce que la guilde y
+         * range — et l'API tronque le tout à une quarantaine de signes, si bien
+         * que la parenthèse ne se referme presque jamais. Ce reste de phrase
+         * coupée n'apprend rien dans un journal, et sur un téléphone il pousse
+         * la ligne au-delà du bord : le nom du coffre suffit à savoir d'où
+         * l'objet vient.
+         *
+         * Un libellé qui commencerait par la parenthèse est gardé tel quel :
+         * mieux vaut un libellé étrange qu'une colonne muette.
+         */
+        fun sansParenthese(libelle: String): String =
+            libelle.substringBefore('(').trim().ifEmpty { libelle }
+
         /** Un nombre de dappers, groupé par milliers — 79000000 → 79 000 000. */
         fun montant(nombre: Long): String {
             val chiffres = kotlin.math.abs(nombre).toString().reversed()

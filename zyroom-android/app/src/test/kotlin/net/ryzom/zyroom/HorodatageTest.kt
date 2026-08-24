@@ -101,6 +101,39 @@ class HorodatageTest {
         assertEquals(listOf(RELEVE), magasin.history(suivie).map { it.at })
     }
 
+    // ------------------------------------------------- libellés de coffres
+
+    /**
+     * Relevés tels quels dans le journal de la guilde : l'API tronque le nom
+     * d'un coffre à une quarantaine de signes, si bien que la parenthèse ne se
+     * referme presque jamais.
+     */
+    @Test
+    fun `le parenthétique disparaît`() {
+        val releves = listOf(
+            "Coffre 15 — La Lune Des Maraudeurs(Gh Armure" to "Coffre 15 — La Lune Des Maraudeurs",
+            "Coffre 2 — La Resserre Lunaire 1/2 (Equipem" to "Coffre 2 — La Resserre Lunaire 1/2",
+            "Coffre 9 — La Lune d'Ambre(Craft Bijoux/Amp" to "Coffre 9 — La Lune d'Ambre",
+        )
+        releves.forEach { (brut, attendu) ->
+            assertEquals(attendu, MovementStore.sansParenthese(brut))
+        }
+    }
+
+    @Test
+    fun `ce qui n'en a pas ne bouge pas`() {
+        listOf("Sac", "Coffre 1", "Appartement", "Trésor", "Zig 3").forEach {
+            assertEquals(it, MovementStore.sansParenthese(it))
+        }
+    }
+
+    @Test
+    fun `un libellé entièrement parenthésé est gardé`() {
+        // Mieux vaut un libellé étrange qu'une colonne muette.
+        assertEquals("(Gh Armure", MovementStore.sansParenthese("(Gh Armure"))
+        assertEquals("", MovementStore.sansParenthese(""))
+    }
+
     private companion object {
         /** Le relevé du 22 août 2026 à 00h09, tel que l'API l'a horodaté. */
         const val RELEVE = 1_787_350_189L
