@@ -147,6 +147,11 @@ class Entity:
     #: l'API se tait — une guilde, ou une clé sans le module qui les porte.
     lastlogin: int = 0
     lastlogout: int = 0
+    #: Quand le serveur a calcule ce flux, en temps Unix : l'attribut `created`
+    #: de la balise racine. C'est la date que porte le journal des mouvements
+    #: (cf. movements.date_releve), et non celle de la synchronisation. 0 quand
+    #: l'attribut manque.
+    created: int = 0
 
     @property
     def item_count(self) -> int:
@@ -227,6 +232,25 @@ def _check_xml_error(root: Element) -> None:
     if err is not None:
         code = err.get("code", "?")
         raise ApiError(f"Erreur API {code} : {(err.text or '').strip()}")
+
+
+def _date_releve(node: Element) -> int:
+    """La date de calcul du flux, en secondes Unix — son attribut `created`.
+
+    L'API ne recalcule pas un flux à la demande : elle sert le dernier qu'elle
+    ait mis en cache, et `cached_until` dit jusqu'à quand elle le servira.
+    L'écart entre les deux se compte en heures : un flux de personnage relevé
+    le 22 août 2026 à 01h32 portait `created` au 21 à 14h48, soit près de onze
+    heures plus tôt.
+
+    Zéro si l'attribut manque ou n'est pas un nombre — un flux d'une version
+    antérieure de l'API, ou tronqué. L'appelant retombe alors sur l'horloge
+    locale.
+    """
+    try:
+        return int(node.get("created", "0"))
+    except (TypeError, ValueError):
+        return 0
 
 
 def item_icon_url(item: ItemInfo) -> str:
@@ -445,6 +469,7 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     ent.shard = node.findtext("shard", default="")
     ent.guild = node.findtext("guild/name", default="")
     ent.modules = node.get("modules", "")
+    ent.created = _date_releve(node)
     ent.money = node.findtext("money", default="")
     ent.portrait_url = _character_portrait_url(node)
     ent.skills = _parse_skills(node)
@@ -526,6 +551,7 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     ent.name = node.findtext("name", default="")
     ent.shard = node.findtext("shard", default="")
     ent.modules = node.get("modules", "")
+    ent.created = _date_releve(node)
     ent.money = node.findtext("money", default="")
     ent.motd = node.findtext("motd", default="")
     # Le registre des membres : nom, grade, et date d'entrée en guilde. Cette

@@ -9,8 +9,13 @@ session à l'autre.
 Les mouvements se déduisent de deux instantanés successifs
 (`{clé_inventaire: {sheet|qualité: quantité}}`, cf. alerts.build_snapshot) :
 l'API ne fournit aucun historique, seulement un état. On ne voit donc que ce
-qui a changé entre deux synchronisations — deux mouvements qui s'annulent entre
-elles passent inaperçus, exactement comme dans l'original.
+qui a changé entre deux relevés — deux mouvements qui s'annulent entre eux
+passent inaperçus, exactement comme dans l'original.
+
+C'est aussi ce qui décide de leur **date** : celle du relevé d'où ils sortent,
+que le serveur inscrit dans le flux (`date_releve`), et non celle de la
+synchronisation. Voir cette fonction pour le pourquoi — c'est la moitié
+délicate de ce module.
 
 Le fichier est en JSON Lines : une ligne = un mouvement, ajout par simple
 append, et une ligne corrompue ne coûte que sa propre perte.
@@ -50,7 +55,7 @@ _TRIM_TO = 10000
 
 @dataclass
 class Movement:
-    ts: float = 0.0          # horodatage Unix de la synchronisation
+    ts: float = 0.0          # date du releve d'ou il sort (cf. date_releve)
     inv_key: str = ""        # clé de l'inventaire, ex "chest4"
     inv_label: str = ""      # libellé au moment du mouvement, ex "Coffre 4 — ..."
     sheet: str = ""          # fiche de l'objet (le nom lisible est résolu à l'affichage)
@@ -83,6 +88,44 @@ def _labels(entity) -> dict[str, str]:
     return {inv.key: inv.label for inv in entity.inventories}
 
 
+#: Avant l'ouverture de Ryzom, aucune date n'est croyable.
+_OUVERTURE_DU_JEU = 1_095_638_400          # 20 septembre 2004
+
+
+def date_releve(entity) -> float:
+    """Quand le serveur a calculé le flux d'où sortent ces mouvements.
+
+    **Ce n'est pas l'heure du mouvement, et rien ne peut l'être** : l'API rend
+    un état, jamais un historique — pas un `<item>`, pas le `<money>`, ne porte
+    de date. Tout ce qu'on sait d'un mouvement, c'est qu'il a eu lieu entre
+    deux relevés. La date du relevé est la meilleure des deux bornes, et la
+    seule que le flux fournisse.
+
+    Ce qu'elle corrige, en revanche, est réel. L'API ne recalcule pas un flux à
+    la demande : elle sert le dernier mis en cache, et l'écart se compte en
+    heures — un flux de personnage relevé le 22 août 2026 à 01h32 portait
+    `created` au 21 à 14h48. Dater les mouvements de `time.time()` revenait
+    donc à les dater de l'heure d'ouverture de l'application : ouvrir tous les
+    soirs vers la même heure donnait un journal où chaque jour portait la même
+    heure, et trois jours d'absence s'écrasaient sur l'instant du retour.
+
+    Une date absente, illisible, ou hors du temps du jeu vaut l'horloge
+    locale : moins juste, mais jamais absurde. Même garde que
+    `roster.date_entree`, et pour la même raison — mieux vaut une date
+    approximative qu'une date folle.
+    """
+    maintenant = time.time()
+    try:
+        quand = int(getattr(entity, "created", 0) or 0)
+    except (TypeError, ValueError):
+        return maintenant
+    # Une date dans l'avenir trahit une horloge locale en retard, pas un flux
+    # venu de demain : on ne la laisse pas passer devant le reste du journal.
+    if quand < _OUVERTURE_DU_JEU or quand > maintenant + 3600:
+        return maintenant
+    return float(quand)
+
+
 def diff(old: dict, new: dict, entity, ts: float | None = None) -> list[Movement]:
     """Mouvements entre deux instantanés, du plus récent inventaire au dernier.
 
@@ -91,7 +134,7 @@ def diff(old: dict, new: dict, entity, ts: float | None = None) -> list[Movement
     que tout son contenu vient d'être retiré.
     """
     if ts is None:
-        ts = time.time()
+        ts = date_releve(entity)
     labels = _labels(entity)
     out: list[Movement] = []
 

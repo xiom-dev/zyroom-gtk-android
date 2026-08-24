@@ -136,7 +136,7 @@ class MovementStore(private val dir: File) {
         apres: Map<String, Map<String, Long>>,
         entity: Entity,
     ): List<Movement> {
-        val maintenant = System.currentTimeMillis() / 1000
+        val quand = dateReleve(entity)
         val libelles = entity.inventories.associate { it.key to it.label }
         val out = mutableListOf<Movement>()
 
@@ -153,7 +153,7 @@ class MovementStore(private val dir: File) {
                 val fiche = signature.substringBeforeLast('|', signature)
                 val qualite = signature.substringAfterLast('|', "").toIntOrNull() ?: 0
                 out += Movement(
-                    at = maintenant,
+                    at = quand,
                     invKey = cle,
                     invLabel = libelles[cle] ?: cle,
                     sheet = fiche,
@@ -174,7 +174,7 @@ class MovementStore(private val dir: File) {
         // trésor passe devant : une relève qui rapporte trente rangements de
         // matières rapporte au plus un mouvement d'argent, et c'est celui-là
         // qu'on cherche des yeux.
-        return diffMoney(avant, apres, maintenant) +
+        return diffMoney(avant, apres, quand) +
             out.sortedWith(compareBy({ it.invKey }, { -it.delta }))
     }
 
@@ -188,13 +188,13 @@ class MovementStore(private val dir: File) {
     private fun diffMoney(
         avant: Map<String, Map<String, Long>>,
         apres: Map<String, Map<String, Long>>,
-        maintenant: Long,
+        quand: Long,
     ): List<Movement> {
         val depuis = avant[MONEY_KEY]?.get(MONEY_SIG) ?: return emptyList()
         val vers = apres[MONEY_KEY]?.get(MONEY_SIG) ?: return emptyList()
         if (depuis == vers) return emptyList()
         return listOf(Movement(
-            at = maintenant,
+            at = quand,
             invKey = MONEY_KEY,
             invLabel = MONEY_LABEL,
             sheet = MONEY_SHEET,
@@ -295,6 +295,41 @@ class MovementStore(private val dir: File) {
         const val MONEY_SHEET = "dappers"
         const val MONEY_SIG = "$MONEY_SHEET|0"
         const val MONEY_LABEL = "Trésor"
+
+        /** Avant l'ouverture de Ryzom, aucune date n'est croyable. */
+        private const val OUVERTURE_DU_JEU = 1_095_638_400L   // 20 septembre 2004
+
+        /**
+         * Quand le serveur a calculé le flux d'où sortent ces mouvements.
+         *
+         * **Ce n'est pas l'heure du mouvement, et rien ne peut l'être** : l'API
+         * rend un état, jamais un historique — pas un `<item>`, pas le
+         * `<money>`, ne porte de date. Tout ce qu'on sait d'un mouvement, c'est
+         * qu'il a eu lieu entre deux relevés. La date du relevé est la meilleure
+         * des deux bornes, et la seule que le flux fournisse.
+         *
+         * Ce qu'elle corrige, en revanche, est réel. L'API ne recalcule pas un
+         * flux à la demande : elle sert le dernier mis en cache — c'est tout le
+         * propos de `cachedUntil` — et l'écart se compte en heures. Un flux de
+         * personnage relevé le 22 août 2026 à 01h32 portait `created` au 21 à
+         * 14h48. Dater les mouvements de l'horloge du téléphone revenait donc à
+         * les dater du moment où l'on ouvre l'application : relever tous les
+         * soirs vers la même heure donnait un journal où chaque jour portait la
+         * même heure, et trois jours d'absence s'écrasaient sur l'instant du
+         * retour.
+         *
+         * Une date absente, ou hors du temps du jeu, vaut l'horloge locale :
+         * moins juste, mais jamais absurde.
+         */
+        fun dateReleve(entity: Entity): Long {
+            val maintenant = System.currentTimeMillis() / 1000
+            // Une date dans l'avenir trahit une horloge locale en retard, pas
+            // un flux venu de demain : on ne la laisse pas passer devant le
+            // reste du journal.
+            if (entity.created < OUVERTURE_DU_JEU ||
+                entity.created > maintenant + 3600) return maintenant
+            return entity.created
+        }
 
         /** Un nombre de dappers, groupé par milliers — 79000000 → 79 000 000. */
         fun montant(nombre: Long): String {
