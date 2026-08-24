@@ -1,8 +1,6 @@
 * The bell now stays in place, for characters and guilds alike. It only showed
-  up when an alert fired: with no threshold set there was no alert, so nothing
-  on screen ever revealed that thresholds existed.
-* Silent, it still opens and says what it watches — a long press on a material
-  or a piece of equipment sets a threshold, and nearly full containers report
-  themselves. Ringing, it carries its count in a badge.
-* The home screen shows each entity's count on its card, read from the cache
-  with no network: you can see which one needs attention without opening it.
+  up when an alert fired: with no threshold set, nothing revealed that
+  thresholds existed.
+* Silent, it still says what it watches — a long press on a material sets a
+  threshold, and nearly full containers report themselves.
+* The home screen shows each entity's count on its card, read from the cache.

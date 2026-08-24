@@ -1,9 +1,7 @@
 * Arrivals in the roster log now carry their real date. Every change used to
   be stamped with the moment the app happened to look: after three days away,
-  all three arrivals bore the timestamp of the reopening.
+  all three arrivals bore the date of the reopening.
 * The API had always supplied that date — guild.php's <joined> — but both apps
-  threw it away, not knowing its unit. It is a counter of tenths of a second.
-* That counter drifts, so the decoded date does not decide alone: it is fitted
-  between the reading that did not yet see the newcomer and the one that did.
-  The API says nothing about departures or ranks: those lines keep the date
+  threw it away, not knowing its unit.
+* The API says nothing about departures or ranks: those lines keep the date
   they were noticed.

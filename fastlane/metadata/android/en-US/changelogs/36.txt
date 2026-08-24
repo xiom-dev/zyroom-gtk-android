@@ -1,9 +1,6 @@
-* Guild money now enters and leaves the log like items do. Coin has neither a
-  sheet nor a quality, but it moves, and that is all the log asks for.
+* Guild money now enters and leaves the log like items do.
 * Movements carry the date of the reading, not the date of the sync. The API
-  does not recompute a feed on demand: it serves the last one it cached,
-  sometimes ten hours old. Checking in every evening around the same time gave
-  a log where every day bore the same hour.
+  serves the last feed it cached, sometimes ten hours old: checking in every
+  evening around the same time gave a log where every day bore the same hour.
 * The log reads in columns: icon, quality and amount line up instead of
-  trailing the item name. Chest labels are cut at the bracket the API almost
-  never closes.
+  trailing the item name. Chest labels are cut at the bracket.

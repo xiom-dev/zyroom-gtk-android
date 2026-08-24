@@ -1,11 +1,7 @@
 * Les arrivées au journal du personnel portent leur vraie date. Il datait
   chaque mouvement de l'instant où l'application avait regardé : trois jours
-  d'absence, et les trois arrivées de ces trois jours portaient toutes
-  l'horodatage de la réouverture.
+  d'absence, et les trois arrivées portaient la date de la réouverture.
 * L'API donnait cette date depuis toujours — le <joined> de guild.php — mais
-  les deux applications la jetaient, faute d'en connaître l'unité. C'est un
-  compteur de dixièmes de seconde.
-* Ce compteur dérive : la date décodée ne décide donc pas seule, elle est
-  rangée entre le relevé qui ne voyait pas encore le nouveau venu et celui qui
-  l'a vu. Des départs et des grades, l'API ne dit rien : ces lignes gardent la
-  date du constat.
+  les deux applications la jetaient, faute d'en connaître l'unité.
+* Des départs et des grades, l'API ne dit rien : ces lignes gardent la date du
+  constat.

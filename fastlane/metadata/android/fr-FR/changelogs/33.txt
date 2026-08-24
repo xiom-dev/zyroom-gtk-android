@@ -1,8 +1,6 @@
 * La cloche reste en place, sur le personnage comme sur la guilde. Elle ne
-  s'affichait qu'en cas d'alerte : tant qu'aucun seuil n'était posé, rien à
-  l'écran n'apprenait qu'on pouvait en poser un.
-* Éteinte, elle s'ouvre quand même et dit ce qu'elle guette — l'appui long sur
-  une matière ou un équipement pose un seuil, et les contenants presque pleins
-  se signalent d'eux-mêmes. Allumée, elle porte son compte dans une pastille.
-* L'accueil affiche le compte de chaque entité sur sa carte, lu dans le cache
-  et sans réseau : on voit lequel réclame quelque chose sans les ouvrir.
+  s'affichait qu'en cas d'alerte : sans seuil posé, rien n'apprenait qu'on
+  pouvait en poser un.
+* Éteinte, elle dit quand même ce qu'elle guette — l'appui long sur une
+  matière pose un seuil, et les contenants presque pleins se signalent seuls.
+* L'accueil porte le compte de chaque entité sur sa carte, lu dans le cache.
