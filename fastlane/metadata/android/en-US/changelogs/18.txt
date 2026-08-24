@@ -2,8 +2,7 @@
   materials by Prime Roots region, day and night excellents.
 * The skill tree shows fully trained branches in green, and tells sub-branches
   apart with shades of orange.
-* Sorting keeps the pieces of an armour set and the jewels of a matching set
-  together, instead of scattering them by the case of their names.
-* In landscape the title shrinks, and the screen survives rotation. A two-finger
+* Sorting keeps armour sets and matching jewels together.
+* In landscape the title shrinks and the screen survives rotation; a two-finger
   pinch changes the display size.
-* The phone's back button goes up one screen instead of closing the app.
+* The back button goes up one screen instead of closing the app.

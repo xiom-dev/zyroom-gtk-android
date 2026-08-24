@@ -1,8 +1,6 @@
 * The weather screen puts its two tables side by side: supreme materials on the
   left, excellent ones on the right, each family with its symbol below its name.
-* The excellent materials now say which of the two lists holds at the current
-  Atys hour: "De jour · en ce moment", or "De nuit".
-* The chart gains gridlines at 30 and 70 %, and the shift from one plateau to
-  the next is drawn as a slope rather than a vertical jump.
-* The new-version button is finally visible: it takes the chest's orange
-  instead of the green of the frame around it.
+* The excellent list now says which of the two holds at the current Atys hour.
+* The chart gains gridlines at 30 and 70 %, and each shift is drawn as a slope.
+* The new-version button takes the chest's orange instead of the frame's green:
+  it is finally visible.
