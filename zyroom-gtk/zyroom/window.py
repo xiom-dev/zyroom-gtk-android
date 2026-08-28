@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.56" if _DEV else "0.39"
+VERSION = "0.57" if _DEV else "0.40"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -3877,7 +3877,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # droit, comme pour les objets. La cloche etant l'endroit ou l'on vient
         # voir ce qui est guette, c'est aussi celui ou on le lui demande.
         tresor = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        tresor.append(Gtk.Label(label=_("Prévenir quand le trésor bouge"),
+        tresor.append(Gtk.Label(label=_("Prévenir mouvement dappers"),
                                 valign=Gtk.Align.CENTER, xalign=0.0,
                                 hexpand=True))
         bascule = Gtk.Switch(valign=Gtk.Align.CENTER)

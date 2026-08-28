@@ -202,5 +202,44 @@ class NomsDeBetes(unittest.TestCase):
     def test_un_nom_vide_reste_vide(self):
         self.assertEqual("", self._nom(""))
 
+
+class AccentsDuFlux(unittest.TestCase):
+    """Les accents que l'API rend en UTF-8 relu comme du latin-1.
+
+    Relevé sur la guilde Rod of Heaven : son coffre 2 s'appelle « Bijoux /
+    Amplis et Légère », et le flux le livre `L&#xC3;&#xA9;g&#xC3;&#xA8;re`.
+    Sans réparation, la liste des coffres affiche « LÃ©gÃ¨re ».
+    """
+
+    def _repare(self, brut):
+        from zyroom.ryzom_api import repare_accents
+        return repare_accents(brut)
+
+    def test_le_nom_de_coffre_releve_est_repare(self):
+        self.assertEqual("Bijoux / Amplis et Légère",
+                         self._repare("Bijoux / Amplis et L\u00c3\u00a9g\u00c3\u00a8re"))
+
+    def test_un_texte_sain_ne_bouge_pas(self):
+        self.assertEqual("Tenterez-vous de percer son mystère.....",
+                         self._repare("Tenterez-vous de percer son mystère....."))
+
+    def test_l_ascii_traverse_intact(self):
+        self.assertEqual("Mixed Mps", self._repare("Mixed Mps"))
+
+    def test_le_coffre_de_guilde_arrive_repare(self):
+        """Bout en bout : le nom lu dans <chests> passe par la réparation."""
+        from zyroom.ryzom_api import parse_guild
+        flux = (
+            '<?xml version="1.0"?><ryzomapi version="1.0"><guild modules="G01">'
+            '<gid>1</gid><name>Rod of Heaven</name><shard>atys</shard>'
+            '<chests><chest><name>Mixed Mps</name><bulkmax>1000</bulkmax></chest>'
+            '<chest><name>Bijoux / Amplis et L&#xC3;&#xA9;g&#xC3;&#xA8;re</name>'
+            '<bulkmax>1000</bulkmax></chest></chests>'
+            '</guild></ryzomapi>')
+        ent = parse_guild(flux.encode("utf-8"), lambda sheet: sheet)
+        self.assertEqual("Coffre 2 — Bijoux / Amplis et Légère",
+                         ent.inventories[1].label)
+
+
 if __name__ == "__main__":
     unittest.main()

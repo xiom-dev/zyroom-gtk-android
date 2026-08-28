@@ -286,6 +286,26 @@ def fetch_url(url: str) -> bytes:
     return _http_get(url)
 
 
+def repare_accents(texte: str) -> str:
+    """Les accents que l'API rend en UTF-8 relu comme du latin-1.
+
+    Un texte saisi en jeu — le nom d'un coffre, un message du jour — voyage en
+    UTF-8. Quelque part dans la chaîne, ces octets sont relus comme du
+    latin-1 : le « é » de « Légère », qui s'écrit sur les deux octets `C3 A9`,
+    ressort en deux caractères, « Ã » et « © », et le flux les livre tels
+    quels — `L&#xC3;&#xA9;g&#xC3;&#xA8;re`.
+
+    Refaire le tour à l'envers — réencoder en latin-1, redécoder en UTF-8 —
+    rend le texte d'origine. Le tour ne boucle que sur du vrai dégât : un
+    « è » véritable, seul octet `E8`, n'est pas de l'UTF-8 valide et lève une
+    exception. On laisse alors le texte intact plutôt que de l'abîmer.
+    """
+    try:
+        return texte.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return texte
+
+
 def nom_multilingue(brut: str) -> str:
     """Le nom d'une bête, tel que le jeu l'écrit.
 
@@ -295,17 +315,10 @@ def nom_multilingue(brut: str) -> str:
     est là, le premier segment sinon.
 
     Le jeu écrit en outre ses espaces insécables en UTF-8 relu comme du
-    latin-1 : « Zig<Â> de » au lieu de « Zig de ». On répare la paire quand le
-    tour se boucle, et on laisse tel quel sinon — un nom qui contient
-    légitimement un « Â » ne doit pas être abîmé.
+    latin-1 : « Zig<Â> de » au lieu de « Zig de ». C'est le même dégât que
+    `repare_accents` défait ailleurs, sur la même chaîne d'octets.
     """
-    texte = brut.strip()
-    try:
-        repare = texte.encode("latin-1").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        pass
-    else:
-        texte = repare
+    texte = repare_accents(brut.strip())
     for prefixe in ("$#", "$"):
         if texte.startswith(prefixe):
             texte = texte[len(prefixe):]
@@ -467,7 +480,7 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     ent.entity_id = node.findtext("id", default="")
     ent.name = node.findtext("name", default="")
     ent.shard = node.findtext("shard", default="")
-    ent.guild = node.findtext("guild/name", default="")
+    ent.guild = repare_accents(node.findtext("guild/name", default=""))
     ent.modules = node.get("modules", "")
     ent.created = _date_releve(node)
     ent.money = node.findtext("money", default="")
@@ -548,12 +561,12 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
 
     ent = Entity(kind=KIND_GUILD)
     ent.entity_id = node.findtext("gid", default="")
-    ent.name = node.findtext("name", default="")
+    ent.name = repare_accents(node.findtext("name", default=""))
     ent.shard = node.findtext("shard", default="")
     ent.modules = node.get("modules", "")
     ent.created = _date_releve(node)
     ent.money = node.findtext("money", default="")
-    ent.motd = node.findtext("motd", default="")
+    ent.motd = repare_accents(node.findtext("motd", default=""))
     # Le registre des membres : nom, grade, et date d'entrée en guilde. Cette
     # dernière est un compteur de dixièmes de seconde ; `roster.date_entree`
     # sait la ramener à un temps Unix. On la rend ici telle que l'API la donne,
@@ -583,7 +596,8 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
                 bulkmax = int(c.findtext("bulkmax", default="0") or 0)
             except ValueError:
                 bulkmax = 0
-            chest_meta.append((c.findtext("name", default=""), bulkmax))
+            chest_meta.append(
+                (repare_accents(c.findtext("name", default="")), bulkmax))
 
     # Items de la salle répartis en coffres par tranche de slot de 500
     room = node.find("room")
