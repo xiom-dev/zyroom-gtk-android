@@ -10,7 +10,14 @@
 #
 # LA CLÉ NE VIT PAS ICI. Elle est posée en secret du dépôt, sous le nom
 # CLES_GUILDES — une ou plusieurs clés de guilde, séparées par des virgules.
-# Réglages → Secrets and variables → Actions → New repository secret.
+# Réglages du dépôt → Secrets and variables → Actions.
+#
+# LE JOURNAL VIT SUR UNE BRANCHE ORPHELINE, `journaux`, reconstruite et poussée
+# en force à chaque relevé. C'est le motif de `gh-pages`, pour la même raison :
+# un journal réécrit toutes les heures laisserait sinon, dans l'historique,
+# chacune de ses versions pour toujours — quelques dizaines de méga-octets par
+# an, et rien d'effaçable. Ici il n'y a jamais qu'un état, celui du dernier
+# relevé, et `main` reste propre.
 name: Relevé des guildes
 
 on:
@@ -36,7 +43,15 @@ jobs:
   relever:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Le code du relevé
+        uses: actions/checkout@v4
+
+      - name: L'état du dernier relevé
+        uses: actions/checkout@v4
+        continue-on-error: true      # la branche n'existe pas au tout premier
+        with:
+          ref: journaux
+          path: journaux
 
       - uses: actions/setup-python@v5
         with:
@@ -45,21 +60,26 @@ jobs:
       - name: Relever les guildes
         env:
           CLES_GUILDES: ${{ secrets.CLES_GUILDES }}
+          DOSSIER_JOURNAUX: ${{ github.workspace }}/journaux
         run: python3 zyroom-gtk/outils/releve-guildes.py
 
       - name: Publier ce qui a bougé
         run: |
-          # Rien à valider s'il ne s'est rien passé : un commit par heure qui
-          # ne dit rien noierait l'historique.
-          if [ -z "$(git status --porcelain journaux/)" ]; then
-            echo "Rien de neuf."
-            exit 0
-          fi
+          cd "${GITHUB_WORKSPACE}/journaux"
+          # Une branche orpheline, refaite à neuf : `git init` et non un
+          # commit de plus. L'historique ne doit pas s'accumuler, c'est tout
+          # l'objet de la manœuvre.
+          rm -rf .git
+          git init -q -b journaux
           git config user.name  "Relevé des guildes"
           git config user.email "noreply@github.com"
-          git add journaux/
-          git commit -m "Relevé des guildes : $(date -u '+%d/%m %Hh%M UTC')"
-          # `rebase` et non `merge` : deux relevés qui se croisent ne doivent
-          # pas laisser un commit de fusion par heure dans l'historique.
-          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Aucun journal à publier."
+            exit 0
+          fi
+          git commit -q -m "Relevé des guildes : $(date -u '+%d/%m/%Y %Hh%M UTC')"
+          git push -f \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" \
+            journaux:refs/heads/journaux
+          echo "Publié sur la branche journaux."

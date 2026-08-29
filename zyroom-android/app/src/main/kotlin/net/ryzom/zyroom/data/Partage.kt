@@ -27,14 +27,19 @@ import java.net.URL
 object Partage {
 
     /**
-     * Le dossier `journaux/` du dépôt, servi tel quel par GitHub.
+     * La branche `journaux`, servie telle quelle par GitHub.
      *
-     * Et non la page des mises à jour : elle est reconstruite et poussée en
-     * force à chaque livraison, ce qui effacerait ce que le relevé y aurait
-     * déposé entre-temps.
+     * Une branche **orpheline**, reconstruite et poussée en force à chaque
+     * relevé — le motif de `gh-pages`, pour la même raison : un journal
+     * réécrit toutes les heures laisserait sinon, dans l'historique, chacune
+     * de ses versions pour toujours. Ici il n'y a jamais qu'un état, celui du
+     * dernier relevé.
+     *
+     * Ni `main`, qui garderait tout, ni `gh-pages`, que la livraison réécrit —
+     * ce qui effacerait le journal au premier envoi d'APK.
      */
     private const val BASE =
-        "https://raw.githubusercontent.com/xiom-dev/zyroom-gtk-android/main/journaux/"
+        "https://raw.githubusercontent.com/xiom-dev/zyroom-gtk-android/journaux/"
 
     /** Au-delà, on renonce : c'est un confort, pas une raison d'attendre. */
     private const val DELAI = 10_000
@@ -56,9 +61,9 @@ object Partage {
         movements: MovementStore,
         entry: EntityStore.Suivie,
     ): Int = withContext(Dispatchers.IO) {
-        // Un journal de personnage n'est publié par personne : il ne concerne
-        // que celui qui le tient, et le demander ne ferait qu'un 404 par
-        // lancement.
+        // Un journal de personnage n'est publie par personne : il ne
+        // concerne que celui qui le tient, et le demander ne ferait qu'un
+        // 404 par lancement.
         if (entry.kind != Entity.Kind.GUILD) return@withContext 0
 
         val lignes = runCatching {

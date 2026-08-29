@@ -28,13 +28,18 @@ import urllib.request
 
 from . import movements
 
-#: Le dossier `journaux/` du dépôt, servi tel quel par GitHub.
+#: La branche `journaux`, servie telle quelle par GitHub.
 #:
-#: Et non la page des mises à jour : `livraison.sh` reconstruit `gh-pages` à
-#: chaque livraison et la pousse **en force**, ce qui effacerait tout ce que le
-#: relevé y aurait déposé entre-temps. Le dépôt, lui, ne se réécrit pas.
+#: Une branche **orpheline**, reconstruite et poussée en force à chaque
+#: relevé — le motif de `gh-pages`, pour la même raison : un journal réécrit
+#: toutes les heures laisserait sinon, dans l'historique, chacune de ses
+#: versions pour toujours. Ici il n'y a jamais qu'un état, celui du dernier
+#: relevé, et l'effacer l'efface vraiment.
+#:
+#: Ni `main`, qui garderait tout, ni `gh-pages`, que `livraison.sh` réécrit à
+#: chaque livraison — ce qui effacerait le journal au premier envoi d'APK.
 BASE = ("https://raw.githubusercontent.com/xiom-dev/zyroom-gtk-android"
-        "/main/journaux/")
+        "/journaux/")
 
 #: Au-delà, on renonce : ce n'est qu'un confort, il ne doit pas retarder le
 #: lancement quand le réseau traîne.

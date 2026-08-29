@@ -34,8 +34,14 @@ sys.path.insert(0, RACINE)
 
 from zyroom import alerts, movements, ryzom_api        # noqa: E402
 
-#: Où le journal et l'état sont écrits, à la racine du dépôt.
-DOSSIER = os.path.join(os.path.dirname(RACINE), "journaux")
+#: Où le journal et l'état sont écrits.
+#:
+#: Le relevé programmé y pointe la copie de travail de la branche `journaux`,
+#: qu'il pousse ensuite en force : cette branche est orpheline et n'a donc
+#: aucun historique à faire grossir. Hors GitHub, le dossier voisin du dépôt
+#: fait l'affaire pour essayer.
+DOSSIER = os.environ.get("DOSSIER_JOURNAUX") or os.path.join(
+    os.path.dirname(RACINE), "journaux")
 
 
 def chemin(nom: str) -> str:
@@ -55,15 +61,15 @@ def relever(cle: str) -> tuple[str, int]:
     avant = alerts.load_snapshot(etat)
     apres = alerts.build_snapshot(entite)
 
-    # Le premier relevé n'a rien à comparer : on pose l'état et on se tait.
+    # Le premier releve n'a rien a comparer : on pose l'etat et on se tait.
     # Sans cette garde, tout le contenu des coffres entrerait au journal
     # comme s'il venait d'arriver.
     if not avant:
         alerts.save_snapshot(etat, apres)
         return entite.name, 0
 
-    # `diff` compare aussi le trésor : il est rangé dans l'instantané sous
-    # une clé réservée, et ressort de la même comparaison que les objets.
+    # `diff` compare aussi le tresor : il est range dans l'instantane sous
+    # une cle reservee, et ressort de la meme comparaison que les objets.
     bouges = movements.diff(avant, apres, entite)
     if bouges:
         movements.append(journal, bouges)
@@ -96,8 +102,8 @@ def main() -> int:
         print(f"  {nom} : {combien} mouvement(s)")
 
     print(f"{total} mouvement(s) au total")
-    # Un échec de réseau ne doit pas peindre le dépôt en rouge tous les jours :
-    # on ne signale l'erreur que si rien n'a pu être relevé.
+    # Un echec de reseau ne doit pas peindre le depot en rouge tous les
+    # jours : on ne signale l'erreur que si rien n'a pu etre releve.
     return 1 if ennuis and not total and ennuis == len(cles) else 0
 
 
