@@ -44,16 +44,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Le code du relevé
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: L'état du dernier relevé
-        uses: actions/checkout@v4
-        continue-on-error: true      # la branche n'existe pas au tout premier
-        with:
-          ref: journaux
-          path: journaux
+        # `git clone` et non `actions/checkout` : la branche n'existe pas au
+        # tout premier relevé, et l'action y voit une erreur -- non bloquante
+        # avec `continue-on-error`, mais annotée en rouge à chaque exécution.
+        # Ici l'absence est un cas prévu, pas un incident.
+        run: |
+          git clone --branch journaux --depth 1 \
+            "https://github.com/${GITHUB_REPOSITORY}.git" journaux 2>/dev/null \
+            && echo "État précédent récupéré." \
+            || { mkdir -p journaux; echo "Premier relevé : rien à reprendre."; }
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
