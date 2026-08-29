@@ -33,8 +33,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -295,21 +293,23 @@ fun InventoryScreen(
                     // pas de cloche, donc rien dans l'écran n'apprenait qu'on
                     // pouvait en poser un. La fonction existait sans que
                     // personne puisse la découvrir. Éteinte, elle explique ce
-                    // qu'elle guette ; allumée, elle prend l'orange du coffre et
-                    // porte son compte.
+                    // qu'elle guette ; allumée, elle passe à l'or du titre.
+                    //
+                    // Pas de pastille chiffree : le compte se lit dans le
+                    // panneau qu'un appui ouvre, et un nombre rouge pose sur la
+                    // cloche criait l'incident la ou il n'y a qu'un coffre bien
+                    // rempli. La couleur suffit a dire qu'il y a quelque chose.
                     IconButton(onClick = { voirAlertes = true }) {
-                        BadgedBox(badge = {
-                            if (alertes.isNotEmpty()) Badge { Text("${alertes.size}") }
-                        }) {
-                            Icon(
-                                Icons.Filled.Notifications,
-                                if (alertes.isEmpty()) "Alertes : aucune"
-                                else "Alertes : ${alertes.size}",
-                                Modifier.size(30.dp),
-                                tint = if (alertes.isEmpty()) LocalContentColor.current
-                                       else OrangesDuCoffre[1],
-                            )
-                        }
+                        Icon(
+                            Icons.Filled.Notifications,
+                            // Le compte reste dit au lecteur d'ecran : lui n'a
+                            // pas la couleur pour l'apprendre.
+                            if (alertes.isEmpty()) "Alertes : aucune"
+                            else "Alertes : ${alertes.size}",
+                            Modifier.size(30.dp),
+                            tint = if (alertes.isEmpty()) LocalContentColor.current
+                                   else MaterialTheme.colorScheme.secondary,
+                        )
                     }
                     IconButton(onClick = {
                         portee.launch {
