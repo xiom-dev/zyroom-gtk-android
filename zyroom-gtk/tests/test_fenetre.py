@@ -88,6 +88,58 @@ class LaFenetreSeMonte(unittest.TestCase):
                 os.environ[variable] = valeur
         self._jetable.cleanup()
 
+    def test_la_fenetre_des_cles_se_monte(self):
+        """Les dialogues aussi masquent `_`, et personne ne les montait.
+
+        Le cas réel qui a motivé ce test : `def update_hint(*_)` rend `_` —
+        la fonction de traduction — locale à la fonction, et le premier
+        `_("…")` de son corps appelle alors un tuple. Même piège que
+        `_build_meteo_page`, mais dans une fenêtre que le test d'à côté
+        n'ouvre pas : la construction des pages ne dit rien des dialogues,
+        qui ne se montent qu'au clic.
+
+        On monte donc les trois : la fenêtre des clés, le remplacement d'une
+        clé, la confirmation de retrait. Sans réseau — rien n'est validé ici,
+        seulement construit.
+        """
+        from zyroom.window import KIND_CHARACTER, MainWindow
+
+        ennuis = []
+        app = Gtk.Application(application_id="net.ryzom.zyroomgtk.test.cles")
+
+        def activer(_application):
+            try:
+                fenetre = MainWindow(application=app)
+                fenetre._char_store.save("689325", "c" + "0" * 40, "Xiom",
+                                         "atys", "La Lune Eternelle")
+                fenetre._on_add_clicked(None)
+                cles = [f for f in Gtk.Window.list_toplevels()
+                        if f.get_title() == "Clés API"]
+                self.assertTrue(cles, "la fenêtre des clés ne s'est pas ouverte")
+
+                entree = dict(fenetre._char_store.entries()[0])
+                page = Gtk.Box()
+                fenetre._dialogue_changer_cle(entree, KIND_CHARACTER,
+                                              fenetre._char_store, page, cles[0])
+                self.assertTrue(
+                    [f for f in Gtk.Window.list_toplevels()
+                     if f.get_title() == "Remplacer la clé"],
+                    "le dialogue de remplacement ne s'est pas ouvert")
+
+                fenetre._confirmer_retrait(entree, fenetre._char_store,
+                                           page, cles[0])
+            except Exception as souci:      # noqa: BLE001 — remontée telle quelle
+                ennuis.append(souci)
+            finally:
+                for f in list(Gtk.Window.list_toplevels()):
+                    f.destroy()
+                app.quit()
+
+        app.connect("activate", activer)
+        app.run([])
+        if ennuis:
+            raise ennuis[0]
+
     def test_toutes_les_pages_se_construisent(self):
         """Monter la fenêtre, c'est appeler chaque `_build_*_page`.
 

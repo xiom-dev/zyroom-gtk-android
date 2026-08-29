@@ -5,6 +5,7 @@ import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.ItemColor
+import net.ryzom.zyroom.model.Volume
 import net.ryzom.zyroom.model.Member
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.Outpost
@@ -504,8 +505,15 @@ object EntityParser {
     /** Extrait un item d'un nœud `<item>` ou `<shopitem>`. */
     fun parseItem(node: Element): Item {
         val quality = node.text("quality").toIntOrNull() ?: 0
+        val sheet = node.text("sheet")
+        val stack = node.text("stack").toIntOrNull() ?: 0
+        // Le flux ne dit rien de l'encombrement : il se deduit du nom de
+        // fiche. Sans cela, tout inventaire pesait zero -- le taux de
+        // remplissage annoncait « 0 % » sur un coffre plein, et l'alerte de
+        // volume ne pouvait pas se declencher.
+        val (type, volume) = Volume.classer(sheet, stack)
         return Item(
-            sheet = node.text("sheet"),
+            sheet = sheet,
             id = node.getAttribute("id"),
             slot = node.getAttribute("slot").toIntOrNull() ?: 0,
             color = ItemColor.from(
@@ -513,11 +521,13 @@ object EntityParser {
             // Une qualité de 1 est ramenée à zéro : elle n'apprend rien et
             // encombrerait toutes les icônes.
             quality = if (quality == 1) 0 else quality,
-            stack = node.text("stack").toIntOrNull() ?: 0,
+            stack = stack,
             locked = node.text("locked") == "1",
             sap = node.text("sap").isNotEmpty(),
             destroyed = node.text("destroyed") == "1",
             hp = node.text("hp").toIntOrNull() ?: 0,
+            volume = volume,
+            type = type,
             price = node.text("price").toDoubleOrNull() ?: 0.0,
             continent = node.text("continent"),
         )

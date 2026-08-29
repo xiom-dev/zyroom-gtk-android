@@ -5,7 +5,9 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.Icons
@@ -51,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -87,7 +91,7 @@ import net.ryzom.zyroom.model.Entity
  * On ajoute une entité par sa clé d'API : c'est elle qui porte l'identité, le
  * nom vient de l'API au premier rafraîchissement.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun EntitiesScreen(
     store: EntityStore,
@@ -98,6 +102,8 @@ fun EntitiesScreen(
 ) {
     var entrees by remember { mutableStateOf(store.all()) }
     var ajout by remember { mutableStateOf(false) }
+    // L'entite sur laquelle on a appuye longuement, s'il y en a une.
+    var retouche by remember { mutableStateOf<EntityStore.Suivie?>(null) }
     var occupe by remember { mutableStateOf(false) }
     var erreur by remember { mutableStateOf<String?>(null) }
     var maj by remember { mutableStateOf<UpdateChecker.Disponible?>(null) }
@@ -276,7 +282,13 @@ fun EntitiesScreen(
             ) {
                 items(entrees, key = { "${it.kind}-${it.id}" }) { entree ->
                     Card(
-                        modifier = Modifier.fillMaxWidth().clickable { onOpen(entree) },
+                        // L'appui long ouvre la fiche de l'entite : sa cle,
+                        // son nom, son retrait. C'est le geste que la carte
+                        // annoncait depuis le debut sans le rendre.
+                        modifier = Modifier.fillMaxWidth().combinedClickable(
+                            onClick = { onOpen(entree) },
+                            onLongClick = { retouche = entree },
+                        ),
                         // Le vert de l'application, celui du bouton « + ».
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -377,6 +389,168 @@ fun EntitiesScreen(
             },
         )
     }
+
+    retouche?.let { entree ->
+        EditEntityDialog(
+            entree = entree,
+            occupe = occupe,
+            erreur = erreur,
+            onDismiss = { retouche = null; erreur = null },
+            onRenommer = { nom ->
+                store.renommer(entree, nom)
+                entrees = store.all()
+            },
+            onRemplacerCle = { cle ->
+                portee.launch {
+                    occupe = true
+                    erreur = null
+                    try {
+                        // Meme chemin qu'a l'ajout : une cle posee sans etre
+                        // verifiee donne une entite qui ne se synchronise
+                        // jamais, et l'on ne le decouvre qu'au releve suivant.
+                        val trouvees = repository.discover(listOf(cle))
+                        val trouvee = trouvees.firstOrNull()
+                        if (trouvee == null) {
+                            erreur = "Cette clé n'a pas été acceptée."
+                        } else {
+                            val (acceptee, entite) = trouvee
+                            store.remplacerCle(entree, EntityStore.Suivie(
+                                id = entite.id, kind = entite.kind,
+                                apiKey = acceptee,
+                                label = if (entree.nomImpose) entree.label
+                                        else entite.name,
+                                vignette = entree.vignette,
+                                nomImpose = entree.nomImpose))
+                            entrees = store.all()
+                            retouche = null
+                        }
+                    } catch (echec: ApiException) {
+                        erreur = echec.message
+                    }
+                    occupe = false
+                }
+            },
+            onRetirer = {
+                store.remove(entree)
+                entrees = store.all()
+                retouche = null
+            },
+        )
+    }
+}
+
+/**
+ * La fiche d'une entité suivie : sa clé, son nom, et la porte de sortie.
+ *
+ * Une clé posée disparaissait dans le fichier de configuration — pour la
+ * revoir il fallait la rechercher sur le site de Ryzom, et pour en changer,
+ * retirer l'entité puis la ré-ajouter. Il n'y avait d'ailleurs aucun moyen de
+ * la retirer.
+ *
+ * La clé s'affiche en entier et sélectionnable : la lire est tout l'objet de
+ * cet écran, et une clé tronquée ne se recopie pas à la main.
+ */
+@Composable
+private fun EditEntityDialog(
+    entree: EntityStore.Suivie,
+    occupe: Boolean,
+    erreur: String?,
+    onDismiss: () -> Unit,
+    onRenommer: (String) -> Unit,
+    onRemplacerCle: (String) -> Unit,
+    onRetirer: () -> Unit,
+) {
+    val presse = LocalClipboardManager.current
+    var nom by remember(entree) { mutableStateOf(entree.label) }
+    var cle by remember(entree) { mutableStateOf(entree.apiKey) }
+    var confirmer by remember(entree) { mutableStateOf(false) }
+
+    if (confirmer) {
+        AlertDialog(
+            onDismissRequest = { confirmer = false },
+            title = { Text("Retirer « ${entree.label.ifEmpty { entree.id }} » ?") },
+            text = { Text("Sa clé sera oubliée. Rien n'est supprimé chez Ryzom, " +
+                          "et la remettre suffit à la retrouver.") },
+            confirmButton = {
+                TextButton(onClick = { confirmer = false; onRetirer() }) {
+                    Text("Retirer", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmer = false }) { Text("Annuler") }
+            },
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(entree.label.ifEmpty { entree.id }) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    if (entree.kind == Entity.Kind.CHARACTER) "Personnage"
+                    else "Guilde",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                SelectionContainer {
+                    Text(
+                        entree.apiKey,
+                        style = MaterialTheme.typography.bodySmall
+                            .copy(fontFamily = FontFamily.Monospace),
+                    )
+                }
+                TextButton(onClick = {
+                    presse.setText(AnnotatedString(entree.apiKey))
+                }) { Text("Copier la clé") }
+                OutlinedTextField(
+                    value = nom,
+                    onValueChange = { nom = it },
+                    label = { Text("Nom affiché") },
+                    supportingText = { Text("Vide, le nom revient à celui de Ryzom.") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = cle,
+                    onValueChange = { cle = it },
+                    label = { Text("Clé d'API") },
+                    supportingText = { Text("Vérifiée auprès de Ryzom avant d'être posée.") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                erreur?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall,
+                         color = MaterialTheme.colorScheme.error)
+                }
+                if (occupe) {
+                    Text("Interrogation de l'API…",
+                         style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = { confirmer = true }) {
+                    Text("Retirer cette entité",
+                         color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !occupe,
+                onClick = {
+                    // Le nom d'abord : le remplacement de cle ferme la fiche,
+                    // et un nom saisi dans la foulee serait perdu.
+                    if (nom.trim() != entree.label) onRenommer(nom)
+                    val voulue = cle.trim()
+                    if (voulue.isNotEmpty() && voulue != entree.apiKey) {
+                        onRemplacerCle(voulue)
+                    } else {
+                        onDismiss()
+                    }
+                },
+            ) { Text("Enregistrer") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+    )
 }
 
 /**

@@ -27,6 +27,14 @@ class EntityStore(private val file: File) {
          * pour en tirer une URL.
          */
         val vignette: String = "",
+        /**
+         * Le nom a été choisi à la main, l'API ne le remplace plus.
+         *
+         * Sans ce drapeau, renommer ne servirait à rien : `rename` recopie le
+         * nom du flux à chaque retour sur l'accueil, et le nom donné aurait
+         * disparu avant qu'on ait fini de regarder la liste.
+         */
+        val nomImpose: Boolean = false,
     )
 
     private val entries = mutableListOf<Suivie>()
@@ -59,7 +67,10 @@ class EntityStore(private val file: File) {
         if (index < 0) return
         val actuel = entries[index]
         val neuf = actuel.copy(
-            label = label,
+            // Un nom choisi a la main tient devant celui du flux : c'est tout
+            // l'objet de l'avoir choisi. L'illustration, elle, se rafraichit
+            // dans tous les cas -- personne ne la saisit.
+            label = if (actuel.nomImpose) actuel.label else label,
             // Une URL vide n'efface pas celle qu'on avait : le flux peut être
             // incomplet un jour sans que la vignette doive disparaître.
             vignette = vignette.ifEmpty { actuel.vignette },
@@ -68,6 +79,37 @@ class EntityStore(private val file: File) {
             entries[index] = neuf
             save()
         }
+    }
+
+    /**
+     * Le nom que l'on donne soi-même à une entité.
+     *
+     * Vide, il rend la main à l'API : le nom du flux reprend au relevé
+     * suivant, et l'on retrouve le comportement d'avant sans avoir à retirer
+     * puis ré-ajouter l'entité.
+     */
+    fun renommer(entry: Suivie, label: String) {
+        val index = entries.indexOfFirst { it.id == entry.id && it.kind == entry.kind }
+        if (index < 0) return
+        val voulu = label.trim()
+        entries[index] = entries[index].copy(
+            label = voulu.ifEmpty { entries[index].label },
+            nomImpose = voulu.isNotEmpty(),
+        )
+        save()
+    }
+
+    /**
+     * Remplace la clé d'une entité, la nouvelle ayant déjà été vérifiée.
+     *
+     * Elle peut désigner une autre entité — on s'est trompé de ligne, ou l'on
+     * a repris la clé d'un autre personnage. L'ancienne entrée s'en va alors :
+     * sans quoi la liste porterait deux fois la même entité, l'une avec une
+     * clé qui n'est plus la sienne.
+     */
+    fun remplacerCle(ancienne: Suivie, neuve: Suivie) {
+        if (ancienne.id != neuve.id || ancienne.kind != neuve.kind) remove(ancienne)
+        add(neuve)
     }
 
     private fun load() {
@@ -83,6 +125,7 @@ class EntityStore(private val file: File) {
                     apiKey = item.getString("key"),
                     label = item.optString("label"),
                     vignette = item.optString("vignette"),
+                    nomImpose = item.optBoolean("nomImpose", false),
                 )
             }
         }
@@ -97,6 +140,7 @@ class EntityStore(private val file: File) {
                 put("key", entry.apiKey)
                 put("label", entry.label)
                 put("vignette", entry.vignette)
+                put("nomImpose", entry.nomImpose)
             })
         }
         file.parentFile?.mkdirs()

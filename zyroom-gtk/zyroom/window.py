@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.60" if _DEV else "0.42"
+VERSION = "0.61" if _DEV else "0.42"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -4067,16 +4067,44 @@ class MainWindow(Gtk.ApplicationWindow):
         hint.add_css_class("dim-label")
         box.append(hint)
 
-        def update_hint(*_):
+        def update_hint(*_args):
             required = (ryzom_api.REQUIRED_MODULES_CHAR if rb_char.get_active()
                         else ryzom_api.REQUIRED_MODULES_GUILD)
-            hint.set_text("Clé API sur https://app.ryzom.com/app_ryzomapi "
-                          "(modules requis : " + ", ".join(required) + ")")
+            hint.set_text(_("Une clé fait 41 signes. Celles de personnage "
+                            "commencent par « c », celles de guilde par « g ». "
+                            "Modules requis : ") + ", ".join(required))
         update_hint()
         rb_char.connect("toggled", update_hint)
 
         key_entry = Gtk.Entry(placeholder_text="Clé API")
         box.append(key_entry)
+
+        # Aller chercher sa cle et la coller : les deux gestes que le
+        # telephone offrait deja, et qu'il fallait faire a la main ici --
+        # recopier l'adresse du site depuis un texte d'aide non cliquable,
+        # puis passer par le menu contextuel du champ.
+        gestes = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        obtenir = Gtk.LinkButton(uri=ryzom_api.KEY_PAGE,
+                                 label=_("Obtenir ma clé"))
+        obtenir.set_tooltip_text(ryzom_api.KEY_PAGE)
+        gestes.append(obtenir)
+        coller = Gtk.Button(label=_("Coller"))
+        coller.set_tooltip_text(_("Coller la clé depuis le presse-papiers"))
+        gestes.append(coller)
+        box.append(gestes)
+
+        def colle(_btn):
+            """Le presse-papiers se lit de façon asynchrone en GTK4."""
+            def recu(presse, resultat):
+                try:
+                    texte = presse.read_text_finish(resultat) or ""
+                except GLib.Error:
+                    return
+                key_entry.set_text(texte.strip())
+            key_entry.get_clipboard().read_text_async(None, recu)
+
+        coller.connect("clicked", colle)
+
         name_entry = Gtk.Entry(placeholder_text="Nom affiché (optionnel)")
         box.append(name_entry)
 
@@ -4090,10 +4118,17 @@ class MainWindow(Gtk.ApplicationWindow):
         buttons.append(add)
         box.append(buttons)
 
-        def do_add(*_):
+        def do_add(*_args):
             key = key_entry.get_text().strip()
             if not key:
                 status.set_text("Veuillez saisir une clé API.")
+                return
+            if not ryzom_api.is_api_key(key):
+                # Ce qui se voit a l'oeil ne vaut pas un aller-retour reseau :
+                # une cle tronquee au copier-coller partait quand meme, et l'on
+                # attendait la reponse de Ryzom pour l'apprendre.
+                status.set_text(_("Cette clé n'a pas la forme d'une clé d'API : "
+                                  "41 signes, commençant par « c » ou « g »."))
                 return
             is_char = rb_char.get_active()
             kind = KIND_CHARACTER if is_char else KIND_GUILD
@@ -4259,10 +4294,14 @@ class MainWindow(Gtk.ApplicationWindow):
         boutons.append(valider)
         box.append(boutons)
 
-        def poser(*_):
+        def poser(*_args):
             cle = saisie.get_text().strip()
             if not cle:
                 etat.set_text(_("Veuillez saisir une clé API."))
+                return
+            if not ryzom_api.is_api_key(cle):
+                etat.set_text(_("Cette clé n'a pas la forme d'une clé d'API : "
+                                "41 signes, commençant par « c » ou « g »."))
                 return
             valider.set_sensitive(False)
             etat.set_text(_("Vérification de la clé…"))

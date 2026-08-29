@@ -220,6 +220,23 @@ def _is_hidden_chest(name: str) -> bool:
     return any(fragment in normalized for fragment in _HIDDEN_CHESTS)
 
 
+#: La page ou le joueur va chercher sa cle, chez Ryzom.
+KEY_PAGE = "https://app.ryzom.com/app_ryzomapi"
+
+
+def is_api_key(valeur: str) -> bool:
+    """Une clé d'API a-t-elle la forme d'une clé d'API ?
+
+    Quarante-et-un signes alphanumériques, commençant par « c » pour un
+    personnage et « g » pour une guilde. Le contrôle est le même que sur le
+    téléphone, et il vaut la peine : sans lui, une clé tronquée au copier-coller
+    part quand même sur le réseau, et l'on attend la réponse de Ryzom pour
+    apprendre ce qui se voyait à l'œil.
+    """
+    return (len(valeur) == 41 and valeur.isalnum()
+            and valeur[0] in ("c", "g"))
+
+
 def check_modules(modules: str, required) -> list[str]:
     """Renvoie la liste des modules requis manquants (vide si tout est présent)."""
     present = set(modules.split(":")) if modules else set()
