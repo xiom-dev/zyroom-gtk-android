@@ -1,6 +1,7 @@
 """Les réglages qui survivent à la fermeture.
 
-La taille de la fenêtre est enregistrée à la fermeture et relue au lancement.
+La taille des fenêtres — la principale, celle des alertes — est enregistrée
+à la fermeture et relue au lancement.
 Ce qu'on protège ici, c'est le cas où le fichier ment : un réglage recopié
 d'une autre machine, un écran débranché depuis, une valeur bricolée à la main.
 Une fenêtre de trois pixels de haut ne se rattrape pas à la souris.
@@ -54,6 +55,32 @@ class Fenetre(unittest.TestCase):
             reglages = config.Settings()
             reglages.window_size = taille
             self.assertEqual(taille, config.Settings().window_size)
+
+    def test_sans_reglage_les_alertes_prennent_leur_defaut(self):
+        self.assertEqual(config.Settings.ALERTES_DEFAUT,
+                         config.Settings().alerts_window_size)
+
+    def test_la_taille_des_alertes_survit_a_la_fermeture(self):
+        reglages = config.Settings()
+        reglages.alerts_window_size = (820, 600)
+        self.assertEqual((820, 600), config.Settings().alerts_window_size)
+
+    def test_les_deux_fenetres_ont_chacune_leur_taille(self):
+        """Élargir les alertes ne doit pas élargir la fenêtre principale."""
+        reglages = config.Settings()
+        reglages.window_size = (1280, 800)
+        reglages.alerts_window_size = (820, 600)
+        relu = config.Settings()
+        self.assertEqual((1280, 800), relu.window_size)
+        self.assertEqual((820, 600), relu.alerts_window_size)
+
+    def test_une_taille_d_alertes_aberrante_revient_au_defaut(self):
+        for taille in ((10, 10), (0, 0), (3, 700), (99999, 700), (-100, -100)):
+            reglages = config.Settings()
+            reglages.alerts_window_size = taille
+            self.assertEqual(config.Settings.ALERTES_DEFAUT,
+                             config.Settings().alerts_window_size,
+                             f"{taille} aurait dû être refusée")
 
     def test_un_fichier_illisible_ne_fait_pas_tomber_le_lancement(self):
         """Une valeur qui n'est pas un nombre : on repart du défaut.

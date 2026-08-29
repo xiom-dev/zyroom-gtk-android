@@ -3846,7 +3846,11 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_bell_clicked(self, _btn) -> None:
         dlg = Gtk.Window(title="Alertes", transient_for=self, modal=True)
-        dlg.set_default_size(480, 420)
+        # Rouverte a la taille ou on l'a laissee. La bonne largeur depend des
+        # noms d'objets surveilles, que nous ne connaissons pas d'avance : au
+        # joueur de la poser une fois, a nous de nous en souvenir.
+        dlg.set_default_size(*self._settings.alerts_window_size)
+        dlg.connect("close-request", self._on_alerts_close)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self._pad(box)
         dlg.set_child(box)
@@ -3908,10 +3912,21 @@ class MainWindow(Gtk.ApplicationWindow):
         pied.set_start_widget(coupure)
 
         close = Gtk.Button(label="Fermer")
-        close.connect("clicked", lambda *_: dlg.destroy())
+        # `close` et non `destroy` : seul le premier emet `close-request`, ou
+        # se retient la taille. Detruite sans passer par la, la fenetre
+        # oubliait ce que le bouton venait de fermer.
+        close.connect("clicked", lambda *_: dlg.close())
         pied.set_end_widget(close)
         box.append(pied)
         dlg.present()
+
+    def _on_alerts_close(self, dlg) -> bool:
+        """Retient la taille de la fenêtre des alertes avant qu'elle parte."""
+        # `get_default_size` et non `get_width` : meme raison que pour la
+        # fenetre principale, une fenetre agrandie doit se souvenir de la
+        # taille qu'elle avait avant de l'etre.
+        self._settings.alerts_window_size = dlg.get_default_size()
+        return False        # laisse la fermeture suivre son cours
 
     def _on_money_watch_toggled(self, _switch, actif: bool) -> bool:
         """Pose ou lève la surveillance du trésor de l'entité affichée.

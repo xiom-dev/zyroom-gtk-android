@@ -375,28 +375,62 @@ class Settings:
     def window_size(self) -> tuple:
         """La taille de la fenêtre à la dernière fermeture.
 
-        Une taille aberrante — écran débranché depuis, réglage recopié d'une
-        autre machine — ramène au défaut plutôt qu'à une fenêtre de trois
-        pixels de haut qu'on ne saurait plus attraper. Une valeur illisible
-        aussi : ce réglage est lu avant que la fenêtre existe, et une exception
-        ici empêcherait l'application de démarrer du tout.
+        Les garde-fous sont dans `_lire_taille`, partagés avec la fenêtre des
+        alertes : mêmes bornes, mêmes raisons.
         """
-        try:
-            largeur = self._ini.getint("GENERAL", "WindowWidth",
-                                       fallback=self.FENETRE_DEFAUT[0])
-            hauteur = self._ini.getint("GENERAL", "WindowHeight",
-                                       fallback=self.FENETRE_DEFAUT[1])
-        except ValueError:
-            return self.FENETRE_DEFAUT
-        if not (360 <= largeur <= 10000 and 300 <= hauteur <= 10000):
-            return self.FENETRE_DEFAUT
-        return (largeur, hauteur)
+        return self._lire_taille("WindowWidth", "WindowHeight",
+                                 self.FENETRE_DEFAUT)
 
     @window_size.setter
     def window_size(self, value: tuple) -> None:
-        largeur, hauteur = value
-        self._ini.set("GENERAL", "WindowWidth", str(int(largeur)))
-        self._ini.set("GENERAL", "WindowHeight", str(int(hauteur)))
+        self._ecrire_taille("WindowWidth", "WindowHeight", value)
+
+    #: Taille de la fenetre des alertes au premier lancement. Plus large que
+    #: les 480 d'avant : un titre d'alerte porte un nom d'objet, sa qualite et
+    #: ce qui cloche, et tenait mal sur une seule ligne.
+    ALERTES_DEFAUT = (680, 560)
+
+    @property
+    def alerts_window_size(self) -> tuple:
+        """La taille de la fenêtre des alertes à sa dernière fermeture.
+
+        Elle s'ouvrait jusqu'ici toujours à la même taille, et il fallait
+        l'élargir à chaque lancement : les noms d'objets surveillés sont longs,
+        et la largeur qu'il faut dépend de ce que l'on surveille.
+        """
+        return self._lire_taille("AlertsWidth", "AlertsHeight",
+                                 self.ALERTES_DEFAUT)
+
+    @alerts_window_size.setter
+    def alerts_window_size(self, value: tuple) -> None:
+        self._ecrire_taille("AlertsWidth", "AlertsHeight", value)
+
+    def _lire_taille(self, cle_largeur: str, cle_hauteur: str,
+                     defaut: tuple) -> tuple:
+        """Une taille de fenêtre relue du fichier, ou le défaut si elle ment.
+
+        Une taille aberrante — écran débranché depuis, réglage recopié d'une
+        autre machine — ramène au défaut plutôt qu'à une fenêtre de trois
+        pixels de haut qu'on ne saurait plus attraper. Une valeur illisible
+        aussi : ces réglages sont lus avant que la fenêtre existe, et une
+        exception ici empêcherait l'application de démarrer du tout.
+        """
+        try:
+            largeur = self._ini.getint("GENERAL", cle_largeur,
+                                       fallback=defaut[0])
+            hauteur = self._ini.getint("GENERAL", cle_hauteur,
+                                       fallback=defaut[1])
+        except ValueError:
+            return defaut
+        if not (360 <= largeur <= 10000 and 300 <= hauteur <= 10000):
+            return defaut
+        return (largeur, hauteur)
+
+    def _ecrire_taille(self, cle_largeur: str, cle_hauteur: str,
+                       valeur: tuple) -> None:
+        largeur, hauteur = valeur
+        self._ini.set("GENERAL", cle_largeur, str(int(largeur)))
+        self._ini.set("GENERAL", cle_hauteur, str(int(hauteur)))
         self._flush()
 
     @property
