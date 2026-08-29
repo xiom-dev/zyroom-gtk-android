@@ -1,0 +1,3 @@
+* The switch in the alert panel is now named after dappers rather than a
+  "treasure" the game never mentions, matching the wording used elsewhere on
+  screen.

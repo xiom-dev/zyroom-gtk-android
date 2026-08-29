@@ -1,0 +1,7 @@
+* Every container now shows how full it is, in the list and in the alerts.
+  Item bulk was never computed: every container weighed zero, so the volume
+  alert could never fire.
+* The "+" button now opens a two-tab window: add an API key, or read, replace
+  and remove the ones you already have.
+* Chest names drop the sentence the API leaves dangling after a bracket it
+  never closes.

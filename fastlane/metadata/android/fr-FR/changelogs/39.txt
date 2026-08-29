@@ -1,0 +1,3 @@
+* L'interrupteur du panneau d'alertes s'appelle maintenant « Prévenir
+  mouvement dappers ». Il parle de dappers, comme le reste de l'écran, au lieu
+  d'un « trésor » que le jeu ne nomme nulle part.

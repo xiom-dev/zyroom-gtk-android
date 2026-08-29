@@ -1,0 +1,7 @@
+* Chaque coffre annonce son taux de remplissage, dans la liste comme dans les
+  alertes. L'encombrement des objets n'était jamais calculé : tout contenant
+  pesait zéro, et l'alerte de volume ne pouvait pas se déclencher.
+* Le « + » ouvre une fenêtre à deux onglets : on y ajoute une clé d'API, et
+  l'on relit, remplace ou retire celles qu'on a déjà.
+* Les noms de coffres perdent la phrase que l'API laisse pendre après une
+  parenthèse jamais refermée.
