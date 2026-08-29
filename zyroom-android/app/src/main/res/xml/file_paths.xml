@@ -4,4 +4,7 @@
      il faut passer par un content:// servi par le FileProvider. -->
 <paths>
     <cache-path name="updates" path="updates/" />
+    <!-- Les journaux, pour les partager vers l'autre installation. Même
+         raison : un file:// ne se donne pas à une autre application. -->
+    <files-path name="movements" path="movements/" />
 </paths>

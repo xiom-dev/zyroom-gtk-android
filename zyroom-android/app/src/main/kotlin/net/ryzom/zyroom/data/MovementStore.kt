@@ -90,6 +90,145 @@ class MovementStore(private val dir: File) {
         Unit
     }
 
+
+    // ------------------------------------------------------------- Fusion
+
+    /**
+     * Un mouvement venu de l'autre application.
+     *
+     * Le bureau et le téléphone écrivent le même contenant — un `.jsonl`, une
+     * ligne par mouvement, sous le même nom de fichier — mais trois champs y
+     * ont changé de nom au fil des deux portages, et `kind` y est en
+     * minuscules. Les relire des deux façons coûte trois lignes ; imposer un
+     * troisième format d'échange aurait coûté un convertisseur de chaque côté,
+     * et rendu illisibles les journaux déjà écrits.
+     */
+    fun lireEtranger(o: JSONObject): Movement = Movement(
+        at = if (o.has("at")) o.optLong("at") else o.optDouble("ts").toLong(),
+        invKey = o.optString("inv"),
+        invLabel = o.optString("label"),
+        sheet = o.optString("sheet"),
+        quality = o.optInt("q"),
+        kind = runCatching { Kind.valueOf(o.optString("kind").uppercase()) }
+            .getOrDefault(Kind.MODIFIED),
+        delta = o.optLong("delta"),
+        before = if (o.has("before")) o.optLong("before") else o.optLong("old"),
+        after = if (o.has("after")) o.optLong("after") else o.optLong("new"),
+    )
+
+    /**
+     * Verse dans le journal d'une entité celui d'une autre installation.
+     *
+     * Renvoie le nombre de mouvements ajoutés. Le fichier est réécrit en
+     * entier : la fusion peut retirer des lignes d'ici — celles que l'autre
+     * raconte plus finement — et pas seulement en ajouter.
+     */
+    suspend fun importer(entry: EntityStore.Suivie, lignes: List<String>): Int =
+        withContext(Dispatchers.IO) {
+            val etrangers = lignes.mapNotNull { ligne ->
+                if (ligne.isBlank()) null
+                // Une ligne illisible ne doit pas faire perdre les autres.
+                else runCatching { lireEtranger(JSONObject(ligne)) }.getOrNull()
+            }
+            if (etrangers.isEmpty()) return@withContext 0
+
+            val locaux = history(entry)
+            val (fusionnes, ajoutes) = Fusion.fusionner(locaux, etrangers)
+            dir.mkdirs()
+            logFile(entry).writeText(
+                fusionnes.sortedBy { it.at }
+                    .joinToString("") { toJson(it).toString() + "\n" })
+            ajoutes
+        }
+
+    /**
+     * La fusion de deux journaux, à part : elle ne touche à aucun fichier
+     * et se teste donc sans disque ni entité.
+     */
+    object Fusion {
+
+        /** Ce qui suit un même compteur : un objet dans un contenant, ou le trésor. */
+        private fun piste(m: Movement) = Triple(m.invKey, m.sheet, m.quality)
+
+        private fun empreinte(m: Movement) =
+            listOf(m.before, m.after, m.kind.ordinal.toLong(), m.delta)
+
+        /**
+         * Le trajet de ce mouvement est-il déjà raconté, en plus détaillé ?
+         *
+         * Chaque mouvement dit « ce compteur est passé de `before` à `after` ».
+         * Deux journaux qui relèvent à des moments différents décrivent le même
+         * trajet avec un découpage différent : celui qui n'a pas regardé
+         * entre-temps voit un seul écart là où l'autre en voit deux.
+         *
+         * On cherche donc un chemin de `before` à `after` dans les autres
+         * mouvements de la même piste. S'il existe, celui-ci n'apprend rien que
+         * le détail ne dise déjà.
+         *
+         * C'est le cas du trésor de La Lune Éternelle : le bureau a vu
+         * 75 000 000 → 75 440 000 → 73 640 000, le téléphone 75 000 000 →
+         * 73 640 000. Le second est le premier, en moins précis.
+         */
+        private fun redondant(segment: Movement, autres: List<Movement>): Boolean {
+            if (segment.before == segment.after) return false
+            val arcs = HashMap<Long, MutableSet<Long>>()
+            autres.forEach { arcs.getOrPut(it.before) { mutableSetOf() } += it.after }
+
+            // Parcours en largeur. Un compteur peut repasser par une valeur
+            // qu'il a deja eue -- on vend puis on rachete -- d'ou les visites.
+            val aVoir = ArrayDeque(listOf(segment.before))
+            val vus = mutableSetOf(segment.before)
+            while (aVoir.isNotEmpty()) {
+                val valeur = aVoir.removeLast()
+                for (suivant in arcs[valeur].orEmpty()) {
+                    if (suivant == segment.after) return true
+                    if (vus.add(suivant)) aVoir.addLast(suivant)
+                }
+            }
+            return false
+        }
+
+        /**
+         * Le journal d'ici, enrichi de ce que l'autre application a vu.
+         *
+         * Renvoie (journal fusionné, nombre de mouvements réellement ajoutés).
+         *
+         * Deux écarts sont écartés : le doublon strict — les deux applications
+         * ont relevé le même pas du même trajet — et le mouvement grossier que
+         * le détail d'ici raconte déjà. Un mouvement d'ici que l'étranger
+         * raconte plus finement disparaît aussi : c'est la même règle dans
+         * l'autre sens, et garder les deux ferait compter la somme deux fois.
+         *
+         * L'horodatage ne sert pas à décider : il dit quand on a *regardé*, pas
+         * quand la chose est arrivée, et les deux applications ne regardent pas
+         * ensemble.
+         */
+        fun fusionner(
+            locaux: List<Movement>,
+            etrangers: List<Movement>,
+        ): Pair<List<Movement>, Int> {
+            val garde = mutableListOf<Movement>()
+            (locaux + etrangers).groupBy { piste(it) }.values.forEach { pistes ->
+                val uniques = mutableListOf<Movement>()
+                pistes.forEach { m ->
+                    // Le meme pas du meme trajet, vu des deux cotes : on n'en
+                    // garde qu'un, et le plus ancien horodatage -- c'est celui
+                    // qui a regarde le premier.
+                    val deja = uniques.indexOfFirst { empreinte(it) == empreinte(m) }
+                    if (deja < 0) uniques += m
+                    else if (m.at in 1 until uniques[deja].at) uniques[deja] = m
+                }
+                uniques.forEachIndexed { i, m ->
+                    val autres = uniques.filterIndexed { j, _ -> j != i }
+                    if (!redondant(m, autres)) garde += m
+                }
+            }
+            val connus = locaux.map { piste(it) to empreinte(it) }.toSet()
+            val ajoutes = garde.count { (piste(it) to empreinte(it)) !in connus }
+            return garde.sortedByDescending { it.at } to ajoutes
+        }
+    }
+
     // ------------------------------------------------------------- interne
 
     private fun base(entry: EntityStore.Suivie) =

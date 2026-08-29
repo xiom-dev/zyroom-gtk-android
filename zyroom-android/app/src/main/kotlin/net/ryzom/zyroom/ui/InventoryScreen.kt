@@ -32,6 +32,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.content.Intent
+import androidx.core.content.FileProvider
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Card
@@ -171,6 +178,35 @@ fun InventoryScreen(
     var mouvements by remember { mutableStateOf(emptyList<MouvementMembre>()) }
     var premierRosterReleve by remember { mutableStateOf(false) }
     val portee = rememberCoroutineScope()
+    val contexte = LocalContext.current
+
+    // Verser ici le journal d'une autre installation. Le bureau et le
+    // telephone ecrivent le meme fichier a trois noms de champs pres, que
+    // `lireEtranger` connait : rien a convertir.
+    var verse by remember { mutableStateOf<String?>(null) }
+    val verseur = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) portee.launch {
+            // `recues` et non `lignes` : celui-ci est deja l'etat du journal
+            // affiche, et le masquer ferait porter l'affectation sur la
+            // mauvaise variable.
+            val recues = withContext(Dispatchers.IO) {
+                runCatching {
+                    contexte.contentResolver.openInputStream(uri)!!
+                        .bufferedReader().readLines()
+                }.getOrDefault(emptyList())
+            }
+            if (recues.isEmpty()) {
+                verse = "Journal illisible, ou vide."
+            } else {
+                val ajoutes = movements.importer(entry, recues)
+                lignes = movements.history(entry)
+                verse = if (ajoutes > 0) "$ajoutes mouvement(s) de plus."
+                        else "Rien de neuf : tout y était déjà."
+            }
+        }
+    }
 
     suspend fun charger(force: Boolean) {
         occupe = true
@@ -436,6 +472,8 @@ fun InventoryScreen(
                     onRecherche = { recherche = it },
                     nameOf = { repository.nameOf(it) },
                     onVider = { viderJournal = true },
+                    onImporter = { verseur.launch(arrayOf("*/*")) },
+                    onExporter = { partagerJournal(contexte, entry) },
                 )
 
                 vue == Vue.COMPETENCES -> SkillsView(
@@ -649,6 +687,26 @@ fun InventoryScreen(
         )
     }
 
+    verse?.let { compte ->
+        AlertDialog(
+            onDismissRequest = { verse = null },
+            title = { Text("Journal versé") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(compte)
+                    Text("Ce que l'autre journal racontait moins finement que " +
+                         "celui-ci a été écarté : deux relevés à des moments " +
+                         "différents décrivent le même trajet d'argent avec un " +
+                         "découpage différent.",
+                         style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { verse = null }) { Text("Fermer") }
+            },
+        )
+    }
+
     if (viderJournal) {
         AlertDialog(
             onDismissRequest = { viderJournal = false },
@@ -755,6 +813,8 @@ private fun JournalView(
     onRecherche: (String) -> Unit,
     nameOf: (String) -> String,
     onVider: () -> Unit,
+    onImporter: () -> Unit,
+    onExporter: () -> Unit,
 ) {
     val cherche = normalise(recherche.trim())
     val retenues = lignes.filter { mouvement ->
@@ -787,7 +847,25 @@ private fun JournalView(
                     label = { Text(nom) },
                 )
             }
+            // Deux journaux qui se racontent ce qu'ils ont vu. L'API ne rend
+            // qu'un etat : chaque application ne connait que ce qu'elle a
+            // regarde elle-meme, et le telephone qui releve une fois par
+            // semaine voit d'un bloc ce que le bureau a vu en trois fois.
+            item {
+                FilterChip(
+                    selected = false,
+                    onClick = onImporter,
+                    label = { Text("Importer") },
+                )
+            }
             if (lignes.isNotEmpty()) {
+                item {
+                    FilterChip(
+                        selected = false,
+                        onClick = onExporter,
+                        label = { Text("Partager") },
+                    )
+                }
                 item {
                     FilterChip(
                         selected = false,
@@ -1351,6 +1429,30 @@ private fun etiquette(inv: net.ryzom.zyroom.model.Inventory): String {
     // deux facons de dire le meme taux se contrediraient d'un ecran a l'autre.
     val part = inv.totalVolume / inv.capacity * 100.0
     return "$nom · ${part.toInt()} %"
+}
+
+/**
+ * Envoie le journal d'une entité vers une autre installation.
+ *
+ * Le fichier part tel quel : le bureau le relit sans convertir, à trois noms
+ * de champs près que `MovementStore.lireEtranger` connaît. Il passe par le
+ * FileProvider — depuis Android 7, livrer un `file://` à une autre application
+ * lève une exception.
+ */
+private fun partagerJournal(contexte: android.content.Context,
+                            entry: net.ryzom.zyroom.data.EntityStore.Suivie) {
+    val nom = "${entry.kind.name.lowercase()}-${entry.id}.jsonl"
+    val fichier = java.io.File(java.io.File(contexte.filesDir, "movements"), nom)
+    if (!fichier.isFile) return
+    val uri = FileProvider.getUriForFile(
+        contexte, "${contexte.packageName}.updates", fichier)
+    val envoi = Intent(Intent.ACTION_SEND).apply {
+        type = "application/json"
+        putExtra(Intent.EXTRA_STREAM, uri)
+        putExtra(Intent.EXTRA_SUBJECT, nom)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    contexte.startActivity(Intent.createChooser(envoi, "Envoyer le journal"))
 }
 
 /**

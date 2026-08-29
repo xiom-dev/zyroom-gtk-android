@@ -264,6 +264,149 @@ def load(path: str, limit: int | None = None) -> list[Movement]:
     return out
 
 
+# --------------------------------------------------------------- Fusion
+#: Les noms que l'autre port donne aux memes champs.
+#:
+#: Le telephone et le bureau ecrivent le meme contenant -- un `.jsonl`, une
+#: ligne par mouvement, sous le meme nom de fichier -- mais trois champs y ont
+#: change de nom au fil des deux portages. Les relire des deux facons coute
+#: trois lignes ; imposer un troisieme format d'echange aurait coute un
+#: convertisseur de chaque cote, et rendu illisibles les journaux deja ecrits.
+_SYNONYMES = (("ts", "at"), ("old", "before"), ("new", "after"))
+
+
+def lire_etranger(data: dict) -> Movement:
+    """Un mouvement venu de l'autre application.
+
+    `kind` y est en capitales (`MODIFIED`), la casse est donc ramenée à celle
+    d'ici. Le reste ne demande qu'à savoir sous quel nom chercher.
+    """
+    normalise = dict(data)
+    for ici, ailleurs in _SYNONYMES:
+        if ici not in normalise and ailleurs in normalise:
+            normalise[ici] = normalise[ailleurs]
+    normalise["kind"] = str(normalise.get("kind", MODIFIED)).lower()
+    return Movement.from_dict(normalise)
+
+
+def _piste(mv: Movement) -> tuple:
+    """Ce qui suit un même compteur : un objet dans un contenant, ou le trésor."""
+    return (mv.inv_key, mv.sheet, mv.quality)
+
+
+def _redondant(segment: Movement, autres: list[Movement]) -> bool:
+    """Le trajet de ce mouvement est-il déjà raconté, en plus détaillé ?
+
+    Chaque mouvement dit « ce compteur est passé de `old` à `new` ». Deux
+    journaux qui relèvent à des moments différents décrivent le même trajet
+    avec un découpage différent : celui qui n'a pas regardé entre-temps voit
+    un seul écart là où l'autre en voit deux.
+
+    On cherche donc un chemin de `old` à `new` dans les autres mouvements de
+    la même piste. S'il existe, celui-ci n'apprend rien que le détail ne dise
+    déjà, et il ferait double emploi dans la liste.
+
+    C'est le cas du trésor de La Lune Éternelle : le bureau a vu 75 000 000 →
+    75 440 000 → 73 640 000, le téléphone 75 000 000 → 73 640 000. Le second
+    est le premier, en moins précis.
+    """
+    if segment.old == segment.new:
+        return False
+    arcs: dict[int, set] = {}
+    for autre in autres:
+        arcs.setdefault(autre.old, set()).add(autre.new)
+
+    # Parcours en largeur, `old` vers `new`. Un compteur peut repasser par une
+    # valeur qu'il a deja eue -- on vend puis on rachete -- d'ou les visites.
+    a_voir = [segment.old]
+    vus = {segment.old}
+    while a_voir:
+        valeur = a_voir.pop()
+        for suivant in arcs.get(valeur, ()):
+            if suivant == segment.new:
+                return True
+            if suivant not in vus:
+                vus.add(suivant)
+                a_voir.append(suivant)
+    return False
+
+
+def fusionner(locaux: list[Movement],
+              etrangers: list[Movement]) -> tuple[list[Movement], int]:
+    """Le journal d'ici, enrichi de ce que l'autre application a vu.
+
+    Renvoie (journal fusionné, nombre de mouvements réellement ajoutés).
+
+    Deux écarts sont écartés : le doublon strict — les deux applications ont
+    relevé le même pas du même trajet — et le mouvement grossier que le détail
+    d'ici raconte déjà. Un mouvement d'ici que l'étranger raconte plus finement
+    disparaît aussi : c'est la même règle, appliquée dans l'autre sens, et
+    garder les deux ferait compter la somme deux fois.
+
+    L'horodatage ne sert pas à décider : il dit quand on a *regardé*, pas quand
+    la chose est arrivée, et les deux applications ne regardent pas ensemble.
+    """
+    tous = list(locaux) + list(etrangers)
+    par_piste: dict[tuple, list[Movement]] = {}
+    for mv in tous:
+        par_piste.setdefault(_piste(mv), []).append(mv)
+
+    garde: list[Movement] = []
+    for pistes in par_piste.values():
+        vus: set[tuple] = set()
+        uniques: list[Movement] = []
+        for mv in pistes:
+            # Le meme pas du meme trajet, vu des deux cotes : on n'en garde
+            # qu'un, et le plus ancien horodatage -- c'est celui qui a
+            # regarde le premier.
+            empreinte = (mv.old, mv.new, mv.kind, mv.delta)
+            if empreinte in vus:
+                for i, deja in enumerate(uniques):
+                    if (deja.old, deja.new, deja.kind, deja.delta) == empreinte:
+                        if mv.ts and (not deja.ts or mv.ts < deja.ts):
+                            uniques[i] = mv
+                        break
+                continue
+            vus.add(empreinte)
+            uniques.append(mv)
+
+        for i, mv in enumerate(uniques):
+            autres = uniques[:i] + uniques[i + 1:]
+            if not _redondant(mv, autres):
+                garde.append(mv)
+
+    garde.sort(key=lambda m: -m.ts)
+    connus = {(_piste(m), m.old, m.new, m.kind, m.delta) for m in locaux}
+    ajoutes = sum(1 for m in garde
+                  if (_piste(m), m.old, m.new, m.kind, m.delta) not in connus)
+    return garde, ajoutes
+
+
+def importer(path: str, lignes: list[str]) -> int:
+    """Verse dans le journal d'ici les lignes d'un journal étranger.
+
+    Renvoie le nombre de mouvements ajoutés. Le fichier est réécrit en entier :
+    la fusion peut retirer des lignes d'ici — celles que l'autre raconte plus
+    finement — et pas seulement en ajouter.
+    """
+    etrangers = []
+    for ligne in lignes:
+        ligne = ligne.strip()
+        if not ligne:
+            continue
+        try:
+            etrangers.append(lire_etranger(json.loads(ligne)))
+        except Exception:
+            continue        # une ligne illisible ne doit pas perdre les autres
+    if not etrangers:
+        return 0
+
+    fusionnes, ajoutes = fusionner(load(path), etrangers)
+    with open(path, "w", encoding="utf-8") as fh:
+        for mv in sorted(fusionnes, key=lambda m: m.ts):
+            fh.write(json.dumps(mv.as_dict(), ensure_ascii=False) + "\n")
+    return ajoutes
+
 def clear(path: str) -> None:
     try:
         os.remove(path)
