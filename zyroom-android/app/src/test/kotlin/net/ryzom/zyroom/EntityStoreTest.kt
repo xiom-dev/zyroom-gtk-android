@@ -30,6 +30,35 @@ class EntityStoreTest {
         id = "689325", kind = Entity.Kind.CHARACTER, apiKey = cle, label = "Xiom")
 
     @Test
+    fun `les personnages passent devant les guildes, chacun par ordre alphabetique`() {
+        // Et non l'ordre d'ajout : on cherche un nom dans la liste, pas le
+        // souvenir de l'ordre dans lequel on a colle les cles.
+        val m = magasin()
+        m.add(EntityStore.Suivie("3", Entity.Kind.GUILD, "g3", "Rod Of Heaven"))
+        m.add(EntityStore.Suivie("1", Entity.Kind.CHARACTER, "c1", "Zoe"))
+        m.add(EntityStore.Suivie("4", Entity.Kind.GUILD, "g4", "La Lune Eternelle"))
+        m.add(EntityStore.Suivie("2", Entity.Kind.CHARACTER, "c2", "adrien"))
+
+        assertEquals(
+            listOf("adrien", "Zoe", "La Lune Eternelle", "Rod Of Heaven"),
+            m.all().map { it.label })
+    }
+
+    @Test
+    fun `une entite sans nom se classe sur son identifiant`() {
+        // L'API n'a pas encore repondu : c'est l'identifiant que la carte
+        // affiche, c'est donc lui qui doit servir a la ranger.
+        val m = magasin()
+        m.add(EntityStore.Suivie("999", Entity.Kind.CHARACTER, "c9", ""))
+        m.add(EntityStore.Suivie("111", Entity.Kind.CHARACTER, "c1", "Adrien"))
+        // « 999 » passe devant « Adrien » : les chiffres precedent les
+        // lettres. Ce qui compte ici est qu'il soit range sur son
+        // identifiant et non rejete en fin de liste comme un nom vide.
+        assertEquals(listOf("999", "Adrien"),
+                     m.all().map { it.label.ifEmpty { it.id } })
+    }
+
+    @Test
     fun `un nom choisi a la main tient devant celui du flux`() {
         // Sans quoi renommer ne servirait a rien : l'accueil recopie le nom du
         // flux a chaque retour au premier plan, et le nom donne aurait disparu

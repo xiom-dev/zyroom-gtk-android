@@ -63,7 +63,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.64" if _DEV else "0.44"
+VERSION = "0.65" if _DEV else "0.44"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2985,7 +2985,11 @@ class MainWindow(Gtk.ApplicationWindow):
         model = Gtk.StringList()
         if ent:
             for inv in ent.inventories:
-                model.append(f"{inv.label}{self._remplissage(inv)}")
+                # Le numero du coffre, son nom, son taux -- et rien du reste
+                # de phrase que l'API laisse pendre apres une parenthese
+                # jamais refermee. Le journal et les alertes coupent deja la.
+                model.append(f"{movements.sans_parenthese(inv.label)}"
+                             f"{self._remplissage(inv)}")
         self._inv_dd.handler_block_by_func(self._on_inventory_selected)
         self._inv_dd.set_model(model)
         self._inv_dd.handler_unblock_by_func(self._on_inventory_selected)

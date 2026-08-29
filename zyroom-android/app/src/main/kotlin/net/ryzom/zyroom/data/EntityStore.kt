@@ -48,7 +48,21 @@ class EntityStore(private val file: File) {
         load()
     }
 
-    fun all(): List<Suivie> = entries.toList()
+    /**
+     * Les entités suivies : les personnages d'abord, puis les guildes, chaque
+     * groupe par ordre alphabétique.
+     *
+     * Et non l'ordre d'ajout, qui ne veut rien dire pour qui regarde la liste :
+     * on cherche un nom, pas un souvenir de l'ordre dans lequel on a collé les
+     * clés. C'est le classement que le bureau applique depuis toujours.
+     *
+     * Le tri ignore la casse, et se rabat sur l'identifiant pour une entité
+     * dont l'API n'a pas encore rendu le nom — c'est ce que la carte affiche
+     * dans ce cas.
+     */
+    fun all(): List<Suivie> = entries.sortedWith(
+        compareBy({ it.kind != Entity.Kind.CHARACTER },
+                  { it.label.ifEmpty { it.id }.lowercase() }))
 
     fun add(entry: Suivie) {
         entries.removeAll { it.id == entry.id && it.kind == entry.kind }

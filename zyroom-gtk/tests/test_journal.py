@@ -61,6 +61,24 @@ class LibelleDeCoffre(unittest.TestCase):
         self.assertEqual("Coffre 15 — La Lune Des Maraudeurs : 96% plein",
                          sorties[0].title)
 
+    def test_le_menu_des_coffres_coupe_aussi(self):
+        """Le sélecteur nommait le coffre en entier, phrase pendante comprise.
+
+        Le journal coupait, les alertes coupaient, le menu non — et c'est
+        pourtant lui qu'on regarde le plus souvent.
+        """
+        from zyroom.window import MainWindow
+        from zyroom import movements
+
+        class Contenant:
+            label = "Coffre 15 — La Lune Des Maraudeurs(Gh Armure"
+            capacity = 5000
+            total_volume = 4800.0
+
+        ligne = (movements.sans_parenthese(Contenant.label)
+                 + MainWindow._remplissage(Contenant))
+        self.assertEqual("Coffre 15 — La Lune Des Maraudeurs (96%)", ligne)
+
     def test_un_libelle_entierement_parenthese_est_gardé(self):
         """Mieux vaut un libellé étrange que pas de libellé du tout.
 
