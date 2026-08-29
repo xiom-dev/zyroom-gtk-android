@@ -623,7 +623,7 @@ fun InventoryScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "Prévenir quand le trésor bouge",
+                            "Prévenir mouvement dappers",
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
@@ -1332,8 +1332,30 @@ private fun Moins() {
 }
 
 /**
+ * Ce qu'un contenant affiche dans le sélecteur : son numéro, son nom, son taux.
+ *
+ * Les coffres de guilde portent après leur nom ce que la guilde y range, et
+ * l'API tronque le tout à une quarantaine de signes — si bien que la
+ * parenthèse ne se referme presque jamais. Sur un téléphone, ce reste de
+ * phrase pousse la ligne au-delà du bord : `sansParenthese` l'écarte, comme
+ * elle le fait déjà dans le journal.
+ *
+ * Le taux remplace le nombre d'objets, qui ne disait pas s'il restait de la
+ * place — cent matières tiennent où dix armures débordent. Rien quand la
+ * capacité est inconnue : « 0 % » ferait croire à un coffre vide.
+ */
+private fun etiquette(inv: net.ryzom.zyroom.model.Inventory): String {
+    val nom = MovementStore.sansParenthese(inv.label)
+    if (inv.capacity <= 0) return nom
+    // `toInt` et non un arrondi : c'est ce que fait deja `volumeAlerts`, et
+    // deux facons de dire le meme taux se contrediraient d'un ecran a l'autre.
+    val part = inv.totalVolume / inv.capacity * 100.0
+    return "$nom · ${part.toInt()} %"
+}
+
+/**
  * Un groupe de contenants : bouton simple s'il n'y en a qu'un, menu déroulant
- * sinon. Le nombre d'items est rappelé à côté de chaque nom.
+ * sinon. Chaque ligne porte son taux de remplissage — voir `etiquette`.
  */
 @Composable
 private fun GroupPicker(
@@ -1348,7 +1370,7 @@ private fun GroupPicker(
         FilterChip(
             selected = actif,
             onClick = { onChoisir(seul.index) },
-            label = { Text("${seul.value.label} · ${seul.value.items.size}") },
+            label = { Text(etiquette(seul.value)) },
         )
         return
     }
@@ -1360,7 +1382,7 @@ private fun GroupPicker(
             onClick = { ouvert = true },
             label = {
                 val courant = membres.firstOrNull { it.index == choisi }
-                Text(if (courant != null) "${courant.value.label} ▾"
+                Text(if (courant != null) "${etiquette(courant.value)} ▾"
                      else "$titre (${membres.size}) ▾")
             },
         )
@@ -1373,7 +1395,7 @@ private fun GroupPicker(
         ) {
             membres.forEach { membre ->
                 DropdownMenuItem(
-                    text = { Text("${membre.value.label} · ${membre.value.items.size}") },
+                    text = { Text(etiquette(membre.value)) },
                     onClick = {
                         onChoisir(membre.index)
                         ouvert = false
