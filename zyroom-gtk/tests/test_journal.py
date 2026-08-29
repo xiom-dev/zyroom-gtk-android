@@ -38,6 +38,29 @@ class LibelleDeCoffre(unittest.TestCase):
                        "Coffre 4 — Gh Mps Utile pour les Coffres"):
             self.assertEqual(intact, MainWindow._sans_parenthese(intact))
 
+    def test_l_alerte_de_volume_coupe_comme_le_journal(self):
+        """La cloche nommait le coffre en entier, phrase pendante comprise.
+
+        Le journal coupait depuis toujours, l'alerte non : elle est calculée
+        dans `alerts.py`, qui ne connaît pas d'interface et ne pouvait donc
+        pas appeler la recette rangée dans la fenêtre. Celle-ci vit désormais
+        dans `movements`, et les deux s'en servent.
+        """
+        from zyroom import alerts
+
+        class Contenant:
+            label = "Coffre 15 — La Lune Des Maraudeurs(Gh Armure"
+            capacity = 5000
+            total_volume = 4800.0
+
+        class Entite:
+            inventories = [Contenant()]
+
+        sorties = alerts.volume_alerts(Entite(), 90)
+        self.assertEqual(1, len(sorties))
+        self.assertEqual("Coffre 15 — La Lune Des Maraudeurs : 96% plein",
+                         sorties[0].title)
+
     def test_un_libelle_entierement_parenthese_est_gardé(self):
         """Mieux vaut un libellé étrange que pas de libellé du tout.
 

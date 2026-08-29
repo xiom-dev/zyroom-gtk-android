@@ -9,6 +9,7 @@ import net.ryzom.zyroom.model.Item
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import net.ryzom.zyroom.data.volumeAlerts
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
@@ -140,5 +141,25 @@ class HorodatageTest {
 
         /** Celui de la veille au soir, qui lui sert de terme de comparaison. */
         const val RELEVE_PRECEDENT = 1_787_263_789L
+    }
+
+    @Test
+    fun `l'alerte de volume coupe comme le journal`() {
+        // La cloche nommait le coffre en entier, phrase pendante comprise :
+        // le journal coupait depuis toujours, l'alerte non.
+        val coffre = Inventory(
+            key = "chest15",
+            label = "Coffre 15 — La Lune Des Maraudeurs(Gh Armure",
+            items = listOf(Item(sheet = "m0001dxadf01.sitem", stack = 9600,
+                                volume = 4800.0)),
+            capacity = 5000,
+        )
+        val entite = Entity(kind = Entity.Kind.GUILD, id = "1",
+                            name = "La Lune Eternelle",
+                            inventories = listOf(coffre))
+        val alertes = volumeAlerts(entite, 90)
+        assertEquals(1, alertes.size)
+        assertEquals("Coffre 15 — La Lune Des Maraudeurs : 96 % plein",
+                     alertes.first().title)
     }
 }

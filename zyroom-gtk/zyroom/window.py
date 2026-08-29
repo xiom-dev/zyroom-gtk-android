@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.61" if _DEV else "0.42"
+VERSION = "0.62" if _DEV else "0.42"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2618,17 +2618,9 @@ class MainWindow(Gtk.ApplicationWindow):
     #: qui ne sait pas lire une classe CSS.
     OR = "#e8c15a"
 
-    @staticmethod
-    def _sans_parenthese(libelle: str) -> str:
-        """« Coffre 15 — La Lune Des Maraudeurs(Gh Armure » -> sans la fin.
-
-        Les coffres de guilde portent, après leur nom, ce que la guilde y range
-        — et l'API tronque le tout à quarante-quatre signes, si bien que la
-        parenthèse ne se referme presque jamais. Ce reste de phrase coupée
-        n'apprend rien dans un journal et pousse les colonnes ; le nom du coffre
-        suffit à savoir d'où l'objet vient."""
-        coupe = libelle.split("(", 1)[0]
-        return coupe.strip() or libelle
+    #: Le journal et les alertes coupent le libelle au meme endroit -- la
+    #: recette est dans `movements`, qui ne connait pas d'interface.
+    _sans_parenthese = staticmethod(movements.sans_parenthese)
 
     def _refresh_log(self) -> None:
         self._log_generation = getattr(self, "_log_generation", 0) + 1

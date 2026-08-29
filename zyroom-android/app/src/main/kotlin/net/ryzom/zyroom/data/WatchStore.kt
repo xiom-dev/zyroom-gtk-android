@@ -197,7 +197,12 @@ fun volumeAlerts(entity: Entity, threshold: Int = 90): List<Alert> =
         if (inventaire.capacity <= 0) return@mapNotNull null
         val part = inventaire.totalVolume / inventaire.capacity * 100.0
         if (part >= threshold) Alert(
-            Alert.Kind.VOLUME, "${inventaire.label} : ${part.toInt()} % plein",
+            Alert.Kind.VOLUME,
+            // Le numero du coffre, son nom, son taux -- et rien du reste de
+            // phrase que l'API laisse pendre apres une parenthese jamais
+            // refermee. Le journal la coupait deja ; l'alerte, non.
+            "${MovementStore.sansParenthese(inventaire.label)} : " +
+                "${part.toInt()} % plein",
             "${inventaire.totalVolume.toInt()} sur ${inventaire.capacity}")
         else null
     }

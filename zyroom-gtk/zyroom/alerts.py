@@ -29,7 +29,7 @@ import time
 from dataclasses import dataclass
 
 from .models import item_sig
-from .movements import MONEY_KEY, MONEY_SIG, montant
+from .movements import MONEY_KEY, MONEY_SIG, montant, sans_parenthese
 from .watch import KIND_DURABILITY, KIND_MONEY
 
 
@@ -52,7 +52,10 @@ def volume_alerts(entity, threshold: int) -> list[Alert]:
         if pct >= threshold:
             out.append(Alert(
                 "volume",
-                f"{inv.label} : {pct:.0f}% plein",
+                # Le numero du coffre, son nom, son taux -- et rien du reste
+                # de phrase que l'API laisse pendre apres une parenthese
+                # jamais refermee.
+                f"{sans_parenthese(inv.label)} : {pct:.0f}% plein",
                 f"{inv.total_volume:.0f} / {inv.capacity} de volume",
             ))
     return out

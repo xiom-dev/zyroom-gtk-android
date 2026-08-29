@@ -44,6 +44,26 @@ MONEY_SIG = f"{MONEY_SHEET}|0"
 MONEY_LABEL = "Trésor"
 
 
+def sans_parenthese(libelle: str) -> str:
+    """« Coffre 15 — La Lune Des Maraudeurs(Gh Armire » → sans la fin.
+
+    Les coffres de guilde portent, après leur nom, ce que la guilde y range —
+    et l'API tronque le tout à quarante-quatre signes, si bien que la
+    parenthèse ne se referme presque jamais. Ce reste de phrase coupée
+    n'apprend rien : le numéro du coffre et son nom suffisent à savoir de quoi
+    l'on parle.
+
+    Elle vit ici, avec `montant`, et non dans la fenêtre : le journal
+    l'affichait déjà, mais l'alerte de volume est calculée dans `alerts.py`,
+    qui ne connaît pas d'interface.
+
+    Un libellé qui commencerait par la parenthèse est gardé tel quel : mieux
+    vaut un libellé étrange qu'une ligne muette.
+    """
+    coupe = libelle.split("(", 1)[0]
+    return coupe.strip() or libelle
+
+
 def montant(nombre: int) -> str:
     """Un nombre de dappers, groupé par milliers — 79000000 → 79 000 000."""
     return f"{nombre:,}".replace(",", " ")
