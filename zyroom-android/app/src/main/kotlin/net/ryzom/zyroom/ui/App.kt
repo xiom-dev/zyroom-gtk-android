@@ -61,7 +61,6 @@ fun App(
             EntitiesScreen(
                 store = store,
                 repository = repository,
-                watches = watches,
                 onOpen = { ouverteId = it.id },
                 onMeteo = { meteo = true },
             )

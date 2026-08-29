@@ -5,9 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,11 +13,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -37,11 +38,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Tab
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,8 +81,6 @@ import net.ryzom.zyroom.api.RyzomApi
 import net.ryzom.zyroom.data.EntityStore
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.data.UpdateChecker
-import net.ryzom.zyroom.data.WatchStore
-import net.ryzom.zyroom.data.volumeAlerts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -91,12 +93,11 @@ import net.ryzom.zyroom.model.Entity
  * On ajoute une entité par sa clé d'API : c'est elle qui porte l'identité, le
  * nom vient de l'API au premier rafraîchissement.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EntitiesScreen(
     store: EntityStore,
     repository: Repository,
-    watches: WatchStore,
     onOpen: (EntityStore.Suivie) -> Unit,
     onMeteo: () -> Unit = {},
 ) {
@@ -143,22 +144,6 @@ fun EntitiesScreen(
             store.rename(entree, connue.name, connue.portraitUrl)
         }
         entrees = store.all()
-    }
-
-    // Le compte d'alertes de chaque entité, pour que la cloche se voie avant
-    // d'ouvrir quoi que ce soit : autrement il fallait entrer dans chaque
-    // personnage et dans chaque guilde pour savoir laquelle avait quelque chose
-    // à dire. Tout est lu dans le cache, sans réseau — une entité jamais
-    // consultée n'a rien à lire et ne porte donc pas de pastille. Le calcul se
-    // refait à chaque retour sur cet écran, donc au retour d'un inventaire.
-    var alertes by remember { mutableStateOf(emptyMap<String, Int>()) }
-    LaunchedEffect(entrees) {
-        alertes = entrees.mapNotNull { entree ->
-            val connue = repository.cached(entree) ?: return@mapNotNull null
-            val compte = watches.alerts(connue) { fiche -> repository.nameOf(fiche) }
-                .size + volumeAlerts(connue).size
-            if (compte > 0) "${entree.kind}-${entree.id}" to compte else null
-        }.toMap()
     }
 
     // Import du `string_client.pack` : sur un téléphone, il n'y a pas
@@ -282,13 +267,7 @@ fun EntitiesScreen(
             ) {
                 items(entrees, key = { "${it.kind}-${it.id}" }) { entree ->
                     Card(
-                        // L'appui long ouvre la fiche de l'entite : sa cle,
-                        // son nom, son retrait. C'est le geste que la carte
-                        // annoncait depuis le debut sans le rendre.
-                        modifier = Modifier.fillMaxWidth().combinedClickable(
-                            onClick = { onOpen(entree) },
-                            onLongClick = { retouche = entree },
-                        ),
+                        modifier = Modifier.fillMaxWidth().clickable { onOpen(entree) },
                         // Le vert de l'application, celui du bouton « + ».
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -325,17 +304,16 @@ fun EntitiesScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
-                            // La cloche de l'entité, au bout de sa carte. Rien
-                            // quand il n'y a rien : une pastille à zéro sur
-                            // chaque ligne n'apprendrait rien et se verrait
-                            // autant que celle qui compte.
-                            alertes["${entree.kind}-${entree.id}"]?.let { compte ->
-                                Text(
-                                    "🔔 $compte",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = OrangesDuCoffre[1],
-                                )
-                            }
+                            // Pas de pastille d'alerte ici. Elle y a figure du
+                            // 16 aout au 29 aout 2026 sans jamais s'allumer :
+                            // elle comptait les alertes de volume, et le
+                            // volume valait zero faute d'etre calcule. Le
+                            // calcul repare, elle s'est mise a marquer huit
+                            // alertes en permanence -- des coffres pleins a
+                            // 96 %, ce qu'ils sont tous les jours. Une pastille
+                            // qui ne s'eteint jamais n'apprend rien. Les
+                            // alertes restent dans chaque entite, ou on les
+                            // regarde quand on veut les regarder.
                         }
                     }
                 }
@@ -358,10 +336,16 @@ fun EntitiesScreen(
     if (apropos) AboutDialog { apropos = false }
 
     if (ajout) {
-        AddEntityDialog(
-            onDismiss = { ajout = false },
+        KeysDialog(
+            entrees = entrees,
+            onDismiss = { ajout = false; erreur = null },
             occupe = occupe,
             erreur = erreur,
+            onModifier = { retouche = it },
+            onRetirer = { cible ->
+                store.remove(cible)
+                entrees = store.all()
+            },
             onAdd = { cles ->
                 portee.launch {
                     occupe = true
@@ -527,10 +511,6 @@ private fun EditEntityDialog(
                     Text("Interrogation de l'API…",
                          style = MaterialTheme.typography.bodySmall)
                 }
-                TextButton(onClick = { confirmer = true }) {
-                    Text("Retirer cette entité",
-                         color = MaterialTheme.colorScheme.error)
-                }
             }
         },
         confirmButton = {
@@ -597,9 +577,68 @@ private fun BoutonAjouter(onClick: () -> Unit) {
     }
 }
 
+/**
+ * La fenêtre des clés : on en pose dans un onglet, on les relit dans l'autre.
+ *
+ * Même agencement que sur le bureau, et pour les mêmes raisons. Les deux
+ * gestes vont ensemble — remplacer une clé expirée, c'est en saisir une
+ * nouvelle là où l'on vient de lire l'ancienne — et une clé qu'on ne peut pas
+ * relire est une clé qu'il faut aller rechercher sur le site de Ryzom chaque
+ * fois qu'on veut la vérifier.
+ */
 @Composable
-private fun AddEntityDialog(
+private fun KeysDialog(
+    entrees: List<EntityStore.Suivie>,
     onDismiss: () -> Unit,
+    onAdd: (List<String>) -> Unit,
+    onModifier: (EntityStore.Suivie) -> Unit,
+    onRetirer: (EntityStore.Suivie) -> Unit,
+    occupe: Boolean,
+    erreur: String?,
+) {
+    var onglet by remember { mutableStateOf(0) }
+    var aRetirer by remember { mutableStateOf<EntityStore.Suivie?>(null) }
+
+    aRetirer?.let { cible ->
+        AlertDialog(
+            onDismissRequest = { aRetirer = null },
+            title = { Text("Retirer « ${cible.label.ifEmpty { cible.id }} » ?") },
+            text = { Text("Sa clé sera oubliée. Rien n'est supprimé chez Ryzom, " +
+                          "et la remettre suffit à la retrouver.") },
+            confirmButton = {
+                TextButton(onClick = { aRetirer = null; onRetirer(cible) }) {
+                    Text("Retirer", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { aRetirer = null }) { Text("Annuler") }
+            },
+        )
+        return
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Clés d'API") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TabRow(selectedTabIndex = onglet) {
+                    Tab(selected = onglet == 0, onClick = { onglet = 0 },
+                        text = { Text("Ajouter") })
+                    Tab(selected = onglet == 1, onClick = { onglet = 1 },
+                        text = { Text("Modifier") })
+                }
+                if (onglet == 0) OngletAjout(onAdd, occupe, erreur)
+                else OngletModification(entrees, onModifier) { aRetirer = it }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Fermer") } },
+    )
+}
+
+/** Le formulaire d'ajout, tel qu'il était avant d'avoir un voisin. */
+@Composable
+private fun OngletAjout(
     onAdd: (List<String>) -> Unit,
     occupe: Boolean,
     erreur: String?,
@@ -616,59 +655,101 @@ private fun AddEntityDialog(
     val bonnes = cles.filter(RyzomApi::isApiKey)
     val mauvaises = cles - bonnes.toSet()
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Ajouter une clé d'API") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Une clé fait 41 caractères. Celles de personnage commencent " +
+                "par « c », celles de guilde par « g ». On peut en coller " +
+                "plusieurs d'un coup.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedTextField(
+            value = saisie,
+            onValueChange = { saisie = it },
+            label = { Text("Clé(s) d'API") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row2 {
+            TextButton(onClick = {
+                presse.getText()?.text?.let { saisie = it.toString() }
+            }) { Text("Coller") }
+            TextButton(onClick = {
+                contexte.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse(RyzomApi.KEY_PAGE)))
+            }) { Text("Obtenir ma clé") }
+        }
+        if (mauvaises.isNotEmpty()) {
+            Text(
+                "Ignorée${if (mauvaises.size > 1) "s" else ""} : " +
+                    mauvaises.joinToString(", ") { it.take(8) + "…" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        erreur?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall,
+                 color = MaterialTheme.colorScheme.error)
+        }
+        if (occupe) {
+            Text("Interrogation de l'API…", style = MaterialTheme.typography.bodySmall)
+        }
+        TextButton(
+            onClick = { onAdd(bonnes) },
+            enabled = bonnes.isNotEmpty() && !occupe,
+        ) { Text(if (bonnes.size > 1) "Ajouter ${bonnes.size} clés" else "Ajouter") }
+    }
+}
+
+/**
+ * Les clés déjà posées : une ligne par entité, et ce qu'on peut en faire.
+ *
+ * La clé s'affiche en entier et sélectionnable — la lire est tout l'objet de
+ * cet onglet, et une clé tronquée ne se recopie pas à la main.
+ */
+@Composable
+private fun OngletModification(
+    entrees: List<EntityStore.Suivie>,
+    onModifier: (EntityStore.Suivie) -> Unit,
+    onRetirer: (EntityStore.Suivie) -> Unit,
+) {
+    val presse = LocalClipboardManager.current
+    if (entrees.isEmpty()) {
+        Text("Aucune clé enregistrée — l'onglet « Ajouter » est à côté.",
+             style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    Column(
+        modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        entrees.forEach { entree ->
+            Text(
+                entree.label.ifEmpty { entree.id },
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                if (entree.kind == Entity.Kind.CHARACTER) "Personnage" else "Guilde",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            SelectionContainer {
                 Text(
-                    "Une clé fait 41 caractères. Celles de personnage commencent " +
-                        "par « c », celles de guilde par « g ». On peut en coller " +
-                        "plusieurs d'un coup.",
-                    style = MaterialTheme.typography.bodySmall,
+                    entree.apiKey,
+                    style = MaterialTheme.typography.bodySmall
+                        .copy(fontFamily = FontFamily.Monospace),
                 )
-                OutlinedTextField(
-                    value = saisie,
-                    onValueChange = { saisie = it },
-                    label = { Text("Clé(s) d'API") },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Row2 {
-                    TextButton(onClick = {
-                        presse.getText()?.text?.let { saisie = it.toString() }
-                    }) { Text("Coller") }
-                    TextButton(onClick = {
-                        contexte.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(RyzomApi.KEY_PAGE)))
-                    }) { Text("Obtenir ma clé") }
-                }
-                if (mauvaises.isNotEmpty()) {
-                    Text(
-                        "Ignorée${if (mauvaises.size > 1) "s" else ""} : " +
-                            mauvaises.joinToString(", ") { it.take(8) + "…" },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                erreur?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall,
-                         color = MaterialTheme.colorScheme.error)
-                }
-                if (occupe) {
-                    Text("Interrogation de l'API…",
-                         style = MaterialTheme.typography.bodySmall)
+            }
+            Row2 {
+                TextButton(onClick = {
+                    presse.setText(AnnotatedString(entree.apiKey))
+                }) { Text("Copier") }
+                TextButton(onClick = { onModifier(entree) }) { Text("✎") }
+                TextButton(onClick = { onRetirer(entree) }) {
+                    Text("🗑", color = MaterialTheme.colorScheme.error)
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onAdd(bonnes) },
-                enabled = bonnes.isNotEmpty() && !occupe,
-            ) { Text(if (bonnes.size > 1) "Ajouter ${bonnes.size} clés" else "Ajouter") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
-    )
+            HorizontalDivider(Modifier.padding(vertical = 6.dp))
+        }
+    }
 }
 
 /** Deux boutons côte à côte — une ligne, sans plus de cérémonie. */
