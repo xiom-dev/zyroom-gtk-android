@@ -1,0 +1,65 @@
+# Le relevé des guildes, à l'heure, sans qu'aucune machine soit allumée.
+#
+# L'API de Ryzom ne rend qu'un état, jamais un historique : un mouvement se
+# déduit de deux relevés successifs. Chaque installation ne connaît donc que ce
+# qu'elle a regardé elle-même, et ce qui se passe pendant que tout le monde
+# dort n'est vu par personne. Ce relevé-ci ne dort pas.
+#
+# Les applications lisent ensuite le journal publié, en lecture seule, sur une
+# adresse publique : elles ne portent aucun jeton, et ne peuvent rien écrire.
+#
+# LA CLÉ NE VIT PAS ICI. Elle est posée en secret du dépôt, sous le nom
+# CLES_GUILDES — une ou plusieurs clés de guilde, séparées par des virgules.
+# Réglages → Secrets and variables → Actions → New repository secret.
+name: Relevé des guildes
+
+on:
+  schedule:
+    # Toutes les heures. GitHub peut retarder de quelques minutes aux heures
+    # chargées ; sans importance pour un relevé horaire.
+    - cron: "17 * * * *"
+  # Pour déclencher à la main depuis l'onglet Actions, sans attendre l'heure.
+  workflow_dispatch:
+
+# Le jeton d'écriture est fourni par GitHub à l'exécution et ne quitte jamais
+# ses serveurs. Aucune application n'en porte, ni n'en a besoin.
+permissions:
+  contents: write
+
+concurrency:
+  # Deux relevés en même temps se marcheraient sur les pieds au moment de
+  # pousser, et le second perdrait ce que le premier vient d'écrire.
+  group: releve-guildes
+  cancel-in-progress: false
+
+jobs:
+  relever:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Relever les guildes
+        env:
+          CLES_GUILDES: ${{ secrets.CLES_GUILDES }}
+        run: python3 zyroom-gtk/outils/releve-guildes.py
+
+      - name: Publier ce qui a bougé
+        run: |
+          # Rien à valider s'il ne s'est rien passé : un commit par heure qui
+          # ne dit rien noierait l'historique.
+          if [ -z "$(git status --porcelain journaux/)" ]; then
+            echo "Rien de neuf."
+            exit 0
+          fi
+          git config user.name  "Relevé des guildes"
+          git config user.email "noreply@github.com"
+          git add journaux/
+          git commit -m "Relevé des guildes : $(date -u '+%d/%m %Hh%M UTC')"
+          # `rebase` et non `merge` : deux relevés qui se croisent ne doivent
+          # pas laisser un commit de fusion par heure dans l'historique.
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

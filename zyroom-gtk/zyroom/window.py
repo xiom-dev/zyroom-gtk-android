@@ -16,7 +16,8 @@ from datetime import datetime, timedelta
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
 from . import (alerts, armory, backup, carte, chatlog, detail, gisements, i18n,
-               meteo, movements, outposts, polices, roster, ryzom_api, sorting)
+               meteo, movements, outposts, partage, polices, roster, ryzom_api,
+               sorting)
 from . import skills as skills_mod
 from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
@@ -174,6 +175,10 @@ class MainWindow(Gtk.ApplicationWindow):
         self._verifier_maj()
         GLib.timeout_add_seconds(MAJ_INTERVALLE, self._verifier_maj_tick)
         self._reload_entities()
+        # Ce que le depot publie du journal de guilde, verse sans rien
+        # demander. Apres `_reload_entities` : c'est lui qui dit quelles
+        # entites suivre.
+        self._relire_journaux_publies()
         self._refresh_season()
         # La météo part au démarrage, et non à l'ouverture de son onglet :
         # ainsi le graphique avance déjà quand on l'affiche, au lieu de
@@ -525,24 +530,6 @@ class MainWindow(Gtk.ApplicationWindow):
         copy_btn.set_tooltip_text(_("Copier les lignes affichées"))
         copy_btn.connect("clicked", self._on_log_copy)
         bar.append(copy_btn)
-
-        # Deux journaux qui se racontent ce qu'ils ont vu. L'API ne rend qu'un
-        # etat : chaque application ne connait que ce qu'elle a regarde
-        # elle-meme, et le telephone qui releve une fois par semaine voit d'un
-        # bloc ce que le bureau a vu en trois fois.
-        import_btn = Gtk.Button(label=_("Importer…"))
-        import_btn.set_tooltip_text(_(
-            "Verser ici un journal venu du téléphone ou d'un autre poste. "
-            "Ce qu'il raconte moins finement qu'ici est écarté."))
-        import_btn.connect("clicked", self._on_log_import)
-        bar.append(import_btn)
-
-        export_btn = Gtk.Button(label=_("Exporter…"))
-        export_btn.set_tooltip_text(_(
-            "Enregistrer ce journal pour le verser dans une autre "
-            "installation"))
-        export_btn.connect("clicked", self._on_log_export)
-        bar.append(export_btn)
 
         clear_btn = Gtk.Button(label=_("Vider"))
         clear_btn.set_tooltip_text(_("Effacer le journal de cette entité"))
@@ -2750,71 +2737,6 @@ class MainWindow(Gtk.ApplicationWindow):
         self.get_clipboard().set("\n".join(lines))
         self._log_status.set_text(f"{len(lines)} lignes copiées.")
 
-    def _on_log_import(self, _btn) -> None:
-        """Verse dans ce journal celui d'une autre installation.
-
-        Le téléphone et le bureau écrivent le même fichier — un `.jsonl` par
-        entité, sous le même nom — à trois noms de champs près, que
-        `movements.lire_etranger` connaît. On peut donc verser l'un dans
-        l'autre sans convertir quoi que ce soit.
-        """
-        entry = self._current_entry()
-        if not entry:
-            return
-        dialogue = Gtk.FileDialog()
-        dialogue.set_title(_("Choisir un journal à verser ici"))
-
-        def choisi(source, resultat):
-            try:
-                fichier = source.open_finish(resultat)
-            except GLib.Error:
-                return          # annule
-            chemin = fichier.get_path() if fichier else ""
-            if not chemin:
-                return
-            try:
-                with open(chemin, encoding="utf-8") as fh:
-                    lignes = fh.readlines()
-                ajoutes = movements.importer(
-                    movements_path(entry["kind"], entry["id"]), lignes)
-            except OSError as souci:
-                self._set_status(_("Journal illisible : {}").format(souci))
-                return
-            self._load_log()
-            self._set_status(
-                _("Journal versé : {} mouvement(s) de plus.").format(ajoutes)
-                if ajoutes else
-                _("Journal versé : rien de neuf, tout y était déjà."))
-
-        dialogue.open(self, None, choisi)
-
-    def _on_log_export(self, _btn) -> None:
-        """Enregistre ce journal tel quel, pour le verser ailleurs."""
-        entry = self._current_entry()
-        if not entry:
-            return
-        source_path = movements_path(entry["kind"], entry["id"])
-        dialogue = Gtk.FileDialog()
-        dialogue.set_title(_("Enregistrer le journal"))
-        dialogue.set_initial_name(os.path.basename(source_path))
-
-        def choisi(source, resultat):
-            try:
-                fichier = source.save_finish(resultat)
-            except GLib.Error:
-                return
-            cible = fichier.get_path() if fichier else ""
-            if not cible:
-                return
-            try:
-                shutil.copyfile(source_path, cible)
-            except OSError as souci:
-                self._set_status(_("Écriture impossible : {}").format(souci))
-                return
-            self._set_status(_("Journal enregistré dans {}").format(cible))
-
-        dialogue.save(self, None, choisi)
-
     def _on_log_clear(self, _btn) -> None:
         entry = self._current_entry()
         if not entry:
@@ -2866,6 +2788,42 @@ class MainWindow(Gtk.ApplicationWindow):
         self._names.load_cache()
 
     # -------------------------------------------------------- Entités
+    def _relire_journaux_publies(self) -> None:
+        """Verse dans les journaux d'ici ceux que la page publie.
+
+        Au lancement, en tâche de fond, et sans rien dire : c'est un confort,
+        pas une opération. L'API ne rend qu'un état — chaque installation ne
+        connaît que ce qu'elle a regardé elle-même, et un officier qui relève
+        une fois par semaine voit d'un bloc ce qu'un autre a vu en trois fois.
+        Ce que la page publie comble ces trous, et `movements.fusionner` garde
+        le récit le plus fin.
+
+        Rien ne remonte : la page se lit, elle ne s'écrit pas depuis ici.
+        """
+        entrees = list(self._entries)
+        if not entrees:
+            return
+
+        def work():
+            total = 0
+            for entree in entrees:
+                total += partage.recuperer(
+                    entree["kind"], entree["id"],
+                    movements_path(entree["kind"], entree["id"]))
+            return total
+
+        def done(total, err):
+            if err or not total:
+                return          # rien de neuf, ou pas de reseau : on se tait
+            # Le journal affiche peut etre celui qu'on vient d'enrichir.
+            if self._stack.get_visible_child_name() == "log":
+                self._load_log()
+            self._set_status(
+                _("Journal de la guilde : {} mouvement(s) repris de la page.")
+                .format(total))
+
+        run_async(work, done)
+
     def _reload_entities(self, select_id: str | None = None) -> None:
         self._entries = []
         for entry in self._char_store.entries():
