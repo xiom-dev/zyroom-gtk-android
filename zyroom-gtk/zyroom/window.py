@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.58" if _DEV else "0.41"
+VERSION = "0.59" if _DEV else "0.42"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2950,8 +2950,7 @@ class MainWindow(Gtk.ApplicationWindow):
         model = Gtk.StringList()
         if ent:
             for inv in ent.inventories:
-                model.append(f"{inv.label} ({len(inv.items)})"
-                             f"{self._remplissage(inv)}")
+                model.append(f"{inv.label}{self._remplissage(inv)}")
         self._inv_dd.handler_block_by_func(self._on_inventory_selected)
         self._inv_dd.set_model(model)
         self._inv_dd.handler_unblock_by_func(self._on_inventory_selected)
@@ -2965,9 +2964,10 @@ class MainWindow(Gtk.ApplicationWindow):
     def _remplissage(inv) -> str:
         """Le taux de remplissage d'un contenant, prêt à coller en fin de ligne.
 
-        Le nombre d'objets ne dit pas si l'on peut encore ranger quelque chose :
-        cent matières tiennent où dix armures débordent. Le menu porte donc les
-        deux, et l'on voit quel coffre est plein sans avoir à l'ouvrir.
+        Le menu annonçait un nombre d'objets, qui ne dit pas si l'on peut
+        encore ranger quelque chose : cent matières tiennent où dix armures
+        débordent. Le taux le dit, et l'on voit quel coffre est plein sans
+        avoir à l'ouvrir.
 
         Vide quand la capacité est inconnue — l'API ne la donne pas pour tous
         les contenants, et « (0%) » ferait croire à un coffre vide.
