@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.57" if _DEV else "0.40"
+VERSION = "0.58" if _DEV else "0.41"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -147,9 +147,10 @@ class MainWindow(Gtk.ApplicationWindow):
         # suivant. Sans cela, l'alerte disparaitrait au premier recalcul sans
         # reseau -- ouvrir les options suffisait a la faire taire.
         self._mouvements_argent: list = []
-        # État des filtres/tri
-        self._sort_index = 0
-        self._sort_desc = False
+        # Etat des filtres/tri. Le tri se retrouve comme on l'a laisse : c'est
+        # un reglage qu'on pose une fois pour toutes, pas a chaque lancement.
+        # Le menu n'existe pas encore -- il sera regle dessus a sa creation.
+        self._sort_index, self._sort_desc = self._settings.sort_order
         self._f_types = set(range(len(TYPE_NAMES)))
         self._f_ecosys = set(range(len(ECOSYSTEM_NAMES)))
         self._f_classes = set(range(len(CLASS_NAMES)))
@@ -328,9 +329,17 @@ class MainWindow(Gtk.ApplicationWindow):
         self._sort_dd = Gtk.DropDown.new_from_strings(
             [_("Ordre d'origine"), _("Type"), _("Écosystème"), _("Classe"),
              _("Qualité"), _("Volume"), _("Quantité"), _("Prix"), _("Nom")])
+        # Un rang relu que le menu ne connait pas -- entree retiree depuis,
+        # fichier venu d'ailleurs -- retombe sur le defaut : mieux vaut un tri
+        # qui n'est pas celui qu'on avait qu'un menu vide.
+        if self._sort_index >= self._sort_dd.get_model().get_n_items():
+            self._sort_index = Settings.TRI_DEFAUT[0]
+        # Regle avant de brancher le signal : le branchement d'abord ferait
+        # appeler `_redisplay_current` sur une fenetre a moitie construite.
+        self._sort_dd.set_selected(self._sort_index)
         self._sort_dd.connect("notify::selected", self._on_sort_changed)
         bar2.append(self._sort_dd)
-        self._order_btn = Gtk.Button(label="↓")
+        self._order_btn = Gtk.Button(label="↑" if self._sort_desc else "↓")
         self._order_btn.set_tooltip_text(_("Ordre croissant/décroissant"))
         self._order_btn.connect("clicked", self._on_order_toggle)
         bar2.append(self._order_btn)
@@ -2941,7 +2950,8 @@ class MainWindow(Gtk.ApplicationWindow):
         model = Gtk.StringList()
         if ent:
             for inv in ent.inventories:
-                model.append(f"{inv.label} ({len(inv.items)})")
+                model.append(f"{inv.label} ({len(inv.items)})"
+                             f"{self._remplissage(inv)}")
         self._inv_dd.handler_block_by_func(self._on_inventory_selected)
         self._inv_dd.set_model(model)
         self._inv_dd.handler_unblock_by_func(self._on_inventory_selected)
@@ -2950,6 +2960,22 @@ class MainWindow(Gtk.ApplicationWindow):
             self._display_inventory(0)
         else:
             self._clear_flow()
+
+    @staticmethod
+    def _remplissage(inv) -> str:
+        """Le taux de remplissage d'un contenant, prêt à coller en fin de ligne.
+
+        Le nombre d'objets ne dit pas si l'on peut encore ranger quelque chose :
+        cent matières tiennent où dix armures débordent. Le menu porte donc les
+        deux, et l'on voit quel coffre est plein sans avoir à l'ouvrir.
+
+        Vide quand la capacité est inconnue — l'API ne la donne pas pour tous
+        les contenants, et « (0%) » ferait croire à un coffre vide.
+        """
+        if getattr(inv, "capacity", 0) <= 0:
+            return ""
+        pct = inv.total_volume / inv.capacity * 100.0
+        return f" ({pct:.0f}%)"
 
     def _on_inventory_selected(self, _dd, _param) -> None:
         idx = self._inv_dd.get_selected()
@@ -3150,7 +3176,15 @@ class MainWindow(Gtk.ApplicationWindow):
         self._sale_only.set_active(False)
         for cb in getattr(self, "_all_checks", []):
             cb.set_active(True)
-        self._sort_dd.set_selected(0)
+        # « Reinit. » rend la fenetre telle qu'elle se presente au lancement,
+        # et c'est desormais le tri par type -- pas l'ordre d'origine, qu'on
+        # ne verrait sinon jamais autrement qu'en le demandant.
+        self._sort_dd.set_selected(Settings.TRI_DEFAUT[0])
+        # Le sens aussi : il ne se voyait pas tant qu'il repartait a zero a
+        # chaque lancement, mais une fleche montante survivant a « Reinit. »
+        # se remarque tout de suite.
+        if self._sort_desc != Settings.TRI_DEFAUT[1]:
+            self._on_order_toggle(None)
         self._apply_filter()
 
     # ------------------------------------------------------------- Tri
@@ -3177,12 +3211,23 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_sort_changed(self, _dd, _param) -> None:
         self._sort_index = self._sort_dd.get_selected()
+        self._retenir_tri()
         self._redisplay_current()
 
     def _on_order_toggle(self, _btn) -> None:
         self._sort_desc = not self._sort_desc
         self._order_btn.set_label("↑" if self._sort_desc else "↓")
+        self._retenir_tri()
         self._redisplay_current()
+
+    def _retenir_tri(self) -> None:
+        """Enregistre le tri dès maintenant, et non à la fermeture.
+
+        La taille des fenêtres, elle, attend `_on_close` : on ne la connaît
+        qu'à la fin. Le tri est su dès le clic, et une application tuée — ou
+        une session fermée sous elle — ne doit pas le faire oublier.
+        """
+        self._settings.sort_order = (self._sort_index, self._sort_desc)
 
     def _update_status(self) -> None:
         """Ligne du bas : qui, quel contenant, et de quand datent les données.

@@ -1,7 +1,7 @@
 """Les réglages qui survivent à la fermeture.
 
-La taille des fenêtres — la principale, celle des alertes — est enregistrée
-à la fermeture et relue au lancement.
+La taille des fenêtres — la principale, celle des alertes — et le tri de la
+grille d'items sont enregistrés et relus au lancement.
 Ce qu'on protège ici, c'est le cas où le fichier ment : un réglage recopié
 d'une autre machine, un écran débranché depuis, une valeur bricolée à la main.
 Une fenêtre de trois pixels de haut ne se rattrape pas à la souris.
@@ -81,6 +81,32 @@ class Fenetre(unittest.TestCase):
             self.assertEqual(config.Settings.ALERTES_DEFAUT,
                              config.Settings().alerts_window_size,
                              f"{taille} aurait dû être refusée")
+
+    def test_sans_reglage_on_trie_par_type(self):
+        """L'ordre d'origine est celui de l'API : il ne veut rien dire."""
+        self.assertEqual((1, False), config.Settings.TRI_DEFAUT)
+        self.assertEqual(config.Settings.TRI_DEFAUT,
+                         config.Settings().sort_order)
+
+    def test_le_tri_survit_a_la_fermeture(self):
+        for tri in ((0, False), (4, True), (8, False), (1, True)):
+            reglages = config.Settings()
+            reglages.sort_order = tri
+            self.assertEqual(tri, config.Settings().sort_order)
+
+    def test_un_rang_de_tri_negatif_revient_au_defaut(self):
+        reglages = config.Settings()
+        reglages.sort_order = (-3, False)
+        self.assertEqual(config.Settings.TRI_DEFAUT,
+                         config.Settings().sort_order)
+
+    def test_un_tri_illisible_revient_au_defaut(self):
+        chemin = os.path.join(self._dossier.name, "settings.ini")
+        with open(chemin, "w", encoding="utf-8") as fh:
+            fh.write("[GENERAL]\nSortIndex = par type\n"
+                     "SortDescending = plutôt oui\n")
+        self.assertEqual(config.Settings.TRI_DEFAUT,
+                         config.Settings().sort_order)
 
     def test_un_fichier_illisible_ne_fait_pas_tomber_le_lancement(self):
         """Une valeur qui n'est pas un nombre : on repart du défaut.

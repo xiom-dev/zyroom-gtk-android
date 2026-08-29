@@ -36,6 +36,37 @@ def _ecran() -> bool:
 ECRAN = _ecran()
 
 
+class FauxContenant:
+    def __init__(self, capacite, volume):
+        self.capacity = capacite
+        self.total_volume = volume
+
+
+class LeRemplissageDansLeMenu(unittest.TestCase):
+    """Le taux collé en fin de ligne du menu des coffres.
+
+    Du calcul pur : pas besoin d'écran, ce test tourne partout.
+    """
+
+    def taux(self, capacite, volume) -> str:
+        from zyroom.window import MainWindow
+        return MainWindow._remplissage(FauxContenant(capacite, volume))
+
+    def test_le_taux_se_colle_en_fin_de_ligne(self):
+        self.assertEqual(" (63%)", self.taux(300, 189.4))
+        self.assertEqual(" (0%)", self.taux(300, 0))
+        self.assertEqual(" (100%)", self.taux(300, 300))
+
+    def test_sans_capacite_connue_on_n_affiche_rien(self):
+        """« (0%) » ferait croire à un coffre vide, ce qu'il n'est pas.
+
+        L'API ne donne pas la capacité de tous les contenants, et un menu qui
+        annonce vide un coffre plein est pire qu'un menu qui se tait.
+        """
+        self.assertEqual("", self.taux(0, 50))
+        self.assertEqual("", self.taux(-1, 50))
+
+
 @unittest.skipUnless(ECRAN, "aucun écran : il n'y a rien à construire")
 class LaFenetreSeMonte(unittest.TestCase):
 

@@ -426,6 +426,39 @@ class Settings:
             return defaut
         return (largeur, hauteur)
 
+    #: Tri de la grille d'items au premier lancement : « Type », deuxieme
+    #: entree du menu. L'ordre d'origine, lui, est celui que l'API renvoie --
+    #: il ne veut rien dire pour personne, la ou un coffre range par famille
+    #: se lit d'un coup d'oeil.
+    TRI_DEFAUT = (1, False)
+
+    @property
+    def sort_order(self) -> tuple:
+        """Le tri de la grille d'items : (rang dans le menu, décroissant ?).
+
+        Un rang que le menu ne connaît plus — entrée retirée depuis, fichier
+        recopié d'une version ultérieure — n'est pas rattrapé ici : seule la
+        fenêtre sait combien d'entrées son menu compte, et c'est elle qui
+        retombe alors sur le défaut.
+        """
+        try:
+            rang = self._ini.getint("GENERAL", "SortIndex",
+                                    fallback=self.TRI_DEFAUT[0])
+            descendant = self._ini.getboolean("GENERAL", "SortDescending",
+                                              fallback=self.TRI_DEFAUT[1])
+        except ValueError:
+            return self.TRI_DEFAUT
+        if rang < 0:
+            return self.TRI_DEFAUT
+        return (rang, descendant)
+
+    @sort_order.setter
+    def sort_order(self, value: tuple) -> None:
+        rang, descendant = value
+        self._ini.set("GENERAL", "SortIndex", str(int(rang)))
+        self._ini.set("GENERAL", "SortDescending", "1" if descendant else "0")
+        self._flush()
+
     def _ecrire_taille(self, cle_largeur: str, cle_hauteur: str,
                        valeur: tuple) -> None:
         largeur, hauteur = valeur
