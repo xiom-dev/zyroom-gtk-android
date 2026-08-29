@@ -1,0 +1,3 @@
+* Home screen cards are now sorted: characters first, then guilds, each group
+  in alphabetical order. You used to look for a name in the order the keys had
+  been pasted.

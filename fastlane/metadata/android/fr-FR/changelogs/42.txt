@@ -1,0 +1,3 @@
+* Les cartes de l'accueil se rangent : les personnages d'abord, puis les
+  guildes, chaque groupe par ordre alphabétique. On y cherchait un nom dans
+  l'ordre où les clés avaient été collées.
