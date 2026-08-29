@@ -61,7 +61,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.59" if _DEV else "0.42"
+VERSION = "0.60" if _DEV else "0.42"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -190,7 +190,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.set_titlebar(header)
 
         add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
-        add_btn.set_tooltip_text(_("Ajouter un personnage ou une guilde (clé API)"))
+        add_btn.set_tooltip_text(_("Clés API : en ajouter une, relire ou "
+                                   "remplacer celles qu'on a"))
         add_btn.connect("clicked", self._on_add_clicked)
         header.pack_start(add_btn)
 
@@ -4013,14 +4014,44 @@ class MainWindow(Gtk.ApplicationWindow):
             pass
 
     # ----------------------------------------------- Dialogue « Ajouter »
+    # ----------------------------------------------------------- Cles API
     def _on_add_clicked(self, _btn) -> None:
-        dlg = Gtk.Window(title="Ajouter", transient_for=self, modal=True)
-        dlg.set_default_size(480, -1)
+        """La fenêtre des clés : on en pose dans un onglet, on les relit dans l'autre.
+
+        Les deux gestes vont ensemble — remplacer une clé expirée, c'est en
+        saisir une nouvelle là où l'on vient de lire l'ancienne — et une clé
+        qu'on ne peut pas relire est une clé qu'il faut aller rechercher sur le
+        site de Ryzom à chaque fois qu'on veut la vérifier.
+        """
+        dlg = Gtk.Window(title=_("Clés API"), transient_for=self, modal=True)
+        dlg.set_default_size(620, 540)
+        racine = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        racine.props.margin_top = racine.props.margin_bottom = 14
+        racine.props.margin_start = racine.props.margin_end = 14
+        dlg.set_child(racine)
+
+        pile = Gtk.Stack()
+        pile.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        racine.append(Gtk.StackSwitcher(stack=pile, halign=Gtk.Align.CENTER))
+        racine.append(pile)
+
+        pile.add_titled(self._page_ajout_cle(dlg), "ajout", _("Ajouter"))
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        pile.add_titled(page, "modif", _("Modifier"))
+        self._remplir_page_cles(page, dlg)
+
+        pied = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, halign=Gtk.Align.END)
+        fermer = Gtk.Button(label=_("Fermer"))
+        fermer.connect("clicked", lambda *_: dlg.close())
+        pied.append(fermer)
+        racine.append(pied)
+        dlg.present()
+
+    # ------------------------------------------------- Onglet « Ajouter »
+    def _page_ajout_cle(self, dlg) -> Gtk.Box:
+        """Le formulaire d'ajout, tel qu'il était avant d'avoir un voisin."""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        self._pad(box)
-        box.props.margin_top = box.props.margin_bottom = 14
-        box.props.margin_start = box.props.margin_end = 14
-        dlg.set_child(box)
+        box.props.margin_top = 10
 
         # Type : personnage ou guilde
         type_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -4054,11 +4085,8 @@ class MainWindow(Gtk.ApplicationWindow):
 
         buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
                           halign=Gtk.Align.END)
-        cancel = Gtk.Button(label="Annuler")
-        cancel.connect("clicked", lambda *_: dlg.destroy())
         add = Gtk.Button(label="Ajouter")
         add.add_css_class("suggested-action")
-        buttons.append(cancel)
         buttons.append(add)
         box.append(buttons)
 
@@ -4069,34 +4097,14 @@ class MainWindow(Gtk.ApplicationWindow):
                 return
             is_char = rb_char.get_active()
             kind = KIND_CHARACTER if is_char else KIND_GUILD
-            fetch = (ryzom_api.fetch_character_xml if is_char
-                     else ryzom_api.fetch_guild_xml)
-            parse = (ryzom_api.parse_character if is_char
-                     else ryzom_api.parse_guild)
-            required = (ryzom_api.REQUIRED_MODULES_CHAR if is_char
-                        else ryzom_api.REQUIRED_MODULES_GUILD)
             store = self._char_store if is_char else self._guild_store
-
             add.set_sensitive(False)
-            cancel.set_sensitive(False)
             status.set_text("Vérification de la clé…")
 
-            def work():
-                xml = fetch(key)
-                return parse(xml, self._sheetdb.name), xml
-
-            def done(result, err):
-                if err:
-                    status.set_text(f"Échec : {err}")
+            def apres(ent, xml, souci):
+                if souci:
+                    status.set_text(souci)
                     add.set_sensitive(True)
-                    cancel.set_sensitive(True)
-                    return
-                ent, xml = result
-                missing = ryzom_api.check_modules(ent.modules, required)
-                if missing:
-                    status.set_text("Modules manquants : " + ", ".join(missing))
-                    add.set_sensitive(True)
-                    cancel.set_sensitive(True)
                     return
                 name = name_entry.get_text().strip() or ent.name
                 store.save(ent.entity_id, key, name, ent.shard, ent.guild)
@@ -4105,11 +4113,207 @@ class MainWindow(Gtk.ApplicationWindow):
                 dlg.destroy()
                 self._reload_entities(select_id=ent.entity_id)
 
-            run_async(work, done)
+            self._verifier_cle(key, kind, apres)
 
         add.connect("clicked", do_add)
         key_entry.connect("activate", do_add)
-        dlg.present()
+        return box
+
+    def _verifier_cle(self, cle: str, kind: str, apres) -> None:
+        """Demande à l'API ce que vaut cette clé, puis `apres(ent, xml, souci)`.
+
+        `souci` est le message à afficher, ou une chaîne vide si tout va bien.
+        Le même chemin sert à l'ajout et au remplacement : une clé qu'on pose
+        sans la vérifier est une entité qui ne se synchronisera jamais, et l'on
+        ne le découvre qu'au relevé suivant.
+        """
+        is_char = kind == KIND_CHARACTER
+        fetch = (ryzom_api.fetch_character_xml if is_char
+                 else ryzom_api.fetch_guild_xml)
+        parse = (ryzom_api.parse_character if is_char
+                 else ryzom_api.parse_guild)
+        required = (ryzom_api.REQUIRED_MODULES_CHAR if is_char
+                    else ryzom_api.REQUIRED_MODULES_GUILD)
+
+        def work():
+            xml = fetch(cle)
+            return parse(xml, self._sheetdb.name), xml
+
+        def done(result, err):
+            if err:
+                apres(None, None, f"Échec : {err}")
+                return
+            ent, xml = result
+            missing = ryzom_api.check_modules(ent.modules, required)
+            if missing:
+                apres(None, None, "Modules manquants : " + ", ".join(missing))
+                return
+            apres(ent, xml, "")
+
+        run_async(work, done)
+
+    # ------------------------------------------------ Onglet « Modifier »
+    def _remplir_page_cles(self, page: Gtk.Box, dlg) -> None:
+        """Refait la liste des clés enregistrées, à l'ouverture et après coup."""
+        enfant = page.get_first_child()
+        while enfant is not None:
+            suivant = enfant.get_next_sibling()
+            page.remove(enfant)
+            enfant = suivant
+
+        scroll = Gtk.ScrolledWindow(vexpand=True)
+        liste = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        liste.props.margin_top = 10
+        scroll.set_child(liste)
+        page.append(scroll)
+
+        vide = True
+        for kind, store, mot in ((KIND_CHARACTER, self._char_store, _("personnage")),
+                                 (KIND_GUILD, self._guild_store, _("guilde"))):
+            for entry in store.entries():
+                vide = False
+                liste.append(self._ligne_cle(entry, kind, store, mot, page, dlg))
+        if vide:
+            vide_lbl = Gtk.Label(label=_("Aucune clé enregistrée — l'onglet "
+                                         "« Ajouter » est à côté."),
+                                 xalign=0.0, wrap=True)
+            vide_lbl.add_css_class("dim-label")
+            liste.append(vide_lbl)
+
+    def _ligne_cle(self, entry: dict, kind: str, store, mot: str,
+                   page: Gtk.Box, dlg) -> Gtk.Box:
+        """Une entité : son nom, sa clé en entier, et ce qu'on peut en faire."""
+        ligne = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        ligne.props.margin_bottom = 10
+
+        titre = Gtk.Label(xalign=0.0)
+        titre.set_markup(
+            f"<b>{GLib.markup_escape_text(entry['name'])}</b>"
+            f"  <span alpha='60%'>{GLib.markup_escape_text(mot)}</span>")
+        ligne.append(titre)
+
+        # La cle en entier et selectionnable : la lire est tout l'objet de cet
+        # onglet, et une clef tronquee ne se recopie pas a la main. En chasse
+        # fixe, ou l'oeil distingue le 0 du O et le 1 du l.
+        cle = Gtk.Label(xalign=0.0, selectable=True, wrap=True,
+                        wrap_mode=Pango.WrapMode.CHAR)
+        cle.set_markup(f"<tt>{GLib.markup_escape_text(entry['key'])}</tt>")
+        ligne.append(cle)
+
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6,
+                          halign=Gtk.Align.END)
+        copier = Gtk.Button(label=_("Copier"))
+        copier.set_tooltip_text(_("Copier la clé dans le presse-papiers"))
+        copier.connect("clicked", lambda *_: dlg.get_clipboard().set(entry["key"]))
+        actions.append(copier)
+
+        changer = Gtk.Button(label="✎")
+        changer.set_tooltip_text(_("Remplacer la clé"))
+        changer.connect("clicked", lambda *_: self._dialogue_changer_cle(
+            entry, kind, store, page, dlg))
+        actions.append(changer)
+
+        retirer = Gtk.Button(label="🗑")
+        retirer.set_tooltip_text(_("Retirer cette entité"))
+        retirer.add_css_class("destructive-action")
+        retirer.connect("clicked", lambda *_: self._confirmer_retrait(
+            entry, store, page, dlg))
+        actions.append(retirer)
+        ligne.append(actions)
+
+        ligne.append(Gtk.Separator())
+        return ligne
+
+    def _dialogue_changer_cle(self, entry: dict, kind: str, store,
+                              page: Gtk.Box, dlg) -> None:
+        """Remplace la clé d'une entité déjà connue, après l'avoir vérifiée.
+
+        La nouvelle clé peut désigner une autre entité — on s'est trompé de
+        ligne, ou l'on a repris la clé d'un autre personnage. L'ancienne entrée
+        est alors retirée : sans quoi la liste porterait deux fois la même
+        entité, l'une avec une clé qui n'est plus la sienne.
+        """
+        petit = Gtk.Window(title=_("Remplacer la clé"), transient_for=dlg,
+                           modal=True)
+        petit.set_default_size(460, -1)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.props.margin_top = box.props.margin_bottom = 14
+        box.props.margin_start = box.props.margin_end = 14
+        petit.set_child(box)
+
+        box.append(Gtk.Label(xalign=0.0, wrap=True, label=_(
+            "Nouvelle clé pour « {} ». Elle est vérifiée auprès de Ryzom avant "
+            "d'être enregistrée.").format(entry["name"])))
+        saisie = Gtk.Entry(placeholder_text=_("Clé API"), text=entry["key"])
+        box.append(saisie)
+        etat = Gtk.Label(xalign=0.0, wrap=True)
+        box.append(etat)
+
+        boutons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8,
+                          halign=Gtk.Align.END)
+        annuler = Gtk.Button(label=_("Annuler"))
+        annuler.connect("clicked", lambda *_: petit.close())
+        valider = Gtk.Button(label=_("Remplacer"))
+        valider.add_css_class("suggested-action")
+        boutons.append(annuler)
+        boutons.append(valider)
+        box.append(boutons)
+
+        def poser(*_):
+            cle = saisie.get_text().strip()
+            if not cle:
+                etat.set_text(_("Veuillez saisir une clé API."))
+                return
+            valider.set_sensitive(False)
+            etat.set_text(_("Vérification de la clé…"))
+
+            def apres(ent, xml, souci):
+                if souci:
+                    etat.set_text(souci)
+                    valider.set_sensitive(True)
+                    return
+                if ent.entity_id != entry["id"]:
+                    store.remove(entry["id"])
+                store.save(ent.entity_id, cle, entry["name"] or ent.name,
+                           ent.shard, ent.guild)
+                with open(entity_xml_path(kind, ent.entity_id), "wb") as fh:
+                    fh.write(xml)
+                petit.close()
+                self._remplir_page_cles(page, dlg)
+                self._reload_entities(select_id=ent.entity_id)
+
+            self._verifier_cle(cle, kind, apres)
+
+        valider.connect("clicked", poser)
+        saisie.connect("activate", poser)
+        petit.present()
+
+    def _confirmer_retrait(self, entry: dict, store, page: Gtk.Box, dlg) -> None:
+        """Le retrait se demande deux fois : les trois boutons sont voisins.
+
+        Celui de la barre principale ne demande rien, mais il porte sur
+        l'entité qu'on est en train de regarder. Ici on vise une ligne dans une
+        liste, et la corbeille est à un centimètre de « Copier ».
+        """
+        question = Gtk.AlertDialog()
+        question.set_message(_("Retirer « {} » ?").format(entry["name"]))
+        question.set_detail(_("Sa clé sera oubliée. Rien n'est supprimé chez "
+                              "Ryzom, et la remettre suffit à la retrouver."))
+        question.set_buttons([_("Annuler"), _("Retirer")])
+        question.set_cancel_button(0)
+        question.set_default_button(0)
+
+        def repondu(source, resultat):
+            try:
+                if source.choose_finish(resultat) != 1:
+                    return
+            except GLib.Error:
+                return          # fenetre fermee sans repondre
+            store.remove(entry["id"])
+            self._remplir_page_cles(page, dlg)
+            self._reload_entities()
+
+        question.choose(dlg, None, repondu)
 
     # -------------------------------------------- Chargement du pack (noms)
     def _on_pack_clicked(self, _btn) -> None:
