@@ -1,0 +1,7 @@
+* The chest log now fills itself in. A reading runs every hour on the app's
+  repository: whatever it saw while nobody was watching lands in your log at
+  startup, asking nothing and sending nothing.
+* Alerts name chests by number and name, without the sentence the API leaves
+  dangling after a bracket it never closes.
+* The bell turns gold and drops its red badge: a full chest is not an
+  incident.

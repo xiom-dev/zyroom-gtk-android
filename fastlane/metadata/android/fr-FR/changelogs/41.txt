@@ -1,0 +1,8 @@
+* Le journal des coffres se complète tout seul. Un relevé tourne désormais
+  chaque heure sur le dépôt de l'application : ce qu'il a vu pendant que
+  personne ne regardait entre dans votre journal au lancement, sans rien
+  demander ni rien envoyer.
+* Les alertes nomment les coffres par leur numéro et leur nom, sans la phrase
+  que l'API laisse pendre après une parenthèse jamais refermée.
+* La cloche passe à l'or et perd sa pastille rouge : un coffre bien rempli
+  n'est pas un ennui.
