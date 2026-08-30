@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -850,8 +851,15 @@ private fun JournalView(
             return@Column
         }
 
+        // La barre de defilement : un journal tient des centaines de lignes et
+        // rien ne disait ou l'on en etait dans la pile.
+        val defilement = rememberLazyListState()
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            state = defilement,
+            modifier = Modifier.fillMaxSize().barreDeDefilement(
+                defilement,
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+            ),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
             // Le retrait latéral passe dans la ligne : la bande de couleur doit
