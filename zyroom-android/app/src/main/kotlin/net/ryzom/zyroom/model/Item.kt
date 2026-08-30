@@ -53,6 +53,12 @@ data class Item(
     val type: ItemType = ItemType.OTHER,
     val price: Double = 0.0,
     val continent: String = "",
+    // Les quatre bonus de craft, dans l'ordre des jauges du jeu. Ils viennent
+    // de <craftparameters> et ne valent que pour l'equipement.
+    val hpBuff: Int = 0,
+    val sapBuff: Int = 0,
+    val staBuff: Int = 0,
+    val focusBuff: Int = 0,
 ) {
     /** Couleur retenue pour l'affichage, cas de l'armure de réfugié compris. */
     val displayColor: ItemColor

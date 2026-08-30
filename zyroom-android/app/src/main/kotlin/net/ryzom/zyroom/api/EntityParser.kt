@@ -512,12 +512,12 @@ object EntityParser {
         // remplissage annoncait « 0 % » sur un coffre plein, et l'alerte de
         // volume ne pouvait pas se declencher.
         val (type, volume) = Volume.classer(sheet, stack)
+        val craft = node.child("craftparameters")
         return Item(
             sheet = sheet,
             id = node.getAttribute("id"),
             slot = node.getAttribute("slot").toIntOrNull() ?: 0,
-            color = ItemColor.from(
-                node.child("craftparameters")?.text("color")),
+            color = ItemColor.from(craft?.text("color")),
             // Une qualité de 1 est ramenée à zéro : elle n'apprend rien et
             // encombrerait toutes les icônes.
             quality = if (quality == 1) 0 else quality,
@@ -530,6 +530,13 @@ object EntityParser {
             type = type,
             price = node.text("price").toDoubleOrNull() ?: 0.0,
             continent = node.text("continent"),
+            // Les bonus de craft : ce que le jeu resume par une goutte de
+            // couleur dans le coin de l'icone. Ils vivent sous
+            // <craftparameters>, et non a la racine de l'item.
+            hpBuff = craft?.text("hpbuff")?.toIntOrNull() ?: 0,
+            sapBuff = craft?.text("sapbuff")?.toIntOrNull() ?: 0,
+            staBuff = craft?.text("stabuff")?.toIntOrNull() ?: 0,
+            focusBuff = craft?.text("focusbuff")?.toIntOrNull() ?: 0,
         )
     }
 

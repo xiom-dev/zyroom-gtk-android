@@ -1296,6 +1296,9 @@ private fun ItemCell(
                 contentDescription = item.sheet,
                 modifier = Modifier.fillMaxSize().padding(4.dp),
             )
+            // Les gouttes de specialite, que l'API ne sait pas dessiner : elle
+            // n'a que le nom de fiche, jamais l'exemplaire (voir Specialites).
+            PileDeGouttes(item, Modifier.align(Alignment.TopStart).padding(2.dp))
             // Ni qualité ni quantité par-dessus : l'API les dessine déjà dans
             // l'icône, par `&q=` et `&s=`. Les répéter masquait le dessin.
             if (surveille) {
