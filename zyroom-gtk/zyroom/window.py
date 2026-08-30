@@ -504,11 +504,24 @@ class MainWindow(Gtk.ApplicationWindow):
                              "pour afficher les noms d'items.")
 
     # ------------------------------------------------ Journal des mouvements
-    #: Nombre de lignes construites d'un coup. Au-delà, on n'affiche pas tout :
-    #: un journal peut compter des milliers de lignes et une grille GTK de cette
-    #: taille se construit lentement pour rien — le filtre sert à chercher plus
-    #: loin.
-    _LOG_PAGE_SIZE = 400
+    #: La mémoire du journal, en jours. Tout ce qui est plus récent s'affiche,
+    #: quel qu'en soit le nombre de lignes.
+    #:
+    #: Il se coupait à quatre cents lignes, et une guilde active en produit
+    #: huit cents en deux jours : on ne voyait donc jamais l'avant-veille.
+    #: Une semaine est ce qu'il faut pour retrouver « qui a pris quoi » après
+    #: un week-end. Le fichier, lui, gardait déjà tout — c'était l'affichage
+    #: qui tronquait.
+    _LOG_JOURS = 7
+
+    #: Ce qu'on montre malgré tout après une semaine calme : une page vide
+    #: n'apprend rien, et un petit coffre peut ne bouger qu'une fois par mois.
+    _LOG_MINIMUM = 400
+
+    #: Plafond dur, pour un journal qu'on aurait laissé courir. Trois mille
+    #: lignes se construisent en moins de quatre cents millisecondes (mesuré) ;
+    #: au-delà, le filtre et la recherche servent à chercher plus loin.
+    _LOG_MAX = 3000
 
     def _build_log_page(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -2655,7 +2668,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # date pour la recomparer aussitôt.
         row = 0
         jour_precedent = None
-        for mv in shown[:self._LOG_PAGE_SIZE]:
+        montrees = movements.lignes_recentes(
+            shown, self._LOG_JOURS, self._LOG_MINIMUM, self._LOG_MAX)
+        for mv in shown[:montrees]:
             jour = mv.when[:10]
             if jour_precedent is not None and jour != jour_precedent:
                 trait = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
@@ -2722,9 +2737,9 @@ class MainWindow(Gtk.ApplicationWindow):
             self._log_status.set_text(
                 "Aucun mouvement enregistré. Le journal se remplit à chaque "
                 "synchronisation où quelque chose a bougé.")
-        elif len(shown) > self._LOG_PAGE_SIZE:
+        elif len(shown) > montrees:
             self._log_status.set_text(
-                f"{self._LOG_PAGE_SIZE} lignes affichées sur {len(shown)} "
+                f"{montrees} lignes affichées sur {len(shown)} "
                 f"retenues ({total} au journal) — affinez la recherche.")
         else:
             self._log_status.set_text(f"{len(shown)} lignes sur {total} au journal")

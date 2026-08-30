@@ -12,6 +12,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from zyroom import movements                                      # noqa: E402
 from zyroom.window import MainWindow                              # noqa: E402
 
 
@@ -86,6 +87,59 @@ class LibelleDeCoffre(unittest.TestCase):
         chaîne vide et la colonne serait muette : on garde alors l'original."""
         self.assertEqual("(Gh Armure", MainWindow._sans_parenthese("(Gh Armure"))
         self.assertEqual("", MainWindow._sans_parenthese(""))
+
+
+
+
+class MemoireDuJournal(unittest.TestCase):
+    """Combien de lignes le journal montre, et sur quelle profondeur.
+
+    Le cas réel : la guilde de Ludo produit huit cents mouvements en deux
+    jours. La grille s'arrêtait à quatre cents lignes, soit moins d'une
+    journée — l'avant-veille était invisible alors qu'elle était sur le disque.
+    """
+
+    MAINTENANT = 1_800_000_000.0
+    JOUR = 86400
+
+    def _journal(self, nombre, ecart):
+        """`nombre` mouvements espacés de `ecart` secondes, du plus récent."""
+        return [movements.Movement(ts=self.MAINTENANT - rang * ecart)
+                for rang in range(nombre)]
+
+    def test_une_guilde_active_montre_bien_sept_jours(self):
+        """Deux cents mouvements par jour : la semaine en fait quatorze cents.
+
+        Quatorze cent **un** : celui qui tombe pile sur la frontière est gardé.
+        La borne est inclusive, et mieux vaut une ligne de trop qu'un mouvement
+        qui disparaît en franchissant la seconde."""
+        journal = self._journal(3000, self.JOUR // 200)
+        montrees = movements.lignes_recentes(journal, 7, 400, 3000,
+                                             maintenant=self.MAINTENANT)
+        self.assertEqual(7 * 200 + 1, montrees)
+
+    def test_un_coffre_calme_garde_le_minimum(self):
+        """Une semaine sans rien ne doit pas donner une page vide."""
+        journal = self._journal(600, 3 * self.JOUR)     # un mouvement tous les 3 jours
+        montrees = movements.lignes_recentes(journal, 7, 400, 3000,
+                                             maintenant=self.MAINTENANT)
+        self.assertEqual(400, montrees)
+
+    def test_le_plafond_protege_un_journal_laisse_courir(self):
+        journal = self._journal(9000, 60)               # un mouvement par minute
+        montrees = movements.lignes_recentes(journal, 7, 400, 3000,
+                                             maintenant=self.MAINTENANT)
+        self.assertEqual(3000, montrees)
+
+    def test_on_ne_montre_jamais_plus_que_ce_qu_il_y_a(self):
+        journal = self._journal(12, self.JOUR)
+        montrees = movements.lignes_recentes(journal, 7, 400, 3000,
+                                             maintenant=self.MAINTENANT)
+        self.assertEqual(12, montrees)
+
+    def test_un_journal_vide(self):
+        self.assertEqual(0, movements.lignes_recentes([], 7, 400, 3000,
+                                                      maintenant=self.MAINTENANT))
 
 
 if __name__ == "__main__":

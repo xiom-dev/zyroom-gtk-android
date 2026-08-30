@@ -73,6 +73,24 @@ _MAX_LINES = 20000
 _TRIM_TO = 10000
 
 
+def lignes_recentes(mouvements: list, jours: int, minimum: int, maximum: int,
+                    maintenant: float | None = None) -> int:
+    """Combien de lignes couvrent les `jours` écoulés, entre deux bornes.
+
+    Le journal arrive trié du plus récent au plus ancien : on compte tant que
+    la date tient dans la fenêtre. En dessous de `minimum` on complète avec
+    les plus anciennes — une semaine sans mouvement ne doit pas donner une
+    page vide —, et `maximum` protège un journal qu'on aurait laissé courir.
+    """
+    limite = (maintenant if maintenant is not None else time.time()) - jours * 86400
+    recentes = 0
+    for mv in mouvements:
+        if mv.ts < limite:
+            break
+        recentes += 1
+    return min(max(recentes, minimum), maximum, len(mouvements))
+
+
 @dataclass
 class Movement:
     ts: float = 0.0          # date du releve d'ou il sort (cf. date_releve)
