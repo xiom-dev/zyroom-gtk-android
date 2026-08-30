@@ -131,6 +131,8 @@ sont dans `~/.cache/zyroom-gtk/`.
 | `zyroom/ryzom_api.py` | Client API (urllib) + parsing des inventaires |
 | `zyroom/sheetdb.py` | Chargement de `sheetid.csv` |
 | `zyroom/icons.py` | Cache disque + téléchargement concurrent des icônes |
+| `zyroom/specialites.py` | Les gouttes de bonus dessinées sur l'icône d'un équipement |
+| `zyroom/enchantements.py` | Le sort gravé dans un objet (flux personnage seul) |
 | `zyroom/config.py` | Chemins XDG + persistance des personnages |
 | `zyroom/window.py` | Fenêtre principale GTK4 |
 | `zyroom/app.py` / `run.py` | Application et point d'entrée |

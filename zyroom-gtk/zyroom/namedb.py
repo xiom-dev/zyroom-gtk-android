@@ -35,11 +35,18 @@ _SKILL_CODE = re.compile(r"^s[a-z0-9]{1,9}$")
 
 
 def _utile(key: str) -> bool:
-    """Ce que l'application sait nommer : items, avant-postes, compétences.
+    """Ce que l'application sait nommer : items, avant-postes, compétences, sorts.
 
-    Le pack en contient vingt-six mille, dialogues et missions compris."""
+    Le pack en contient vingt-six mille, dialogues et missions compris.
+
+    Les **briques** (`.sbrick`) sont les morceaux d'un sort : le flux personnage
+    ne donne d'un enchantement que leurs identifiants — `bmpa01.sbrick`,
+    `bmoetea04.sbrick` —, et c'est le pack qui les rend lisibles : « Missile
+    Atysien », « Dégât d'Électricité ». Elles sont quatre mille et pèsent une
+    centaine de kilo-octets de plus dans le cache JSON, pour la seule chose qui
+    dise ce qu'une arme enchantée fait vraiment."""
     return (key.endswith(".sitem") or key.endswith(".outpost")
-            or bool(_SKILL_CODE.match(key)))
+            or key.endswith(".sbrick") or bool(_SKILL_CODE.match(key)))
 
 
 def _parse_pack(data: bytes) -> dict[str, str]:
@@ -145,7 +152,7 @@ class NameDb:
             # personne — chacun aurait gardé la table incomplète tirée du même
             # fichier. À incrémenter à chaque changement de _parse_pack ou du
             # filtre ci-dessous.
-            signature = f"v3:{int(stat.st_mtime)}:{stat.st_size}"
+            signature = f"v4:{int(stat.st_mtime)}:{stat.st_size}"
             if self._cache_path and os.path.isfile(self._cache_path):
                 with open(self._cache_path, "r", encoding="utf-8") as fh:
                     cached = json.load(fh)

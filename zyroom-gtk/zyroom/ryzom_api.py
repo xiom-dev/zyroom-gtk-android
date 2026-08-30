@@ -298,6 +298,19 @@ def fetch_item_icon(item: ItemInfo) -> bytes:
     return _http_get(item_icon_url(item))
 
 
+def brique_icon_url(sheet: str) -> str:
+    """L'icône d'une brique de sort — celle du jeu, en 24×24.
+
+    Le même `item_icon.php` : il rend n'importe quelle fiche, `.sitem` comme
+    `.sbrick`. Sans qualité ni couleur, qui n'ont pas de sens pour un sort."""
+    return f"{API_BASE_URL}/item_icon.php?sheetid={sheet}"
+
+
+def fetch_brique_icon(sheet: str) -> bytes:
+    """Télécharge le PNG de l'icône d'une brique de sort."""
+    return _http_get(brique_icon_url(sheet))
+
+
 def fetch_url(url: str) -> bytes:
     """Télécharge le contenu d'une URL (portraits, icônes de guilde…)."""
     return _http_get(url)
