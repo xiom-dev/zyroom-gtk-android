@@ -851,92 +851,96 @@ private fun JournalView(
             return@Column
         }
 
-        // La barre de defilement : un journal tient des centaines de lignes et
-        // rien ne disait ou l'on en etait dans la pile.
+        // La barre de defilement, saisissable : un journal tient des centaines
+        // de lignes, et rien ne disait ou l'on en etait dans la pile.
         val defilement = rememberLazyListState()
-        LazyColumn(
-            state = defilement,
-            modifier = Modifier.fillMaxSize().barreDeDefilement(
-                defilement,
-                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-            ),
-            contentPadding = PaddingValues(vertical = 8.dp),
-        ) {
-            // Le retrait latéral passe dans la ligne : la bande de couleur doit
-            // aller d'un bord à l'autre, sinon elle flotte au milieu.
-            itemsIndexed(retenues) { rang, mouvement ->
-                Row(
-                    Modifier.fillMaxWidth()
-                        .background(fondZebre(rang % 2 == 0))
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Le trésor n'est pas un objet : pas de fiche à nommer, pas
-                    // d'icône à télécharger, et des montants à sept chiffres
-                    // qu'on ne lit pas d'un bloc.
-                    val argent = mouvement.invKey == MovementStore.MONEY_KEY
-                    Text(
-                        text = (if (mouvement.delta > 0) "+" else "") +
-                            if (argent) MovementStore.montant(mouvement.delta)
-                            else mouvement.delta.toString(),
-                        color = if (mouvement.delta > 0) ENTREE else SORTIE,
-                        style = MaterialTheme.typography.titleSmall,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.width(LARGEUR_QUANTITE)
-                            .padding(end = 10.dp),
-                    )
-                    // Le texte prend ce qui reste. Sans ce poids, un nom
-                    // d'objet a rallonge pousserait l'icone hors de l'ecran,
-                    // et c'est justement ce qu'on ne veut plus.
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            if (argent) "Dappers" else nameOf(mouvement.sheet),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        // Le libelle est coupe a la parenthese : ce que la
-                        // guilde range dans un coffre ne s'apprend pas d'un
-                        // fragment de phrase, et la ligne y gagne sa largeur.
-                        Text(
-                            "${HORODATAGE.format(Instant.ofEpochSecond(mouvement.at))} · " +
-                                MovementStore.sansParenthese(mouvement.invLabel),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    // La qualite, dans sa propre colonne, calee a gauche : les
-                    // « Q » tombent alors les uns sous les autres et se lisent
-                    // en descendant. Le tresor n'en a pas, mais la colonne
-                    // reste : c'est elle qui tient l'icone en place.
-                    Text(
-                        if (mouvement.quality > 0) "Q${mouvement.quality}" else "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(LARGEUR_QUALITE),
-                    )
-                    // L'icone ferme la ligne, dans une colonne de largeur fixe.
-                    // C'est elle qu'on reconnait en parcourant le journal, bien
-                    // avant de lire un nom — mais elle suivait jusqu'ici le nom
-                    // de l'objet, donc elle changeait de place a chaque ligne et
-                    // ne se laissait plus balayer du regard. Le tresor y met sa
-                    // piece, faute de fiche a dessiner.
-                    Box(
-                        Modifier.width(LARGEUR_ICONE),
-                        contentAlignment = Alignment.Center,
+        Box(Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = defilement,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                // Le retrait latéral passe dans la ligne : la bande de couleur doit
+                // aller d'un bord à l'autre, sinon elle flotte au milieu.
+                itemsIndexed(retenues) { rang, mouvement ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .background(fondZebre(rang % 2 == 0))
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (argent) {
-                            Text("💰", style = MaterialTheme.typography.bodyMedium)
-                        } else {
-                            AsyncImage(
-                                model = RyzomApi.itemIconUrl(
-                                    Item(sheet = mouvement.sheet,
-                                         quality = mouvement.quality)),
-                                contentDescription = null,
-                                modifier = Modifier.size(TAILLE_ICONE),
+                        // Le trésor n'est pas un objet : pas de fiche à nommer, pas
+                        // d'icône à télécharger, et des montants à sept chiffres
+                        // qu'on ne lit pas d'un bloc.
+                        val argent = mouvement.invKey == MovementStore.MONEY_KEY
+                        Text(
+                            text = (if (mouvement.delta > 0) "+" else "") +
+                                if (argent) MovementStore.montant(mouvement.delta)
+                                else mouvement.delta.toString(),
+                            color = if (mouvement.delta > 0) ENTREE else SORTIE,
+                            style = MaterialTheme.typography.titleSmall,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.width(LARGEUR_QUANTITE)
+                                .padding(end = 10.dp),
+                        )
+                        // Le texte prend ce qui reste. Sans ce poids, un nom
+                        // d'objet a rallonge pousserait l'icone hors de l'ecran,
+                        // et c'est justement ce qu'on ne veut plus.
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (argent) "Dappers" else nameOf(mouvement.sheet),
+                                style = MaterialTheme.typography.bodyMedium,
                             )
+                            // Le libelle est coupe a la parenthese : ce que la
+                            // guilde range dans un coffre ne s'apprend pas d'un
+                            // fragment de phrase, et la ligne y gagne sa largeur.
+                            Text(
+                                "${HORODATAGE.format(Instant.ofEpochSecond(mouvement.at))} · " +
+                                    MovementStore.sansParenthese(mouvement.invLabel),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        // La qualite, dans sa propre colonne, calee a gauche : les
+                        // « Q » tombent alors les uns sous les autres et se lisent
+                        // en descendant. Le tresor n'en a pas, mais la colonne
+                        // reste : c'est elle qui tient l'icone en place.
+                        Text(
+                            if (mouvement.quality > 0) "Q${mouvement.quality}" else "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(LARGEUR_QUALITE),
+                        )
+                        // L'icone ferme la ligne, dans une colonne de largeur fixe.
+                        // C'est elle qu'on reconnait en parcourant le journal, bien
+                        // avant de lire un nom — mais elle suivait jusqu'ici le nom
+                        // de l'objet, donc elle changeait de place a chaque ligne et
+                        // ne se laissait plus balayer du regard. Le tresor y met sa
+                        // piece, faute de fiche a dessiner.
+                        Box(
+                            Modifier.width(LARGEUR_ICONE),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (argent) {
+                                Text("💰", style = MaterialTheme.typography.bodyMedium)
+                            } else {
+                                AsyncImage(
+                                    model = RyzomApi.itemIconUrl(
+                                        Item(sheet = mouvement.sheet,
+                                             quality = mouvement.quality)),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(TAILLE_ICONE),
+                                )
+                            }
                         }
                     }
                 }
             }
+            BarreDefilement(
+                defilement,
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                Modifier.align(Alignment.CenterEnd),
+            )
         }
     }
 }
