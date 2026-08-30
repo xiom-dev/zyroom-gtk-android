@@ -17,7 +17,8 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
 from . import (alerts, armory, backup, carte, chatlog, detail, gisements, i18n,
                meteo, movements, outposts, partage, polices, roster, ryzom_api,
-               sorting)
+               sorting, specialites)
+from . import enchantements
 from . import skills as skills_mod
 from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
@@ -63,7 +64,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.65" if _DEV else "0.45"
+VERSION = "0.69" if _DEV else "0.45"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2607,6 +2608,13 @@ class MainWindow(Gtk.ApplicationWindow):
     #: coup d'œil — or le journal se parcourt.
     TAILLE_ICONE_JOURNAL = 24
 
+    #: L'icône du sort gravé dans un objet, posée sur la sienne.
+    #:
+    #: Vingt : l'API la rend en vingt-quatre, mais sur une case de quarante-huit
+    #: elle mangeait le quart de l'objet. Vingt se reconnaît encore — un éclair,
+    #: une goutte, un missile — sans qu'on cherche ce qu'il y a dessous.
+    TAILLE_ICONE_SORT = 20
+
     def _icone_journal(self, generation: int, image):
         """Pose l'icône si le journal n'a pas été redessiné entre-temps.
 
@@ -3036,9 +3044,28 @@ class MainWindow(Gtk.ApplicationWindow):
         for item in self._sorted(inv.items):
             image = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
             image.set_pixel_size(ICON_SIZE)
-            image.set_tooltip_text(self._item_tooltip(item))
+            # Infobulle construite au survol, et non a la creation : elle
+            # porte maintenant des gouttes dessinees, et un coffre en compte
+            # jusqu'a quatre cents.
+            image.set_has_tooltip(True)
+            image.connect("query-tooltip", self._on_item_tooltip, item)
             child = Gtk.FlowBoxChild()
-            child.set_child(image)
+            # Les gouttes de specialite, dessinees par-dessus l'icone. Pas
+            # d'Overlay quand il n'y a rien a poser : c'est le cas de la
+            # plupart des items d'un coffre, et un widget de plus par case
+            # pese sur une grille qui en compte des centaines.
+            gouttes = specialites.bandeau(item)
+            sort = enchantements.brique_icone(item)
+            if gouttes is None and not sort:
+                child.set_child(image)
+            else:
+                pile = Gtk.Overlay()
+                pile.set_child(image)
+                if gouttes is not None:
+                    pile.add_overlay(gouttes)
+                if sort:
+                    pile.add_overlay(self._icone_sort(gen, sort))
+                child.set_child(pile)
             self._flow.append(child)
             search_key = _norm(f"{self._names.name(item.sheet)} {item.sheet}")
             self._rows.append((child, item, search_key))
@@ -3073,7 +3100,11 @@ class MainWindow(Gtk.ApplicationWindow):
         if item.stack:
             lines.append(f"Quantité : {item.stack}")
         if item.item_type == ItemType.EQUIPMENT and item.hp:
-            lines.append(f"Durabilité : {item.hp}")
+            # " 75 / 154 " : un nombre seul ne dit pas si l'objet est neuf ou
+            # a bout de course. Le maximum vient du craft (`durability`), et
+            # manque sur les items que l'API ne detaille pas.
+            lines.append(f"Durabilité : {item.hp} / {item.hp_max}"
+                         if item.hp_max else f"Durabilité : {item.hp}")
         if item.volume:
             lines.append(f"Volume : {item.volume:.2f}")
         if item.price:
@@ -3085,6 +3116,61 @@ class MainWindow(Gtk.ApplicationWindow):
         if self._watch is not None and self._watch.is_watched(item):
             lines.append("👁 Surveillé")
         return "\n".join(lines)
+
+    def _icone_sort(self, gen: int, brique: str) -> Gtk.Widget:
+        """L'icône du sort gravé dans l'objet, à poser en haut à droite.
+
+        Vide en attendant l'image : un objet enchanté n'est pas plus rare qu'un
+        autre dans un sac de mêlée, et une image d'attente ferait clignoter la
+        grille à chaque affichage. L'API la rend en 24×24 ; on la montre un peu
+        plus petite, pour laisser voir l'objet en dessous."""
+        vue = Gtk.Image()
+        vue.set_pixel_size(self.TAILLE_ICONE_SORT)
+        vue.set_halign(Gtk.Align.END)
+        vue.set_valign(Gtk.Align.START)
+        # Comme les gouttes : le dessin ne prend pas le clic de l'icone.
+        vue.set_can_target(False)
+        self._icons.request_brique(brique, self._recevoir_sort(gen, vue))
+        return vue
+
+    def _recevoir_sort(self, gen: int, vue: Gtk.Image):
+        def callback(path):
+            if gen == self._generation and path:
+                vue.set_from_file(path)
+                vue.set_pixel_size(self.TAILLE_ICONE_SORT)
+            return False
+        return callback
+
+    def _on_item_tooltip(self, _widget, _x, _y, _clavier, infobulle, item) -> bool:
+        """Le survol d'un item : son infobulle, gouttes comprises."""
+        infobulle.set_custom(self._item_tooltip_widget(item))
+        return True
+
+    def _item_tooltip_widget(self, item) -> Gtk.Widget:
+        """L'infobulle d'un item : le texte, puis les spécialités en couleur.
+
+        Un widget et non du texte, parce qu'une goutte ne s'écrit pas. Le jeu
+        fait de même : le nom, la goutte et son nombre, la durabilité."""
+        boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        texte = Gtk.Label(label=self._item_tooltip(item), xalign=0.0)
+        boite.append(texte)
+        gouttes = specialites.bloc_infobulle(item)
+        if gouttes is not None:
+            boite.append(gouttes)
+        sort = enchantements.resume(item, self._names.name)
+        if sort:
+            # Les charges disent combien de fois le sort part encore ; le cout,
+            # ce qu'un lancer prend. Les deux viennent du meme noeud.
+            ligne = f"Enchantement : {sort}"
+            if item.sap_charges:
+                ligne += f"\nCharges de sève : {item.sap_charges}"
+            if item.enchant_cost:
+                ligne += f" (coût {abs(item.enchant_cost)})"
+            etiquette = Gtk.Label(label=ligne, xalign=0.0)
+            etiquette.set_wrap(True)
+            etiquette.set_max_width_chars(40)
+            boite.append(etiquette)
+        return boite
 
     def _clear_flow(self) -> None:
         child = self._flow.get_first_child()

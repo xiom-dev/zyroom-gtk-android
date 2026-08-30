@@ -153,8 +153,12 @@ class ItemInfo:
     stack: int = 0             # taille de la pile (ItemSize)
     locked: bool = False
     sap: bool = False          # possède une charge de sève
+    sap_charges: int = 0       # charge actuelle (flux personnage seul)
+    enchant_cost: int = 0      # cout en seve d'un lancer
+    enchant_bricks: list = field(default_factory=list)  # les .sbrick du sort
     destroyed: bool = False
-    hp: int = 0                # durabilité (pour l'équipement)
+    hp: int = 0                # durabilité restante (pour l'équipement)
+    hp_max: int = 0            # durabilite d'origine, fixee au craft
     volume: float = 0.0        # rempli après parsing (voir volume.py)
     item_type: "ItemType" = ItemType.OTHER  # rempli par volume.classify
     # Champs des items en vente (shop)
@@ -256,6 +260,9 @@ def _int(value: str) -> int:
 def _parse_craft(node: Element, item: "ItemInfo") -> None:
     """Lit les caractéristiques de craft (portage de GetItemInfoFromXML)."""
     item.weight = _float(_cp_val(node, "weight"))
+    # La durabilite d'origine, que le jeu affiche en second nombre : `<hp>`
+    # dit ce qui reste, `durability` ce qu'il y avait au sortir de la forge.
+    item.hp_max = _int(_cp_val(node, "durability"))
 
     # Classe déduite de l'énergie (statenergy)
     energy = _cp_text(node, "statenergy")
@@ -368,8 +375,22 @@ def parse_item(node: Element, resolve_sheet=None) -> ItemInfo:
         item.locked = int(locked) > 0
 
     # Charge de sève : présence du noeud sapload (sauf sorts cristallisés)
-    if _text(node, "sapload") and item.sheet.lower() != "crystalized_spell.sitem":
+    charge = _text(node, "sapload")
+    if charge and item.sheet.lower() != "crystalized_spell.sitem":
         item.sap = True
+        item.sap_charges = _int(charge)
+
+    # L'enchantement : le sort grave dans l'objet, decrit par ses briques.
+    #
+    # **Le flux personnage seul le porte.** Les coffres de guilde n'en
+    # transmettent rien — verifie sur 3138 objets de deux guildes, pas un seul
+    # noeud. Le champ reste donc vide pour eux, et l'affichage n'en montre rien
+    # plutot que de laisser croire qu'aucune arme n'est enchantee.
+    enchantement = node.find("enchantment")
+    if enchantement is not None:
+        item.enchant_cost = _int(enchantement.get("cost", "0"))
+        item.enchant_bricks = [brique.text for brique in enchantement.findall("sbrick")
+                               if brique.text]
 
     hp = _text(node, ".//hp")
     if hp:
