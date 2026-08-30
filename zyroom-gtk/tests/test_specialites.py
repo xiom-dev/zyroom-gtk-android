@@ -46,15 +46,22 @@ class Gouttes(unittest.TestCase):
         item = ItemInfo(sheet="ic.sitem", hp_buff=12, sta_buff=5)
         self.assertEqual("Vie +12, Endurance +5", specialites.resume(item))
 
-    def test_l_icone_ne_porte_que_la_goutte_dominante(self):
-        """Trois bonus, une seule goutte : la plus grosse, comme dans le jeu."""
+    def test_l_icone_porte_toutes_les_gouttes(self):
+        """Trois bonus, trois gouttes empilées, dans l'ordre des jauges."""
         item = ItemInfo(sheet="ic.sitem", hp_buff=40, sap_buff=125, sta_buff=20)
-        self.assertEqual(("Sève", 125, "#4caf50"), specialites.principal(item))
-        # mais l'infobulle, elle, les montre toutes
-        self.assertEqual(3, len(specialites.bonus(item)))
+        self.assertEqual(["Vie", "Sève", "Endurance"],
+                         [libelle for libelle, _v, _c in specialites.bonus(item)])
+        self.assertIsNotNone(specialites.bandeau(item))
 
-    def test_pas_de_goutte_dominante_sans_bonus(self):
-        self.assertIsNone(specialites.principal(ItemInfo(sheet="m0067.sitem")))
+    def test_la_pile_ne_mord_pas_sur_la_quantite(self):
+        """Le bas de l'icône porte « x11 » : la pile s'arrête au-dessus."""
+        for nombre in range(1, len(specialites.SPECIALITES) + 1):
+            self.assertLessEqual(specialites.hauteur_pile(nombre), specialites.ZONE,
+                                 f"{nombre} gouttes débordent")
+
+    def test_deux_gouttes_se_suivent_sans_se_toucher(self):
+        """Tant qu'elles tiennent, elles sont bord à bord — pas resserrées."""
+        self.assertEqual(2 * specialites.HAUTEUR, specialites.hauteur_pile(2))
 
     def test_le_filtre_au_repos_laisse_tout_passer(self):
         """Les quatre cases cochées : même les objets sans bonus restent."""

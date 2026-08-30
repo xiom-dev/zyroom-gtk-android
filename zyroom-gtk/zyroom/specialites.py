@@ -40,6 +40,11 @@ SPECIALITES = (
 LARGEUR = 11
 HAUTEUR = 14
 
+#: La hauteur ou la colonne a le droit de descendre, sur une icone de 48.
+#: Les dix derniers pixels portent la quantite — « x11 », « x425 » —, que la
+#: pile ne doit pas recouvrir.
+ZONE = 38
+
 
 def bonus(item) -> list[tuple[str, int, str]]:
     """Les spécialités portées par un item : `[(libellé, valeur, couleur), …]`.
@@ -75,18 +80,6 @@ def passe_le_filtre(item, coches: set) -> bool:
     return bool(indices(item) & coches)
 
 
-def principal(item):
-    """La spécialité dominante d'un item : `(libellé, valeur, couleur)` ou `None`.
-
-    Celle qui porte le plus gros bonus. Les quatre se comptent en points sur la
-    même échelle, elles se comparent donc directement ; à égalité, l'ordre des
-    jauges tranche."""
-    lignes = bonus(item)
-    if not lignes:
-        return None
-    return max(lignes, key=lambda ligne: ligne[1])
-
-
 def resume(item) -> str:
     """« Vie +12, Combat +5 », pour l'infobulle.
 
@@ -118,48 +111,69 @@ def _goutte(ctx, x: float, y: float, rgba: Gdk.RGBA) -> None:
     ctx.stroke()
 
 
+def _pas(nombre: int) -> float:
+    """L'écart vertical entre deux gouttes d'une pile de `nombre`.
+
+    Bord à bord tant qu'elles tiennent dans la zone, resserrées au-delà : trois
+    gouttes de quatorze pixels dépasseraient sur la quantité, quatre sur
+    l'icône voisine."""
+    if nombre < 2:
+        return float(HAUTEUR)
+    return min(float(HAUTEUR), (ZONE - HAUTEUR) / (nombre - 1))
+
+
+def hauteur_pile(nombre: int) -> int:
+    """La hauteur qu'occupe une pile de `nombre` gouttes."""
+    if nombre < 1:
+        return 0
+    return int(round((nombre - 1) * _pas(nombre) + HAUTEUR))
+
+
 def _dessiner(_zone, ctx, _largeur, _hauteur, couleurs: list) -> None:
-    """La rangée de gouttes, côte à côte."""
-    for rang, rgba in enumerate(couleurs):
-        _goutte(ctx, rang * LARGEUR, 0.0, rgba)
+    """La pile de gouttes, de haut en bas, dans l'ordre des jauges.
+
+    **Dessinées de bas en haut** : quand elles se resserrent, c'est la pointe
+    qui passe sous la goutte du dessus, jamais le ventre — le ventre porte la
+    couleur, donc le sens."""
+    pas = _pas(len(couleurs))
+    for rang in range(len(couleurs) - 1, -1, -1):
+        _goutte(ctx, 0.0, rang * pas, couleurs[rang])
 
 
 def bandeau(item) -> Gtk.DrawingArea | None:
-    """La goutte à poser sur l'icône, `None` si l'item n'a aucun bonus.
+    """La pile de gouttes à poser sur l'icône, `None` s'il n'y a aucun bonus.
 
     À placer dans un `Gtk.Overlay`, au-dessus de l'image de l'item.
 
-    **Une seule**, celle du bonus dominant, comme dans le jeu — et l'infobulle
-    dit le reste. Un item peut en porter trois ; trois gouttes font trente-trois
-    pixels sur quarante-huit et viennent buter dans la qualité, que l'API écrit
-    juste à côté. Une tache de couleur dit la spécialité, c'est tout ce qu'on
-    lui demande en parcourant un coffre.
+    **Toutes les gouttes**, les unes sous les autres, dans l'ordre des jauges :
+    vie, sève, endurance, concentration — rouge, vert, mauve, bleu. Un objet en
+    porte trois au plus ; la pile s'arrête au-dessus du bandeau de quantité.
 
-    **En haut à gauche.** Le jeu la pose en bas, mais son icône n'y écrit rien ;
-    celle de l'API porte la quantité dans ce coin — « x11 », « x425 » —, et la
-    goutte la masquait. Les deux autres coins sont pris : la qualité en bas à
-    droite, les étoiles de classe en haut à droite.
+    **En haut à gauche** : l'API écrit la qualité en bas à droite, empile les
+    étoiles de classe en haut à droite, et la quantité occupe le bas.
 
-    Reste que l'API dessine dans ce même coin la tache verte des objets à charge
-    de sève. Les deux se superposent sur les rares équipements qui cumulent une
-    charge et un bonus ; la goutte passe au-dessus, et c'est elle qu'on cherche
-    en parcourant un coffre."""
-    dominant = principal(item)
-    if dominant is None:
+    Un seul widget pour toute la pile, qui la place elle-même : une grille de
+    coffre en compte des centaines, et trois `DrawingArea` par case s'y
+    verraient."""
+    lignes = bonus(item)
+    if not lignes:
         return None
 
-    rgba = Gdk.RGBA()
-    rgba.parse(dominant[2])           # une fois pour toutes, pas a chaque trame
+    couleurs = []
+    for _libelle, _valeur, couleur in lignes:
+        rgba = Gdk.RGBA()
+        rgba.parse(couleur)           # une fois pour toutes, pas a chaque trame
+        couleurs.append(rgba)
 
     zone = Gtk.DrawingArea()
     zone.set_content_width(LARGEUR)
-    zone.set_content_height(HAUTEUR)
+    zone.set_content_height(hauteur_pile(len(couleurs)))
     zone.set_halign(Gtk.Align.START)
     zone.set_valign(Gtk.Align.START)
-    # La goutte ne se clique pas. Sans cela elle avalerait le clic droit et le
-    # double-clic destines a l'icone qu'elle recouvre.
+    # Les gouttes ne se cliquent pas. Sans cela elles avaleraient le clic droit
+    # et le double-clic destines a l'icone qu'elles recouvrent.
     zone.set_can_target(False)
-    zone.set_draw_func(_dessiner, [rgba])
+    zone.set_draw_func(_dessiner, couleurs)
     return zone
 
 
