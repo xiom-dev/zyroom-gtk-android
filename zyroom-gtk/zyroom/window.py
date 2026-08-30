@@ -159,6 +159,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._f_classes = set(range(len(CLASS_NAMES)))
         self._f_equips = set(range(len(EQUIP_NAMES)))
         self._f_bonus = set(range(len(specialites.SPECIALITES)))
+        #: Le contenant qu'on regarde : ((genre, identifiant), cle du coffre).
+        #: Sert a le retrouver quand la releve automatique rebatit la liste.
+        self._inv_courant: tuple | None = None
 
         # Entités déjà rafraîchies depuis l'ouverture de l'application : on ne
         # resynchronise qu'une fois par entité, pas à chaque aller-retour dans
@@ -3018,10 +3021,34 @@ class MainWindow(Gtk.ApplicationWindow):
         self._inv_dd.set_model(model)
         self._inv_dd.handler_unblock_by_func(self._on_inventory_selected)
         if ent and ent.inventories:
-            self._inv_dd.set_selected(0)
-            self._display_inventory(0)
+            rang = self._rang_du_contenant(ent)
+            self._inv_dd.set_selected(rang)
+            self._display_inventory(rang)
         else:
             self._clear_flow()
+
+    def _rang_du_contenant(self, ent) -> int:
+        """Le contenant à réafficher après un rechargement de la liste.
+
+        La relève automatique rebâtit cette liste toutes les quinze minutes, et
+        elle ramenait au premier : on consultait le coffre onze, on regardait
+        ailleurs, et l'on retrouvait le coffre un — sans rien avoir demandé.
+
+        Le repère est la **clé** du contenant et non son rang : l'API peut en
+        rendre un de plus ou de moins d'une relève à l'autre, et un rang
+        désignerait alors le voisin. Changer d'entité fait repartir du premier,
+        ce qui est le bon comportement : les coffres d'une guilde n'ont rien à
+        voir avec le sac d'un personnage.
+        """
+        if not self._inv_courant:
+            return 0
+        entite, cle = self._inv_courant
+        if entite != (ent.kind, ent.entity_id):
+            return 0
+        for rang, inv in enumerate(ent.inventories):
+            if inv.key == cle:
+                return rang
+        return 0
 
     @staticmethod
     def _remplissage(inv) -> str:
@@ -3050,6 +3077,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if not ent or not (0 <= index < len(ent.inventories)):
             return
         inv = ent.inventories[index]
+        self._inv_courant = ((ent.kind, ent.entity_id), inv.key)
         self._update_volume_gauge(inv)
 
         self._generation += 1
