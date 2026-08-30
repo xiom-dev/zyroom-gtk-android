@@ -3207,6 +3207,11 @@ class MainWindow(Gtk.ApplicationWindow):
         scroll.set_child(content)
         pop.set_child(scroll)
 
+        # Les bonus d'abord : c'est le tri qu'on vient chercher le plus souvent
+        # dans un coffre d'équipement, et le panneau tient sur quatre cent
+        # quarante pixels — plus bas, il fallait dérouler pour l'atteindre.
+        content.append(self._groupe_bonus())
+
         qbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         qbox.append(Gtk.Label(label=_("Qualité")))
         self._qmin = Gtk.SpinButton.new_with_range(0, 500, 10)
@@ -3233,7 +3238,6 @@ class MainWindow(Gtk.ApplicationWindow):
         content.append(self._check_group("Classe", CLASS_NAMES, self._f_classes))
         content.append(self._check_group("Écosystème", ECOSYSTEM_NAMES, self._f_ecosys))
         content.append(self._check_group("Équipement", EQUIP_NAMES, self._f_equips))
-        content.append(self._groupe_bonus())
         return pop
 
     def _groupe_bonus(self) -> Gtk.Widget:
