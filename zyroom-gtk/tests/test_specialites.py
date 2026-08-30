@@ -28,10 +28,10 @@ class Gouttes(unittest.TestCase):
         self.assertEqual("", specialites.resume(ItemInfo(sheet="m0067.sitem")))
 
     def test_chaque_jauge_a_sa_specialite(self):
-        """Vie, magie, combat, forage : les quatre jauges du jeu, dans l'ordre."""
+        """Vie, sève, endurance, concentration : les quatre jauges, dans l'ordre."""
         item = ItemInfo(sheet="ic.sitem", hp_buff=12, sap_buff=8,
                         sta_buff=5, focus_buff=3)
-        self.assertEqual(["Vie", "Magie", "Combat", "Forage"],
+        self.assertEqual(["Vie", "Sève", "Endurance", "Concentration"],
                          [libelle for libelle, _v, _c in specialites.bonus(item)])
         self.assertEqual([12, 8, 5, 3],
                          [valeur for _l, valeur, _c in specialites.bonus(item)])
@@ -39,22 +39,55 @@ class Gouttes(unittest.TestCase):
     def test_seuls_les_bonus_presents_comptent(self):
         """Un item monté en sève ne porte que la goutte verte."""
         item = ItemInfo(sheet="ic.sitem", sap_buff=15)
-        self.assertEqual([("Magie", 15, "#4caf50")], specialites.bonus(item))
-        self.assertEqual("Magie +15", specialites.resume(item))
+        self.assertEqual([("Sève", 15, "#4caf50")], specialites.bonus(item))
+        self.assertEqual("Sève +15", specialites.resume(item))
 
     def test_l_infobulle_nomme_ce_que_la_couleur_montre(self):
         item = ItemInfo(sheet="ic.sitem", hp_buff=12, sta_buff=5)
-        self.assertEqual("Vie +12, Combat +5", specialites.resume(item))
+        self.assertEqual("Vie +12, Endurance +5", specialites.resume(item))
 
     def test_l_icone_ne_porte_que_la_goutte_dominante(self):
         """Trois bonus, une seule goutte : la plus grosse, comme dans le jeu."""
         item = ItemInfo(sheet="ic.sitem", hp_buff=40, sap_buff=125, sta_buff=20)
-        self.assertEqual(("Magie", 125, "#4caf50"), specialites.principal(item))
+        self.assertEqual(("Sève", 125, "#4caf50"), specialites.principal(item))
         # mais l'infobulle, elle, les montre toutes
         self.assertEqual(3, len(specialites.bonus(item)))
 
     def test_pas_de_goutte_dominante_sans_bonus(self):
         self.assertIsNone(specialites.principal(ItemInfo(sheet="m0067.sitem")))
+
+    def test_le_filtre_au_repos_laisse_tout_passer(self):
+        """Les quatre cases cochées : même les objets sans bonus restent."""
+        toutes = set(range(len(specialites.SPECIALITES)))
+        matiere = ItemInfo(sheet="m0067.sitem")
+        arme = ItemInfo(sheet="ic.sitem", hp_buff=125)
+        self.assertTrue(specialites.passe_le_filtre(matiere, toutes))
+        self.assertTrue(specialites.passe_le_filtre(arme, toutes))
+
+    def test_une_seule_case_ne_garde_que_ce_bonus(self):
+        """« Montre-moi ce qui est monté en sève. »"""
+        seve = {1}
+        self.assertTrue(specialites.passe_le_filtre(
+            ItemInfo(sheet="ic.sitem", sap_buff=20), seve))
+        self.assertFalse(specialites.passe_le_filtre(
+            ItemInfo(sheet="ic.sitem", hp_buff=125), seve))
+        self.assertFalse(specialites.passe_le_filtre(
+            ItemInfo(sheet="m0067.sitem"), seve))
+
+    def test_un_objet_a_deux_bonus_passe_par_l_un_ou_l_autre(self):
+        item = ItemInfo(sheet="ic.sitem", hp_buff=40, focus_buff=12)
+        self.assertTrue(specialites.passe_le_filtre(item, {0}))
+        self.assertTrue(specialites.passe_le_filtre(item, {3}))
+        self.assertFalse(specialites.passe_le_filtre(item, {1, 2}))
+
+    def test_aucune_case_ne_laisse_rien(self):
+        """Tout décocher, c'est demander la liste vide, pas la liste entière."""
+        self.assertFalse(specialites.passe_le_filtre(
+            ItemInfo(sheet="ic.sitem", hp_buff=125), set()))
+
+    def test_les_rangs_suivent_l_ordre_des_jauges(self):
+        item = ItemInfo(sheet="ic.sitem", hp_buff=1, sta_buff=1)
+        self.assertEqual({0, 2}, specialites.indices(item))
 
     def test_les_gouttes_ne_prennent_pas_le_clic(self):
         """Le clic droit et le double-clic vont a l'icone, pas au dessin."""

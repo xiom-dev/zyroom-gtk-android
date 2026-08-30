@@ -158,6 +158,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._f_ecosys = set(range(len(ECOSYSTEM_NAMES)))
         self._f_classes = set(range(len(CLASS_NAMES)))
         self._f_equips = set(range(len(EQUIP_NAMES)))
+        self._f_bonus = set(range(len(specialites.SPECIALITES)))
 
         # Entités déjà rafraîchies depuis l'ouverture de l'application : on ne
         # resynchronise qu'une fois par entité, pas à chaque aller-retour dans
@@ -3232,7 +3233,38 @@ class MainWindow(Gtk.ApplicationWindow):
         content.append(self._check_group("Classe", CLASS_NAMES, self._f_classes))
         content.append(self._check_group("Écosystème", ECOSYSTEM_NAMES, self._f_ecosys))
         content.append(self._check_group("Équipement", EQUIP_NAMES, self._f_equips))
+        content.append(self._groupe_bonus())
         return pop
+
+    def _groupe_bonus(self) -> Gtk.Widget:
+        """Les quatre bonus, chacun derrière sa goutte.
+
+        Un groupe à part plutôt qu'un `_check_group` : la couleur est ce qui
+        fait le lien avec la grille, où c'est elle — et non un nom — qui marque
+        les objets. Une case portant « Sève » sans sa goutte verte obligerait à
+        traduire de tête à chaque coup d'œil.
+
+        Toutes cochées, le groupe ne filtre rien, **objets sans bonus compris**.
+        Dès qu'une case tombe, il ne reste que les objets portant l'un des
+        bonus encore cochés : décocher trois cases sur quatre, c'est demander
+        « montre-moi ce qui est monté en sève », pas « montre-moi tout sauf ».
+        """
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        header = Gtk.Label(xalign=0.0)
+        header.set_markup(f"<b>{_('Bonus')}</b>")
+        header.props.margin_top = 4
+        box.append(header)
+        for rang, (_attribut, libelle, couleur) in enumerate(specialites.SPECIALITES):
+            ligne = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            ligne.append(specialites.pastille(couleur))
+            ligne.append(Gtk.Label(label=_(libelle), xalign=0.0))
+            cb = Gtk.CheckButton()
+            cb.set_child(ligne)
+            cb.set_active(rang in self._f_bonus)
+            cb.connect("toggled", self._on_group_toggle, self._f_bonus, rang)
+            box.append(cb)
+            self._all_checks.append(cb)
+        return box
 
     def _check_group(self, title: str, names, state_set: set) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
@@ -3283,6 +3315,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 ok = False
             elif bonus_only and not (item.hp_buff or item.sap_buff
                                      or item.sta_buff or item.focus_buff):
+                ok = False
+            elif not specialites.passe_le_filtre(item, self._f_bonus):
                 ok = False
             elif sale_only and item.expires <= 0:
                 ok = False

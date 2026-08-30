@@ -120,10 +120,10 @@ def build_detail(item: ItemInfo, name_fn, category_db) -> Gtk.Widget:
 
     # Bonus
     b = _Section("Bonus")
-    b.add("HP", item.hp_buff or "")
+    b.add("Vie", item.hp_buff or "")
     b.add("Sève", item.sap_buff or "")
-    b.add("Stamina", item.sta_buff or "")
-    b.add("Focus", item.focus_buff or "")
+    b.add("Endurance", item.sta_buff or "")
+    b.add("Concentration", item.focus_buff or "")
     if b.count:
         root.append(b.box)
 

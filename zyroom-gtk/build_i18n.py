@@ -63,6 +63,8 @@ EN = {
     "Vit. soin": "Heal cast speed", "Puiss. soin": "Heal power",
     "Vit. affliction déf.": "Def. affliction cast speed", "Puiss. affliction déf.": "Def. affliction power",
     "HP": "HP", "Sève": "Sap", "Stamina": "Stamina", "Focus": "Focus",
+    # Les quatre bonus, sous les noms des jauges du jeu (filtre et infobulle)
+    "Vie": "Life", "Endurance": "Stamina", "Concentration": "Focus",
     "Catégorie 1": "Category 1", "Catégorie 2": "Category 2", "Couleurs": "Colors",
     "Continent": "Continent", "Expire dans": "Expires in",
     # Caractéristiques de matière (_MAT_SPEC)
@@ -148,6 +150,7 @@ DE = {
     "Durabilité": "Haltbarkeit", "Protégé": "Geschützt", "Dégâts": "Schaden",
     "Vitesse": "Geschwindigkeit", "Portée": "Reichweite",
     "HP": "LP", "Sève": "Saft", "Stamina": "Ausdauer", "Focus": "Fokus",
+    "Vie": "Leben", "Endurance": "Ausdauer", "Concentration": "Fokus",
     "Catégorie 1": "Kategorie 1", "Catégorie 2": "Kategorie 2", "Couleurs": "Farben",
     "Continent": "Kontinent", "Expire dans": "Läuft ab in",
     "Toutes": "Alle", "Légèreté": "Leichtigkeit", "Charge de sève": "Saftladung",

@@ -12,9 +12,10 @@ dirait — vérifié : `hp`, `sta`, `focus`, `hpbuff`… renvoient la même imag
 l'octet près. Les bonus, eux, sont déjà lus dans l'inventaire (`models.py`,
 `_parse_craft`). Il ne reste qu'à les dessiner par-dessus.
 
-Les quatre gouttes sont les quatre jauges du jeu, et chacune sert une
-spécialité : le focus est la jauge du forage, l'endurance celle du combat, la
-sève celle de la magie, les points de vie celle du soin.
+Les quatre gouttes sont les quatre jauges du jeu, et portent leurs noms : vie,
+sève, endurance, concentration. Ce sont elles qui disent à quoi un objet
+prépare — la concentration au forage, l'endurance au combat, la sève à la
+magie.
 
 Le module ne dessine que ça, et le fait en Cairo : un fichier PNG par couleur
 aurait été quatre images à embarquer, à retailler et à recolorer le jour où le
@@ -28,10 +29,10 @@ from gi.repository import Gdk, Gtk
 
 #: (attribut d'ItemInfo, libelle, couleur), dans l'ordre des jauges du jeu.
 SPECIALITES = (
-    ("hp_buff",    "Vie",    "#e2696a"),   # zy_erreur, le rouge du thème
-    ("sap_buff",   "Magie",  "#4caf50"),   # success_color, son vert
-    ("sta_buff",   "Combat", "#a97fd0"),
-    ("focus_buff", "Forage", "#4a90d9"),
+    ("hp_buff",    "Vie",           "#e2696a"),   # zy_erreur, le rouge du thème
+    ("sap_buff",   "Sève",          "#4caf50"),   # success_color, son vert
+    ("sta_buff",   "Endurance",     "#a97fd0"),
+    ("focus_buff", "Concentration", "#4a90d9"),
 )
 
 #: La goutte, en pixels : un quart d'une icone de 48, de quoi reconnaitre une
@@ -51,6 +52,27 @@ def bonus(item) -> list[tuple[str, int, str]]:
         if valeur:
             trouves.append((libelle, valeur, couleur))
     return trouves
+
+
+def indices(item) -> set:
+    """Les rangs des bonus que porte l'item, dans l'ordre de `SPECIALITES`.
+
+    C'est ce que manipule le filtre : un ensemble d'entiers se compare à un
+    ensemble de cases cochées sans rien savoir des couleurs ni des noms."""
+    return {rang for rang, (attribut, _libelle, _couleur) in enumerate(SPECIALITES)
+            if getattr(item, attribut, 0)}
+
+
+def passe_le_filtre(item, coches: set) -> bool:
+    """Vrai si l'item survit au filtre des quatre bonus.
+
+    `coches` est l'ensemble des rangs cochés. Toutes les cases cochées, le
+    filtre ne trie rien — **objets sans bonus compris**, car c'est l'état de
+    repos, pas une demande. Dès qu'une case tombe, ne restent que les objets
+    portant l'un des bonus encore cochés."""
+    if len(coches) >= len(SPECIALITES):
+        return True
+    return bool(indices(item) & coches)
 
 
 def principal(item):
