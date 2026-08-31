@@ -65,7 +65,9 @@ court.
    `lint`, lui, n'a rien à redire au repli : il passe en silence sur la recette
    telle qu'elle est ici.
 4. Ouvrir la merge request, et **mentionner la RFP #4244** dedans pour que les
-   deux se rejoignent.
+   deux se rejoignent. Le texte est prêt dans [`merge-request.md`](merge-request.md) —
+   titre, description, et le commentaire à poster ensuite sur la RFP, qui
+   annonce encore la mauvaise licence.
 
 ## Les choix qui demanderaient une explication à un relecteur
 
