@@ -82,6 +82,27 @@ for v in "${variantes[@]}"; do
     ecrire "$v.versionName" "${noms[$v]}"
 done
 
+# F-Droid lit fastlane/ dans le code qu'il construit, pas dans le dernier
+# commit : une note de version ecrite apres l'etiquette n'est lue par personne.
+# D'ou l'avertissement ici, avant la construction, tant qu'il reste le temps de
+# l'ecrire. Seule la variante des joueurs a une fiche F-Droid.
+if [[ " ${variantes[*]} " == *" guilde "* ]]; then
+    notes=$racine/../fastlane/metadata/android
+    manquantes=()
+    for langue in fr-FR en-US; do
+        [ -f "$notes/$langue/changelogs/${codes[guilde]}.txt" ] \
+            || manquantes+=("$langue/changelogs/${codes[guilde]}.txt")
+    done
+    if [ ${#manquantes[@]} -gt 0 ]; then
+        echo >&2
+        echo "Note de version absente pour le versionCode ${codes[guilde]} :" >&2
+        printf '  fastlane/metadata/android/%s\n' "${manquantes[@]}" >&2
+        echo "Elle doit exister avant l'étiquette : F-Droid lit fastlane/ dans le" >&2
+        echo "code qu'il construit, et ne verra jamais une note écrite après." >&2
+        echo >&2
+    fi
+fi
+
 taches=()
 for v in "${variantes[@]}"; do
     taches+=("assemble${v^}Release")
