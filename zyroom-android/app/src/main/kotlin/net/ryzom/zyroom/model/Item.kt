@@ -21,8 +21,47 @@ enum class ItemColor(val value: Int) {
 }
 
 /** Type d'item, dans l'ordre du `TItemType` d'origine. */
-enum class ItemType {
-    ANIMAL_MAT, NATURAL_MAT, SYSTEM_MAT, CATA, EQUIPMENT, TELEPORTER, OTHER
+enum class ItemType(val label: String) {
+    ANIMAL_MAT("Matière animale"), NATURAL_MAT("Matière naturelle"),
+    SYSTEM_MAT("Matière système"), CATA("Catalyseur"), EQUIPMENT("Équipement"),
+    TELEPORTER("Téléporteur"), OTHER("Autre")
+}
+
+/**
+ * Classe d'une matière ou d'un objet crafté, déduite de son énergie.
+ *
+ * Le flux ne la nomme pas : elle se lit dans `<statenergy>`, par paliers, et
+ * c'est ce que le jeu montre en étoiles dans le coin de l'icône.
+ */
+enum class ItemClass(val label: String) {
+    BASIC("Basique"), FINE("Fine"), CHOICE("Choix"),
+    EXCELLENT("Excellente"), SUPREME("Suprême"), UNKNOWN("—");
+
+    companion object {
+        /** Les paliers d'énergie du Delphi, repris tels quels par le bureau. */
+        fun fromEnergy(energy: Double): ItemClass = when {
+            energy <= 0.20 -> BASIC
+            energy <= 0.35 -> FINE
+            energy <= 0.50 -> CHOICE
+            energy <= 0.65 -> EXCELLENT
+            else -> SUPREME
+        }
+    }
+}
+
+/** Région d'origine d'une matière, ou celle dont une pièce porte le style. */
+enum class ItemEcosystem(val label: String) {
+    COMMON("Commun"), PRIME("Primes Racines"), DESERT("Désert"),
+    JUNGLE("Jungle"), FOREST("Forêt"), LAKES("Lacs"), UNKNOWN("—")
+}
+
+/** Sous-type d'équipement (ordre identique au `TItemEquip` du Delphi). */
+enum class ItemEquip(val label: String) {
+    LIGHT_ARMOR("Armure légère"), MEDIUM_ARMOR("Armure moyenne"),
+    HEAVY_ARMOR("Armure lourde"), WEAPON_MELEE("Arme mêlée"),
+    WEAPON_RANGE("Arme à distance"), AMPLIFIER("Amplificateur"),
+    JEWEL("Bijou"), BUCKLER("Bouclier"), SHIELD("Grand bouclier"),
+    TOOL("Outil"), AMMO("Munition"), OTHER("Autre")
 }
 
 /** Couleur de l'armure de réfugié, donnée par la sixième lettre de la fiche. */
@@ -59,7 +98,17 @@ data class Item(
     val sapBuff: Int = 0,
     val staBuff: Int = 0,
     val focusBuff: Int = 0,
+    // Ce qui ne sert qu'au filtrage. Les trois premiers se deduisent du nom de
+    // fiche ou de l'energie, jamais donnes tels quels par le flux.
+    val itemClass: ItemClass = ItemClass.UNKNOWN,
+    val ecosystem: ItemEcosystem = ItemEcosystem.UNKNOWN,
+    val equip: ItemEquip = ItemEquip.OTHER,
+    /** Fin de la mise en vente, en secondes Unix ; zéro quand l'objet n'y est pas. */
+    val expires: Long = 0,
 ) {
+    /** Vrai si l'objet porte au moins un bonus de craft. */
+    val aDesBonus: Boolean get() = hpBuff > 0 || sapBuff > 0 || staBuff > 0 || focusBuff > 0
+
     /** Couleur retenue pour l'affichage, cas de l'armure de réfugié compris. */
     val displayColor: ItemColor
         get() = when {

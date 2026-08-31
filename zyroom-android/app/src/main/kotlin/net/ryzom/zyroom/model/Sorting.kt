@@ -158,18 +158,23 @@ fun chercheDansTout(
     order: SortOrder,
     nameOf: (Item) -> String,
     normalise: (String) -> String,
+    filtres: Filtres = Filtres(),
 ): List<Pair<String, List<Item>>> {
     if (inventaires.isEmpty()) return emptyList()
     val cherche = normalise(recherche.trim())
     if (cherche.isEmpty()) {
+        // Sans recherche, on reste dans le contenant ouvert : le filtre y
+        // travaille seul, et ne fait pas sortir de son coffre.
         val choisi = inventaires[contenantChoisi.coerceIn(inventaires.indices)]
-        return listOf(choisi.label to sortItems(choisi.items, order, nameOf))
+        val retenus = choisi.items.filter(filtres::passe)
+        return listOf(choisi.label to sortItems(retenus, order, nameOf))
     }
     // Le nom lisible et la fiche : sans pack chargé, il ne reste que la fiche,
     // et chercher « m0117 » doit continuer de répondre.
     return inventaires.mapNotNull { inventaire ->
         val trouves = inventaire.items.filter {
-            cherche in normalise(nameOf(it)) || cherche in normalise(it.sheet)
+            filtres.passe(it) &&
+                (cherche in normalise(nameOf(it)) || cherche in normalise(it.sheet))
         }
         if (trouves.isEmpty()) null
         else inventaire.label to sortItems(trouves, order, nameOf)

@@ -4,6 +4,7 @@ import net.ryzom.zyroom.model.Bete
 import net.ryzom.zyroom.model.Entity
 import net.ryzom.zyroom.model.Inventory
 import net.ryzom.zyroom.model.Item
+import net.ryzom.zyroom.model.ItemClass
 import net.ryzom.zyroom.model.ItemColor
 import net.ryzom.zyroom.model.Volume
 import net.ryzom.zyroom.model.Member
@@ -511,8 +512,15 @@ object EntityParser {
         // fiche. Sans cela, tout inventaire pesait zero -- le taux de
         // remplissage annoncait « 0 % » sur un coffre plein, et l'alerte de
         // volume ne pouvait pas se declencher.
-        val (type, volume) = Volume.classer(sheet, stack)
+        val lu = Volume.classer(sheet, stack)
         val craft = node.child("craftparameters")
+        // La classe d'une matiere se lit dans son nom de fiche ; celle d'un
+        // objet crafte, dans son energie -- deux sources qui ne se recouvrent
+        // jamais. Le nom l'emporte quand il a parle, comme sur le bureau, ou
+        // `volume.classify` passe apres la lecture du craft.
+        val classe = if (lu.itemClass != ItemClass.UNKNOWN) lu.itemClass
+        else craft?.text("statenergy")?.replace(',', '.')?.toDoubleOrNull()
+            ?.let { ItemClass.fromEnergy(it) } ?: ItemClass.UNKNOWN
         return Item(
             sheet = sheet,
             id = node.getAttribute("id"),
@@ -526,8 +534,8 @@ object EntityParser {
             sap = node.text("sap").isNotEmpty(),
             destroyed = node.text("destroyed") == "1",
             hp = node.text("hp").toIntOrNull() ?: 0,
-            volume = volume,
-            type = type,
+            volume = lu.coefficient,
+            type = lu.type,
             price = node.text("price").toDoubleOrNull() ?: 0.0,
             continent = node.text("continent"),
             // Les bonus de craft : ce que le jeu resume par une goutte de
@@ -537,6 +545,13 @@ object EntityParser {
             sapBuff = craft?.text("sapbuff")?.toIntOrNull() ?: 0,
             staBuff = craft?.text("stabuff")?.toIntOrNull() ?: 0,
             focusBuff = craft?.text("focusbuff")?.toIntOrNull() ?: 0,
+            itemClass = classe,
+            ecosystem = lu.ecosystem,
+            equip = lu.equip,
+            // Fin de la mise en vente : date de depot, sept jours et deux
+            // heures -- la regle du Delphi, que l'API ne donne pas autrement.
+            expires = node.text("timestamp").toLongOrNull()
+                ?.let { it + 7L * 86400L + 2L * 3600L } ?: 0L,
         )
     }
 

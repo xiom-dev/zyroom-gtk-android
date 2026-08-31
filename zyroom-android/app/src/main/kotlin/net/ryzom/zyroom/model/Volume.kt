@@ -14,9 +14,10 @@ import kotlin.math.abs
  * le taux de remplissage annonçait « 0 % » sur des coffres pleins, et l'alerte
  * de volume ne pouvait pas se déclencher, son seuil n'étant jamais atteint.
  *
- * Ce portage ne retient du modèle de bureau que ce dont l'écran a besoin : le
- * type et le coefficient. Écosystème, classe et emplacement d'équipement y
- * sont aussi déduits, mais `Item` ne les porte pas ici.
+ * La même analyse rend aussi l'écosystème, la classe et l'emplacement
+ * d'équipement : ce sont trois choses que le nom de fiche dit au passage, et
+ * que le panneau des filtres demande. Les déduire ailleurs voudrait dire
+ * refaire ce parcours de motifs une seconde fois, sur les mêmes chaînes.
  */
 object Volume {
 
@@ -63,19 +64,66 @@ object Volume {
     private val EQUIPMENT_JEWEL = Regex("^ic.j.*")
     private val BANDIT_CHEST = Regex("compo_.*mark\\d\\.sitem")
 
+    /** La lettre d'armure, en emplacement : botte, gant, casque… */
+    private val ARMURES = mapOf(
+        'l' to ItemEquip.LIGHT_ARMOR, 'c' to ItemEquip.LIGHT_ARMOR,
+        'b' to ItemEquip.LIGHT_ARMOR, 'g' to ItemEquip.LIGHT_ARMOR,
+        'p' to ItemEquip.LIGHT_ARMOR, 's' to ItemEquip.LIGHT_ARMOR,
+        'v' to ItemEquip.LIGHT_ARMOR, 'm' to ItemEquip.MEDIUM_ARMOR,
+        'h' to ItemEquip.HEAVY_ARMOR,
+    )
+
+    /** La lettre de style d'une piece d'equipement, en region. */
+    private val ECOSYS_EQUIPEMENT = mapOf(
+        't' to ItemEcosystem.LAKES, 'f' to ItemEcosystem.DESERT,
+        'm' to ItemEcosystem.FOREST, 'z' to ItemEcosystem.JUNGLE,
+    )
+
+    /** La lettre de region d'une matiere. */
+    private val ECOSYS_MATIERE = mapOf(
+        'c' to ItemEcosystem.COMMON, 'g' to ItemEcosystem.COMMON,
+        'p' to ItemEcosystem.PRIME, 'd' to ItemEcosystem.DESERT,
+        'f' to ItemEcosystem.FOREST, 'l' to ItemEcosystem.LAKES,
+        'j' to ItemEcosystem.JUNGLE,
+    )
+
+    /** La lettre de qualite d'une matiere. Les deux baremes different. */
+    private val CLASSE_NATURELLE = mapOf(
+        'a' to ItemClass.BASIC, 'b' to ItemClass.BASIC, 'c' to ItemClass.FINE,
+        'd' to ItemClass.CHOICE, 'e' to ItemClass.EXCELLENT, 'f' to ItemClass.SUPREME,
+    )
+    private val CLASSE_ANIMALE = mapOf(
+        'a' to ItemClass.BASIC, 'b' to ItemClass.FINE, 'c' to ItemClass.CHOICE,
+        'd' to ItemClass.EXCELLENT, 'e' to ItemClass.SUPREME, 'f' to ItemClass.SUPREME,
+    )
+
+    /**
+     * Ce que le nom de fiche apprend d'un objet.
+     *
+     * La classe reste inconnue pour l'équipement : elle s'y lit dans l'énergie
+     * du flux, que le nom ne porte pas. Le parseur la pose par-dessus.
+     */
+    data class Analyse(
+        val type: ItemType,
+        val coefficient: Double,
+        val equip: ItemEquip = ItemEquip.OTHER,
+        val ecosystem: ItemEcosystem = ItemEcosystem.UNKNOWN,
+        val itemClass: ItemClass = ItemClass.UNKNOWN,
+    )
+
     /** Le volume d'un objet : son coefficient par la taille de sa pile. */
     fun volume(sheet: String, stack: Int): Double =
         coefficient(sheet) * abs(stack)
 
-    /** Type et volume d'un coup, ce que le parseur pose sur chaque objet. */
-    fun classer(sheet: String, stack: Int): Pair<ItemType, Double> {
-        val (type, coef) = analyser(sheet)
-        return type to coef * abs(stack)
+    /** Tout ce que la fiche apprend, le volume déjà multiplié par la pile. */
+    fun classer(sheet: String, stack: Int): Analyse {
+        val lu = analyser(sheet)
+        return lu.copy(coefficient = lu.coefficient * abs(stack))
     }
 
-    fun coefficient(sheet: String): Double = analyser(sheet).second
+    fun coefficient(sheet: String): Double = analyser(sheet).coefficient
 
-    fun type(sheet: String): ItemType = analyser(sheet).first
+    fun type(sheet: String): ItemType = analyser(sheet).type
 
     /**
      * (type, coefficient) d'après le nom de fiche.
@@ -84,10 +132,13 @@ object Volume {
      * `autre` compris : un objet reconnu plus haut n'est plus examiné ensuite,
      * et l'ordre des familles n'est donc pas indifférent.
      */
-    private fun analyser(nom: String): Pair<ItemType, Double> {
+    private fun analyser(nom: String): Analyse {
         var coef = 0.0
         var type = ItemType.OTHER
         var autre = true
+        var equip = ItemEquip.OTHER
+        var ecosysteme = ItemEcosystem.UNKNOWN
+        var classe = ItemClass.UNKNOWN
 
         if (nom.startsWith("ixpca0")) {
             autre = false
@@ -103,6 +154,7 @@ object Volume {
         if (autre && TOOL.find(nom) != null && !nom.contains("_sap_recharge")) {
             autre = false
             type = ItemType.EQUIPMENT
+            equip = ItemEquip.TOOL
             coef = 10.0
         }
 
@@ -110,24 +162,31 @@ object Volume {
         if (autre && equipement != null) {
             autre = false
             type = ItemType.EQUIPMENT
+            ecosysteme = ECOSYS_EQUIPEMENT[equipement.groupValues[1].firstOrNull()]
+                ?: ItemEcosystem.COMMON
             var trouve = false
 
             EQUIPMENT_SHIELD.find(nom)?.let { m ->
                 when (m.groupValues[1]) {
-                    "b" -> { coef = 5.0; trouve = true }
+                    "b" -> { equip = ItemEquip.BUCKLER; coef = 5.0; trouve = true }
                     "s" -> {
+                        equip = ItemEquip.SHIELD
                         coef = if (nom == "icbss_pvp.sitem") 20.0 else 10.0
                         trouve = true
                     }
                 }
             }
 
-            if (!trouve && EQUIPMENT_ARMOR.find(nom) != null) {
-                coef = if (nom.startsWith("iccah")) 20.0 else 7.0
-                trouve = true
+            EQUIPMENT_ARMOR.find(nom)?.let { m ->
+                if (!trouve) {
+                    equip = ARMURES[m.groupValues[1].firstOrNull()] ?: ItemEquip.LIGHT_ARMOR
+                    coef = if (nom.startsWith("iccah")) 20.0 else 7.0
+                    trouve = true
+                }
             }
 
             if (!trouve && EQUIPMENT_AMPLIFIER.find(nom) != null) {
+                equip = ItemEquip.AMPLIFIER
                 coef = 10.0
                 trouve = true
             }
@@ -138,12 +197,14 @@ object Volume {
                     val mains = m.groupValues[2]
                     val queue = m.groupValues[3]
                     if (genre == "m") {
+                        equip = ItemEquip.WEAPON_MELEE
                         coef = when (mains) {
                             "1" -> if (queue == "pd") 5.0 else 10.0
                             "2" -> 15.0
                             else -> coef
                         }
                     } else if (genre == "r") {
+                        equip = ItemEquip.WEAPON_RANGE
                         coef = when (mains) {
                             "1" -> 10.0
                             "2" -> when (queue.firstOrNull()) {
@@ -160,6 +221,7 @@ object Volume {
 
             if (!trouve) {
                 EQUIPMENT_AMMO.find(nom)?.let { m ->
+                    equip = ItemEquip.AMMO
                     val g = m.groupValues[1]
                     coef = when (g[0]) {
                         '1' -> 0.04
@@ -175,6 +237,7 @@ object Volume {
             }
 
             if (!trouve && EQUIPMENT_JEWEL.find(nom) != null) {
+                equip = ItemEquip.JEWEL
                 coef = 2.0
                 trouve = true
             }
@@ -186,15 +249,25 @@ object Volume {
             }
         }
 
-        if (autre && NATURAL_MAT.find(nom) != null) {
-            autre = false
-            type = ItemType.NATURAL_MAT
-            coef = 0.5
+        NATURAL_MAT.find(nom)?.let { m ->
+            if (autre) {
+                autre = false
+                type = ItemType.NATURAL_MAT
+                coef = 0.5
+                ecosysteme = ECOSYS_MATIERE[m.groupValues[1].firstOrNull()]
+                    ?: ItemEcosystem.COMMON
+                classe = CLASSE_NATURELLE[m.groupValues[2].firstOrNull()] ?: ItemClass.UNKNOWN
+            }
         }
-        if (autre && ANIMAL_MAT.find(nom) != null) {
-            autre = false
-            type = ItemType.ANIMAL_MAT
-            coef = 0.5
+        ANIMAL_MAT.find(nom)?.let { m ->
+            if (autre) {
+                autre = false
+                type = ItemType.ANIMAL_MAT
+                coef = 0.5
+                ecosysteme = ECOSYS_MATIERE[m.groupValues[1].firstOrNull()]
+                    ?: ItemEcosystem.COMMON
+                classe = CLASSE_ANIMALE[m.groupValues[2].firstOrNull()] ?: ItemClass.UNKNOWN
+            }
         }
 
         if (autre) {
@@ -220,6 +293,6 @@ object Volume {
             }
         }
 
-        return type to coef
+        return Analyse(type, coef, equip, ecosysteme, classe)
     }
 }

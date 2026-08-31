@@ -87,6 +87,7 @@ import net.ryzom.zyroom.data.moneyAlerts
 import net.ryzom.zyroom.data.volumeAlerts
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.Entity
+import net.ryzom.zyroom.model.Filtres
 import net.ryzom.zyroom.model.Item
 import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.Skill
@@ -146,6 +147,11 @@ fun InventoryScreen(
     var detail by remember { mutableStateOf<Item?>(null) }
     var recherche by remember { mutableStateOf("") }
     var tri by remember { mutableStateOf(SortOrder.FAMILY) }
+    // Les filtres survivent au changement de coffre et d'onglet, comme le tri :
+    // on cherche « ce qui est monté en sève » a travers les coffres, pas dans
+    // un seul, et les reposer a chaque fois reviendrait a ne pas les avoir.
+    var filtres by remember { mutableStateOf(Filtres()) }
+    var voirFiltres by remember { mutableStateOf(false) }
     var alertes by remember { mutableStateOf(emptyList<Alert>()) }
     var voirAlertes by remember { mutableStateOf(false) }
     // Le mouvement du trésor rapporté par le dernier relevé. Gardé jusqu'au
@@ -499,6 +505,7 @@ fun InventoryScreen(
                         order = tri,
                         nameOf = { repository.nameOf(it.sheet) },
                         normalise = ::normalise,
+                        filtres = filtres,
                     )
                     val items = parContenant.flatMap { it.second }
                     OutlinedTextField(
@@ -523,10 +530,28 @@ fun InventoryScreen(
                                 label = { Text(ordre.label) },
                             )
                         }
+                        // Au bout de la rangee du tri, et non dans la barre du
+                        // haut : c'est ici qu'on est quand on cherche, et la
+                        // pastille reste allumee tant qu'un critere retire
+                        // quelque chose -- sans quoi une grille a moitie vide
+                        // n'aurait aucune explication visible.
+                        item {
+                            FilterChip(
+                                selected = filtres.actif,
+                                onClick = { voirFiltres = true },
+                                label = { Text(if (filtres.actif) "Filtres ●" else "Filtres") },
+                            )
+                        }
                     }
                     if (items.isEmpty()) {
                         Box(Modifier.fillMaxSize(), Alignment.Center) {
-                            Text("Rien ne correspond", textAlign = TextAlign.Center)
+                            Text(
+                                if (filtres.actif)
+                                    "Rien ne correspond.\n\nLes filtres sont posés : " +
+                                        "« Tout remontrer » les lève."
+                                else "Rien ne correspond",
+                                textAlign = TextAlign.Center,
+                            )
                         }
                         return@Column
                     }
@@ -587,6 +612,14 @@ fun InventoryScreen(
                 }
             }
         }
+    }
+
+    if (voirFiltres) {
+        PanneauFiltres(
+            filtres = filtres,
+            onFiltres = { filtres = it },
+            onFermer = { voirFiltres = false },
+        )
     }
 
     detail?.let { item ->

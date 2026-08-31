@@ -199,9 +199,41 @@ Les tests de `app/src/test/` couvrent le lecteur de pack et celui des flux. Troi
 d'entre eux se branchent sur les vraies données du poste quand elles sont là —
 le pack du client, le cache de la version GTK — et se désactivent sinon.
 
-## Ce qui manque
+## Filtrer
 
-Les filtres autres que la recherche.
+La recherche ne répond qu'à une question : où est *cet* objet. Les autres — ce
+qui est monté en sève, ce qui reste en armure lourde au-dessus de la qualité
+200, ce qu'on a mis en vente — se posent par élimination, au bouton
+**Filtres**, au bout de la rangée des tris.
+
+Neuf critères, les mêmes que sur le bureau : les quatre bonus de craft, une
+plage de qualité, trois interrupteurs (cadenas, avec bonus, en vente) et quatre
+groupes — type d'objet, classe, écosystème, emplacement d'équipement.
+
+Trois choses valent d'être sues avant de s'en servir :
+
+- **Les quatre bonus ne se lisent pas comme les autres groupes.** Tous cochés,
+  ils ne trient rien, objets sans bonus compris : c'est l'état de repos, pas
+  une demande. Dès qu'une case tombe, ne restent que les objets portant l'un
+  des bonus encore cochés — décocher trois cases sur quatre, c'est demander
+  « montre-moi ce qui est monté en sève », pas « montre-moi tout sauf ».
+- **L'emplacement ne qualifie que l'équipement.** Une matière n'en a pas, et
+  décocher toute la rangée ne la fait pas disparaître.
+- **Les filtres survivent au changement de coffre**, comme le tri : on cherche
+  à travers les coffres, et les reposer à chaque fois reviendrait à ne pas les
+  avoir. Le bouton porte une pastille tant qu'un critère retire quelque chose —
+  sans quoi une grille à moitié vide n'aurait pas d'explication visible.
+
+Le calcul vit dans `model/Filtres.kt`, sans un mot de Compose : c'est la seule
+part où l'on se trompe, et un critère qui retire un objet de trop ne se voit
+pas — le coffre paraît simplement plus vide qu'il n'est. `FiltresTest` le
+tient.
+
+Trois des critères demandent ce que le flux ne dit pas. La classe se lit dans
+l'énergie pour un objet crafté, dans le nom de fiche pour une matière — c'est
+le nom qui l'emporte quand il a parlé, comme sur le bureau. L'écosystème et
+l'emplacement se déduisent eux aussi du nom, au fil de l'analyse que `Volume`
+faisait déjà pour l'encombrement : elle les traversait sans les retenir.
 
 ## Construire
 
