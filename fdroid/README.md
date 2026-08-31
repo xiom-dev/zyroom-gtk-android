@@ -117,6 +117,20 @@ qu'elle apporte. Le `38.txt` manque et manquera : ce numéro n'a jamais été
 livré — la numérotation saute quand elle repart du numéro publié plutôt que de
 celui du dépôt.
 
+**Mais F-Droid lit `fastlane/` dans le code qu'il construit, pas dans le
+dernier commit.** `fdroid update` va chercher les métadonnées sous
+`build/<paquet>/fastlane/…` — le dépôt tel que le `commit:` de la recette
+l'a laissé (`update.py`, `copy_triple_t_store_metadata`). Écrire une note de
+version *après* avoir posé l'étiquette ne la rend donc visible nulle part : le
+`43.txt` et le `44.txt` sont arrivés après `v2.38`, et une construction depuis
+`v2.38` ne les verrait pas.
+
+Ce n'est pas un obstacle à l'envoi — la fiche sortirait seulement sans « quoi
+de neuf » pour sa première version, et la livraison suivante rattraperait tout
+d'elle-même, ses étiquettes portant désormais les notes. Mais la règle vaut
+d'être retenue : **la note de version s'écrit avant l'étiquette, jamais
+après.**
+
 Reste une chose : la description de la RFP annonce **GPL-3.0-or-later** alors
 que le projet est sous **AGPL-3.0-or-later** — c'est la seconde qui est vraie,
 et c'est elle qui est dans la recette. La demande gagnerait à être corrigée.
