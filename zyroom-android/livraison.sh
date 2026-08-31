@@ -53,6 +53,29 @@ command -v jq >/dev/null || { echo "Erreur : jq est nécessaire (apt install jq)
 
 export ANDROID_HOME=${ANDROID_HOME:-$HOME/Android/Sdk}
 
+apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | tail -1 || true)
+aapt2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | tail -1 || true)
+[ -n "$apksigner" ] && [ -n "$aapt2" ] || {
+    echo "Erreur : apksigner ou aapt2 introuvable sous $ANDROID_HOME/build-tools." >&2
+    echo "Ils ne servent pas a construire mais a relire l'APK construit ; sans eux" >&2
+    echo "la livraison partirait sans que rien n'ait verifie ce qui part." >&2
+    exit 1
+}
+
+# L'empreinte de la cle qui signe V-RyLune depuis la premiere version.
+#
+# Android n'accepte une mise a jour que si elle porte la meme signature que
+# l'application deja installee. Un APK signe autrement ne remplace pas : il se
+# fait refuser sur le telephone, apres le telechargement, et le bouton de mise
+# a jour devient un bouton qui echoue. Rien dans la construction ne previent de
+# cela -- l'APK est valide, il s'installe parfaitement sur un telephone neuf.
+#
+# Cette valeur n'est pas un secret : elle se lit dans n'importe quel APK
+# publie. C'est un temoin. Le jour ou le magasin de cles serait perdu puis
+# recree, elle arrete la livraison ici plutot que de la laisser partir vers des
+# telephones qui la refuseront un par un.
+empreinte_attendue=56aa274b98215cedfd12b5c6505b776d5df1817172d1f441f0a9bfca7009c5d4
+
 lire()   { grep -E "^$1=" "$proprietes" | head -1 | cut -d= -f2 | tr -d '[:space:]'; }
 ecrire() {
     grep -qE "^$1=" "$proprietes" || { echo "clé $1 absente de $proprietes" >&2; exit 1; }
@@ -61,6 +84,44 @@ ecrire() {
 publie() { jq -r --arg p "$1" '.[$p].versionCode // 0' "$manifeste"; }
 
 paquet_de() { case $1 in guilde) echo net.ryzom.zyroom ;; dev) echo net.ryzom.zyroom.dev ;; esac; }
+
+# Les trois choses qu'Android compare pour decider d'accepter une mise a jour,
+# relues dans l'APK lui-meme et non dans les variables qui ont servi a le
+# construire : la cle qui l'a signe, l'identifiant du paquet, le numero de
+# version. Une seule qui derive, et l'APK cesse d'etre une mise a jour de celui
+# des joueurs pour devenir une application etrangere.
+verifie_apk() {
+    local apk=$1 paquet=$2 code=$3 empreinte badging
+
+    empreinte=$("$apksigner" verify --print-certs "$apk" 2>/dev/null \
+        | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+    [ "$empreinte" = "$empreinte_attendue" ] || {
+        echo "Erreur : l'APK construit n'est pas signe par la cle de V-RyLune." >&2
+        echo "  attendu : $empreinte_attendue" >&2
+        echo "  trouve  : ${empreinte:-aucune signature lisible}" >&2
+        echo "Livre ainsi, il ne s'installerait sur aucun telephone qui a deja" >&2
+        echo "l'application : Android refuse une signature differente." >&2
+        exit 1
+    }
+
+    # "package: name='net.ryzom.zyroom' versionCode='45' versionName='2.39' ..."
+    # Les valeurs sont entre apostrophes, dans cet ordre : le 2e champ est le
+    # nom du paquet, le 4e son versionCode.
+    badging=$("$aapt2" dump badging "$apk" | head -1)
+    [ "$(cut -d"'" -f2 <<<"$badging")" = "$paquet" ] || {
+        echo "Erreur : l'APK annonce le paquet $(cut -d"'" -f2 <<<"$badging")," >&2
+        echo "la ou $paquet etait attendu. Un identifiant different fait une" >&2
+        echo "seconde application a cote de l'ancienne, pas une mise a jour." >&2
+        exit 1
+    }
+    [ "$(cut -d"'" -f4 <<<"$badging")" = "$code" ] || {
+        echo "Erreur : l'APK porte le versionCode $(cut -d"'" -f4 <<<"$badging")," >&2
+        echo "la ou $code va etre annonce dans version.json. Les telephones" >&2
+        echo "verraient une mise a jour qui, une fois installee, se croit deja" >&2
+        echo "a jour -- et le bandeau reviendrait a chaque lancement." >&2
+        exit 1
+    }
+}
 
 # Numérotation : on part du plus haut des deux numéros connus — celui du dépôt
 # et celui réellement publié. Le second peut être devant si une livraison est
@@ -116,6 +177,7 @@ for v in "${variantes[@]}"; do
     nom=${noms[$v]}
     construit=$racine/app/build/outputs/apk/$v/release/app-$v-release.apk
     [ -f "$construit" ] || { echo "Erreur : $construit absent après la construction." >&2; exit 1; }
+    verifie_apk "$construit" "$paquet" "${codes[$v]}"
 
     # Pas de parenthèses dans les noms de fichiers : ils finissent dans une URL
     # et dans une ligne de commande, où elles se font réécrire ou avaler. La
@@ -154,11 +216,8 @@ for v in "${variantes[@]}"; do
     echo
     echo "$fichier"
     (cd "$racine/dist" && sha256sum "$fichier")
-    apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | tail -1 || true)
-    if [ -n "$apksigner" ]; then
-        "$apksigner" verify --print-certs "$racine/dist/$fichier" \
-            | grep -E 'Signer #1 certificate DN' || echo "  signature NON vérifiable" >&2
-    fi
+    "$apksigner" verify --print-certs "$racine/dist/$fichier" \
+        | grep -E 'Signer #1 certificate DN'
 done
 
 # L'etiquette ne peut pas etre posee ici : le commit qui fige le nouveau numero
