@@ -143,23 +143,22 @@ for v in "${variantes[@]}"; do
     ecrire "$v.versionName" "${noms[$v]}"
 done
 
-# F-Droid lit fastlane/ dans le code qu'il construit, pas dans le dernier
-# commit : une note de version ecrite apres l'etiquette n'est lue par personne.
-# D'ou l'avertissement ici, avant la construction, tant qu'il reste le temps de
-# l'ecrire. Seule la variante des joueurs a une fiche F-Droid.
+# Aucune logitheque ne lit plus ces notes -- F-Droid est abandonne -- mais elles
+# restent la seule trace de ce que chaque numero a apporte. L'avertissement
+# tombe donc ici, avant la construction, tant qu'on a encore en tete ce qu'on
+# vient de faire : apres la livraison, personne ne le reecrira. Seule la
+# variante des joueurs en recoit une.
 if [[ " ${variantes[*]} " == *" guilde "* ]]; then
-    notes=$racine/../fastlane/metadata/android
+    notes=$racine/presentation/notes-de-version
     manquantes=()
     for langue in fr-FR en-US; do
-        [ -f "$notes/$langue/changelogs/${codes[guilde]}.txt" ] \
-            || manquantes+=("$langue/changelogs/${codes[guilde]}.txt")
+        [ -f "$notes/$langue/${codes[guilde]}.txt" ] \
+            || manquantes+=("$langue/${codes[guilde]}.txt")
     done
     if [ ${#manquantes[@]} -gt 0 ]; then
         echo >&2
         echo "Note de version absente pour le versionCode ${codes[guilde]} :" >&2
-        printf '  fastlane/metadata/android/%s\n' "${manquantes[@]}" >&2
-        echo "Elle doit exister avant l'étiquette : F-Droid lit fastlane/ dans le" >&2
-        echo "code qu'il construit, et ne verra jamais une note écrite après." >&2
+        printf '  presentation/notes-de-version/%s\n' "${manquantes[@]}" >&2
         echo >&2
     fi
 fi
@@ -222,8 +221,8 @@ done
 
 # L'etiquette ne peut pas etre posee ici : le commit qui fige le nouveau numero
 # n'existe pas encore -- c'est l'etape 2 ci-dessous. Le script prepare donc la
-# commande exacte, numeros deja remplis. Sans elle, F-Droid ne retrouve pas le
-# code d'une version : sa recette va chercher l'etiquette « v<numero> ».
+# commande exacte, numeros deja remplis. Sans elle, plus rien ne dit quel code a
+# produit l'APK qu'un joueur a sur son telephone.
 etiquettes=""
 for v in "${variantes[@]}"; do
     case $v in
@@ -260,8 +259,7 @@ cat <<FIN
 $etiquettes       git push origin main --follow-tags
 
      L'étiquette dit quel code a produit quel APK : sans elle, retrouver la
-     version qu'un joueur a sur son téléphone devient une fouille, et la
-     recette F-Droid, qui va chercher « v<numéro> », ne construit rien.
+     version qu'un joueur a sur son téléphone devient une fouille.
 
 FIN
 

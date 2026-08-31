@@ -1,7 +1,11 @@
+# V-RyLune
+
+Vos inventaires Ryzom et les coffres de votre guilde, hors du jeu.
+
 Consultez hors du jeu les inventaires de vos personnages Ryzom et les coffres de
 votre guilde, à partir de l'API web officielle du jeu.
 
-<b>Ce que l'application montre</b>
+## Ce que l'application montre
 
 * Sacs, appartements, montures, mektoubs, zigs et coffres de guilde, avec le
   nom lisible de chaque objet, sa qualité, sa quantité et son volume.
@@ -15,18 +19,18 @@ votre guilde, à partir de l'API web officielle du jeu.
 * La météo d'Atys en courbe, avec les matières suprêmes et excellentes de la
   saison.
 
-<b>Comment s'en servir</b>
+## Comment s'en servir
 
 Il faut une clé d'API, à créer sur le site de Ryzom, dans « Mes applications ».
 Une clé donne un accès en lecture aux inventaires qu'elle couvre : traitez-la
 comme un mot de passe. L'application n'en demande aucune autre, ne crée aucun
 compte, et n'envoie vos données nulle part — tout reste sur le téléphone.
 
-Les noms d'objets lisibles viennent du fichier <i>string_client.pack</i> de
-votre installation de Ryzom, à importer une fois depuis le menu. Sans lui,
+Les noms d'objets lisibles viennent du fichier *string_client.pack* de votre
+installation de Ryzom, à importer une fois depuis le menu. Sans lui,
 l'application affiche les identifiants de fiche.
 
-<b>Origine</b>
+## Origine
 
 V-RyLune est le portage Android du zyRoom de Misugi, écrit en Delphi pour
 Windows. C'est une œuvre dérivée, sous la même licence — GNU AGPLv3.
