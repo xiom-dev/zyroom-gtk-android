@@ -140,6 +140,20 @@ for v in "${variantes[@]}"; do
     fi
 done
 
+# L'etiquette ne peut pas etre posee ici : le commit qui fige le nouveau numero
+# n'existe pas encore -- c'est l'etape 2 ci-dessous. Le script prepare donc la
+# commande exacte, numeros deja remplis. Sans elle, F-Droid ne retrouve pas le
+# code d'une version : sa recette va chercher l'etiquette « v<numero> ».
+etiquettes=""
+for v in "${variantes[@]}"; do
+    case $v in
+        guilde) tag="v${noms[$v]}";      titre="V-RyLune ${noms[$v]} (versionCode ${codes[$v]})" ;;
+        dev)    tag="v${noms[$v]}-dev";  titre="V-RyLune (dev) ${noms[$v]} (versionCode ${codes[$v]})" ;;
+    esac
+    etiquettes+="       git tag -a $tag -m \"$titre\"
+"
+done
+
 cat <<'FIN'
 
 Reste à faire, à la main — rien n'a été envoyé :
@@ -157,7 +171,21 @@ Reste à faire, à la main — rien n'a été envoyé :
      ici : le contenu de pages/ est ignoré sur main, et un `git checkout` l'a
      déjà effacé une fois.
 
-  2. valider le nouveau numéro : git add -u && git commit
+FIN
+
+cat <<FIN
+  2. valider le nouveau numéro, puis étiqueter le commit :
+
+       git add -u && git commit
+$etiquettes       git push origin main --follow-tags
+
+     L'étiquette dit quel code a produit quel APK : sans elle, retrouver la
+     version qu'un joueur a sur son téléphone devient une fouille, et la
+     recette F-Droid, qui va chercher « v<numéro> », ne construit rien.
+
+FIN
+
+cat <<'FIN'
   3. vérifier depuis le site, et non depuis dist/ : que l'URL annoncée par
      version.json répond, que son empreinte est celle de l'APK construit, et
      que le versionCode relu par « aapt2 dump badging » est le neuf.

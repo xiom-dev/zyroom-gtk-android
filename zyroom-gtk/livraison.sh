@@ -246,6 +246,22 @@ echo "── sommaire du dépôt"
 flatpak build-update-repo --generate-static-deltas --prune \
     --gpg-sign="$cle" "$depot_publie"
 
+# L'etiquette ne peut pas etre posee ici : le commit qui fige le nouveau numero
+# n'existe pas encore -- c'est l'etape 2 ci-dessous. Le script prepare donc la
+# commande exacte, numeros deja remplis. Les numeros sont relus dans
+# version.properties, que la boucle de construction vient d'y ecrire : la
+# variable de boucle, elle, ne vaut plus que pour la derniere variante.
+etiquettes=""
+for v in "${variantes[@]}"; do
+    livre=$(lire "$v.versionName")
+    case $v in
+        guilde) tag="gtk-$livre";      titre="ZyRoom-GTK $livre" ;;
+        dev)    tag="gtk-dev-$livre";  titre="ZyRoom-GTK (dev) $livre" ;;
+    esac
+    etiquettes+="       git tag -a $tag -m \"$titre\"
+"
+done
+
 cat <<'FIN'
 
 Reste à faire, à la main — rien n'a été envoyé :
@@ -259,7 +275,21 @@ Reste à faire, à la main — rien n'a été envoyé :
        commit=$(git commit-tree "$arbre" -m "Site : dépôt Flatpak")
        git push -f origin "$commit:refs/heads/gh-pages"
 
-  2. valider les numéros et les noms : git add -u && git commit
+FIN
+
+cat <<FIN
+  2. valider les numéros et les noms, puis étiqueter le commit :
+
+       git add -u && git commit
+$etiquettes       git push origin main --follow-tags
+
+     Flatpak met à jour sur l'empreinte du commit, pas sur ce numéro : ici
+     l'étiquette ne sert pas à la mise à jour, elle sert à retrouver le code
+     qui a produit un bundle donné.
+
+FIN
+
+cat <<'FIN'
   3. vérifier depuis une installation propre :
        flatpak update net.ryzom.zyroomgtk.dev
 FIN
