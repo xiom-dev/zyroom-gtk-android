@@ -1,0 +1,5 @@
+* Le coffre se filtre. Au bout de la rangée des tris, neuf critères : les
+  quatre bonus de craft, chacun derrière sa goutte, une plage de qualité, le
+  cadenas, ce qui est en vente, et quatre groupes — type, classe, écosystème,
+  emplacement. La recherche disait où est un objet ; ceci répond à « qu'est-ce
+  qui est monté en sève », que des centaines de lignes cachaient.

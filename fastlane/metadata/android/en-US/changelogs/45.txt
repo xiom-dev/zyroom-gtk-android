@@ -1,0 +1,5 @@
+* Chests can now be filtered. At the end of the sort row, nine criteria: the
+  four craft bonuses, each behind its drop, a quality range, the padlock,
+  what is up for sale, and four groups — type, class, ecosystem and slot.
+  Search told you where an object was; this answers "what is built for sap",
+  a question hundreds of rows used to bury.
