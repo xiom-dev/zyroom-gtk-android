@@ -7,7 +7,7 @@ package net.ryzom.zyroom
  * contenu, et elle se met à jour comme celle de la guilde — c'est même elle qui
  * essuie les plâtres.
  *
- * Le pendant de ce fichier vit dans `src/guilde/kotlin/` et `src/fdroid/kotlin/`.
+ * Le pendant de ce fichier vit dans `src/guilde/kotlin/`.
  */
 const val MASQUE_COFFRES = false
 

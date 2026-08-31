@@ -160,8 +160,8 @@ fun AboutDialog(onDismiss: () -> Unit) {
                     )
                 }
                 // Les positions de gisements ne sont pas des images du jeu
-                // mais des faits, et leur auteur a donné son accord écrit :
-                // toutes les variantes les portent, F-Droid comprise.
+                // mais des faits, et leur auteur a donne son accord ecrit :
+                // les deux variantes les portent.
                 Text(
                     "Positions des gisements : relevé de ballisticmystix.net, " +
                         "avec l'accord de son auteur.",

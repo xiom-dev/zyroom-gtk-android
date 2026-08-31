@@ -8,7 +8,7 @@ package net.ryzom.zyroom
  * mais vide —, et l'application va chercher ses propres mises à jour, faute de
  * logithèque pour le faire à sa place.
  *
- * Le pendant de ce fichier vit dans `src/dev/kotlin/` et `src/fdroid/kotlin/`.
+ * Le pendant de ce fichier vit dans `src/dev/kotlin/`.
  */
 const val MASQUE_COFFRES = true
 
@@ -16,7 +16,7 @@ const val MASQUE_COFFRES = true
  * Vrai si l'application sait se mettre à jour toute seule.
  *
  * Elle interroge alors `version.json`, télécharge l'APK et le présente au
- * système, qui demande confirmation. Faux pour la variante F-Droid, dont la
- * logithèque s'en charge et dont les règles l'interdisent.
+ * système, qui demande confirmation. Vrai pour les deux variantes : aucune
+ * logithèque ne s'en charge à leur place.
  */
 const val MISES_A_JOUR_INTEGREES = true

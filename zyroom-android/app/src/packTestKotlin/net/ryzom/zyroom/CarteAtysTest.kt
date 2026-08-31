@@ -17,8 +17,8 @@ import org.junit.Test
  * Ces essais gardent le résultat, faute de quoi une régénération de la carte
  * pourrait le décaler sans que rien ne le signale.
  *
- * Ils ne valent que pour les variantes qui embarquent la carte : celle de
- * F-Droid ne l'a pas, et ce fichier n'y est pas compilé.
+ * Ils ne valent que pour les variantes qui embarquent la carte : ce fichier
+ * vit dans `src/packTestKotlin`, qui n'est ajouté qu'à leurs essais.
  */
 class CarteAtysTest {
 
@@ -104,7 +104,7 @@ class CarteAtysTest {
      *
      * Il vit ici et non avec les autres essais de la table : la carte n'existe
      * que dans les variantes qui l'embarquent, et un essai qui la nomme ne se
-     * compile pas dans celle de F-Droid.
+     * compilerait pas dans une variante qui s'en passe.
      */
     @Test
     fun `chaque gisement tombe sur la carte`() {

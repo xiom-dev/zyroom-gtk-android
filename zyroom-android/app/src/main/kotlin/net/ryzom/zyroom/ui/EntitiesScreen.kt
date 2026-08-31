@@ -119,8 +119,6 @@ fun EntitiesScreen(
     // l'application hors des récentes pour la voir arriver. Personne n'y pense.
     // UpdateChecker garde sa réponse une minute, une bascule d'application ne
     // redemande donc pas le manifeste.
-    // La variante F-Droid ne demande rien : c'est la logithèque qui met à jour,
-    // et ses règles refusent qu'une application aille chercher un APK.
     val cycle = LocalLifecycleOwner.current
     if (MISES_A_JOUR_INTEGREES) {
         LaunchedEffect(cycle) {

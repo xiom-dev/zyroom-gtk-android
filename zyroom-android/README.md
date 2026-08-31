@@ -48,48 +48,31 @@ La couleur du vert vit à deux endroits, faute de mieux : `Theme.kt` pour
 l'interface, et `res/values/colors.xml` pour la barre de navigation du système,
 que le thème XML peint avant que Compose ne s'exécute.
 
-## Trois variantes
+## Deux variantes
 
-Le même code donne trois applications. `guilde` et `dev` portent des
-identifiants distincts et s'installent donc **côte à côte** sur le même
-téléphone ; `fdroid` est la variante `guilde` débarrassée de ce que la
-logithèque n'accepte pas, et partage son identifiant.
+Le même code donne deux applications. Elles portent des identifiants distincts
+et s'installent donc **côte à côte** sur le même téléphone : celle des joueurs
+et celle du mainteneur, qui essuie les plâtres.
 
 | variante | identifiant | nom au lanceur | petit coffre | se met à jour seule |
 |---|---|---|---|---|
 | `guilde` | `net.ryzom.zyroom` | V-RyLune | présent, mais **vide** | oui, depuis la page GitHub |
 | `dev` | `net.ryzom.zyroom.dev` | V-RyLune (dev) 2.0 | montré | oui |
-| `fdroid` | `net.ryzom.zyroom` | V-RyLune | présent, mais **vide** | non — c'est F-Droid qui le fait |
-
-La variante `fdroid` se distingue sur trois points, chacun imposé par les règles
-d'inclusion de la logithèque :
-
-- **elle ne va pas chercher ses mises à jour** : F-Droid refuse qu'une
-  application télécharge un APK et le fasse installer. Son manifeste retire donc
-  aussi `REQUEST_INSTALL_PACKAGES` et le `FileProvider` qui servait à ça — il ne
-  lui reste que `INTERNET` et `ACCESS_NETWORK_STATE` ;
-- **elle n'embarque pas le `string_client.pack`** du jeu : F-Droid ne publie que
-  ce dont la licence est établie, et celle de ce fichier ne l'est pas. Les noms
-  d'items s'importent depuis le menu ⋮, comme avant qu'on les livre ;
-- **F-Droid la signe de sa propre clé.** Qui a déjà l'APK de la page GitHub
-  devra donc désinstaller avant d'installer celui de la logithèque, et perdra
-  son journal des mouvements — l'API n'en garde aucune trace. À dire aux joueurs
-  le jour de la publication.
 
 ```
-./gradlew assembleFdroidRelease   # app/build/outputs/apk/fdroid/release/
+./gradlew assembleGuildeRelease   # app/build/outputs/apk/guilde/release/
+./gradlew assembleDevRelease      # app/build/outputs/apk/dev/release/
 ```
 
-Le binaire du wrapper Gradle n'est **pas** dans le dépôt : F-Droid construit
-depuis les sources et son analyseur refuse tout exécutable pré-compilé dans
-l'arbre. `gradlew` et `gradle-wrapper.properties` y sont, eux — ce sont des
-fichiers texte. Après un clone, retrouver le binaire :
+Une troisième variante a existé, `fdroid` : la même que `guilde`, débarrassée de
+ce que la logithèque n'acceptait pas. La démarche a été abandonnée le 31 août
+2026 et la variante avec elle — elle obligeait à écrire en trois exemplaires
+toute interface propre à une diffusion, pour une publication qui n'aura pas
+lieu. `git log` en garde le détail.
 
-```
-gradle wrapper --gradle-version 8.9
-```
-
-ou construire avec le Gradle du système, qui n'en a pas besoin.
+Le wrapper Gradle est dans le dépôt, binaire compris : un clone frais construit
+sans qu'aucun Gradle soit installé, ce qui est le cas de la machine de
+développement. Régénérer ce binaire demanderait justement un Gradle déjà là.
 
 Le nom au lanceur de la variante dev porte son numéro : les deux applications
 cohabitant sur le même téléphone, c'est le seul endroit qui dise du premier coup

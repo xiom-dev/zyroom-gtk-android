@@ -34,10 +34,10 @@ class NameDb private constructor(private val names: Map<String, String>) {
      * Le nom lisible d'une fiche, ou sa clé si personne ne sait la nommer.
      *
      * Le pack du client passe en premier : c'est la source du jeu, et elle
-     * suit ses mises à jour. À son défaut, les avant-postes ont une table
-     * embarquée — la variante F-Droid ne peut pas emporter le pack, et
-     * affichait « fyros_outpost_04 » là où il faut lire « Ferme de
-     * Malmontagne ».
+     * suit ses mises à jour. À son défaut — pack absent, ou import qui a
+     * échoué —, les avant-postes ont une table embarquée : sans elle,
+     * l'application affiche « fyros_outpost_04 » là où il faut lire « Ferme
+     * de Malmontagne ».
      */
     fun nameOf(sheet: String): String = names[sheet]
         ?: NOMS_AVANT_POSTES[sheet.removeSuffix(".outpost")]

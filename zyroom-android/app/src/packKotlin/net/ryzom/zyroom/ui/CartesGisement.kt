@@ -41,8 +41,8 @@ import kotlin.math.roundToInt
  * dessinent.
  *
  * Les positions, elles, sont dans `src/main` : ce sont des faits, et leur
- * auteur a donné son accord écrit. La variante F-Droid les affiche en clair,
- * faute de carte pour les porter.
+ * auteur a donné son accord écrit. Une variante qui n'embarquerait pas la
+ * carte les afficherait en clair, faute de support pour les porter.
  */
 const val GISEMENTS_EMBARQUES = true
 

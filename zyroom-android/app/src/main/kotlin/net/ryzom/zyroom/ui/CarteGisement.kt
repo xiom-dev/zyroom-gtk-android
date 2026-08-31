@@ -30,7 +30,6 @@ import net.ryzom.zyroom.model.Gisements
  * **Pas de coordonnées.** Le jeu ne permet pas d'en saisir pour poser un
  * repère — on l'avait cru, Ludo l'a corrigé — et deux nombres qu'on ne peut
  * recopier nulle part n'apprennent rien. C'est le nom du lieu qui dit où aller.
- * La variante F-Droid, qui n'embarque pas la carte, n'affiche que ces noms.
  */
 @Composable
 fun CarteGisement(

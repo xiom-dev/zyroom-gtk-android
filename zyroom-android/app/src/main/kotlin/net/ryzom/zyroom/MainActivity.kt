@@ -44,10 +44,10 @@ class MainActivity : ComponentActivity() {
         val roster = RosterStore(File(filesDir, "roster"))
         val preferences = Preferences(this)
 
-        // Les noms d'items sont livrés avec l'application, sauf dans la variante
-        // F-Droid : là, le pack du jeu n'est pas embarqué et le joueur l'importe
-        // lui-même — le menu ⋮ est fait pour ça. Un pack importé prend de toute
-        // façon le pas sur celui qui serait livré.
+        // Les noms d'items sont livres avec l'application. Le joueur peut tout
+        // de meme importer le pack de son installation depuis le menu, et le
+        // sien prend alors le pas sur celui qui est livre : c'est la source du
+        // jeu, elle suit ses mises a jour.
         lifecycleScope.launch {
             repository.loadNames(File(filesDir, PACK_NAME)) {
                 runCatching { assets.open(PACK_NAME) }.getOrNull()

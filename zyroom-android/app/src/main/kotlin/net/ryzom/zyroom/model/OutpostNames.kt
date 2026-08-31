@@ -9,8 +9,8 @@ package net.ryzom.zyroom.model
  * Relevé de `nimetu/ryzom_extra` (LGPL-3.0), que la documentation de
  * l'API de Ryzom recommande pour les traductions. Le pack du client
  * reste prioritaire quand il est là : c'est la source du jeu lui-même,
- * et elle suit ses mises à jour. Ceci sert la variante F-Droid, qui ne
- * peut pas embarquer le pack, et tout exemplaire dont l'import a échoué.
+ * et elle suit ses mises à jour. Ceci sert tout exemplaire dont le pack
+ * manque, ou dont l'import a échoué.
  */
 val NOMS_AVANT_POSTES: Map<String, String> = mapOf(
     "fyros_outpost_04" to "Ferme de Malmontagne",
