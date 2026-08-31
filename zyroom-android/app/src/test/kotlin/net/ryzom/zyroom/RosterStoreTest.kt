@@ -141,7 +141,12 @@ class RosterStoreTest {
     @Test
     fun `une date postérieure au constat est refusée`() = runBlocking {
         val dir = dossier.newFolder()
-        val constat = System.currentTimeMillis() / 1000 - 10 * 86400
+        // Le constat se cale sur la date encodée dans l'identifiant, un jour
+        // plus tôt : c'est la seule façon d'être sûr qu'elle la dépasse, ce
+        // que le test veut éprouver. Adossé à l'horloge — « il y a dix jours »
+        // —, il s'est vérifié tant que le jour d'aujourd'hui était proche de
+        // cette date fixe, puis a cessé de l'être sans que rien ne bouge.
+        val constat = dateEntree(LILOULOVE, System.currentTimeMillis() / 1000) - 86400
         File(dir, "roster-42.jsonl").writeText(ligneArrivee(constat, "Liloulove") + "\n")
         RosterStore(dir).record("42", listOf(Member("Liloulove", "Member", LILOULOVE)))
         assertEquals(constat, RosterStore(dir).history("42").first().at)
