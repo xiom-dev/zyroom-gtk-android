@@ -178,7 +178,13 @@ class Redatage(unittest.TestCase):
         la date décodée dépasse le constat, c'est elle qui a tort."""
         with tempfile.TemporaryDirectory() as d:
             s = roster.RosterStore(d, "essai")
-            constat = int(time.time()) - 10 * 86400
+            # Le constat s'ancre sur la date decodee, jamais sur l'horloge : le
+            # cas eprouve ici veut un constat ANTERIEUR a elle, et LILOULOVE est
+            # une date figee. Compte a rebours depuis time.time(), l'essai
+            # cessait de porter sur quoi que ce soit des que le monde depassait
+            # cette date-la -- il l'a fait le 27 aout 2026, et l'essai est
+            # tombe tout seul.
+            constat = roster.date_entree(self.LILOULOVE) - 86400
             self._journal(s, [(constat, "Liloulove", "arrivee")])
             s.record([("Liloulove", "Member", self.LILOULOVE)])
             self.assertEqual(constat, s.history()[0].at)
