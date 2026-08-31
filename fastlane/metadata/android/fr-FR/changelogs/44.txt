@@ -1,0 +1,5 @@
+* Le journal a sa barre de défilement, et elle s'attrape au pouce. Compose
+  n'en donne aucune aux longues listes : sur un journal de guilde qui tient
+  des centaines de lignes, rien ne disait s'il en restait dix ou mille sous le
+  doigt, et atteindre le fond demandait trente balayages. La poignée dit quelle
+  part tient à l'écran, s'épaissit tant qu'on la tient, et la liste suit.

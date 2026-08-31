@@ -1,0 +1,5 @@
+* Items in a chest now show their craft drops: health, sap, stamina and focus,
+  stacked in the top-left corner of the tile, in the colours and order used by
+  the desktop version. The feed reader never saw them — the game files them
+  under "craftparameters", which nothing opened — even though the same feed
+  had been handing them to the desktop all along.

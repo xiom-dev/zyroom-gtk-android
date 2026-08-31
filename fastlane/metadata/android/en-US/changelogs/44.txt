@@ -1,0 +1,5 @@
+* The log now has a scrollbar, and you can grab it with your thumb. Compose
+  gives none to long lists: on a guild log hundreds of lines deep, nothing
+  said whether ten or a thousand were left under your finger, and reaching the
+  bottom took thirty swipes. The handle shows how much fits on screen, thickens
+  while you hold it, and the list follows.

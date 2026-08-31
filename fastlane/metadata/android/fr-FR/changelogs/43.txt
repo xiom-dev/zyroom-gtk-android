@@ -1,0 +1,5 @@
+* Les objets d'un coffre montrent leurs gouttes de spécialité : vie, sève,
+  endurance et concentration, empilées dans le coin haut gauche de la case,
+  aux couleurs et dans l'ordre de la version bureau. Le lecteur de flux ne les
+  voyait pas — le jeu les range sous « craftparameters », que rien n'ouvrait —
+  alors que le même flux les donnait déjà au bureau.

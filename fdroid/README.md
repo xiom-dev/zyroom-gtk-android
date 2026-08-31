@@ -110,14 +110,13 @@ Les **captures d'écran** sont là — quatre par langue, `fr-FR` et `en-US`, da
 `fastlane/metadata/android/*/images/phoneScreenshots/`. C'était l'objet même de
 la remarque du robot, et le seul manque qui aurait fait sortir la fiche nue.
 
-Restent deux choses :
+Les **notes de version** vont jusqu'au versionCode publié, dans
+`fastlane/metadata/android/*/changelogs/`. C'est celle du versionCode publié
+que F-Droid affiche : sans `44.txt`, la fiche annoncerait 2.38 sans dire ce
+qu'elle apporte. Le `38.txt` manque et manquera : ce numéro n'a jamais été
+livré — la numérotation saute quand elle repart du numéro publié plutôt que de
+celui du dépôt.
 
-- Les **notes de version manquent pour les versionCode 43 et 44**, dans
-  `fastlane/metadata/android/*/changelogs/`. La série s'arrête à 42. F-Droid
-  affiche la note du versionCode qu'il publie : sans `44.txt`, la fiche
-  annonce la version courante sans dire ce qu'elle apporte. (Le 38 manque
-  aussi, mais celui-là n'a jamais été livré — la numérotation saute quand elle
-  repart du numéro publié.)
-- La description de la RFP annonce **GPL-3.0-or-later** alors que le projet
-  est sous **AGPL-3.0-or-later** — c'est la seconde qui est vraie, et c'est
-  elle qui est dans la recette. La demande gagnerait à être corrigée.
+Reste une chose : la description de la RFP annonce **GPL-3.0-or-later** alors
+que le projet est sous **AGPL-3.0-or-later** — c'est la seconde qui est vraie,
+et c'est elle qui est dans la recette. La demande gagnerait à être corrigée.
