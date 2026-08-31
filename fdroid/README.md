@@ -35,7 +35,18 @@ court.
    dossier qui lui ressemble : `config.yml`, `config/categories.yml` et
    `metadata/`. Sans le fichier des catégories, le contrôle des catégories se
    trompe — et sans les icônes qu'il mentionne, il s'interrompt en pleine
-   course ; une liste réduite aux seuls noms suffit à le contenter.
+   course.
+
+   Une liste réduite aux seuls noms ne suffit plus : `fdroidserver` 2.4.5 la
+   lit comme une suite de valeurs vides et s'arrête sur un `AttributeError`,
+   loin de la vraie cause. Chaque catégorie veut un nom traduit :
+
+       Game Helper:
+         name:
+           en-US: Game Helper
+       Inventory:
+         name:
+           en-US: Inventory
 
    Ce contrôle a déjà servi : la recette annonçait la catégorie `Games`, qui
    **n'existe plus**. F-Droid en tient aujourd'hui cent huit, bien plus fines.
@@ -45,10 +56,14 @@ court.
    Mais il ne remplace pas leur intégration continue, qui en a trouvé deux de
    plus (le 17 août) : le `scandelete` inutile expliqué plus bas, et un simple
    **repli de ligne**. Leur version de `rewritemeta` veut la longue valeur de
-   `UpdateCheckData` renvoyée à la ligne suivante, indentée de deux espaces,
-   là où la version installée ici la laissait sur une seule ligne. Ne pas
-   « corriger » ce repli : c'est leur forme canonique qui décide, et un
-   `rewritemeta` local plus ancien le défera.
+   `UpdateCheckData` renvoyée à la ligne suivante, indentée de deux espaces.
+
+   **Ne pas reprendre la sortie de `rewritemeta` sur ce point** : quelle que
+   soit la version installée ici, elle se trompe — l'ancienne laissait la
+   valeur sur une seule ligne, et la 2.4.5 défait activement le repli qu'on
+   vient de poser. C'est leur forme canonique qui décide, pas la nôtre. Le
+   `lint`, lui, n'a rien à redire au repli : il passe en silence sur la recette
+   telle qu'elle est ici.
 4. Ouvrir la merge request, et **mentionner la RFP #4244** dedans pour que les
    deux se rejoignent.
 
@@ -83,13 +98,26 @@ court.
   étiquette git `v<numéro>` : `v2.3`, `v2.28`… C'est là que F-Droid ira
   chercher le code d'une version qu'il aura vue passer.
 
+  Ce qui suppose que l'étiquette existe, et elle a bien failli manquer :
+  l'étiquetage se faisait de tête et s'était arrêté à `v2.32`, quand
+  l'application en était à 2.38. Les quarante-quatre manquantes ont été posées
+  après coup, et `livraison.sh` affiche désormais la commande, numéros déjà
+  remplis, dans son pense-bête de fin.
+
 ## Ce qui reste à faire avant que la fiche soit présentable
 
-Les **captures d'écran** manquent dans
+Les **captures d'écran** sont là — quatre par langue, `fr-FR` et `en-US`, dans
 `fastlane/metadata/android/*/images/phoneScreenshots/`. C'était l'objet même de
-la remarque du robot : sans elles, la fiche F-Droid sort nue. À prendre sur la
-variante `fdroid`, qui ne porte pas la pastille « DEV ».
+la remarque du robot, et le seul manque qui aurait fait sortir la fiche nue.
 
-Et la description de la RFP annonce **GPL-3.0-or-later** alors que le projet
-est sous **AGPL-3.0-or-later** — c'est la seconde qui est vraie, et c'est elle
-qui est dans la recette. La demande gagnerait à être corrigée.
+Restent deux choses :
+
+- Les **notes de version manquent pour les versionCode 43 et 44**, dans
+  `fastlane/metadata/android/*/changelogs/`. La série s'arrête à 42. F-Droid
+  affiche la note du versionCode qu'il publie : sans `44.txt`, la fiche
+  annonce la version courante sans dire ce qu'elle apporte. (Le 38 manque
+  aussi, mais celui-là n'a jamais été livré — la numérotation saute quand elle
+  repart du numéro publié.)
+- La description de la RFP annonce **GPL-3.0-or-later** alors que le projet
+  est sous **AGPL-3.0-or-later** — c'est la seconde qui est vraie, et c'est
+  elle qui est dans la recette. La demande gagnerait à être corrigée.
