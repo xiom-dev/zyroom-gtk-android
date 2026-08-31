@@ -5,6 +5,19 @@ Elle ne sert à rien dans ce dépôt-ci : sa place est dans le leur,
 `fdroiddata/metadata/net.ryzom.zyroom.yml`. Elle est gardée ici pour qu'on
 puisse la relire, la corriger et la renvoyer sans la réécrire de mémoire.
 
+> **Elle est déposée.** La merge request
+> [fdroiddata!46058](https://gitlab.com/fdroid/fdroiddata/-/merge_requests/46058)
+> est ouverte depuis le 17 août 2026, et la RFP #4244 y est rattachée. Il n'y a
+> plus rien à envoyer : ce qui reste est de leur côté, et se lit là-bas.
+>
+> **Ce fichier est la copie de ce qui est en revue, et doit le rester.** Il vise
+> `v2.28` / versionCode 33, la version du jour du dépôt — non parce que ce
+> serait la dernière, mais parce que c'est celle que leur pipeline a
+> construite. Le mettre à jour ici ne met rien à jour là-bas ; cela ne fait que
+> perdre la seule copie fidèle. Les versions suivantes ne se rattrapent pas à
+> la main : `AutoUpdateMode: Version v%v` les suit aux étiquettes, une fois la
+> demande acceptée.
+
 ## Pourquoi une recette, alors qu'une demande existe déjà
 
 La demande [RFP #4244](https://gitlab.com/fdroid/rfp/-/issues/4244) n'est qu'un
@@ -19,7 +32,10 @@ personne ne lit `fastlane/`** : ces métadonnées-là sont lues par
 demande peut y dormir des mois. Proposer soi-même la recette est le chemin
 court.
 
-## Comment l'envoyer
+## Comment elle a été envoyée
+
+Gardé pour le jour où il faudra recommencer — corriger la recette sur demande
+d'un relecteur passe par les mêmes gestes.
 
 1. Forker `https://gitlab.com/fdroid/fdroiddata` sur GitLab.
 2. Y déposer le fichier sous `metadata/net.ryzom.zyroom.yml`.
@@ -65,9 +81,7 @@ court.
    `lint`, lui, n'a rien à redire au repli : il passe en silence sur la recette
    telle qu'elle est ici.
 4. Ouvrir la merge request, et **mentionner la RFP #4244** dedans pour que les
-   deux se rejoignent. Le texte est prêt dans [`merge-request.md`](merge-request.md) —
-   titre, description, et le commentaire à poster ensuite sur la RFP, qui
-   annonce encore la mauvaise licence.
+   deux se rejoignent.
 
 ## Les choix qui demanderaient une explication à un relecteur
 
@@ -106,7 +120,7 @@ court.
   après coup, et `livraison.sh` affiche désormais la commande, numéros déjà
   remplis, dans son pense-bête de fin.
 
-## Ce qui reste à faire avant que la fiche soit présentable
+## L'état de la fiche
 
 Les **captures d'écran** sont là — quatre par langue, `fr-FR` et `en-US`, dans
 `fastlane/metadata/android/*/images/phoneScreenshots/`. C'était l'objet même de
@@ -133,6 +147,9 @@ d'elle-même, ses étiquettes portant désormais les notes. Mais la règle vaut
 d'être retenue : **la note de version s'écrit avant l'étiquette, jamais
 après.**
 
-Reste une chose : la description de la RFP annonce **GPL-3.0-or-later** alors
-que le projet est sous **AGPL-3.0-or-later** — c'est la seconde qui est vraie,
-et c'est elle qui est dans la recette. La demande gagnerait à être corrigée.
+La licence annoncée dans la RFP disait **GPL-3.0-or-later** là où le projet est
+sous **AGPL-3.0-or-later** ; la correction y a été portée, et c'est bien l'AGPL
+que la recette déposée déclare.
+
+Il ne reste donc rien à faire ici : la suite est la revue, et elle se passe sur
+la merge request.
