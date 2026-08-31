@@ -9,9 +9,8 @@ avec ça, les applications dessinent *où* sur leur propre carte d'Atys.
 
 **D'où viennent les coordonnées.** Du relevé que Ballistic Mystix publie à
 `ballisticmystix.net/docs/resources.json`. Karu, qui le tient, a donné son
-accord écrit pour qu'on s'en serve et qu'on le redistribue — c'est ce qui permet
-de l'embarquer dans la variante F-Droid, ce que les vues du tracker
-n'autorisaient pas.
+accord écrit pour qu'on s'en serve et qu'on le redistribue — ce que les vues du
+tracker n'autorisaient pas.
 
 **Ce que ça remplace.** On embarquait 260 vues rendues par le tracker d'atys.us,
 soit trois mégaoctets d'images. Sept kilooctets de coordonnées disent la même
@@ -345,11 +344,6 @@ def kotlin(table: dict, taux: dict) -> str:
  *
  * La clé est en français, comme ce qu'affiche l'écran ; la traduction vers les
  * noms du jeu est faite à la fabrication.
- *
- * **Cette table est dans `src/main` et non dans le pack** : ce sont des faits,
- * pas des images du jeu, et leur auteur a donné son accord écrit. La variante
- * F-Droid les a donc aussi — elle n'embarque pas la carte, mais elle peut dire
- * le lieu et les coordonnées, ce qui vaut mieux que rien.
  */
 object Gisements {{
     data class Cle(val qualite: String, val famille: String, val matiere: String)

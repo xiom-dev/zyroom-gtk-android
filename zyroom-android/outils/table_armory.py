@@ -204,8 +204,8 @@ def main() -> int:
     depot = os.path.dirname(android)
 
     # Les symboles, une fois pour toutes. `packRes` et non `main/res` : ce sont
-    # des images du jeu, embarquées dans les seules variantes qu'on distribue
-    # soi-même — F-Droid ne publie que ce dont la licence est établie.
+    # des images du jeu, embarquees dans les seules variantes qu'on distribue
+    # soi-meme, faute d'une licence etablie.
     # `drawable-nodpi` : ces images font quarante pixels de côté et l'écran leur
     # donne une taille en points — les ranger dans un seuil de densité les
     # ferait redimensionner deux fois.

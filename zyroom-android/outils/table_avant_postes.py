@@ -8,10 +8,10 @@ l'API de Ryzom recommande elle-même pour les traductions.
     https://github.com/nimetu/ryzom_extra
 
 Pourquoi les figer plutôt que de lire le pack du client : `string_client.pack`
-fait deux mégaoctets et demi, sa licence n'est pas établie, et il n'est donc
-embarqué que dans les variantes qu'on distribue soi-même. La variante F-Droid
-n'en a pas, et affichait des codes bruts — « fyros_outpost_04 » au lieu de
-« Ferme de Malmontagne ».
+fait deux mégaoctets et demi et sa licence n'est pas établie. Un exemplaire qui
+ne l'a pas — import qui a échoué, ou diffusion qui n'aurait pas le droit de
+l'emporter — affichait des codes bruts, « fyros_outpost_04 » au lieu de « Ferme
+de Malmontagne ».
 
 Ces noms-ci pèsent deux kilo-octets, portent une licence claire, et servent de
 recours dans **toutes** les variantes : le pack, quand il est là, reste
@@ -59,8 +59,8 @@ def kotlin(table: dict) -> str:
               " * Relevé de `nimetu/ryzom_extra` (LGPL-3.0), que la documentation de",
               " * l'API de Ryzom recommande pour les traductions. Le pack du client",
               " * reste prioritaire quand il est là : c'est la source du jeu lui-même,",
-              " * et elle suit ses mises à jour. Ceci sert la variante F-Droid, qui ne",
-              " * peut pas embarquer le pack, et tout exemplaire dont l'import a échoué.",
+              " * et elle suit ses mises à jour. Ceci sert tout exemplaire dont le pack",
+              " * manque, ou dont l'import a échoué.",
               ' */',
               'val NOMS_AVANT_POSTES: Map<String, String> = mapOf(']
     for code, nom in table.items():

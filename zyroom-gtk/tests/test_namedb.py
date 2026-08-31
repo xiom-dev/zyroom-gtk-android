@@ -120,8 +120,8 @@ class SurLeVraiPack(unittest.TestCase):
 class NomsDAvantPostes(unittest.TestCase):
     """Le recours quand le pack du client n'est pas là.
 
-    La variante F-Droid ne peut pas l'embarquer — sa licence n'est pas établie
-    — et affichait « fyros_outpost_04 » là où il faut lire un nom.
+    Sans lui — import qui a échoué, ou pack qu'on n'a pas le droit de livrer —
+    l'application affichait « fyros_outpost_04 » là où il faut lire un nom.
     """
 
     def _vide(self):
