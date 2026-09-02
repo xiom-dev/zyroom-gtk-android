@@ -64,7 +64,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.76" if _DEV else "0.49"
+VERSION = "0.77" if _DEV else "0.50"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -3783,7 +3783,9 @@ class MainWindow(Gtk.ApplicationWindow):
                différence entre un tableau terne et un tableau habillé. */
             .zebre { background: mix(@zy_surface, @zy_sarcelle, 0.14); }
             /* Le vert de l'application pour ce qui est monté au maximum. */
-            .fini { color: mix(@zy_sarcelle, white, 0.35); font-weight: bold; }
+            /* Sans gras : la police epaissie a la volee rend le vert flou. La couleur
+               suffit a dire que c'est monte au maximum. */
+            .fini { color: mix(@zy_sarcelle, white, 0.35); }
             /* L'or du titre et du logo, pour les intitulés de section. */
             .peuple { color: @zy_or; }
             /* Un cran sous le corps courant : trois colonnes doivent tenir

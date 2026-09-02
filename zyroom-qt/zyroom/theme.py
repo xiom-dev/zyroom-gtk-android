@@ -164,7 +164,10 @@ QWidget[zebre="true"] { background-color: %(zebre)s; }
 
 /* Ce qui est monte au maximum, dans l'arbre des competences comme sur un
    avant-poste qui nous appartient : le vert de l'application. */
-#fini { color: %(fini)s; font-weight: bold; }
+/* Sans gras : la police epaissie a la volee, sans graisse dessinee dans la
+   fonte, rend le vert flou. La couleur suffit a dire que c'est monte au
+   maximum. */
+#fini { color: %(fini)s; }
 
 /* Les triangles du registre : la couleur porte le sens, la direction le
    confirme -- pour qui distingue mal les deux teintes. */
