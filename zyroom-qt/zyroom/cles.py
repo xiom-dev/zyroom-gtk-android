@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
                                QScrollArea, QTabWidget, QVBoxLayout, QWidget)
 
 from . import ryzom_api
+from . import theme
 from .config import entity_xml_path
 from .i18n import _
 from .ryzom_api import KIND_CHARACTER, KIND_GUILD
@@ -239,14 +240,14 @@ class FenetreCles(QDialog):
 
         changer = QPushButton("✎")
         changer.setToolTip(_("Remplacer la clé"))
-        changer.setFixedWidth(34)
+        changer.setFixedWidth(theme.largeur(changer, 1.8))
         changer.clicked.connect(
             lambda: self._changer_cle(entree, genre, magasin))
         actions.addWidget(changer)
 
         retirer = QPushButton("🗑")
         retirer.setToolTip(_("Retirer cette entité"))
-        retirer.setFixedWidth(34)
+        retirer.setFixedWidth(theme.largeur(retirer, 1.8))
         retirer.clicked.connect(lambda: self._confirmer_retrait(entree, magasin))
         actions.addWidget(retirer)
         colonne.addLayout(actions)

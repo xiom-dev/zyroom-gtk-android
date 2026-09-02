@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 
 from . import (alerts, apropos, backup, chatlog, cles, detail, enchantements,
                i18n, movements, notifications, outposts, partage, polices,
-               roster, ryzom_api, sorting, specialites, updater)
+               roster, ryzom_api, sorting, specialites, theme, updater)
 from .categorydb import CategoryDb
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      data_dir, detect_pack, detect_save_folder,
@@ -628,7 +628,7 @@ class FenetrePrincipale(QMainWindow):
 
         self._btn_ordre = QPushButton("↑" if self._tri_desc else "↓")
         self._btn_ordre.setToolTip(_("Ordre croissant/décroissant"))
-        self._btn_ordre.setFixedWidth(34)
+        self._btn_ordre.setFixedWidth(theme.largeur(self._btn_ordre, 1.8))
         self._btn_ordre.clicked.connect(self._on_ordre_bascule)
         ligne2.addWidget(self._btn_ordre)
 

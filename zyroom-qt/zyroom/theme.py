@@ -26,7 +26,7 @@ cet effet de bord ; elle informe le style au lieu de le remplacer.
 """
 from __future__ import annotations
 
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QColor, QFontMetrics, QPalette
 
 #: Les cinq couleurs d'Android, telles quelles.
 COULEURS = {
@@ -233,3 +233,17 @@ QLabel#valeur    { color: %(or)s; font-weight: bold; }
 QLabel#erreur    { color: %(erreur)s; }
 QLabel#signature { color: %(texte_faible)s; }
 """ % COULEURS
+
+
+def largeur(widget, facteur: float) -> int:
+    """Une largeur exprimée en hauteurs de ligne, et non en pixels.
+
+    Les largeurs fixes écrites en pixels ne suivent pas la police : grossie
+    d'un point, la flèche d'une branche ou le symbole d'un bouton se fait
+    couper par un cadre resté à sa taille. Rapportée à la hauteur d'une ligne,
+    la même mesure grandit avec le texte qu'elle encadre.
+
+    Les facteurs sont calés sur la police par défaut : 1,8 rendait les 34 px
+    des boutons carrés, 4,7 les 90 px des colonnes de niveau.
+    """
+    return max(1, round(QFontMetrics(widget.font()).height() * facteur))

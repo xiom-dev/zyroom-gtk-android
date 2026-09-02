@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QLineEdit,
                                QVBoxLayout, QWidget)
 
 from . import skills as skills_mod
+from . import theme
 from .i18n import _
 from .ryzom_api import KIND_CHARACTER
 
@@ -216,7 +217,7 @@ class PageCompetences(QWidget):
 
         fleche = QLabel(("▾" if noeud.skill.code in self._deplies else "▸")
                         if code else " ")
-        fleche.setFixedWidth(14)
+        fleche.setFixedWidth(theme.largeur(fleche, 0.75))
         ligne.addWidget(fleche)
 
         finie = noeud.skill.code in self._finies
@@ -235,7 +236,7 @@ class PageCompetences(QWidget):
             barre.setRange(0, 100)
             barre.setValue(noeud.skill.progress)
             barre.setTextVisible(False)
-            barre.setFixedWidth(90)
+            barre.setFixedWidth(theme.largeur(barre, 4.7))
             ligne.addWidget(barre)
 
         texte_niveau = (f"{noeud.skill.level} · {noeud.skill.progress} %"
@@ -250,7 +251,7 @@ class PageCompetences(QWidget):
                 texte_niveau = str(skills_mod.branch_level(self._arbre,
                                                            noeud.skill.code))
         niveau = QLabel(texte_niveau)
-        niveau.setFixedWidth(90)
+        niveau.setFixedWidth(theme.largeur(niveau, 4.7))
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight
                             | Qt.AlignmentFlag.AlignVCenter)
         if finie:

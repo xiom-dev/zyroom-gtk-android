@@ -411,6 +411,20 @@ class Settings:
         self._ini.set("GENERAL", "UILanguage", value)
         self._flush()
 
+    #: De combien de points le texte grossit par rapport a ce que propose le
+    #: bureau. Un, par defaut : la police du systeme est calibree pour des
+    #: interfaces aerees, et celle-ci serre beaucoup d'information -- des
+    #: colonnes de noms, des tableaux de mouvements -- ou un point de plus
+    #: change tout. Zero rend exactement la police du bureau.
+    @property
+    def font_offset(self) -> int:
+        return self._ini.getint("GENERAL", "FontOffset", fallback=1)
+
+    @font_offset.setter
+    def font_offset(self, value: int) -> None:
+        self._ini.set("GENERAL", "FontOffset", str(int(value)))
+        self._flush()
+
     @property
     def volume_threshold(self) -> int:
         """Seuil d'alerte de volume, en %. Défaut 90 (comme l'original)."""

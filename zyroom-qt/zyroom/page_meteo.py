@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QLabel, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
 from . import armory, gisements, meteo, page_gisements, ryzom_api
+from . import theme
 from .i18n import _
 
 #: Ce que la courbe montre, en heures d'Atys, et ou s'y tient le present.
@@ -521,7 +522,7 @@ class PageMeteo(QWidget):
             # qu'on a sous les yeux en forant, et l'oeil les reconnait plus
             # vite qu'il ne lit "Carapace".
             cellule = QWidget()
-            cellule.setFixedWidth(90)
+            cellule.setFixedWidth(theme.largeur(cellule, 4.7))
             pile = QVBoxLayout(cellule)
             pile.setContentsMargins(0, 0, 0, 0)
             pile.setSpacing(0)

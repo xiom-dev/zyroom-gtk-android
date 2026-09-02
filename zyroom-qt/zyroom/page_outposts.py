@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
                                QWidget)
 
 from . import outposts, ryzom_api
+from . import theme
 from .i18n import _
 from .ryzom_api import KIND_GUILD
 
@@ -280,7 +281,7 @@ class PageAvantPostes(QWidget):
 
         niveau = QLabel(str(avant_poste.level) if avant_poste.level else "—")
         niveau.setObjectName("discret")
-        niveau.setFixedWidth(24)
+        niveau.setFixedWidth(theme.largeur(niveau, 1.25))
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight
                             | Qt.AlignmentFlag.AlignVCenter)
         ligne.addWidget(niveau)
