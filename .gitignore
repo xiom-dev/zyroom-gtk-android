@@ -1,7 +1,13 @@
 
 # Sortie du site de mises à jour et clé de signature : publiés ailleurs,
 # et le dépôt OSTree grossit à chaque livraison.
-/pages/
+#
+# La page, elle, est du texte écrit à la main, et la branche gh-pages ne
+# la garde pas : chaque publication y pousse un commit orphelin qui
+# remplace le précédent. Sans cette exception, index.html n'existerait
+# qu'en un seul exemplaire, sur le disque.
+/pages/*
+!/pages/index.html
 /zyroom-gtk/pages-repo/
 /.signing-key-id
 
