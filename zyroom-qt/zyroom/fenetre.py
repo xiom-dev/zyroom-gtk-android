@@ -195,6 +195,11 @@ def _bouton_icone(nom_theme: str, repli: str, infobulle: str) -> QToolButton:
         bouton.setText(repli)
     else:
         bouton.setIcon(icone)
+        # Sans cela l'icone reste au seize pixels par defaut de Qt, quelle que
+        # soit la taille du texte : la fleche de synchro et la corbeille
+        # restaient minuscules a cote de libelles grossis.
+        cote = theme.largeur(bouton, 1.1)
+        bouton.setIconSize(QSize(cote, cote))
     bouton.setToolTip(infobulle)
     bouton.setAutoRaise(True)
     return bouton
@@ -432,6 +437,19 @@ class FenetrePrincipale(QMainWindow):
         self._btn_maj.setVisible(False)
         self._btn_maj.clicked.connect(self._on_maj_clic)
         ligne.addWidget(self._btn_maj)
+
+        # Le zoom des icones de l'inventaire, a portee de main. La molette
+        # avec Ctrl le fait aussi, mais elle n'atteint pas tous les pointeurs
+        # -- et deux boutons se voient, ce qu'un raccourci ne fait jamais.
+        for signe, pas, mot in (("−", -8, _("Réduire les icônes")),
+                                ("+", 8, _("Agrandir les icônes"))):
+            bouton = QToolButton()
+            bouton.setText(signe)
+            bouton.setToolTip(mot)
+            bouton.setAutoRaise(True)
+            bouton.clicked.connect(
+                lambda _c=False, p=pas: self._zoomer_icones(p))
+            ligne.addWidget(bouton)
 
         self._btn_relever = _bouton_icone("view-refresh-symbolic", "🔄",
                                           _("Resynchroniser depuis l'API"))
