@@ -435,6 +435,20 @@ class Settings:
         self._ini.set("GENERAL", "FontSize", str(int(value)))
         self._flush()
 
+    #: Le cote des icones de la grille, en pixels. Quarante-huit est la
+    #: taille que l'API rend et celle de la version GTK ; au-dela, l'image est
+    #: agrandie et se ramollit, mais une grille de deux cents objets se
+    #: parcourt mieux quand chacun se reconnait sans se pencher.
+    @property
+    def icon_size(self) -> int:
+        return max(24, min(128, self._ini.getint("GENERAL", "IconSize",
+                                                 fallback=48)))
+
+    @icon_size.setter
+    def icon_size(self, value: int) -> None:
+        self._ini.set("GENERAL", "IconSize", str(int(value)))
+        self._flush()
+
     @property
     def volume_threshold(self) -> int:
         """Seuil d'alerte de volume, en %. Défaut 90 (comme l'original)."""

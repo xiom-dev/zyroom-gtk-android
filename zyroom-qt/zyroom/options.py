@@ -85,6 +85,19 @@ class FenetreOptions(QDialog):
         grille.addWidget(self._police, rang, 1)
         rang += 1
 
+        grille.addWidget(QLabel(_("Taille des icônes (pixels)")), rang, 0)
+        self._icones = QSpinBox()
+        self._icones.setRange(24, 128)
+        self._icones.setSingleStep(8)
+        self._icones.setValue(settings.icon_size)
+        self._icones.setToolTip(_(
+            "Le côté des icônes de l'inventaire. L'API les rend en 48 ; "
+            "au-delà elles sont agrandies et se ramollissent un peu, mais une "
+            "grille chargée se parcourt mieux. Prend effet au prochain "
+            "lancement."))
+        grille.addWidget(self._icones, rang, 1)
+        rang += 1
+
         rang = self._ligne_nombre(grille, rang, "Seuil d'alerte de volume (%)",
                                   "_volume", 0, 100, 5,
                                   settings.volume_threshold)
@@ -197,6 +210,7 @@ class FenetreOptions(QDialog):
         s.proxy_password = self._proxy_motdepasse.text()
         s.language = self._codes_langue[self._dd_langue.currentIndex()]
         s.font_size = self._police.value()
+        s.icon_size = self._icones.value()
         self.accept()
         if self._apres:
             self._apres()

@@ -641,8 +641,9 @@ class FenetrePrincipale(QMainWindow):
         # FlowBox de GTK, il recalcule ses colonnes au redimensionnement.
         self._grille = QListWidget()
         self._grille.setViewMode(QListWidget.ViewMode.IconMode)
-        self._grille.setIconSize(QSize(TAILLE_ICONE, TAILLE_ICONE))
-        self._grille.setGridSize(QSize(TAILLE_ICONE + 8, TAILLE_ICONE + 8))
+        taille = self._settings.icon_size
+        self._grille.setIconSize(QSize(taille, taille))
+        self._grille.setGridSize(QSize(taille + 8, taille + 8))
         self._grille.setResizeMode(QListWidget.ResizeMode.Adjust)
         self._grille.setMovement(QListWidget.Movement.Static)
         self._grille.setUniformItemSizes(True)
@@ -1054,9 +1055,9 @@ class FenetrePrincipale(QMainWindow):
         ligne.setContentsMargins(18, 0, 18, 0)
         ligne.setSpacing(0)
 
-        base = self.font().pointSizeF()
-        if base <= 0:
-            base = 10.0
+        # La taille reglee, et non celle du widget : la feuille de style la
+        # pose apres coup, et `self.font()` rendrait encore celle du bureau.
+        base = float(self._settings.font_size or self.font().pointSizeF() or 10)
 
         grave = QLabel(NOM_GRAVE)
         police = grave.font()
@@ -1651,8 +1652,10 @@ class FenetrePrincipale(QMainWindow):
             sort = QPixmap(chemin)
             if sort.isNull():
                 return
+            petite = max(8, round(dessous.width() * TAILLE_ICONE_SORT
+                                  / TAILLE_ICONE))
             sort = sort.scaled(
-                TAILLE_ICONE_SORT, TAILLE_ICONE_SORT,
+                petite, petite,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation)
             composee = QPixmap(dessous)

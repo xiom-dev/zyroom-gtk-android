@@ -10,24 +10,6 @@ from .config import Settings
 from .fenetre import APP_NAME, FenetrePrincipale
 
 
-def appliquer_taille_police(app: QApplication) -> None:
-    """Donne à toute l'application le corps de texte réglé, en points.
-
-    Zéro laisse la police du bureau telle quelle : c'est le comportement de
-    quelqu'un qui n'a rien demandé, et son réglage GNOME reste maître.
-
-    Une police posée sur l'application se propage à tout ce qui n'en demande
-    pas d'autre — y compris les symboles des boutons, qui sont du texte, et le
-    nom gravé en bas, dont le corps se calcule depuis celle-ci.
-    """
-    taille = Settings().font_size
-    if taille <= 0:
-        return
-    police = app.font()
-    police.setPointSizeF(float(taille))
-    app.setFont(police)
-
-
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
 
@@ -45,11 +27,12 @@ def main(argv: list[str] | None = None) -> int:
     # exactement le probleme qu'Adwaita posait cote GTK.
     app.setStyle("Fusion")
     polices.charger()
-    appliquer_taille_police(app)
     # La palette d'abord, la feuille ensuite : l'une informe le style natif,
     # l'autre pose les accents par-dessus. Voir zyroom/theme.py.
     app.setPalette(theme.palette())
-    app.setStyleSheet(theme.feuille())
+    # La taille du texte voyage dans la feuille de style : posee sur
+    # l'application, elle serait effacee au premier polish. Voir theme.feuille.
+    app.setStyleSheet(theme.feuille(Settings().font_size))
 
     fenetre = FenetrePrincipale()
     fenetre.show()
