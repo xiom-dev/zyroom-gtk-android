@@ -24,7 +24,7 @@ import threading
 import unicodedata
 from datetime import datetime
 
-from PySide6.QtCore import QSize, Qt, QObject, QTimer, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, QObject, QTimer, Signal
 from PySide6.QtGui import (QAction, QColor, QFont, QGuiApplication, QIcon,
                            QPainter, QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
@@ -655,6 +655,10 @@ class FenetrePrincipale(QMainWindow):
             QListWidget.ScrollMode.ScrollPerPixel)
         # Le clic droit ouvre le menu de l'objet, le double-clic sa fiche --
         # comme les deux gestes de la version GTK.
+        # La molette avec Ctrl agrandit les icones, comme partout ailleurs.
+        # Un reglage dans les Options ne suffit pas : on veut voir grossir
+        # pendant qu'on cherche un objet, pas ouvrir une fenetre pour cela.
+        self._grille.viewport().installEventFilter(self)
         self._grille.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
         self._grille.customContextMenuRequested.connect(self._menu_objet)
@@ -971,6 +975,42 @@ class FenetrePrincipale(QMainWindow):
             if bouges and self._pile.currentIndex() == self._pages["log"]:
                 self._charger_journal()
         alerts.save_snapshot(chemin, nouveau)
+
+    # ------------------------------------------------------ Zoom des icones
+    def eventFilter(self, objet, evenement):     # noqa: N802 -- nom impose
+        """Ctrl + molette sur la grille : les icônes grossissent ou rapetissent.
+
+        Le réglage des Options reste, pour poser une taille une fois pour
+        toutes ; celui-ci sert pendant qu'on cherche, sans quitter la grille.
+        """
+        if (evenement.type() == QEvent.Type.Wheel
+                and objet is self._grille.viewport()
+                and evenement.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            cran = evenement.angleDelta().y()
+            if cran:
+                self._zoomer_icones(8 if cran > 0 else -8)
+            return True
+        return super().eventFilter(objet, evenement)
+
+    def _zoomer_icones(self, pas: int) -> None:
+        taille = max(24, min(128, self._settings.icon_size + pas))
+        if taille == self._settings.icon_size:
+            return
+        self._settings.icon_size = taille
+        self._appliquer_taille_icones()
+        self._statut(_("Icônes : {} pixels").format(taille))
+
+    def _appliquer_taille_icones(self) -> None:
+        """Pose la taille des icônes et redessine la grille.
+
+        Les images sont recomposées au passage : les gouttes de bonus et le
+        sort gravé sont peints *dans* l'icône, à sa taille — les laisser
+        telles quelles donnerait des gouttes minuscules sur une grande image.
+        """
+        taille = self._settings.icon_size
+        self._grille.setIconSize(QSize(taille, taille))
+        self._grille.setGridSize(QSize(taille + 8, taille + 8))
+        self._reafficher()
 
     def _pied(self) -> QWidget:
         """La bande du bas : portrait et état, nom gravé au centre, dappers.
@@ -1626,6 +1666,11 @@ class FenetrePrincipale(QMainWindow):
             # Les gouttes de bonus sont peintes dans l'image, et non posees
             # par-dessus comme le fait l'Overlay de GTK : une case redevient
             # un seul objet la ou une grille en compte quatre cents.
+            taille = self._settings.icon_size
+            if image.width() != taille:
+                image = image.scaled(
+                    taille, taille, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation)
             composee = specialites.appliquer(image, objet)
             case.setIcon(QIcon(composee))
             # Le sort grave dans l'objet, s'il y en a un : son icone arrive
@@ -2022,6 +2067,13 @@ class FenetrePrincipale(QMainWindow):
                                   s.proxy_password)
 
     def _apres_options(self) -> None:
+        # La police et les icones prennent effet sur-le-champ. Attendre le
+        # prochain lancement laissait croire que le reglage ne marchait pas --
+        # on regle, rien ne bouge, on recommence.
+        from PySide6.QtWidgets import QApplication
+        QApplication.instance().setStyleSheet(
+            theme.feuille(self._settings.font_size))
+        self._appliquer_taille_icones()
         self._appliquer_proxy()
         self._charger_noms(self._settings.pack_file)
         self._programmer_releve()      # nouvel intervalle, sans redemarrer

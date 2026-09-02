@@ -80,8 +80,7 @@ class FenetreOptions(QDialog):
         self._police.setToolTip(_(
             "Le corps du texte, comme dans un traitement de texte. Le bureau "
             "tourne autour de 10 ; 12 ou 14 se lisent mieux dans les tableaux. "
-            "Zéro laisse la police du système. Le changement prend effet au "
-            "prochain lancement."))
+            "Zéro laisse la police du système."))
         grille.addWidget(self._police, rang, 1)
         rang += 1
 
@@ -93,8 +92,8 @@ class FenetreOptions(QDialog):
         self._icones.setToolTip(_(
             "Le côté des icônes de l'inventaire. L'API les rend en 48 ; "
             "au-delà elles sont agrandies et se ramollissent un peu, mais une "
-            "grille chargée se parcourt mieux. Prend effet au prochain "
-            "lancement."))
+            "grille chargée se parcourt mieux. Ctrl + molette la change aussi, "
+            "directement sur la grille."))
         grille.addWidget(self._icones, rang, 1)
         rang += 1
 
