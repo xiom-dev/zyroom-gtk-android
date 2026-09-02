@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import sys
 import tempfile
 import urllib.request
@@ -193,8 +194,22 @@ def _extraire(archive: str, dossier: str) -> None:
     """
     with zipfile.ZipFile(archive) as zip_:
         for membre in zip_.infolist():
-            chemin = zip_.extract(membre, dossier)
             mode = membre.external_attr >> 16
+            # **Les liens symboliques d'abord.** Qt en pose des dizaines --
+            # libQt6Core.so.6 pointe sur libQt6Core.so.6.11.2 -- et le format
+            # ZIP les garde, comme un fichier dont le contenu est la cible et
+            # dont le mode porte S_IFLNK. `extract` les ecrit tels quels : des
+            # fichiers de trente octets a la place de bibliotheques, et
+            # l'application refuse de demarrer sur un "file too short".
+            if stat.S_ISLNK(mode):
+                cible = zip_.read(membre).decode("utf-8")
+                lien = os.path.join(dossier, membre.filename)
+                os.makedirs(os.path.dirname(lien), exist_ok=True)
+                if os.path.lexists(lien):
+                    os.unlink(lien)
+                os.symlink(cible, lien)
+                continue
+            chemin = zip_.extract(membre, dossier)
             if mode:
                 os.chmod(chemin, mode & 0o777)
 
@@ -276,7 +291,16 @@ def relancer() -> bool:
         return False
     try:
         import subprocess
-        subprocess.Popen([sys.executable], close_fds=True)
+        # **Detache de nous.** Sans `start_new_session`, le nouveau processus
+        # reste dans notre groupe : la fenetre se ferme, le bureau range le
+        # groupe entier, et l'application relancee meurt avec celle qui vient
+        # de la lancer. C'est ce qui donnait l'impression qu'elle ne se
+        # relancait pas du tout.
+        subprocess.Popen([sys.executable], close_fds=True,
+                         start_new_session=True,
+                         stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
         return True
     except Exception:                                   # noqa: BLE001
         return False
