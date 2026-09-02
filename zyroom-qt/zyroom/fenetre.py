@@ -273,6 +273,10 @@ class FenetrePrincipale(QMainWindow):
         #: chaque frappe dans sa recherche.
         self._journal: list = []
         self._generation_journal = 0
+        #: Les icones du journal restant a chercher, par numero de ligne, et
+        #: celles deja lues -- un journal repete beaucoup les memes objets.
+        self._icones_a_venir: dict = {}
+        self._cache_icones: dict = {}
 
         #: La derniere guilde et le dernier personnage rencontres. Les ecrans
         #: de "Bonus" s'ouvrent sur eux quelle que soit l'entite choisie :
@@ -808,6 +812,9 @@ class FenetrePrincipale(QMainWindow):
         entete.setStretchLastSection(True)
         colonne.addWidget(self._table, 1)
 
+        self._table.verticalScrollBar().valueChanged.connect(
+            self._servir_icones_visibles)
+
         self._lbl_journal = QLabel()
         self._lbl_journal.setObjectName("discret")
         self._lbl_journal.setContentsMargins(8, 0, 8, 6)
@@ -842,8 +849,8 @@ class FenetrePrincipale(QMainWindow):
 
     def _rafraichir_journal(self) -> None:
         self._generation_journal += 1
-        generation = self._generation_journal
         self._table.setRowCount(0)
+        self._icones_a_venir = {}
 
         montres = self._journal_filtre()
         nombre = movements.lignes_recentes(montres, JOURNAL_JOURS,
@@ -906,14 +913,19 @@ class FenetrePrincipale(QMainWindow):
             icone = QTableWidgetItem("💰" if argent else "")
             self._table.setItem(rang, 4, icone)
             if not argent:
-                self._icones.demander(
-                    ItemInfo(sheet=mv.sheet, quality=mv.quality),
-                    self._rappel_icone_journal(generation, icone))
+                # L'icone n'est pas demandee ici : deux mille lignes, ce sont
+                # deux mille telechargements lances d'un coup, et autant de
+                # rappels a livrer au fil principal -- l'application ne
+                # repondait plus. On note ce qu'il faudra, et l'on ne va le
+                # chercher que pour les lignes qu'on regarde vraiment.
+                self._icones_a_venir[rang] = (mv.sheet, mv.quality)
 
             qualite = QTableWidgetItem(f"Q{mv.quality}" if mv.quality else "")
             qualite.setForeground(faible)
             self._table.setItem(rang, 5, qualite)
             rang += 1
+
+        self._servir_icones_visibles()
 
         total = len(self._journal)
         if not total:
@@ -928,7 +940,43 @@ class FenetrePrincipale(QMainWindow):
             self._lbl_journal.setText(
                 _("{} lignes sur {} au journal").format(len(montres), total))
 
-    def _rappel_icone_journal(self, generation: int, cellule: QTableWidgetItem):
+    def _servir_icones_visibles(self) -> None:
+        """Va chercher les icônes des seules lignes à l'écran.
+
+        Deux mille cinq cents lignes de journal ne montrent qu'une quinzaine
+        de lignes à la fois : demander les autres, c'est autant de
+        téléchargements et de rappels pour rien.
+        """
+        if not self._icones_a_venir:
+            return
+        vue = self._table
+        haut = vue.rowAt(0)
+        bas = vue.rowAt(vue.viewport().height() - 1)
+        if haut < 0:
+            haut = 0
+        if bas < 0:
+            bas = vue.rowCount() - 1
+        # Une marge de part et d'autre : on prepare ce qui arrive au
+        # defilement, sans attendre qu'il soit a l'ecran.
+        for rang in range(max(0, haut - 10), min(vue.rowCount(), bas + 11)):
+            attendu = self._icones_a_venir.pop(rang, None)
+            if attendu is None:
+                continue
+            cellule = vue.item(rang, 4)
+            if cellule is None:
+                continue
+            cle = attendu
+            deja = self._cache_icones.get(cle)
+            if deja is not None:
+                cellule.setIcon(deja)
+                continue
+            self._icones.demander(
+                ItemInfo(sheet=cle[0], quality=cle[1]),
+                self._rappel_icone_journal(self._generation_journal, cellule,
+                                           cle))
+
+    def _rappel_icone_journal(self, generation: int, cellule: QTableWidgetItem,
+                              cle=None):
         """Pose l'icône si le journal n'a pas été redessiné entre-temps.
 
         Il l'est à chaque frappe dans la recherche : sans ce garde, une icône
@@ -940,7 +988,12 @@ class FenetrePrincipale(QMainWindow):
                 return
             image = QPixmap(chemin)
             if not image.isNull():
-                cellule.setIcon(QIcon(image))
+                icone = QIcon(image)
+                if cle is not None:
+                    # Le meme objet revient des dizaines de fois dans un
+                    # journal : on le garde plutot que de le relire du disque.
+                    self._cache_icones[cle] = icone
+                cellule.setIcon(icone)
         return arrivee
 
     def _on_journal_copier(self) -> None:

@@ -133,10 +133,13 @@ QPushButton#nav, QToolButton#nav {
 QPushButton#nav:hover, QToolButton#nav:hover {
     background-color: %(sarcelle_sombre)s;
 }
+/* Le fond suffit a dire lequel est choisi. Le gras, lui, changeait la
+   largeur du texte : le bouton s'elargissait d'un coup au clic, poussant ses
+   voisins, et la police epaissie a la volee -- sans graisse dessinee dans la
+   fonte -- paraissait floue. */
 QPushButton#nav:checked, QToolButton#nav[actif="true"] {
     background-color: %(sarcelle_sombre)s;
     color: %(texte)s;
-    font-weight: bold;
 }
 
 /* Le message du jour d'une guilde, encadre comme sur Android. */
