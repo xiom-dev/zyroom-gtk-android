@@ -12,10 +12,10 @@ Portage sous licence GNU AGPLv3, d'après le projet original de Misugi
 (https://github.com/misugi/zyroom).
 """
 
-__version__ = "1.4.0"
+__version__ = "1.5.0"
 
 #: Le numero que la mise a jour compare, et lui seul. Un nom se compare mal --
 #: "0.10" vient apres "0.9" pour nous, avant pour un tri de chaines. Il croit
 #: d'une unite a chaque livraison, comme le versionCode d'Android, et c'est ce
 #: meme entier que `version.json` annonce sur la page de telechargement.
-__version_code__ = 14
+__version_code__ = 15
