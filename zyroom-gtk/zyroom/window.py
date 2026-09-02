@@ -212,6 +212,16 @@ class MainWindow(Gtk.ApplicationWindow):
         self._remove_btn.set_sensitive(False)
         header.pack_start(self._remove_btn)
 
+        # Le zoom des icones, a portee de main : on veut les voir grossir
+        # pendant qu'on cherche un objet, pas ouvrir les Options pour cela.
+        for signe, pas, mot in (("\u2212", -8, _("Réduire les icônes")),
+                                ("+", 8, _("Agrandir les icônes"))):
+            bouton = Gtk.Button(label=signe)
+            bouton.set_tooltip_text(mot)
+            bouton.add_css_class("flat")
+            bouton.connect("clicked", self._on_zoom_icones, pas)
+            header.pack_end(bouton)
+
         self._refresh_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
         self._refresh_btn.set_tooltip_text(_("Resynchroniser depuis l'API"))
         self._refresh_btn.connect("clicked", self._on_refresh_clicked)
@@ -272,8 +282,15 @@ class MainWindow(Gtk.ApplicationWindow):
         self._inv_dd = Gtk.DropDown(model=Gtk.StringList())
         self._inv_dd.connect("notify::selected", self._on_inventory_selected)
         bar1.append(self._inv_dd)
-        self._spinner = Gtk.Spinner()
+        # Une barre qui va et vient plutot qu'un cercle : le cercle d'Adwaita
+        # fait seize pixels et se perd dans la barre, au point qu'on croyait
+        # l'application figee pendant qu'elle attendait l'API.
+        self._spinner = Gtk.ProgressBar()
+        self._spinner.set_valign(Gtk.Align.CENTER)
+        self._spinner.set_size_request(120, -1)
+        self._spinner.set_visible(False)
         bar1.append(self._spinner)
+        self._pulse_timer = None
         spacer = Gtk.Label(hexpand=True)
         bar1.append(spacer)
         self._season_lbl = Gtk.Label(label="")
@@ -3087,7 +3104,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         for item in self._sorted(inv.items):
             image = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
-            image.set_pixel_size(ICON_SIZE)
+            image.set_pixel_size(self._settings.icon_size)
             # Infobulle construite au survol, et non a la creation : elle
             # porte maintenant des gouttes dessinees, et un coffre en compte
             # jusqu'a quatre cents.
@@ -3131,7 +3148,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 return False
             if path:
                 image.set_from_file(path)
-                image.set_pixel_size(ICON_SIZE)
+                image.set_pixel_size(self._settings.icon_size)
             return False
         return cb
 
@@ -3580,8 +3597,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self._display_inventory(idx)
 
     # --------------------------------------- En-tête entité + saison serveur
-    @staticmethod
-    def _install_motd_css() -> None:
+    def _install_motd_css(self) -> None:
         """La palette de l'application, la même que sur le téléphone.
 
         L'écran était terne : le portage suivait le thème du système, et les
@@ -3612,7 +3628,12 @@ class MainWindow(Gtk.ApplicationWindow):
             reglages.set_property("gtk-application-prefer-dark-theme", True)
 
         provider = Gtk.CssProvider()
-        provider.load_from_data("""
+        # Le corps du texte, s'il a été réglé. En tête de la feuille et sur
+        # `*` : GTK le résout comme n'importe quelle autre propriété, et tout
+        # ce qui n'en demande pas d'autre en hérite.
+        corps = (f"* {{ font-size: {self._settings.font_size}pt; }}\n"
+                 if self._settings.font_size > 0 else "")
+        provider.load_from_data((corps + """
             /* Les cinq couleurs d'Android, telles quelles. */
             @define-color zy_fond        #10171a;   /* background */
             @define-color zy_surface     #172226;   /* surface    */
@@ -3776,7 +3797,7 @@ class MainWindow(Gtk.ApplicationWindow):
             .tri-arrivee { color: #4caf50; font-weight: bold; }
             .tri-depart  { color: @zy_erreur; font-weight: bold; }
             .tri-grade   { color: @zy_texte; font-weight: bold; }
-        """.encode("utf-8"))
+        """).encode("utf-8"))
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -4771,11 +4792,36 @@ class MainWindow(Gtk.ApplicationWindow):
     def _set_busy(self, busy: bool, message: str = "") -> None:
         self._busy = busy
         if busy:
-            self._spinner.start()
+            self._spinner.set_visible(True)
+            self._spinner.pulse()
+            if self._pulse_timer is None:
+                # Cent millisecondes : assez lent pour ne rien coûter, assez
+                # vif pour qu'on voie que ça travaille.
+                self._pulse_timer = GLib.timeout_add(100, self._pulse_tick)
             if message:
                 self._set_status(message)
         else:
-            self._spinner.stop()
+            self._spinner.set_visible(False)
+            if self._pulse_timer is not None:
+                GLib.source_remove(self._pulse_timer)
+                self._pulse_timer = None
+
+    def _pulse_tick(self) -> bool:
+        """Fait avancer la barre d'attente tant qu'on attend."""
+        if not self._busy:
+            self._pulse_timer = None
+            return False
+        self._spinner.pulse()
+        return True
+
+    def _on_zoom_icones(self, _btn, pas: int) -> None:
+        """Agrandit ou réduit les icônes, et redessine ce qui est à l'écran."""
+        taille = max(24, min(128, self._settings.icon_size + pas))
+        if taille == self._settings.icon_size:
+            return
+        self._settings.icon_size = taille
+        self._redisplay_current()
+        self._set_status(_("Icônes : {} pixels").format(taille))
 
     def _set_status(self, text: str) -> None:
         self._status.set_text(text)

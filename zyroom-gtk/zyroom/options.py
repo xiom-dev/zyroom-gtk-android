@@ -54,6 +54,28 @@ class OptionsWindow(Gtk.Window):
         grid.attach(save_btn, 2, row, 1, 1)
         row += 1
 
+        # Corps du texte
+        grid.attach(label("Taille du texte (points, 0 = celle du bureau)"),
+                    0, row, 1, 1)
+        self._police = Gtk.SpinButton.new_with_range(0, 30, 1)
+        self._police.set_value(settings.font_size)
+        self._police.set_tooltip_text(_(
+            "Le corps du texte, comme dans un traitement de texte. Le bureau "
+            "tourne autour de 10 ; 12 ou 14 se lisent mieux dans les "
+            "tableaux. Le changement prend effet au prochain lancement."))
+        grid.attach(self._police, 1, row, 1, 1)
+        row += 1
+
+        # Taille des icones
+        grid.attach(label("Taille des icônes (pixels)"), 0, row, 1, 1)
+        self._icones = Gtk.SpinButton.new_with_range(24, 128, 8)
+        self._icones.set_value(settings.icon_size)
+        self._icones.set_tooltip_text(_(
+            "Le côté des icônes de l'inventaire. Les boutons + et − de la "
+            "barre de titre la changent aussi, sans passer par ici."))
+        grid.attach(self._icones, 1, row, 1, 1)
+        row += 1
+
         # Seuil de volume
         grid.attach(label("Seuil d'alerte de volume (%)"), 0, row, 1, 1)
         self._vol = Gtk.SpinButton.new_with_range(0, 100, 5)
@@ -175,6 +197,8 @@ class OptionsWindow(Gtk.Window):
         self._settings.proxy_username = self._proxy_user.get_text().strip()
         self._settings.proxy_password = self._proxy_pass.get_text()
         self._settings.language = self._lang_codes[self._lang_dd.get_selected()]
+        self._settings.font_size = int(self._police.get_value())
+        self._settings.icon_size = int(self._icones.get_value())
         self.destroy()
         if self._on_saved:
             self._on_saved()

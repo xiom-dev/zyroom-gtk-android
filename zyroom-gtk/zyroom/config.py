@@ -226,6 +226,39 @@ class Settings:
         self._ini.set("GENERAL", "UILanguage", value)
         self._flush()
 
+    #: Le corps du texte, en points. Zero laisse celui du bureau.
+    #:
+    #: La police de GNOME est calibree pour des interfaces aerees ; celle-ci
+    #: serre beaucoup d'information -- des colonnes de noms, des tableaux de
+    #: mouvements -- et douze ou quatorze s'y lisent bien mieux.
+    @property
+    def font_size(self) -> int:
+        return self._ini.getint("GENERAL", "FontSize", fallback=0)
+
+    @font_size.setter
+    def font_size(self, value: int) -> None:
+        self._ini.set("GENERAL", "FontSize", str(int(value)))
+        self._flush()
+
+    #: Le cote des icones de la grille, en pixels.
+    #:
+    #: Quarante-huit est ce que rend l'API ; au-dela l'image est agrandie et
+    #: se ramollit, mais une grille de deux cents objets se parcourt mieux
+    #: quand chacun se reconnait sans se pencher.
+    @property
+    def icon_size(self) -> int:
+        return max(24, min(128, self._ini.getint("GENERAL", "IconSize",
+                                                 fallback=48)))
+
+    @icon_size.setter
+    def icon_size(self, value: int) -> None:
+        self._ini.set("GENERAL", "IconSize", str(int(value)))
+        self._flush()
+
+    def icone(self, part: float, mini: int = 12) -> int:
+        """Une taille d'icône proportionnelle à celle de l'inventaire."""
+        return max(mini, round(self.icon_size * part))
+
     @property
     def volume_threshold(self) -> int:
         """Seuil d'alerte de volume, en %. Défaut 90 (comme l'original)."""
