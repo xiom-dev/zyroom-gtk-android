@@ -88,6 +88,14 @@ class PageEffectif(QWidget):
             self._boutons[nom] = bouton
             ligne_vues.addWidget(bouton)
         self._boutons["effectif"].setChecked(True)
+
+        # **La place du compte est reservee des le depart.** Les deux
+        # libelles gagnent un « · 178 » des que le registre est lu, et les
+        # boutons s'elargissaient alors d'un coup sous le pointeur, poussant
+        # leur voisin. On leur donne tout de suite la largeur qu'ils auront
+        # une fois remplis -- quatre chiffres, de quoi tenir la plus grosse
+        # guilde -- et plus rien ne bouge ensuite.
+        self._reserver_largeur()
         ligne.addWidget(vues)
 
         # Cent soixante-douze noms sur six colonnes se cherchent encore a
@@ -97,11 +105,17 @@ class PageEffectif(QWidget):
         self._recherche.setPlaceholderText(_("Rechercher un membre…"))
         self._recherche.setClearButtonEnabled(True)
         self._recherche.textChanged.connect(self.rafraichir)
-        ligne.addWidget(self._recherche, 1)
+        self._recherche.setMinimumWidth(240)
+        ligne.addWidget(self._recherche)
 
         self._statut = QLabel()
         self._statut.setObjectName("discret")
         ligne.addWidget(self._statut)
+        # **Un ressort pour finir la ligne.** Le champ de recherche s'efface
+        # quand on passe aux mouvements -- il ne filtrerait rien -- et la
+        # place qu'il libere allait aux deux bascules, qui s'elargissaient
+        # d'un coup sous le pointeur. Ce ressort la prend a leur place.
+        ligne.addStretch(1)
         colonne.addWidget(barre)
 
         self._contenu = QWidget()
@@ -115,6 +129,18 @@ class PageEffectif(QWidget):
         defilant.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         colonne.addWidget(defilant, 1)
+
+    def _reserver_largeur(self) -> None:
+        """Fige la largeur des deux bascules sur leur libellé le plus long."""
+        from PySide6.QtGui import QFontMetrics
+        for nom, gabarit in (("effectif", _("Effectif · %d") % 9999),
+                             ("mouvements",
+                              _("Arrivées et départs · %d") % 9999)):
+            bouton = self._boutons[nom]
+            large = QFontMetrics(bouton.font()).horizontalAdvance(gabarit)
+            # La marge du style par-dessus le texte : le QSS en pose vingt-huit
+            # de chaque cote, on ajoute de quoi ne jamais serrer.
+            bouton.setMinimumWidth(large + 36)
 
     # ----------------------------------------------------------- Vues
     def _changer_vue(self, nom: str) -> None:
