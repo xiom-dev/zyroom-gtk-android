@@ -38,6 +38,8 @@ donnees = [
     (os.path.join(RACINE, "LICENSE.md"), "."),
 ]
 
+# Les lanceurs de la variante du chef de guilde, poses a cote de
+# l'executable et non dans _internal : c'est sur eux qu'on clique.
 # Les modules Qt dont l'application ne se sert pas. Sans cette liste, le
 # bundle emporte le moteur QML, la 3D et le multimedia -- des dizaines de
 # megaoctets pour une application qui n'affiche que des widgets.

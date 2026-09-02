@@ -46,7 +46,7 @@ PAS_DE_TEMPS = 16
 #: Vingt-six : sur un ecran de bureau, a cote d'un nom de famille et d'une
 #: ligne de matieres, vingt faisaient une vignette qu'on devinait plus qu'on
 #: ne la reconnaissait.
-TAILLE_SYMBOLE = 26
+PART_SYMBOLE = 0.54
 
 #: Colonnes du bloc "ce qui sort" -- une par zone des Primes, pour les avoir
 #: toutes les quatre sous les yeux a la fois.
@@ -550,7 +550,8 @@ class PageMeteo(QWidget):
             if chemin:
                 image = QLabel()
                 image.setPixmap(QPixmap(chemin).scaledToHeight(
-                    TAILLE_SYMBOLE, Qt.TransformationMode.SmoothTransformation))
+                    self._fenetre.reglages.icone(PART_SYMBOLE),
+                    Qt.TransformationMode.SmoothTransformation))
                 image.setAlignment(Qt.AlignmentFlag.AlignLeft)
                 pile.addWidget(image)
             pile.addStretch(1)

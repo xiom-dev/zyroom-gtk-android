@@ -27,8 +27,8 @@ from .ryzom_api import KIND_GUILD
 PEUPLES = (("fyros", "Fyros"), ("matis", "Matis"),
            ("tryker", "Tryker"), ("zorai", "Zoraï"))
 
-#: Taille de l'embleme d'une guilde, en pixels.
-TAILLE_EMBLEME = 20
+#: La part de la taille des icones d'inventaire qu'occupe un embleme.
+PART_EMBLEME = 0.42
 
 #: Largeur du bloc des trois colonnes. Le nom tenait autrefois toute la
 #: largeur disponible, ce qui repoussait le niveau et la guilde contre le bord
@@ -262,9 +262,10 @@ class PageAvantPostes(QWidget):
 
         # L'embleme de la guilde, charge en tache de fond et mis en cache.
         embleme = QLabel()
-        embleme.setFixedWidth(TAILLE_EMBLEME)
+        cote = self._fenetre.reglages.icone(PART_EMBLEME)
+        embleme.setFixedWidth(cote)
         self._fenetre.icones.demander_embleme(
-            avant_poste.icon, self._rappel_embleme(embleme))
+            avant_poste.icon, self._rappel_embleme(embleme, cote))
         ligne.addWidget(embleme)
 
         nom = QLabel()
@@ -297,14 +298,14 @@ class PageAvantPostes(QWidget):
         return rangee
 
     @staticmethod
-    def _rappel_embleme(cible: QLabel):
+    def _rappel_embleme(cible: QLabel, cote: int):
         def arrivee(chemin):
             if not chemin:
                 return
             image = QPixmap(chemin)
             if not image.isNull():
                 cible.setPixmap(image.scaledToWidth(
-                    TAILLE_EMBLEME, Qt.TransformationMode.SmoothTransformation))
+                    cote, Qt.TransformationMode.SmoothTransformation))
         return arrivee
 
     @staticmethod

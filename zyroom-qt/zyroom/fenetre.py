@@ -122,12 +122,13 @@ PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
 TRI_LIBELLES = ("Ordre d'origine", "Type", "Écosystème", "Classe", "Qualité",
                 "Volume", "Quantité", "Prix", "Nom")
 
-#: Taille des icones du journal, en pixels.
+#: La part de la taille des icones d'inventaire qu'occupe celle du journal.
 #:
-#: Vingt-quatre : la hauteur d'une ligne de texte. Plus grand, chaque mouvement
-#: occuperait deux lignes et l'on en verrait deux fois moins d'un coup d'oeil
-#: -- or le journal se parcourt.
-TAILLE_ICONE_JOURNAL = 24
+#: La moitie : a quarante-huit pixels dans la grille, vingt-quatre au journal
+#: -- la hauteur d'une ligne de texte. Plus grand, chaque mouvement occuperait
+#: deux lignes et l'on en verrait deux fois moins d'un coup d'oeil, or le
+#: journal se parcourt.
+PART_ICONE_JOURNAL = 0.5
 
 #: La memoire du journal, en jours. Tout ce qui est plus recent s'affiche,
 #: quel qu'en soit le nombre de lignes. Une semaine est ce qu'il faut pour
@@ -332,6 +333,10 @@ class FenetrePrincipale(QMainWindow):
     @property
     def entite(self):
         return self._entite
+
+    @property
+    def reglages(self):
+        return self._settings
 
     @property
     def noms(self):
@@ -796,8 +801,8 @@ class FenetrePrincipale(QMainWindow):
             QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
-        self._table.setIconSize(QSize(TAILLE_ICONE_JOURNAL,
-                                      TAILLE_ICONE_JOURNAL))
+        cote = self._settings.icone(PART_ICONE_JOURNAL)
+        self._table.setIconSize(QSize(cote, cote))
         self._table.setVerticalScrollMode(
             QAbstractItemView.ScrollMode.ScrollPerPixel)
         # Chaque colonne a la largeur de son contenu, et la place qui reste
@@ -1087,6 +1092,15 @@ class FenetrePrincipale(QMainWindow):
         taille = self._settings.icon_size
         self._grille.setIconSize(QSize(taille, taille))
         self._grille.setGridSize(QSize(taille + 8, taille + 8))
+        # Le journal et les ecrans de "Bonus" suivent : les boutons de zoom
+        # valent pour toutes les icones, pas seulement pour l'inventaire.
+        cote = self._settings.icone(PART_ICONE_JOURNAL)
+        self._table.setIconSize(QSize(cote, cote))
+        self._cache_icones.clear()
+        if self._pile.currentIndex() == self._pages["log"]:
+            self._charger_journal()
+        self._page_avant_postes._rafraichir()
+        self._page_meteo.rafraichir()
         self._reafficher()
 
     def _pied(self) -> QWidget:
@@ -1179,7 +1193,7 @@ class FenetrePrincipale(QMainWindow):
         grave = QLabel(NOM_GRAVE)
         police = grave.font()
         police.setFamily(polices.FAMILLE)
-        police.setPointSizeF(base * 2.4)
+        police.setPointSizeF(base * 2.9)
         grave.setFont(police)
         grave.setObjectName("nom-grave")
         ligne.addWidget(grave, 0, Qt.AlignmentFlag.AlignBaseline)
@@ -1191,7 +1205,7 @@ class FenetrePrincipale(QMainWindow):
         # Arial Narrow tient ce role sous Windows.
         pm.setFamilies(["TeX Gyre Heros Cn", "Liberation Sans Narrow",
                         "Arial Narrow", "sans-serif"])
-        pm.setPointSizeF(base * 2.2)
+        pm.setPointSizeF(base * 2.7)
         pm.setBold(True)
         mouture.setFont(pm)
         mouture.setObjectName("nom-mouture")

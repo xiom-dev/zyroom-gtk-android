@@ -495,6 +495,16 @@ class Settings:
         return max(24, min(128, self._ini.getint("GENERAL", "IconSize",
                                                  fallback=48)))
 
+    def icone(self, part: float, mini: int = 12) -> int:
+        """Une taille d'icône proportionnelle à celle de l'inventaire.
+
+        Le journal, les emblèmes de guilde et les symboles de familles ne se
+        montrent pas à la même échelle qu'un objet de la grille — mais ils
+        doivent grossir avec lui. Chacun demande sa part de la taille réglée
+        plutôt qu'un nombre de pixels à lui.
+        """
+        return max(mini, round(self.icon_size * part))
+
     @icon_size.setter
     def icon_size(self, value: int) -> None:
         self._ini.set("GENERAL", "IconSize", str(int(value)))

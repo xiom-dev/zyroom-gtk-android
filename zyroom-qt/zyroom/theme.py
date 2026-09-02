@@ -111,8 +111,8 @@ def feuille(taille: int = 0) -> str:
         # corps est calcule a part -- il les rapetissait a la taille courante.
         # On le leur rend ici, dans les memes proportions que fenetre.py.
         corps = (f"* {{ font-size: {taille}pt; }}\n"
-                 f"#nom-grave {{ font-size: {taille * 2.4:.0f}pt; }}\n"
-                 f"#nom-mouture {{ font-size: {taille * 2.2:.0f}pt; }}\n")
+                 f"#nom-grave {{ font-size: {taille * 2.9:.0f}pt; }}\n"
+                 f"#nom-mouture {{ font-size: {taille * 2.7:.0f}pt; }}\n")
     return corps + """
 /* Les bandes qui encadrent la grille : la barre du haut, celle des deux
    selecteurs, et le pied. Un cran sous le fond, pour tenir la grille entre

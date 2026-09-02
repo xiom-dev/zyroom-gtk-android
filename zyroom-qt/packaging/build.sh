@@ -38,6 +38,13 @@ VERSION="$("$PYTHON" -c 'import zyroom; print(zyroom.__version__)')"
 ARCH="$(uname -m)"
 NOM="ZyRoom-Qt-${VERSION}-linux-${ARCH}"
 
+# Les lanceurs de la variante du chef de guilde, a cote de l'executable :
+# c'est sur eux qu'on clique. PyInstaller ne sait poser que dans _internal,
+# on les copie donc apres coup.
+cp packaging/../data/lanceurs/ZyRoom-Qt-dev.sh dist/ZyRoom-Qt/
+cp packaging/../data/lanceurs/ZyRoom-Qt-dev.bat dist/ZyRoom-Qt/
+chmod +x dist/ZyRoom-Qt/ZyRoom-Qt-dev.sh
+
 echo "== Archive =="
 # Un ZIP, et non un tar.gz : c'est le format que la mise a jour integree sait
 # lire, sur les deux systemes. `zip -y` garde les liens symboliques tels
