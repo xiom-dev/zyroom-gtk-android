@@ -236,7 +236,6 @@ class PageCompetences(QWidget):
             barre.setRange(0, 100)
             barre.setValue(noeud.skill.progress)
             barre.setTextVisible(False)
-            barre.setObjectName("avancement")
             barre.setFixedWidth(theme.largeur(barre, 4.7))
             ligne.addWidget(barre)
 
@@ -252,7 +251,10 @@ class PageCompetences(QWidget):
             points = getattr(self._entite, "skill_points", {}).get(
                 noeud.skill.code)
         niveau = QLabel(texte_niveau)
-        niveau.setFixedWidth(theme.largeur(niveau, 4.7))
+        # Assez large pour « 250 · 99 % » : a 4,7 hauteurs de ligne, les
+        # centaines se faisaient couper -- « 128 · 38 % » s'affichait
+        # « 28 · 38 % », et le niveau devenait faux a la lecture.
+        niveau.setFixedWidth(theme.largeur(niveau, 6.2))
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight
                             | Qt.AlignmentFlag.AlignVCenter)
         if finie:
