@@ -180,20 +180,20 @@ def _reprendre_dossier_gtk(env: str, defaut: str, cible: str,
     destination = os.path.join(cible, sous_dossier)
     if os.path.isdir(destination) and any(os.scandir(destination)):
         return                    # deja quelque chose ici : il fait foi
-    base = (os.environ.get(env)
-            or os.path.join(os.path.expanduser("~"), defaut))
-    source = os.path.join(base, APP_ID_GTK, sous_dossier)
-    if not os.path.isdir(source):
-        return
     import shutil
-    try:
-        os.makedirs(destination, exist_ok=True)
-        for nom in os.listdir(source):
-            origine = os.path.join(source, nom)
-            if os.path.isfile(origine):
-                shutil.copy2(origine, os.path.join(destination, nom))
-    except OSError:
-        pass                      # une reprise ratee n'empeche pas de demarrer
+    for base_gtk in _sources_gtk(env, defaut):
+        source = os.path.join(base_gtk, sous_dossier)
+        if not os.path.isdir(source):
+            continue
+        try:
+            os.makedirs(destination, exist_ok=True)
+            for nom in os.listdir(source):
+                origine = os.path.join(source, nom)
+                cible_f = os.path.join(destination, nom)
+                if os.path.isfile(origine) and not os.path.exists(cible_f):
+                    shutil.copy2(origine, cible_f)
+        except OSError:
+            pass                  # une reprise ratee n'empeche pas de demarrer
 
 
 def backup_dir() -> str:
@@ -386,6 +386,26 @@ def detect_pack() -> str:
     return ""
 
 
+def _sources_gtk(env: str, defaut: str) -> list:
+    """Où ZyRoom-GTK range ses données, dans l'ordre où on les préfère.
+
+    **Deux endroits, pas un.** Installé par le paquet ou lancé depuis les
+    sources, il écrit sous le répertoire personnel ; livré en Flatpak — c'est
+    le cas de la variante du mainteneur —, il écrit dans le bac à sable, sous
+    `~/.var/app/<identifiant>/data/`. Ne regarder que le premier, c'est
+    reprendre un registre de sept mouvements quand celui qui compte en a
+    cinquante : vérifié, et c'est exactement ce qui est arrivé.
+    """
+    import glob
+    base = (os.environ.get(env)
+            or os.path.join(os.path.expanduser("~"), defaut))
+    trouves = [os.path.join(base, APP_ID_GTK)]
+    trouves += sorted(glob.glob(os.path.join(
+        os.path.expanduser("~"), ".var", "app", "net.ryzom.zyroomgtk*",
+        "data", APP_ID_GTK)))
+    return [d for d in trouves if os.path.isdir(d)]
+
+
 def _reprendre_fichiers_gtk(env: str, defaut: str, cible: str,
                             prefixe: str) -> None:
     """Recopie les fichiers du portage GTK dont le nom commence par `prefixe`.
@@ -399,22 +419,18 @@ def _reprendre_fichiers_gtk(env: str, defaut: str, cible: str,
     _dossiers_repris.add(prefixe)
     if WINDOWS:
         return
-    base = (os.environ.get(env)
-            or os.path.join(os.path.expanduser("~"), defaut))
-    source = os.path.join(base, APP_ID_GTK)
-    if not os.path.isdir(source):
-        return
     import shutil
-    try:
-        for nom in os.listdir(source):
-            if not nom.startswith(prefixe):
-                continue
-            arrivee = os.path.join(cible, nom)
-            if os.path.exists(arrivee):
-                continue
-            shutil.copy2(os.path.join(source, nom), arrivee)
-    except OSError:
-        pass
+    for source in _sources_gtk(env, defaut):
+        try:
+            for nom in os.listdir(source):
+                if not nom.startswith(prefixe):
+                    continue
+                arrivee = os.path.join(cible, nom)
+                if os.path.exists(arrivee):
+                    continue
+                shutil.copy2(os.path.join(source, nom), arrivee)
+        except OSError:
+            pass
 
 
 class Settings:

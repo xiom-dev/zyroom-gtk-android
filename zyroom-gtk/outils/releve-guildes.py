@@ -32,7 +32,7 @@ import sys
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RACINE)
 
-from zyroom import alerts, movements, ryzom_api        # noqa: E402
+from zyroom import alerts, movements, roster, ryzom_api  # noqa: E402
 
 #: Où le journal et l'état sont écrits.
 #:
@@ -74,6 +74,14 @@ def relever(cle: str) -> tuple[str, int]:
     if bouges:
         movements.append(journal, bouges)
     alerts.save_snapshot(etat, apres)
+
+    # Le registre du personnel, tenu ici aussi. Il ne se deduit pas des
+    # coffres mais de l'effectif, et personne d'autre ne le tient a l'heure :
+    # une application ouverte deux fois par semaine ne voit qu'un membre sur
+    # trois passer. Six mois d'arrivees et de departs finissent par valoir
+    # plus que le journal des coffres.
+    if entite.members:
+        roster.RosterStore(DOSSIER, entite.entity_id).record(entite.members)
     return entite.name, len(bouges)
 
 

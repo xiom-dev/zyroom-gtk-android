@@ -1492,6 +1492,14 @@ class FenetrePrincipale(QMainWindow):
                 total += partage.recuperer(
                     entree["kind"], entree["id"],
                     movements_path(entree["kind"], entree["id"]))
+                # Le registre du personnel se reprend de la meme page. Le
+                # releve horaire voit passer tout le monde ; une application
+                # ouverte deux fois par semaine ne voit qu'un membre sur trois.
+                if entree["kind"] == KIND_GUILD:
+                    total += partage.recuperer_registre(
+                        entree["id"],
+                        os.path.join(data_dir(),
+                                     f"roster-{entree['id']}.jsonl"))
             return total
 
         def apres(total, erreur):

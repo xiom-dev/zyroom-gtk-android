@@ -38,11 +38,16 @@ GRADES = (
 
 #: Combien de temps le journal garde ses lignes, en jours.
 #:
-#: Un mois : c'est la mémoire utile d'un officier. Au-delà, la liste s'allonge
-#: sans que personne la lise. Les lignes plus vieilles sont écartées à la
-#: lecture, et le fichier est réécrit quand il en contient trop — ainsi rien ne
-#: se perd tant qu'on n'a pas relu, et rien ne s'accumule indéfiniment.
-RETENTION_JOURS = 30
+#: Six mois. C'était un mois — la mémoire utile d'un officier —, mais ce qui
+#: se passe dans une guilde se relit sur une saison : qui est parti au
+#: printemps, qui est monté officier depuis. Une ligne pèse une centaine
+#: d'octets et une guilde en produit quelques dizaines par mois ; six mois
+#: tiennent dans un fichier qu'on ouvre sans y penser.
+#:
+#: Les lignes plus vieilles sont écartées à la lecture, et le fichier est
+#: réécrit quand il en contient trop — ainsi rien ne se perd tant qu'on n'a
+#: pas relu, et rien ne s'accumule indéfiniment.
+RETENTION_JOURS = 180
 
 #: Les mouvements repris d'un autre journal, par guilde.
 #:
@@ -52,7 +57,7 @@ RETENTION_JOURS = 30
 #: guilde dont les autres exemplaires n'avaient pas encore de journal.
 #:
 #: Ils portent la date de leur constat et non celle du jour : c'est ce qui les
-#: fera sortir du journal au bout d'un mois, comme les autres. Rien ne les
+#: fera sortir du journal au bout de six mois, comme les autres. Rien ne les
 #: remplacera ensuite, et c'est bien ainsi — une reprise sert à recoller deux
 #: journaux, pas à écrire l'histoire.
 REPRISE: dict[str, tuple[tuple[int, str, str, str, str], ...]] = {
@@ -82,7 +87,7 @@ TICK = 0.1
 #: **Le calage vaut pour les dates récentes**, celles du journal. Loin en
 #: arrière il dérive — un compteur de tics ne compte sans doute pas les arrêts
 #: du serveur — et une entrée de 2012 ne se lit qu'à quelques mois près. C'est
-#: sans conséquence ici : le journal ne garde qu'un mois.
+#: sans conséquence ici : le journal ne garde que six mois.
 ORIGINE = 908_581_304
 
 #: Avant l'ouverture de Ryzom, aucune date d'entrée n'est croyable.

@@ -71,3 +71,66 @@ def recuperer(kind: str, entity_id: str, chemin_local: str) -> int:
         return movements.importer(chemin_local, lignes)
     except OSError:
         return 0
+
+
+def url_du_registre(guild_id: str) -> str:
+    """L'adresse du registre du personnel publié pour cette guilde."""
+    return f"{BASE}roster-{guild_id}.jsonl"
+
+
+def recuperer_registre(guild_id: str, chemin_local: str) -> int:
+    """Relit le registre publié et verse dans celui d'ici ce qui y manque.
+
+    Le relevé horaire voit passer tout le monde ; une application ouverte deux
+    fois par semaine ne voit qu'un membre sur trois. Sur six mois, l'écart
+    devient l'essentiel du registre.
+
+    Rend le nombre de lignes ajoutées. Ne lève jamais : c'est un confort de
+    fond, appelé au lancement.
+    """
+    try:
+        with urllib.request.urlopen(url_du_registre(guild_id),
+                                    timeout=_DELAI) as reponse:
+            lignes = reponse.read().decode("utf-8", "replace").splitlines()
+    except (urllib.error.URLError, OSError, ValueError):
+        return 0
+
+    import json
+    from . import roster
+    connus, ajoutees = set(), []
+    try:
+        with open(chemin_local, encoding="utf-8") as fh:
+            for ligne in fh:
+                ligne = ligne.strip()
+                if ligne:
+                    d = json.loads(ligne)
+                    connus.add((d["at"], d.get("member"), d.get("kind")))
+    except (OSError, ValueError, KeyError):
+        pass                       # journal absent ou bancal : on repart de la
+
+    for ligne in lignes:
+        ligne = ligne.strip()
+        if not ligne:
+            continue
+        try:
+            d = json.loads(ligne)
+            cle = (d["at"], d.get("member"), d.get("kind"))
+        except (ValueError, KeyError):
+            continue
+        if cle in connus:
+            continue
+        connus.add(cle)
+        ajoutees.append(roster.Change(d["at"], d.get("member", ""),
+                                      d.get("kind", ""), d.get("from", ""),
+                                      d.get("to", "")))
+    if not ajoutees:
+        return 0
+    try:
+        with open(chemin_local, "a", encoding="utf-8") as fh:
+            for c in ajoutees:
+                fh.write(json.dumps({"at": c.at, "member": c.member,
+                                     "kind": c.kind, "from": c.frm,
+                                     "to": c.to}, ensure_ascii=False) + "\n")
+    except OSError:
+        return 0
+    return len(ajoutees)
