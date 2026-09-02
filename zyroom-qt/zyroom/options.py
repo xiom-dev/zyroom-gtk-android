@@ -72,7 +72,9 @@ class FenetreOptions(QDialog):
 
         # Le corps du texte, avant les seuils : c'est un reglage de confort,
         # pas d'alerte, et il se cherche a cote de la langue.
-        grille.addWidget(QLabel(_("Taille du texte (points)")), rang, 0)
+        grille.addWidget(
+            QLabel(_("Taille du texte (points, 0 = celle du bureau)")),
+            rang, 0)
         self._police = QSpinBox()
         self._police.setRange(0, 30)
         self._police.setSpecialValueText(_("taille du bureau"))
@@ -92,8 +94,8 @@ class FenetreOptions(QDialog):
         self._icones.setToolTip(_(
             "Le côté des icônes de l'inventaire. L'API les rend en 48 ; "
             "au-delà elles sont agrandies et se ramollissent un peu, mais une "
-            "grille chargée se parcourt mieux. Ctrl + molette la change aussi, "
-            "directement sur la grille."))
+            "grille chargée se parcourt mieux. Les boutons + et − de la "
+            "barre de titre la changent aussi, sans passer par ici."))
         grille.addWidget(self._icones, rang, 1)
         rang += 1
 

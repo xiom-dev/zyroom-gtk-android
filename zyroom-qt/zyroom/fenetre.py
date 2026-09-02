@@ -436,6 +436,23 @@ class FenetrePrincipale(QMainWindow):
         self._cloche.clicked.connect(self._on_cloche)
         ligne.addWidget(self._cloche)
 
+        # Le zoom des icones, du cote gauche : il agit sur la grille, comme
+        # l'ajout et le retrait agissent sur l'entite. C'est la place qu'ils
+        # ont dans la version GTK, dont celle-ci est la copie. La molette
+        # avec Ctrl le fait aussi, mais elle n'atteint pas tous les pointeurs.
+        for signe, pas, mot in (("−", -8, _("Réduire les icônes")),
+                                ("+", 8, _("Agrandir les icônes"))):
+            bouton = QToolButton()
+            bouton.setText(signe)
+            bouton.setToolTip(mot)
+            bouton.setAutoRaise(True)
+            police = bouton.font()
+            police.setPointSizeF(police.pointSizeF() * 1.6)
+            bouton.setFont(police)
+            bouton.clicked.connect(
+                lambda _c=False, p=pas: self._zoomer_icones(p))
+            ligne.addWidget(bouton)
+
         ligne.addStretch(1)
         ligne.addWidget(self._navigation())
         ligne.addStretch(1)
@@ -447,36 +464,17 @@ class FenetrePrincipale(QMainWindow):
         self._btn_maj.clicked.connect(self._on_maj_clic)
         ligne.addWidget(self._btn_maj)
 
-        # Le zoom des icones de l'inventaire, a portee de main. La molette
-        # avec Ctrl le fait aussi, mais elle n'atteint pas tous les pointeurs
-        # -- et deux boutons se voient, ce qu'un raccourci ne fait jamais.
-        for signe, pas, mot in (("−", -8, _("Réduire les icônes")),
-                                ("+", 8, _("Agrandir les icônes"))):
-            bouton = QToolButton()
-            bouton.setText(signe)
-            bouton.setToolTip(mot)
-            bouton.setAutoRaise(True)
-            # Le meme corps que les symboles voisins : un plus et un moins a
-            # la taille du texte se perdaient a cote de la fleche de synchro.
-            police = bouton.font()
-            police.setPointSizeF(police.pointSizeF() * 1.6)
-            police.setBold(True)
-            bouton.setFont(police)
-            bouton.clicked.connect(
-                lambda _c=False, p=pas: self._zoomer_icones(p))
-            ligne.addWidget(bouton)
+        btn_pack = _bouton_icone(
+            "document-open-symbolic", "📂",
+            _("Charger string_client.pack (noms d'items lisibles)"))
+        btn_pack.clicked.connect(self._on_pack)
+        ligne.addWidget(btn_pack)
 
         self._btn_relever = _bouton_icone("view-refresh-symbolic", "🔄",
                                           _("Resynchroniser depuis l'API"))
         self._btn_relever.clicked.connect(self._on_relever)
         self._btn_relever.setEnabled(False)
         ligne.addWidget(self._btn_relever)
-
-        btn_pack = _bouton_icone(
-            "document-open-symbolic", "📂",
-            _("Charger string_client.pack (noms d'items lisibles)"))
-        btn_pack.clicked.connect(self._on_pack)
-        ligne.addWidget(btn_pack)
 
         menu_btn = QToolButton()
         menu_btn.setText("☰")
@@ -578,7 +576,9 @@ class FenetrePrincipale(QMainWindow):
         self._tourniquet = QProgressBar()
         self._tourniquet.setRange(0, 0)
         self._tourniquet.setTextVisible(False)
-        self._tourniquet.setFixedSize(48, 10)
+        # La meme largeur que la version GTK : a quarante-huit pixels elle se
+        # perdait dans la barre, et on croyait l'application figee.
+        self._tourniquet.setFixedSize(120, 10)
         self._tourniquet.setVisible(False)
         ligne.addWidget(self._tourniquet)
 

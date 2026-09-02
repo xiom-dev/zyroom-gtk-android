@@ -212,27 +212,6 @@ class MainWindow(Gtk.ApplicationWindow):
         self._remove_btn.set_sensitive(False)
         header.pack_start(self._remove_btn)
 
-        # Le zoom des icones, a portee de main : on veut les voir grossir
-        # pendant qu'on cherche un objet, pas ouvrir les Options pour cela.
-        for signe, pas, mot in (("\u2212", -8, _("Réduire les icônes")),
-                                ("+", 8, _("Agrandir les icônes"))):
-            bouton = Gtk.Button(label=signe)
-            bouton.set_tooltip_text(mot)
-            bouton.add_css_class("flat")
-            bouton.connect("clicked", self._on_zoom_icones, pas)
-            header.pack_end(bouton)
-
-        self._refresh_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
-        self._refresh_btn.set_tooltip_text(_("Resynchroniser depuis l'API"))
-        self._refresh_btn.connect("clicked", self._on_refresh_clicked)
-        self._refresh_btn.set_sensitive(False)
-        header.pack_end(self._refresh_btn)
-
-        pack_btn = Gtk.Button.new_from_icon_name("document-open-symbolic")
-        pack_btn.set_tooltip_text(_("Charger string_client.pack (noms d'items lisibles)"))
-        pack_btn.connect("clicked", self._on_pack_clicked)
-        header.pack_end(pack_btn)
-
         menu = Gio.Menu()
         menu.append(_("Options…"), "win.options")
         menu.append(_("Analyser un chatlog…"), "win.chatlog")
@@ -247,6 +226,17 @@ class MainWindow(Gtk.ApplicationWindow):
             act = Gio.SimpleAction.new(name, None)
             act.connect("activate", handler)
             self.add_action(act)
+
+        self._refresh_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
+        self._refresh_btn.set_tooltip_text(_("Resynchroniser depuis l'API"))
+        self._refresh_btn.connect("clicked", self._on_refresh_clicked)
+        self._refresh_btn.set_sensitive(False)
+        header.pack_end(self._refresh_btn)
+
+        pack_btn = Gtk.Button.new_from_icon_name("document-open-symbolic")
+        pack_btn.set_tooltip_text(_("Charger string_client.pack (noms d'items lisibles)"))
+        pack_btn.connect("clicked", self._on_pack_clicked)
+        header.pack_end(pack_btn)
 
         # Bouton de mise à jour : caché tant qu'il n'y a rien à installer, pour
         # ne pas encombrer la barre d'un bouton qui ne ferait rien.
@@ -265,6 +255,18 @@ class MainWindow(Gtk.ApplicationWindow):
         self._bell.set_sensitive(False)
         self._bell.connect("clicked", self._on_bell_clicked)
         header.pack_start(self._bell)
+
+        # Le zoom des icones, du cote gauche : il agit sur la grille,
+        # comme l'ajout et le retrait agissent sur l'entite. A droite se
+        # tient ce qui parle de l'application : synchro, fichier de
+        # noms, menu.
+        for signe, pas, mot in (("\u2212", -8, _("Réduire les icônes")),
+                                ("+", 8, _("Agrandir les icônes"))):
+            bouton = Gtk.Button(label=signe)
+            bouton.set_tooltip_text(mot)
+            bouton.add_css_class("flat")
+            bouton.connect("clicked", self._on_zoom_icones, pas)
+            header.pack_start(bouton)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.set_child(root)
