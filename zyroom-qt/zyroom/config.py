@@ -411,18 +411,28 @@ class Settings:
         self._ini.set("GENERAL", "UILanguage", value)
         self._flush()
 
-    #: De combien de points le texte grossit par rapport a ce que propose le
-    #: bureau. Un, par defaut : la police du systeme est calibree pour des
-    #: interfaces aerees, et celle-ci serre beaucoup d'information -- des
-    #: colonnes de noms, des tableaux de mouvements -- ou un point de plus
-    #: change tout. Zero rend exactement la police du bureau.
+    #: Le corps du texte, en points. Zero laisse celui du bureau.
+    #:
+    #: Une taille et non un ecart : "+5" ne dit rien a personne, alors qu'un
+    #: nombre de points se lit comme dans un traitement de texte, et se
+    #: retrouve d'une machine a l'autre. La police du bureau tourne autour de
+    #: neuf ou dix points ; cette interface serre beaucoup d'information --
+    #: des colonnes de noms, des tableaux de mouvements -- et douze ou
+    #: quatorze s'y lisent bien mieux.
     @property
-    def font_offset(self) -> int:
-        return self._ini.getint("GENERAL", "FontOffset", fallback=1)
+    def font_size(self) -> int:
+        taille = self._ini.getint("GENERAL", "FontSize", fallback=0)
+        if taille:
+            return taille
+        # Reprise du reglage precedent, qui s'exprimait en points ajoutes :
+        # sans cela, celui qui avait demande du texte plus gros le verrait
+        # rapetisser sans comprendre pourquoi.
+        ancien = self._ini.getint("GENERAL", "FontOffset", fallback=0)
+        return 10 + ancien if ancien else 0
 
-    @font_offset.setter
-    def font_offset(self, value: int) -> None:
-        self._ini.set("GENERAL", "FontOffset", str(int(value)))
+    @font_size.setter
+    def font_size(self, value: int) -> None:
+        self._ini.set("GENERAL", "FontSize", str(int(value)))
         self._flush()
 
     @property

@@ -11,29 +11,20 @@ from .fenetre import APP_NAME, FenetrePrincipale
 
 
 def appliquer_taille_police(app: QApplication) -> None:
-    """Grossit le texte de toute l'application du nombre de points réglé.
+    """Donne à toute l'application le corps de texte réglé, en points.
 
-    **Sur la police que Qt vient de choisir**, et non sur une taille écrite en
-    dur : le bureau a la sienne, et lui imposer un corps fixe ferait mentir le
-    réglage de GNOME. On ajoute, on ne remplace pas.
+    Zéro laisse la police du bureau telle quelle : c'est le comportement de
+    quelqu'un qui n'a rien demandé, et son réglage GNOME reste maître.
 
     Une police posée sur l'application se propage à tout ce qui n'en demande
-    pas d'autre — y compris les symboles des boutons, qui sont du texte. Les
-    deux qui ont un corps à eux, le nom gravé en bas, se calculent depuis
-    celle-ci et suivent donc aussi.
+    pas d'autre — y compris les symboles des boutons, qui sont du texte, et le
+    nom gravé en bas, dont le corps se calcule depuis celle-ci.
     """
-    reglages = Settings()
-    ecart = reglages.font_offset
-    if not ecart:
+    taille = Settings().font_size
+    if taille <= 0:
         return
     police = app.font()
-    taille = police.pointSizeF()
-    if taille > 0:
-        police.setPointSizeF(taille + ecart)
-    else:
-        # Une police definie en pixels et non en points : cela arrive selon le
-        # bureau. Un point vaut environ un pixel et un tiers.
-        police.setPixelSize(max(1, police.pixelSize() + round(ecart * 4 / 3)))
+    police.setPointSizeF(float(taille))
     app.setFont(police)
 
 

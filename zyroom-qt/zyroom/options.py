@@ -72,14 +72,16 @@ class FenetreOptions(QDialog):
 
         # Le corps du texte, avant les seuils : c'est un reglage de confort,
         # pas d'alerte, et il se cherche a cote de la langue.
-        grille.addWidget(QLabel(_("Taille du texte (points en plus)")), rang, 0)
+        grille.addWidget(QLabel(_("Taille du texte (points)")), rang, 0)
         self._police = QSpinBox()
-        self._police.setRange(-2, 8)
-        self._police.setValue(settings.font_offset)
+        self._police.setRange(0, 30)
+        self._police.setSpecialValueText(_("taille du bureau"))
+        self._police.setValue(settings.font_size)
         self._police.setToolTip(_(
-            "Ce que l'on ajoute à la police du bureau. Zéro rend exactement "
-            "celle du système. Le changement prend effet au prochain "
-            "lancement."))
+            "Le corps du texte, comme dans un traitement de texte. Le bureau "
+            "tourne autour de 10 ; 12 ou 14 se lisent mieux dans les tableaux. "
+            "Zéro laisse la police du système. Le changement prend effet au "
+            "prochain lancement."))
         grille.addWidget(self._police, rang, 1)
         rang += 1
 
@@ -194,7 +196,7 @@ class FenetreOptions(QDialog):
         s.proxy_username = self._proxy_utilisateur.text().strip()
         s.proxy_password = self._proxy_motdepasse.text()
         s.language = self._codes_langue[self._dd_langue.currentIndex()]
-        s.font_offset = self._police.value()
+        s.font_size = self._police.value()
         self.accept()
         if self._apres:
             self._apres()
