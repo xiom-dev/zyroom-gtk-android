@@ -32,9 +32,6 @@ if exist dist rmdir /s /q dist
 
 for /f %%v in ('"%PYTHON%" -c "import zyroom; print(zyroom.__version__)"') do set VERSION=%%v
 
-rem Le lanceur de la variante du chef de guilde, a cote de l'executable.
-copy /y data\lanceurs\ZyRoom-Qt-dev.bat dist\ZyRoom-Qt\ >nul
-
 echo == Archive ==
 rem tar est livre avec Windows 10 et 11 ; -a demande le format ZIP.
 tar -a -c -f "dist\ZyRoom-Qt-%VERSION%-windows.zip" -C dist ZyRoom-Qt

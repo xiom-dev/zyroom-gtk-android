@@ -2577,9 +2577,14 @@ class MainWindow(Gtk.ApplicationWindow):
             barre.set_valign(Gtk.Align.CENTER)
             line.append(barre)
 
+        # Le niveau atteint, et non le plafond de l'echelon : « Creer bijoux »
+        # affichait 50 quand tout ce qu'elle porte est monte a 250, et il
+        # fallait deplier pour le savoir.
+        atteint = (skills_mod.niveau_atteint(self._skills_tree, node.skill.code)
+                   if node.has_children else node.skill.level)
         niveau = Gtk.Label(
-            label=(f"{node.skill.level} · {node.skill.progress} %"
-                   if node.skill.progress else str(node.skill.level)),
+            label=(f"{atteint} · {node.skill.progress} %"
+                   if node.skill.progress else str(atteint)),
             xalign=1.0)
         niveau.set_size_request(90, -1)
         if finie:
@@ -2591,8 +2596,6 @@ class MainWindow(Gtk.ApplicationWindow):
             if points:
                 # Le niveau d'une racine plafonne bas — Combat vaut 20 : c'est
                 # le plus haut de ses descendants qui dit où en est la branche.
-                niveau.set_label(str(skills_mod.branch_level(self._skills_tree,
-                                                             node.skill.code)))
                 detail = Gtk.Label(
                     label=_("%s pts · %s dépensés") % (f"{points[0]:,}".replace(",", " "),
                                                        f"{points[1]:,}".replace(",", " ")),

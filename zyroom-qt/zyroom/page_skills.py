@@ -236,20 +236,21 @@ class PageCompetences(QWidget):
             barre.setRange(0, 100)
             barre.setValue(noeud.skill.progress)
             barre.setTextVisible(False)
+            barre.setObjectName("avancement")
             barre.setFixedWidth(theme.largeur(barre, 4.7))
             ligne.addWidget(barre)
 
-        texte_niveau = (f"{noeud.skill.level} · {noeud.skill.progress} %"
-                        if noeud.skill.progress else str(noeud.skill.level))
+        # Le niveau atteint, et non le plafond de l'echelon : "Creer bijoux"
+        # affichait 50 quand tout ce qu'elle porte est monte a 250, et il
+        # fallait deplier pour le savoir.
+        atteint = (skills_mod.niveau_atteint(self._arbre, noeud.skill.code)
+                   if noeud.has_children else noeud.skill.level)
+        texte_niveau = (f"{atteint} · {noeud.skill.progress} %"
+                        if noeud.skill.progress else str(atteint))
         points = None
         if racine:
             points = getattr(self._entite, "skill_points", {}).get(
                 noeud.skill.code)
-            if points:
-                # Le niveau d'une racine plafonne bas -- Combat vaut 20 : c'est
-                # le plus haut de ses descendants qui dit ou en est la branche.
-                texte_niveau = str(skills_mod.branch_level(self._arbre,
-                                                           noeud.skill.code))
         niveau = QLabel(texte_niveau)
         niveau.setFixedWidth(theme.largeur(niveau, 4.7))
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight

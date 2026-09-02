@@ -216,6 +216,20 @@ QProgressBar::chunk {
     border-radius: 5px;
 }
 
+/* L'avancement d'une competence : le vert de ce qui est acquis sur le gris
+   de ce qui reste. La jauge de volume, elle, garde le sarcelle -- les deux ne
+   disent pas la meme chose. */
+QProgressBar#avancement {
+    background-color: %(variante)s;
+    border: none;
+    border-radius: 4px;
+    height: 8px;
+}
+QProgressBar#avancement::chunk {
+    background-color: %(vert)s;
+    border-radius: 4px;
+}
+
 /* La grille d'objets. Pas de bordure sur les cases : l'icone se suffit,
    et une grille de quatre cents objets deviendrait un quadrillage. */
 QListWidget {

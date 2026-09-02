@@ -116,6 +116,31 @@ def finished(tree: list[Node]) -> set[str]:
     return done
 
 
+def niveau_atteint(tree: list[Node], code: str) -> int:
+    """Le plus haut niveau de cette compétence et de tout ce qu'elle porte.
+
+    **Chaque échelon a son propre plafond** : la racine vaut 20, la branche du
+    dessous 50, puis 100, 150, 200, et 250 pour la feuille. « Créer bijoux »
+    affiche donc 50 quand tout ce qu'elle porte est monté à 250 — le nombre au
+    bout de la ligne dit le plafond de l'échelon, pas ce que le personnage sait
+    faire, et il fallait déplier pour le savoir.
+
+    On rend donc le plus haut niveau du sous-arbre. Une feuille rend le sien,
+    ce qui ne change rien pour elle.
+    """
+    enfants: dict[str, list[Node]] = {}
+    for node in tree:
+        enfants.setdefault(node.parent, []).append(node)
+
+    def plus_haut(nom: str, niveau: int) -> int:
+        for fils in enfants.get(nom, ()):
+            niveau = max(niveau, plus_haut(fils.skill.code, fils.skill.level))
+        return niveau
+
+    depart = next((n.skill.level for n in tree if n.skill.code == code), 0)
+    return plus_haut(code, depart)
+
+
 def branch_level(tree: list[Node], root: str) -> int:
     """Le niveau d'une branche : le plus haut de ses membres.
 
