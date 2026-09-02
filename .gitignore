@@ -13,3 +13,7 @@
 # mégaoctets de PNG bruts, que `outils/cartes_gisements.py` sait retélécharger.
 # Ce qui entre dans les applications, c'est la version recompressée.
 /cartes-gisements/
+
+# Le prefixe Wine du paquet Windows : 1,9 Go de Windows reconstitue,
+# refait a la demande par packaging/build-windows-wine.sh.
+.wine-zyroom-qt/
