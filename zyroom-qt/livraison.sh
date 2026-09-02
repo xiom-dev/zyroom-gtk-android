@@ -26,6 +26,10 @@
 # dans pages/ sous le nom que version.json annonce.
 set -euo pipefail
 
+# Sans cela, un __init__.py reecrit dans la meme seconde garde son .pyc
+# et la construction embarque le numero de version precedent.
+export PYTHONDONTWRITEBYTECODE=1
+
 racine=$(cd "$(dirname "$0")" && pwd)
 cd "$racine"
 
