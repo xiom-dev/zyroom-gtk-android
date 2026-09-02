@@ -1,0 +1,73 @@
+# Le paquet Windows de ZyRoom-Qt, construit sur un vrai Windows.
+#
+# Aucune machine Windows n'est necessaire ici : GitHub en prete une le temps de
+# la construction. C'est la seule facon d'obtenir un paquet dont on soit sur --
+# construire sous Wine marche parfois, mais ce qui en sort n'a jamais tourne
+# sur le systeme auquel il est destine.
+#
+# Le resultat est depose en artefact du dépôt, a telecharger depuis l'onglet
+# Actions. Il n'est PAS publie sur gh-pages : c'est `livraison.sh` qui decide
+# ce qui part, et il tourne sur la machine du mainteneur. Deposer l'archive
+# dans pages/ et pousser reste un geste a la main -- version.json annonce deja
+# le nom de fichier attendu, ZyRoom-Qt-windows.zip.
+name: Paquet Windows (ZyRoom-Qt)
+
+on:
+  # A la main depuis l'onglet Actions : on ne construit pas a chaque poussee,
+  # un paquet de cent cinquante megaoctets par commit n'aurait aucun sens.
+  workflow_dispatch:
+  push:
+    tags:
+      - "qt-*"
+
+permissions:
+  contents: read
+
+jobs:
+  construire:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: zyroom-qt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          # La meme famille que celle du paquet Linux : un ecart de version
+          # entre les deux ferait diverger ce que PyInstaller embarque.
+          python-version: "3.12"
+
+      - name: Environnement virtuel
+        shell: cmd
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python -m pip install --upgrade pip
+          .venv\Scripts\pip install PySide6-Essentials pyinstaller
+
+      - name: Verifier le noyau
+        shell: bash
+        run: outils/sync-noyau.sh --verifie
+
+      - name: Traductions
+        shell: cmd
+        run: .venv\Scripts\python build_i18n.py
+
+      - name: Construction
+        shell: cmd
+        run: packaging\build.bat
+
+      - name: Diagnostic du paquet
+        shell: cmd
+        # La preuve que le paquet a garde ses donnees : un bundle ampute
+        # demarre quand meme, et n'affiche que des identifiants de fiches.
+        run: dist\ZyRoom-Qt\ZyRoom-Qt.exe --diagnostic
+
+      - name: Deposer l'archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZyRoom-Qt-windows
+          path: zyroom-qt/dist/*.zip
+          if-no-files-found: error

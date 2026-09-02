@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Donnees locales de test
+*.local
+/scratch/
+
+# Artefacts d'empaquetage. `dist.windows` et `dist.linux` sont les deux
+# paquets mis cote a cote quand on construit l'autre systeme : cent cinquante
+# megaoctets chacun, et git garderait chaque version pour toujours.
+/build/
+/dist/
+/dist.windows/
+/dist.linux/
+*.spec.bak
+
+# Icones binaires : refabriquees a chaque construction depuis
+# data/net.ryzom.zyroomqt.svg, qui est la source versionnee.
+/packaging/zyroom-qt.ico
+/packaging/zyroom-qt.png
