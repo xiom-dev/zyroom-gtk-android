@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=ZyRoom-Qt(dev)
+GenericName=Ryzom inventory viewer
+Comment=Consultez vos inventaires Ryzom hors-ligne — variante du mainteneur
+Comment[en]=View your Ryzom inventories offline — maintainer variant
+Terminal=false
+Categories=Game;
+Keywords=Ryzom;inventory;inventaire;guild;
+StartupWMClass=net.ryzom.zyroomqt
+Exec=zyroom-qt-dev
+Icon=net.ryzom.zyroomqt.dev

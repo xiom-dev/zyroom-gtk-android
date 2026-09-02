@@ -81,7 +81,19 @@ SAISON_INTERVALLE = 180
 
 from . import __version__ as VERSION
 
-APP_NAME = "ZyRoom-Qt"
+#: Vrai dans la variante du mainteneur, celle qui montre les coffres masques.
+#:
+#: La version GTK se reconnait a son FLATPAK_ID, qui finit par ".dev" ; ici il
+#: n'y a pas de bac a sable pour le dire. C'est donc la variable qui leve le
+#: masque des coffres qui fait foi : la seule difference entre les deux
+#: variantes est justement celle-la, et un lanceur qui la pose lance bien la
+#: mouture du mainteneur.
+_DEV = os.environ.get("ZYROOM_SHOW_ALL_CHESTS") == "1"
+
+# Nom affiche, tenu identique a celui des fichiers .desktop des deux
+# variantes. Sans numero de version : un nom nomme l'application, le numero se
+# lit dans l'A propos.
+APP_NAME = "ZyRoom-Qt(dev)" if _DEV else "ZyRoom-Qt"
 
 #: La part du nom qui va dans la gothique, en bas de la fenetre : celle qui
 #: vient du zyRoom d'origine. Le reste -- "-Qt" -- dit la mouture, et s'ecrit
