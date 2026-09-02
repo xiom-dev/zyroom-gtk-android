@@ -447,6 +447,12 @@ class FenetrePrincipale(QMainWindow):
             bouton.setText(signe)
             bouton.setToolTip(mot)
             bouton.setAutoRaise(True)
+            # Le meme corps que les symboles voisins : un plus et un moins a
+            # la taille du texte se perdaient a cote de la fleche de synchro.
+            police = bouton.font()
+            police.setPointSizeF(police.pointSizeF() * 1.6)
+            police.setBold(True)
+            bouton.setFont(police)
             bouton.clicked.connect(
                 lambda _c=False, p=pas: self._zoomer_icones(p))
             ligne.addWidget(bouton)

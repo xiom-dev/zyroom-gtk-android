@@ -109,6 +109,10 @@ def data_dir() -> str:
     # l'API ne sait pas reconstruire : la perdre en changeant de portage
     # serait perdre des mois de journal.
     _reprendre_dossier_gtk("XDG_DATA_HOME", ".local/share", path, "movements")
+    # Le registre du personnel ne vit pas dans un sous-dossier : ses fichiers
+    # sont poses ici meme, un jeu par guilde. Sans cette reprise-la,
+    # l'effectif repartait de zero alors que le journal, lui, etait complet.
+    _reprendre_fichiers_gtk("XDG_DATA_HOME", ".local/share", path, "roster-")
     return path
 
 
@@ -380,6 +384,37 @@ def detect_pack() -> str:
         if saves:
             return max(saves, key=os.path.getmtime)
     return ""
+
+
+def _reprendre_fichiers_gtk(env: str, defaut: str, cible: str,
+                            prefixe: str) -> None:
+    """Recopie les fichiers du portage GTK dont le nom commence par `prefixe`.
+
+    Comme `_reprendre_dossier_gtk`, mais pour ce qui est posé à plat plutôt
+    que rangé dans un sous-dossier. Un fichier déjà présent ici n'est jamais
+    écrasé : ce qu'on a écrit soi-même prime toujours sur ce qu'on reprend.
+    """
+    if prefixe in _dossiers_repris:
+        return
+    _dossiers_repris.add(prefixe)
+    if WINDOWS:
+        return
+    base = (os.environ.get(env)
+            or os.path.join(os.path.expanduser("~"), defaut))
+    source = os.path.join(base, APP_ID_GTK)
+    if not os.path.isdir(source):
+        return
+    import shutil
+    try:
+        for nom in os.listdir(source):
+            if not nom.startswith(prefixe):
+                continue
+            arrivee = os.path.join(cible, nom)
+            if os.path.exists(arrivee):
+                continue
+            shutil.copy2(os.path.join(source, nom), arrivee)
+    except OSError:
+        pass
 
 
 class Settings:

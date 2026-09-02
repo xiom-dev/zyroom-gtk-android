@@ -348,6 +348,23 @@ class PageMeteo(QWidget):
 
         self._fenetre.passerelle.lancer(travail, apres)
 
+    def hideEvent(self, event) -> None:          # noqa: N802 -- nom impose
+        """Arrête le battement quand on quitte l'écran.
+
+        Il refait la courbe et les blocs de matières toutes les dix secondes :
+        des dizaines de widgets détruits et recréés, six fois par minute,
+        indéfiniment. Page fermée, personne ne les regarde — et au bout de
+        quelques heures l'application n'avançait plus.
+        """
+        self._minuteur.stop()
+        super().hideEvent(event)
+
+    def showEvent(self, event) -> None:          # noqa: N802 -- nom impose
+        """Reprend le battement en revenant, si l'on a déjà un relevé."""
+        if self._releve is not None and not self._minuteur.isActive():
+            self._minuteur.start(10_000)
+        super().showEvent(event)
+
     def _battement(self) -> None:
         """Fait avancer l'heure d'Atys, sans rien demander à personne.
 
