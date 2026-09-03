@@ -299,6 +299,12 @@ class FenetrePrincipale(QMainWindow):
         #: lancement, et a ce moment seulement, que plus rien ne tient
         #: l'installation precedente.
         updater.nettoyer_ancienne()
+        #: Sous Windows, une mise a jour telechargee lors d'une session
+        #: precedente peut attendre a cote, si l'on avait repondu << Plus
+        #: tard >>. Sans ce rappel elle attendrait indefiniment, et le
+        #: veilleur ne reproposerait rien : de son point de vue la nouvelle
+        #: version est deja installee.
+        self._maj_en_attente = updater.maj_en_attente()
         self._veilleur = updater.Veilleur()
         self._minuteur_maj = QTimer(self)
         self._minuteur_maj.timeout.connect(self._verifier_maj)
@@ -2235,6 +2241,15 @@ class FenetrePrincipale(QMainWindow):
         La lecture part dans un fil : le lancement ne doit pas attendre le
         réseau, et une coupure ne doit pas figer la fenêtre.
         """
+        # Une version deposee lors d'une session precedente attend d'etre
+        # mise en place : c'est le redemarrage qu'il faut proposer, pas un
+        # nouveau telechargement. Le manifeste, lui, nous croirait a jour.
+        if self._maj_en_attente:
+            self._maj_en_attente = False
+            self._statut(_("Une mise à jour attend le redémarrage."))
+            self._proposer_redemarrage()
+            return
+
         if not self._veilleur.possible or self._btn_maj.isVisible():
             # Une fois le bouton affiche, plus rien a demander : il n'y a pas
             # deux facons d'etre en retard.

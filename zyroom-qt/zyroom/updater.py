@@ -57,6 +57,9 @@ APPLICATION = "net.ryzom.zyroomqt"
 
 #: Le suffixe de l'installation mise de cote, effacee au lancement suivant.
 SUFFIXE_ANCIEN = ".ancien"
+#: Le dossier ou la nouvelle version attend, sous Windows, que l'application
+#: se ferme. Voir `installer`.
+SUFFIXE_NOUVEAU = ".nouveau"
 
 _USER_AGENT = "zyroom-qt (+https://github.com/xiom-dev/zyroom-gtk-android)"
 
@@ -235,6 +238,17 @@ def installer(archive: str) -> tuple[bool, str]:
 
     Rend `(réussi, message)`. En cas d'échec à n'importe quelle étape,
     l'installation d'origine est remise en place.
+
+    **Les deux systèmes ne s'y prennent pas pareil.** Unix laisse renommer un
+    dossier d'où tourne un programme : le processus garde ses fichiers ouverts
+    par leur inode, le nom n'a plus d'importance une fois l'ouverture faite.
+    Windows, lui, verrouille l'exécutable et les DLL chargées, et refuse de
+    renommer le dossier qui les contient — c'est le `[WinError 32] Le processus
+    ne peut pas accéder au fichier car ce fichier est utilisé par un autre
+    processus` qu'a rencontré le premier joueur à mettre à jour depuis
+    Windows. Là-bas, la nouvelle version est donc déposée à côté, sous
+    `SUFFIXE_NOUVEAU`, et c'est `relancer` qui la met en place une fois
+    l'application fermée.
     """
     cible = dossier_installe()
     if not cible:
@@ -258,13 +272,24 @@ def installer(archive: str) -> tuple[bool, str]:
         if os.name != "nt" and not os.access(binaire, os.X_OK):
             os.chmod(binaire, 0o755)
 
+        if os.name == "nt":
+            # Windows tient l'executable en cours : on ne touche a rien, on
+            # depose. `relancer` fera le remplacement quand plus personne
+            # n'aura le dossier en main.
+            attente = cible + SUFFIXE_NOUVEAU
+            if os.path.isdir(attente):
+                shutil.rmtree(attente, ignore_errors=True)
+            shutil.move(neuve, attente)
+            return True, ("Mise à jour prête. Elle se mettra en place à la "
+                          "fermeture de l'application.")
+
         # Une precedente mise de cote qui trainerait empecherait le renommage.
         if os.path.isdir(ancienne):
             shutil.rmtree(ancienne, ignore_errors=True)
 
         # Le tour de main : renommer, jamais effacer. Le dossier d'ou l'on
         # tourne continue d'exister sous son nouveau nom, et les fichiers
-        # ouverts restent valides -- sous Windows comme ici.
+        # ouverts restent valides.
         os.rename(cible, ancienne)
         try:
             shutil.move(neuve, cible)
@@ -281,14 +306,86 @@ def installer(archive: str) -> tuple[bool, str]:
     return True, "Mise à jour installée."
 
 
+def maj_en_attente() -> bool:
+    """Vrai si une nouvelle version attend d'être mise en place (Windows)."""
+    dossier = dossier_installe()
+    return bool(dossier) and os.path.isdir(dossier + SUFFIXE_NOUVEAU)
+
+
+def _relais_windows(cible: str) -> bool:
+    """Confie le remplacement à un script qui nous survivra.
+
+    Windows ne laisse pas un programme remplacer le dossier d'où il tourne.
+    Le seul moment sûr est donc après notre mort, et il faut quelqu'un pour
+    agir à ce moment-là : un fichier de commandes, lancé détaché, qui attend
+    notre disparition avant de permuter les dossiers et de relancer.
+
+    Il est écrit dans le dossier temporaire et non à côté de l'application :
+    il doit pouvoir s'effacer lui-même à la fin, et rien ne dit que
+    l'installation soit accessible en écriture.
+    """
+    import subprocess
+    ancienne = cible + SUFFIXE_ANCIEN
+    attente = cible + SUFFIXE_NOUVEAU
+    exe = os.path.abspath(sys.executable)
+
+    script = os.path.join(tempfile.gettempdir(), "zyroom-qt-maj.bat")
+    # `tasklist` plutot qu'une attente fixe : la duree de fermeture depend de
+    # la machine, et une seconde de trop ou de moins deciderait du succes.
+    # Trente essais d'une seconde laissent le temps a Qt de rendre la main,
+    # puis on tente quand meme -- au pire le renommage echoue et l'ancienne
+    # version reste, ce qui est le cas sur lequel on sait revenir.
+    contenu = f"""@echo off
+setlocal
+for /l %%i in (1,1,30) do (
+    tasklist /fi "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul || goto :libre
+    ping -n 2 127.0.0.1 >nul
+)
+:libre
+if exist "{ancienne}" rmdir /s /q "{ancienne}"
+move "{cible}" "{ancienne}" >nul 2>&1
+if errorlevel 1 goto :echec
+move "{attente}" "{cible}" >nul 2>&1
+if errorlevel 1 (
+    rem Le remplacement a echoue a mi-chemin : l'application doit exister.
+    move "{ancienne}" "{cible}" >nul 2>&1
+    goto :echec
+)
+start "" "{exe}"
+goto :fin
+:echec
+start "" "{exe}"
+:fin
+rem Le script s'efface lui-meme : `del` sur le fichier en cours fonctionne
+rem sous cmd, la derniere ligne ayant deja ete lue.
+del "%~f0"
+"""
+    try:
+        with open(script, "w", encoding="ascii", newline="\r\n") as f:
+            f.write(contenu)
+        subprocess.Popen(["cmd", "/c", script], close_fds=True,
+                         creationflags=0x00000008 | 0x08000000)
+        return True
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
 def relancer() -> bool:
     """Relance l'application fraîchement installée. Rend vrai si c'est parti.
 
     Le chemin est le même qu'avant — c'est le contenu du dossier qui a changé,
-    pas son nom.
+    pas son nom. Sous Windows le contenu ne change qu'après notre départ :
+    voir `_relais_windows`.
     """
     if not empaquete():
         return False
+
+    # Sous Windows, la nouvelle version attend a cote : c'est le relais qui la
+    # met en place, puisque nous ne pouvons pas remplacer le dossier d'ou nous
+    # tournons. Il relance l'application lui-meme.
+    if os.name == "nt" and maj_en_attente():
+        return _relais_windows(dossier_installe())
+
     try:
         import subprocess
         # **Detache de nous.** Sans `start_new_session`, le nouveau processus
