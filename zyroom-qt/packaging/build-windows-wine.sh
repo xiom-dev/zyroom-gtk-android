@@ -89,7 +89,20 @@ outils/sync-noyau.sh --verifie
 
 # Le paquet Linux deja construit est mis de cote : le spec ecrit dans dist/,
 # et l'ecraser ferait perdre l'archive qu'on vient de livrer.
-[ -d dist ] && [ ! -d dist.linux ] && mv dist dist.linux
+#
+# Un dist.linux qui traine vient d'une execution interrompue avant la
+# restitution. Le laisser en place ferait echouer la mise de cote en silence,
+# et le `rm -rf dist` d'apres emporterait le paquet Linux du jour -- c'est
+# arrive. On le rapatrie donc avant de repartir.
+if [ -d dist.linux ]; then
+    echo "  (un paquet Linux mis de cote attendait son retour : repris)"
+    mkdir -p dist
+    cp -a dist.linux/. dist/
+    rm -rf dist.linux
+fi
+if [ -d dist ]; then
+    mv dist dist.linux
+fi
 rm -rf build dist
 
 echo "== PyInstaller =="
@@ -109,6 +122,9 @@ version=$("$racine/.venv/bin/python" -c "import zyroom; print(zyroom.__version__
 mv dist dist.windows
 [ -d dist.linux ] && mv dist.linux dist
 mkdir -p dist
+# Le fichier qui cree les raccourcis, a cote de l'executable.
+cp data/lanceurs/Installer.bat dist.windows/ZyRoom-Qt/
+
 ( cd dist.windows && zip -qry "../dist/ZyRoom-Qt-${version}-windows.zip" ZyRoom-Qt )
 
 echo

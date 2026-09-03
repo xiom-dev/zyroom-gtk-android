@@ -49,26 +49,28 @@ QML, la 3D et le multimédia, qui pèsent le plus lourd.
 ### Linux
 
 ```bash
-tar xzf ZyRoom-Qt-*-linux-x86_64.tar.gz -C ~/.local/lib/
-ln -sf ~/.local/lib/ZyRoom-Qt/ZyRoom-Qt ~/.local/bin/zyroom-qt
-
-# Integration au menu du bureau
-install -Dm644 data/net.ryzom.zyroomqt.desktop \
-        ~/.local/share/applications/net.ryzom.zyroomqt.desktop
-install -Dm644 data/net.ryzom.zyroomqt.svg \
-        ~/.local/share/icons/hicolor/scalable/apps/net.ryzom.zyroomqt.svg
-update-desktop-database ~/.local/share/applications 2>/dev/null || true
+unzip ZyRoom-Qt-*-linux-x86_64.zip -d ~/.local/lib/
+~/.local/lib/ZyRoom-Qt/installer.sh          # entrée de menu et icône
+~/.local/lib/ZyRoom-Qt/installer.sh --retirer  # pour l'enlever
 ```
 
-Tout se pose sous le répertoire personnel : rien n'est écrit hors de chez soi,
-et la désinstallation se résume à effacer ces quatre chemins.
+Le script écrit le `.desktop` et l'icône sous le répertoire personnel, et rien
+ailleurs. Il inscrit dans `Exec` le chemin d'où il a été lancé : déplacer le
+dossier casse donc le raccourci, et il faut relancer le script depuis le
+nouvel emplacement.
 
 ### Windows
 
 Décompressez le `.zip` où vous voulez — `%LOCALAPPDATA%\Programs\ZyRoom-Qt`
-est un choix raisonnable — puis lancez `ZyRoom-Qt.exe`. Un raccourci vers cet
-exécutable, posé sur le bureau ou dans le menu Démarrer, suffit : il n'y a pas
-d'installeur, et rien n'est écrit dans la base de registre.
+est un choix raisonnable — puis lancez `ZyRoom-Qt.exe`. Rien n'est écrit dans
+la base de registre.
+
+`Installer.bat`, à côté de l'exécutable, pose un raccourci dans le menu
+Démarrer et un autre sur le Bureau ; `Installer.bat /retirer` les enlève. Il
+appelle PowerShell, seul moyen d'écrire un `.lnk` depuis un fichier de
+commandes — et il vérifie ensuite que les raccourcis existent, plutôt que de
+croire le code de retour, qui reste à zéro même quand PowerShell manque à
+l'appel.
 
 **Ce que Windows dira au premier lancement.** L'exécutable n'est pas signé —
 une signature coûte plusieurs centaines d'euros par an — et SmartScreen
