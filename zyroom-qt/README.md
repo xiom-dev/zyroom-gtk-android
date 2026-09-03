@@ -92,16 +92,42 @@ fait ici.
    public et celui du chef — par GitHub Actions, sur une vraie machine
    Windows, diagnostic compris. Ce sont eux qui sont servis. Mais les
    récupérer demande de télécharger l'artefact à la main depuis l'onglet
-   Actions, puis de déposer les deux ZIP dans `pages/` sous les noms
-   `ZyRoom-Qt-windows.zip` et `ZyRoom-Qt-windows-chef.zip` — l'artefact est un
-   ZIP qui **contient** les ZIP, il faut sortir ceux du dedans. Un `gh` sur la
+   Actions, puis de déposer les deux ZIP dans `pages/` — l'artefact est un ZIP
+   qui **contient** les ZIP, il faut sortir ceux du dedans. Un `gh` sur la
    machine du mainteneur suffirait à automatiser le geste.
+
+   **Les deux ne vont pas au même endroit** : `ZyRoom-Qt-windows.zip` à la
+   racine de `pages/`, `ZyRoom-Qt-windows-chef.zip` dans
+   `pages/chef-98a7c4153088/` (voir plus bas).
 2. **Les faire essayer par un joueur sous Windows.** Un diagnostic qui passe
    n'est pas une partie jouée : personne n'a encore ouvert un coffre depuis un
    vrai Windows.
 3. **Faire relire l'allemand.** Les traductions sont faites au mieux, sans
    relecture par un germanophone — le portage GTK a le même défaut. Elles se
    corrigent dans `build_i18n.py`, sans toucher au code.
+
+## L'archive du chef de guilde
+
+La variante du chef lève le masque sur le petit coffre de Nizy. Elle **ne doit
+pas se trouver sur la page que les joueurs consultent** : elle vit dans un
+dossier à part, avec sa propre page,
+
+    pages/chef-98a7c4153088/
+
+servi sur https://xiom-dev.github.io/zyroom-gtk-android/chef-98a7c4153088/ — adresse que
+rien ne référence et qu'aucun lien ne donne. `index.html` de la racine ne la
+mentionne pas, et la page du chef porte un `noindex`.
+
+**Ce n'est pas un secret, c'est une adresse difficile à trouver.** Le dépôt est
+public : qui parcourt la branche `gh-pages` sur GitHub voit ce dossier comme le
+reste. Ce que le nom tiré au hasard empêche, c'est qu'un joueur tombe dessus en
+essayant l'adresse évidente, ou qu'un moteur l'indexe. Pour davantage, il
+faudrait ne pas publier l'archive du tout et la remettre au chef en main
+propre.
+
+Elle ne se télécharge **qu'une fois** : depuis la version 1.11, la mise à jour
+reporte les lanceurs trouvés en place, et `ZyRoom-Qt-dev.bat` survit donc aux
+livraisons suivantes.
 
 ## Traductions
 
