@@ -77,8 +77,17 @@ outils/sync-noyau.sh --verifie
 echo
 echo "== Construction =="
 packaging/build.sh >/dev/null
-archive=$(ls -t dist/*.zip | head -1)
-[ -f "$archive" ] || { echo "Erreur : aucune archive construite." >&2; exit 1; }
+
+# L'archive est nommee, pas devinee. `ls -t | head -1` prenait la plus recente
+# de dist/ : depuis que paquet-chef.sh sait construire pour Linux, une archive
+# du chef fabriquee entre-temps serait partie vers la page publique -- et avec
+# elle le lanceur qui devoile les coffres reserves. Le nom exact ferme cette
+# porte, et l'absence du fichier arrete la livraison au lieu de la detourner.
+archive="dist/ZyRoom-Qt-${nom}-linux-$(uname -m).zip"
+[ -f "$archive" ] || {
+    echo "Erreur : $archive introuvable apres la construction." >&2
+    exit 1
+}
 echo "  $archive  ($(du -h "$archive" | cut -f1))"
 
 # ------------------------------------------------------------ Publication

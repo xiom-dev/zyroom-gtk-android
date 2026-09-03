@@ -27,20 +27,27 @@ if exist build_i18n.py "%PYTHON%" build_i18n.py
 
 echo == PyInstaller ==
 if exist build rmdir /s /q build
-if exist dist rmdir /s /q dist
-"%PYTHON%" -m PyInstaller --noconfirm --clean packaging\zyroom-qt.spec || exit /b 1
+if exist dist.windows rmdir /s /q dist.windows
+if exist build.windows rmdir /s /q build.windows
+rem Cette construction ecrit chez elle : dist\ ne garde que les archives,
+rem et aucune plateforme n'efface le paquet de l'autre.
+"%PYTHON%" -m PyInstaller --noconfirm --clean ^
+    --distpath dist.windows --workpath build.windows ^
+    packaging\zyroom-qt.spec || exit /b 1
 
 for /f %%v in ('"%PYTHON%" -c "import zyroom; print(zyroom.__version__)"') do set VERSION=%%v
 
 echo == Installateur ==
 rem Le fichier qui cree les raccourcis, a cote de l'executable.
-copy /y data\lanceurs\Installer.bat dist\ZyRoom-Qt\ >nul
+copy /y data\lanceurs\Installer.bat dist.windows\ZyRoom-Qt\ >nul
 
 echo == Archive ==
 rem tar est livre avec Windows 10 et 11 ; -a demande le format ZIP.
-tar -a -c -f "dist\ZyRoom-Qt-%VERSION%-windows.zip" -C dist ZyRoom-Qt
+if not exist dist mkdir dist
+del /q "dist\ZyRoom-Qt-%VERSION%-windows.zip" 2>nul
+tar -a -c -f "dist\ZyRoom-Qt-%VERSION%-windows.zip" -C dist.windows ZyRoom-Qt
 
 echo.
-echo Dossier : dist\ZyRoom-Qt\ZyRoom-Qt.exe
+echo Dossier : dist.windows\ZyRoom-Qt\ZyRoom-Qt.exe
 echo Archive : dist\ZyRoom-Qt-%VERSION%-windows.zip
 endlocal

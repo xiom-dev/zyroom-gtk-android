@@ -32,8 +32,15 @@ packaging/build.sh
 packaging\build.bat
 ```
 
-Le résultat est dans `dist/` : un dossier `ZyRoom-Qt/` prêt à copier, et une
-archive (`.tar.gz` sous Linux, `.zip` sous Windows).
+Chaque système construit chez lui : le dossier `ZyRoom-Qt/` prêt à copier
+atterrit dans `dist.linux/` ou `dist.windows/` selon la cible, et `dist/` ne
+reçoit que les archives `.zip` livrables.
+
+Cette séparation n'est pas cosmétique. Les deux constructions ont longtemps
+partagé `dist/`, que chacune nettoyait avant de travailler : construire pour
+un système effaçait le paquet de l'autre. Un paquet Linux a ainsi été perdu
+puis publié périmé, et une archive du chef est partie avec un exécutable
+vieux d'une version.
 
 **Un dossier plutôt qu'un exécutable unique.** Un fichier unique doit se
 décompresser en entier à chaque lancement — avec Qt, une centaine de

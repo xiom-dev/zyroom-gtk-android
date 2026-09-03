@@ -9,10 +9,13 @@ venv/
 *.local
 /scratch/
 
-# Artefacts d'empaquetage. `dist.windows` et `dist.linux` sont les deux
-# paquets mis cote a cote quand on construit l'autre systeme : cent cinquante
-# megaoctets chacun, et git garderait chaque version pour toujours.
+# Artefacts d'empaquetage. Chaque systeme construit chez lui -- dist.linux et
+# dist.windows, avec build.linux et build.windows pour les fichiers de
+# travail -- et dist/ ne recoit que les archives livrables. Cent cinquante
+# megaoctets par paquet, que git garderait pour toujours.
 /build/
+/build.linux/
+/build.windows/
 /dist/
 /dist.windows/
 /dist.linux/

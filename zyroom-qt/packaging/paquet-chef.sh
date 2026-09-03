@@ -16,7 +16,7 @@ cd "$racine"
 systeme=${1:-windows}
 case $systeme in
     windows) source=dist.windows ; lanceur=ZyRoom-Qt-dev.bat ;;
-    linux)   source=dist         ; lanceur=ZyRoom-Qt-dev.sh  ;;
+    linux)   source=dist.linux   ; lanceur=ZyRoom-Qt-dev.sh  ;;
     *) echo "Usage : $0 [windows|linux]" >&2 ; exit 2 ;;
 esac
 
@@ -34,5 +34,7 @@ cp "data/lanceurs/$lanceur" "$travail/ZyRoom-Qt/"
 [ "$systeme" = linux ] && chmod +x "$travail/ZyRoom-Qt/$lanceur"
 
 nom="ZyRoom-Qt-${version}-${systeme}-chef.zip"
+mkdir -p "$racine/dist"
+rm -f "$racine/dist/$nom"
 ( cd "$travail" && zip -qry "$racine/dist/$nom" ZyRoom-Qt )
 echo "Archive du chef : dist/$nom  ($(du -h "dist/$nom" | cut -f1))"

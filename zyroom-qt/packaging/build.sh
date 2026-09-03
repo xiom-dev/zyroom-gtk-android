@@ -31,16 +31,19 @@ if [ -f build_i18n.py ]; then
 fi
 
 echo "== PyInstaller =="
-# Les archives Windows vivent dans dist/ elles aussi, et PyInstaller veut un
-# dist/ propre : sans cette mise a l'abri, construire pour Linux effacerait le
-# paquet Windows du jour -- la reciproque du piege corrige dans
-# build-windows-wine.sh, et pour la meme raison.
-abri=$(mktemp -d)
-for z in dist/*windows*.zip; do
-    [ -f "$z" ] && mv "$z" "$abri/"
-done
-rm -rf build dist
-"$PYTHON" -m PyInstaller --noconfirm --clean packaging/zyroom-qt.spec
+# Chaque systeme construit chez lui. PyInstaller ecrit dans le dossier que
+# --distpath lui donne, et --workpath range de meme ses fichiers de travail :
+# les deux constructions ne se croisent plus, et aucune n'a besoin d'effacer
+# ce que l'autre vient de produire.
+#
+# dist/ ne recoit plus que les archives livrables. Personne ne l'efface en
+# bloc, ce qui etait la source des trois accidents de septembre : un paquet
+# Linux perdu, puis publie perime, et une archive du chef partie avec un
+# executable vieux d'une version.
+rm -rf build.linux dist.linux
+"$PYTHON" -m PyInstaller --noconfirm --clean \
+          --distpath dist.linux --workpath build.linux \
+          packaging/zyroom-qt.spec
 
 VERSION="$("$PYTHON" -c 'import zyroom; print(zyroom.__version__)')"
 ARCH="$(uname -m)"
@@ -50,21 +53,18 @@ echo "== Installateur =="
 # Le script qui pose le raccourci dans le menu, et l'icone dont il a
 # besoin : tous deux a cote de l'executable, pas dans _internal, car
 # c'est la que l'utilisateur les cherchera.
-cp data/lanceurs/installer.sh dist/ZyRoom-Qt/
-chmod +x dist/ZyRoom-Qt/installer.sh
-cp packaging/zyroom-qt.png dist/ZyRoom-Qt/
+cp data/lanceurs/installer.sh dist.linux/ZyRoom-Qt/
+chmod +x dist.linux/ZyRoom-Qt/installer.sh
+cp packaging/zyroom-qt.png dist.linux/ZyRoom-Qt/
 
 echo "== Archive =="
 # Un ZIP, et non un tar.gz : c'est le format que la mise a jour integree sait
 # lire, sur les deux systemes. `zip -y` garde les liens symboliques tels
 # quels, et les modes Unix -- dont le bit executable du binaire, sans lequel
 # l'application mise a jour ne demarrerait pas.
-( cd dist && zip -qry "${NOM}.zip" ZyRoom-Qt )
-# Les archives Windows retrouvent leur place a cote de la nouvelle.
-for z in "$abri"/*.zip; do
-    [ -f "$z" ] && mv "$z" dist/
-done
-rmdir "$abri" 2>/dev/null || true
+mkdir -p dist
+rm -f "dist/${NOM}.zip"
+( cd dist.linux && zip -qry "../dist/${NOM}.zip" ZyRoom-Qt )
 echo
-echo "Dossier : dist/ZyRoom-Qt/ZyRoom-Qt"
+echo "Dossier : dist.linux/ZyRoom-Qt/ZyRoom-Qt"
 echo "Archive : dist/${NOM}.zip  ($(du -h "dist/${NOM}.zip" | cut -f1))"

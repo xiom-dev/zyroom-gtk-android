@@ -63,7 +63,7 @@ jobs:
         shell: cmd
         # La preuve que le paquet a garde ses donnees : un bundle ampute
         # demarre quand meme, et n'affiche que des identifiants de fiches.
-        run: dist\ZyRoom-Qt\ZyRoom-Qt.exe --diagnostic
+        run: dist.windows\ZyRoom-Qt\ZyRoom-Qt.exe --diagnostic
 
       - name: Deposer l'archive
         uses: actions/upload-artifact@v4
