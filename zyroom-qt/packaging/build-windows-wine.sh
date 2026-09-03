@@ -119,11 +119,29 @@ if [ ! -f dist/ZyRoom-Qt/ZyRoom-Qt.exe ]; then
 fi
 
 version=$("$racine/.venv/bin/python" -c "import zyroom; print(zyroom.__version__)")
+
+# Le dossier de la fois d'avant doit disparaitre avant le renommage : `mv` sur
+# un dossier existant ne le remplace pas, il glisse la source *dedans*. On se
+# retrouvait avec dist.windows/dist/ tandis que dist.windows/ZyRoom-Qt gardait
+# la construction precedente -- et l'archive du chef emportait un executable
+# vieux d'une version.
+rm -rf dist.windows
 mv dist dist.windows
-[ -d dist.linux ] && mv dist.linux dist
+if [ -d dist.linux ]; then
+    mv dist.linux dist
+fi
 mkdir -p dist
 # Le fichier qui cree les raccourcis, a cote de l'executable.
 cp data/lanceurs/Installer.bat dist.windows/ZyRoom-Qt/
+
+# L'executable doit etre plus recent que le spec qui vient de le produire :
+# sinon c'est qu'on empaquette une construction ancienne, et le numero de
+# version de l'archive mentirait.
+if [ packaging/zyroom-qt.spec -nt dist.windows/ZyRoom-Qt/ZyRoom-Qt.exe ]; then
+    echo "Echec : dist.windows/ZyRoom-Qt/ZyRoom-Qt.exe est plus vieux que le" >&2
+    echo "spec -- la construction n'a pas abouti la ou on la cherche." >&2
+    exit 1
+fi
 
 ( cd dist.windows && zip -qry "../dist/ZyRoom-Qt-${version}-windows.zip" ZyRoom-Qt )
 
