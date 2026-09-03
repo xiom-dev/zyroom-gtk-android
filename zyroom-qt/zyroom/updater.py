@@ -233,6 +233,35 @@ def _racine_de_l_archive(dossier: str) -> str:
     return dossier
 
 
+#: Les lanceurs de la variante du chef de guilde. Ils ne sont dans aucune
+#: archive publique -- c'est tout leur interet -- et une mise a jour les
+#: emporterait donc avec l'ancien dossier.
+LANCEURS_CHEF = ("ZyRoom-Qt-dev.bat", "ZyRoom-Qt-dev.sh")
+
+
+def _reporter_lanceurs(ancien: str, neuf: str) -> None:
+    """Fait passer les lanceurs du chef dans la nouvelle installation.
+
+    Le manifeste n'annonce qu'une archive par systeme, la publique : c'est
+    elle que le bouton telecharge, chef ou pas. Sans ce report, le chef
+    perdait son lanceur a chaque mise a jour, et avec lui les coffres
+    reserves -- sans le moindre message, ce qui est la pire facon de perdre
+    quelque chose.
+    """
+    for nom in LANCEURS_CHEF:
+        source = os.path.join(ancien, nom)
+        if not os.path.isfile(source):
+            continue
+        try:
+            shutil.copy2(source, os.path.join(neuf, nom))
+            if os.name != "nt":
+                os.chmod(os.path.join(neuf, nom), 0o755)
+        except OSError:
+            # Tant pis : mieux vaut une mise a jour sans le lanceur qu'une
+            # mise a jour qui echoue. Il se recopie depuis l'archive du chef.
+            pass
+
+
 def installer(archive: str) -> tuple[bool, str]:
     """Met la nouvelle version à la place de l'ancienne.
 
@@ -271,6 +300,9 @@ def installer(archive: str) -> tuple[bool, str]:
         # doit pouvoir se lancer.
         if os.name != "nt" and not os.access(binaire, os.X_OK):
             os.chmod(binaire, 0o755)
+
+        # Ce que l'archive publique ne contient pas et qu'il faut garder.
+        _reporter_lanceurs(cible, neuve)
 
         if os.name == "nt":
             # Windows tient l'executable en cours : on ne touche a rien, on
