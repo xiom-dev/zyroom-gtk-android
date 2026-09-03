@@ -87,13 +87,16 @@ fait ici.
 
 ## Ce qui reste à faire, et qui n'est plus du code
 
-1. **Servir le paquet Windows construit sur un vrai Windows.** Chaque
-   étiquette `qt-*` en fait construire un par GitHub Actions sur une machine
-   Windows, diagnostic compris : là-bas, il se construit et il démarre. Mais
-   l'archive que la page sert est celle de Wine — celle du CI dort en artefact,
-   et la publier demande de la télécharger à la main depuis l'onglet Actions,
-   puis de la déposer dans `pages/` sous le nom `ZyRoom-Qt-windows.zip`.
-2. **La faire essayer par un joueur sous Windows.** Un diagnostic qui passe
+1. **Descendre les archives Windows du CI sans passer par le navigateur.**
+   Chaque étiquette `qt-*` fait construire les deux paquets Windows — le
+   public et celui du chef — par GitHub Actions, sur une vraie machine
+   Windows, diagnostic compris. Ce sont eux qui sont servis. Mais les
+   récupérer demande de télécharger l'artefact à la main depuis l'onglet
+   Actions, puis de déposer les deux ZIP dans `pages/` sous les noms
+   `ZyRoom-Qt-windows.zip` et `ZyRoom-Qt-windows-chef.zip` — l'artefact est un
+   ZIP qui **contient** les ZIP, il faut sortir ceux du dedans. Un `gh` sur la
+   machine du mainteneur suffirait à automatiser le geste.
+2. **Les faire essayer par un joueur sous Windows.** Un diagnostic qui passe
    n'est pas une partie jouée : personne n'a encore ouvert un coffre depuis un
    vrai Windows.
 3. **Faire relire l'allemand.** Les traductions sont faites au mieux, sans

@@ -5,11 +5,12 @@
 # construire sous Wine marche parfois, mais ce qui en sort n'a jamais tourne
 # sur le systeme auquel il est destine.
 #
-# Le resultat est depose en artefact du dépôt, a telecharger depuis l'onglet
-# Actions. Il n'est PAS publie sur gh-pages : c'est `livraison.sh` qui decide
-# ce qui part, et il tourne sur la machine du mainteneur. Deposer l'archive
-# dans pages/ et pousser reste un geste a la main -- version.json annonce deja
-# le nom de fichier attendu, ZyRoom-Qt-windows.zip.
+# Le resultat -- l'archive publique et celle du chef de guilde -- est depose
+# en artefact du dépôt, a telecharger depuis l'onglet Actions. Il n'est PAS
+# publie sur gh-pages : c'est `livraison.sh` qui decide ce qui part, et il
+# tourne sur la machine du mainteneur. Deposer les archives dans pages/ et
+# pousser reste un geste a la main -- version.json annonce deja le nom de
+# fichier attendu, ZyRoom-Qt-windows.zip.
 name: Paquet Windows (ZyRoom-Qt)
 
 on:
@@ -65,7 +66,19 @@ jobs:
         # demarre quand meme, et n'affiche que des identifiants de fiches.
         run: dist.windows\ZyRoom-Qt\ZyRoom-Qt.exe --diagnostic
 
-      - name: Deposer l'archive
+      - name: Archive du chef de guilde
+        shell: cmd
+        # Le paquet du chef, c'est le paquet public plus un lanceur -- il se
+        # fabrique donc apres lui, dans le meme dossier deja construit. Le
+        # faire ici est le seul moyen qu'il herite des memes DLL de Windows
+        # que l'archive publique : fabrique en local sous Wine, il lui en
+        # manquait quarante-deux.
+        run: |
+          copy /y data\lanceurs\ZyRoom-Qt-dev.bat dist.windows\ZyRoom-Qt\ >nul
+          for /f %%v in ('.venv\Scripts\python -c "import zyroom; print(zyroom.__version__)"') do set VERSION=%%v
+          tar -a -c -f "dist\ZyRoom-Qt-%VERSION%-windows-chef.zip" -C dist.windows ZyRoom-Qt
+
+      - name: Deposer les archives
         uses: actions/upload-artifact@v4
         with:
           name: ZyRoom-Qt-windows
