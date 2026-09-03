@@ -87,11 +87,15 @@ fait ici.
 
 ## Ce qui reste à faire, et qui n'est plus du code
 
-1. **Essayer le paquet Windows sur un vrai Windows.** Il est construit et il
-   démarre — mais sous Wine seulement (voir plus bas).
-2. **Publier** : ajouter l'entrée `net.ryzom.zyroomqt` au `version.json` de
-   `pages/` (voir plus bas), et écrire un `livraison.sh` comme en ont les deux
-   autres portages.
+1. **Servir le paquet Windows construit sur un vrai Windows.** Chaque
+   étiquette `qt-*` en fait construire un par GitHub Actions sur une machine
+   Windows, diagnostic compris : là-bas, il se construit et il démarre. Mais
+   l'archive que la page sert est celle de Wine — celle du CI dort en artefact,
+   et la publier demande de la télécharger à la main depuis l'onglet Actions,
+   puis de la déposer dans `pages/` sous le nom `ZyRoom-Qt-windows.zip`.
+2. **La faire essayer par un joueur sous Windows.** Un diagnostic qui passe
+   n'est pas une partie jouée : personne n'a encore ouvert un coffre depuis un
+   vrai Windows.
 3. **Faire relire l'allemand.** Les traductions sont faites au mieux, sans
    relecture par un germanophone — le portage GTK a le même défaut. Elles se
    corrigent dans `build_i18n.py`, sans toucher au code.
