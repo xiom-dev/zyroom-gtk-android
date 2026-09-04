@@ -738,6 +738,10 @@ class FenetrePrincipale(QMainWindow):
         """Ouvre l'onglet « Bonus » sur l'un de ses cinq écrans."""
         self._montrer_page("plus")
         self._pile_bonus.setCurrentIndex(self._pages_bonus[nom])
+        self._rafraichir_bonus(nom)
+
+    def _rafraichir_bonus(self, nom: str) -> None:
+        """Remet un ecran de « Bonus » sur l'entite affichee."""
         if nom == "skills":
             self._page_competences.rafraichir()
         elif nom == "roster":
@@ -751,6 +755,20 @@ class FenetrePrincipale(QMainWindow):
             self._page_avant_postes.charger()
         elif nom == "meteo":
             self._page_meteo.charger()
+
+    def _rafraichir_bonus_courant(self) -> None:
+        """Rafraichit l'ecran de « Bonus » actuellement visible.
+
+        Quatre des cinq ecrans parlent de l'entite choisie -- ses
+        competences, son effectif, ses montures, « et nous ? » sur la carte
+        des avant-postes. Le cinquieme, la meteo, est le temps d'Atys : il ne
+        depend de personne, et se rafraichit pour rien sans que cela nuise.
+        """
+        courant = self._pile_bonus.currentIndex()
+        for nom, rang in self._pages_bonus.items():
+            if rang == courant:
+                self._rafraichir_bonus(nom)
+                return
 
     # ------------------------------------------------ Journal des mouvements
     def _page_journal(self) -> QWidget:
@@ -1646,6 +1664,14 @@ class FenetrePrincipale(QMainWindow):
         self._maj_entete_entite(ent, entree)
         self._remplir_contenants()
         self._verifier_alertes(ent, entree, depuis_synchro=False)
+        # Le journal et les ecrans de « Bonus » suivent l'entite choisie : un
+        # personnage n'a pas l'arbre d'un autre, et une guilde n'en a pas du
+        # tout. Sans cela, changer d'entite laissait la page ouverte sur la
+        # precedente jusqu'a ce qu'on en sorte et qu'on y revienne.
+        if self._pile.currentIndex() == self._pages["log"]:
+            self._charger_journal()
+        elif self._pile.currentIndex() == self._pages["plus"]:
+            self._rafraichir_bonus_courant()
 
     def _maj_entete_entite(self, ent, entree: dict) -> None:
         if ent.money:

@@ -117,6 +117,12 @@ class PageAvantPostes(QWidget):
     def charger(self, force: bool = False) -> None:
         """Va chercher l'annuaire, journalise les changements de main."""
         if self._charge and not force:
+            # L'annuaire est deja en memoire : rien a redemander au reseau.
+            # Mais l'entete et le surlignage vert disent "et nous ?", et le
+            # "nous" a pu changer depuis -- sans ce rafraichissement,
+            # l'affichage restait sur la guilde precedente.
+            if self._carte:
+                self._rafraichir()
             return
         self._charge = True
         self._btn_actualiser.setEnabled(False)
@@ -177,7 +183,10 @@ class PageAvantPostes(QWidget):
                          else ent.guild) or ""
         miens = sum(1 for o in carte if o.guild == ma_guilde)
         entete = _("%d avant-postes tenus sur Atys") % len(carte)
-        if miens:
+        # Des qu'on sait de quelle guilde on parle, on le dit -- meme quand la
+        # reponse est zero. Taire le compte nul laissait croire a un affichage
+        # reste en arriere : « et nous ? » merite un « aucun » explicite.
+        if ma_guilde:
             entete += _(", dont %d à %s") % (miens, ma_guilde)
         self._statut.setText(entete + ".")
 
