@@ -1,4 +1,4 @@
-# ZyRoom — portages libres pour Linux et Android
+# ZyRoom — portages libres pour Linux, Windows et Android
 
 **Licence : GNU AGPLv3 ou ultérieure — le texte complet est dans le fichier
 [`LICENSE`](LICENSE) à la racine du dépôt.**
@@ -6,12 +6,13 @@
 Outils compagnons du MMORPG **Ryzom** : consulter hors-ligne les inventaires de
 ses personnages et des coffres de sa guilde, via l'API web officielle.
 
-Ce dépôt porte deux applications, écrites à partir de la même spécification —
+Ce dépôt porte trois applications, écrites à partir de la même spécification —
 le **zyRoom** de Misugi, en Delphi pour Windows.
 
 | dossier | ce que c'est |
 |---|---|
 | [`zyroom-gtk/`](zyroom-gtk/) | l'application de bureau, en Python et GTK4 (Debian et dérivées, Flatpak) |
+| [`zyroom-qt/`](zyroom-qt/) | l'autre application de bureau, en Python et Qt (PySide6) — Linux et Windows à partir du même code |
 | [`zyroom-android/`](zyroom-android/) | l'application pour téléphone, en Kotlin et Jetpack Compose |
 
 Chacune a son README : ce qu'elle sait faire, comment la construire, comment
@@ -21,8 +22,9 @@ l'installer.
 
 Les applications prêtes à installer sont sur la
 [**page de téléchargement**](https://xiom-dev.github.io/zyroom-gtk-android/) —
-un bundle Flatpak pour le bureau, un APK pour le téléphone, chacun sous un nom
-fixe que les applications elles-mêmes interrogent pour se mettre à jour.
+un bundle Flatpak et deux archives ZIP pour le bureau, un APK pour le
+téléphone, chacun sous un nom fixe que les applications elles-mêmes interrogent
+pour se mettre à jour.
 
 Pas de Releases : elles demanderaient un jeton d'API, et la version publiée
 devrait exister avant d'être annoncée — deux façons de casser une publication
@@ -30,7 +32,7 @@ qui tient aujourd'hui en un seul geste. Les binaires ne sont pas versionnés dan
 l'historique non plus : un binaire pèse des mégaoctets et git en garderait chaque
 version pour toujours.
 
-## Deux variantes de chaque application
+## Deux variantes
 
 | variante | pour qui | différence |
 |---|---|---|
@@ -38,6 +40,11 @@ version pour toujours.
 | `(dev)` | le mainteneur | tout est affiché |
 
 Elles portent des identifiants distincts et s'installent côte à côte.
+
+Cela vaut pour les portages GTK et Android. Le portage Qt n'a pas de variante
+qui s'installe à côté de l'autre : sa version pour le chef de guilde est une
+archive séparée, qui ne figure pas sur la page de téléchargement — son README
+dit où elle vit et pourquoi.
 
 ## Clés d'API
 
@@ -62,7 +69,7 @@ peut ni la remplacer par la GPL, dont elle se distingue par l'article 13, ni
 effacer la paternité d'origine.
 
 - zyRoom original : © Misugi
-- portages GTK et Android : © 2026 Xiom
+- portages GTK, Qt et Android : © 2026 Xiom
 
 En clair : ces applications sont libres, et quiconque en reçoit une copie a
 droit au code source correspondant, sous la même licence.
