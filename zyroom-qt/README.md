@@ -102,9 +102,6 @@ fait ici.
 2. **Les faire essayer par un joueur sous Windows.** Un diagnostic qui passe
    n'est pas une partie jouée : personne n'a encore ouvert un coffre depuis un
    vrai Windows.
-3. **Faire relire l'allemand.** Les traductions sont faites au mieux, sans
-   relecture par un germanophone — le portage GTK a le même défaut. Elles se
-   corrigent dans `build_i18n.py`, sans toucher au code.
 
 ## L'archive du chef de guilde
 
