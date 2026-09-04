@@ -244,7 +244,7 @@ class Journal(unittest.TestCase):
 
 
 class Retention(unittest.TestCase):
-    """Le journal garde un mois, pas davantage."""
+    """Le journal ne garde rien au-delà de sa fenêtre de rétention."""
 
     def store(self, dossier):
         return roster.RosterStore(dossier, "essai")
@@ -261,7 +261,8 @@ class Retention(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             s = self.store(d)
             maintenant = int(time.time())
-            self._ecrire(s, [(maintenant - 40 * 86400, "Vieux"),
+            perime = maintenant - (roster.RETENTION_JOURS + 10) * 86400
+            self._ecrire(s, [(perime, "Vieux"),
                              (maintenant - 2 * 86400, "Recent")])
             self.assertEqual(["Recent"], [c.member for c in s.history()])
 
@@ -270,7 +271,8 @@ class Retention(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             s = self.store(d)
             maintenant = int(time.time())
-            self._ecrire(s, [(maintenant - 40 * 86400, "Vieux"),
+            perime = maintenant - (roster.RETENTION_JOURS + 10) * 86400
+            self._ecrire(s, [(perime, "Vieux"),
                              (maintenant - 2 * 86400, "Recent")])
             self.assertEqual(1, s.elaguer())
             with open(s._journal(), encoding="utf-8") as fh:
@@ -299,7 +301,8 @@ class ElagageSur(unittest.TestCase):
             with open(s._journal(), "w", encoding="utf-8") as fh:
                 fh.write('{"at": %d, "member": "Vieux", "kind": "arrivee",'
                          ' "from": "", "to": "Member"}\n'
-                         % (maintenant - 40 * 86400))
+                         % (maintenant
+                            - (roster.RETENTION_JOURS + 10) * 86400))
                 fh.write('{"at": %d, "member": "Recent", "kind": "arrivee",'
                          ' "from": "", "to": "Member"}\n' % maintenant)
                 fh.write('{"at": 17, "member": "Tronq\n')     # ligne coupée

@@ -1060,6 +1060,12 @@ class MainWindow(Gtk.ApplicationWindow):
     def _load_outposts(self, force: bool = False) -> None:
         """Va chercher l'annuaire, journalise les changements de main."""
         if self._op_charge and not force:
+            # L'annuaire est deja en memoire : rien a redemander au reseau.
+            # Mais l'entete et le surlignage vert disent « et nous ? », et le
+            # « nous » a pu changer depuis -- sans ce rafraichissement,
+            # l'affichage restait sur la guilde precedente.
+            if self._op_carte:
+                self._refresh_outposts()
             return
         self._op_charge = True
         self._op_refresh.set_sensitive(False)
@@ -1107,7 +1113,10 @@ class MainWindow(Gtk.ApplicationWindow):
             ma_guilde = (ent.name if ent.kind == KIND_GUILD else ent.guild) or ""
         miens = sum(1 for o in carte if o.guild == ma_guilde)
         entete = _("%d avant-postes tenus sur Atys") % len(carte)
-        if miens:
+        # Des qu'on sait de quelle guilde on parle, on le dit -- meme quand la
+        # reponse est zero. Taire le compte nul laissait croire a un affichage
+        # reste en arriere : « et nous ? » merite un « aucun » explicite.
+        if ma_guilde:
             entete += _(", dont %d à %s") % (miens, ma_guilde)
         self._op_status.set_text(entete + ".")
 
