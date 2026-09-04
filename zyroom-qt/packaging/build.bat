@@ -35,7 +35,16 @@ rem et aucune plateforme n'efface le paquet de l'autre.
     --distpath dist.windows --workpath build.windows ^
     packaging\zyroom-qt.spec || exit /b 1
 
-for /f %%v in ('"%PYTHON%" -c "import zyroom; print(zyroom.__version__)"') do set VERSION=%%v
+rem Le chemin va sans guillemets : `for /f` passe sa commande a `cmd /c`,
+rem qui prend le premier et le dernier guillemet de la ligne pour les siens
+rem -- la commande partait en morceaux, VERSION restait vide, et l'archive
+rem sortait sous le nom ZyRoom-Qt--windows.zip.
+set VERSION=
+for /f %%v in ('%PYTHON% -c "import zyroom; print(zyroom.__version__)"') do set VERSION=%%v
+if "%VERSION%"=="" (
+    echo Numero de version introuvable -- construction interrompue.
+    exit /b 1
+)
 
 echo == Installateur ==
 rem Le fichier qui cree les raccourcis, a cote de l'executable.
