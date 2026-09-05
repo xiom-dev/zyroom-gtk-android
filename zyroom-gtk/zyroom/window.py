@@ -24,9 +24,9 @@ from .updater import Updater, Veilleur
 from .categorydb import CategoryDb
 from .i18n import _
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, data_dir, Settings, detect_pack,
-                     detect_save_folder, entity_xml_path, format_last_sync,
-                     guard_path, last_sync, movements_path, names_cache_path,
-                     portrait_path, snapshot_path)
+                     detect_save_folder, entity_xml_path, format_api_created,
+                     format_last_sync, guard_path, last_sync, movements_path,
+                     names_cache_path, portrait_path, snapshot_path)
 from .icons import IconLoader
 from .options import OptionsWindow
 from .namedb import NameDb
@@ -287,9 +287,18 @@ class MainWindow(Gtk.ApplicationWindow):
         # Une barre qui va et vient plutot qu'un cercle : le cercle d'Adwaita
         # fait seize pixels et se perd dans la barre, au point qu'on croyait
         # l'application figee pendant qu'elle attendait l'API.
+        #
+        # Soixante pixels, et non cent vingt : le curseur d'une barre pulsee
+        # occupe la fraction dite par `set_pulse_step`, et rien de plus. Sur
+        # une barre longue, ce bloc devient un trait perdu au milieu du vide,
+        # qu'on ne voit pas avancer. Courte, avec un curseur d'un cran plus
+        # large, le va-et-vient se lit d'un coup d'oeil. La version Qt tient
+        # la meme largeur -- deux applications qui se ressemblent.
         self._spinner = Gtk.ProgressBar()
+        self._spinner.add_css_class("attente")
+        self._spinner.set_pulse_step(0.15)
         self._spinner.set_valign(Gtk.Align.CENTER)
-        self._spinner.set_size_request(120, -1)
+        self._spinner.set_size_request(60, -1)
         self._spinner.set_visible(False)
         bar1.append(self._spinner)
         self._pulse_timer = None
@@ -3500,9 +3509,17 @@ class MainWindow(Gtk.ApplicationWindow):
         if entry:
             when = last_sync(entry["kind"], entry["id"])
             line += f" · synchro {format_last_sync(when)}"
-            self._refresh_btn.set_tooltip_text(
-                _("Resynchroniser depuis l'API") + f"\n{_('Dernière synchro')} : "
-                f"{format_last_sync(when)}")
+            bulle = (_("Resynchroniser depuis l'API")
+                     + f"\n{_('Dernière synchro')} : {format_last_sync(when)}")
+            # L'heure ci-dessus dit quand on a telecharge, pas de quand datent
+            # les donnees : l'API ne recalcule pas a la demande, elle sert un
+            # instantane deja calcule. Sans cette seconde ligne, un message du
+            # jour ecrit en jeu et absent du flux passait pour un bouton casse.
+            calcul = format_api_created(ent.created)
+            if calcul:
+                libelle = _("Données calculées par l'API")
+                bulle += f"\n{libelle} : {calcul}"
+            self._refresh_btn.set_tooltip_text(bulle)
         self._set_status(line)
 
     @staticmethod
@@ -3788,6 +3805,16 @@ class MainWindow(Gtk.ApplicationWindow):
 
             .motd { background: @zy_variante;
                     border-radius: 8px; padding: 8px 10px; }
+
+            /* La barre d'attente. Le filet de trois pixels d'Adwaita disparait
+               dans une barre d'outils, et son curseur -- un gris clair sur un
+               gris sombre -- ne se voit pas courir. Huit pixels de haut et la
+               sarcelle de l'application le rendent lisible sans le rendre
+               tapageur : on demande a l'oeil de constater que ca travaille,
+               pas de suivre une progression, puisqu'il n'y en a pas a suivre. */
+            progressbar.attente trough,
+            progressbar.attente progress { min-height: 8px; border-radius: 4px; }
+            progressbar.attente progress { background: @zy_sarcelle; }
             /* `.zebre` et non `row.zebre` : le zébrage sert aussi aux blocs de
                matières, qui sont des boîtes et non des lignes de liste. Une
                pointe de sarcelle plutôt qu'un gris : c'est ce qui fait la

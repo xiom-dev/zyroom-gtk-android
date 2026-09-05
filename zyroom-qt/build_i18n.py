@@ -65,6 +65,7 @@ EN = {
     "Échec de la synchro : {}": "Sync failed: {}",
     "Erreur : {}": "Error: {}",
     "Dernière synchro": "Last sync", "synchro {}": "synced {}",
+    "Données calculées par l'API": "Data computed by the API",
     "Clés API : en ajouter une, relire ou remplacer celles qu'on a":
         "API keys: add one, read back or replace the ones you have",
     "Aucune clé enregistrée — l'onglet « Ajouter » est à côté.":
@@ -351,6 +352,7 @@ DE = {
     "Échec de la synchro : {}": "Synchronisierung fehlgeschlagen: {}",
     "Erreur : {}": "Fehler: {}",
     "Dernière synchro": "Letzte Synchronisierung",
+    "Données calculées par l'API": "Von der API berechnete Daten",
     "synchro {}": "synchronisiert {}",
     "Clés API : en ajouter une, relire ou remplacer celles qu'on a":
         "API-Schlüssel: einen hinzufügen, nachlesen oder ersetzen",

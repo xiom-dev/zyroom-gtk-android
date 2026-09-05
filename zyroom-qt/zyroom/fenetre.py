@@ -42,7 +42,7 @@ from . import (alerts, apropos, backup, chatlog, cles, detail, enchantements,
 from .categorydb import CategoryDb
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      data_dir, detect_pack, detect_save_folder,
-                     entity_xml_path, format_last_sync,
+                     entity_xml_path, format_api_created, format_last_sync,
                      guard_path, last_sync, movements_path, names_cache_path,
                      portrait_path, snapshot_path)
 from .i18n import _
@@ -582,9 +582,11 @@ class FenetrePrincipale(QMainWindow):
         self._tourniquet = QProgressBar()
         self._tourniquet.setRange(0, 0)
         self._tourniquet.setTextVisible(False)
-        # La meme largeur que la version GTK : a quarante-huit pixels elle se
-        # perdait dans la barre, et on croyait l'application figee.
-        self._tourniquet.setFixedSize(120, 10)
+        # La meme largeur que la version GTK. Cent vingt pixels donnaient une
+        # barre si longue que le curseur y paraissait immobile ; soixante la
+        # ramenent a la taille de ce qu'elle dit -- une attente, pas une
+        # progression.
+        self._tourniquet.setFixedSize(60, 10)
         self._tourniquet.setVisible(False)
         ligne.addWidget(self._tourniquet)
 
@@ -2067,9 +2069,17 @@ class FenetrePrincipale(QMainWindow):
         if entree:
             quand = last_sync(entree["kind"], entree["id"])
             ligne += " · " + _("synchro {}").format(format_last_sync(quand))
-            self._btn_relever.setToolTip(
-                _("Resynchroniser depuis l'API")
-                + f"\n{_('Dernière synchro')} : {format_last_sync(quand)}")
+            bulle = (_("Resynchroniser depuis l'API")
+                     + f"\n{_('Dernière synchro')} : {format_last_sync(quand)}")
+            # L'heure ci-dessus dit quand on a telecharge, pas de quand datent
+            # les donnees : l'API ne recalcule pas a la demande, elle sert un
+            # instantane deja calcule. Sans cette seconde ligne, un message du
+            # jour ecrit en jeu et absent du flux passait pour un bouton casse.
+            calcul = format_api_created(ent.created)
+            if calcul:
+                libelle = _("Données calculées par l'API")
+                bulle += f"\n{libelle} : {calcul}"
+            self._btn_relever.setToolTip(bulle)
         self._statut(ligne)
 
     @staticmethod

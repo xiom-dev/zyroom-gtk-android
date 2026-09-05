@@ -331,6 +331,27 @@ def format_last_sync(when) -> str:
     return f"le {when:%d/%m} à {when:%Hh%M}"
 
 
+def format_api_created(created: int):
+    """De quand datent les données que l'API vient de servir.
+
+    L'heure de synchro dit quand on a téléchargé le flux ; celle-ci dit quand
+    le service l'a calculé, d'après son attribut `created`. L'écart n'a rien
+    de théorique : un message du jour écrit en jeu à 15h40 manquait encore au
+    flux recalculé par l'API à 15h58. Sans cette date, l'heure de synchro
+    laisse croire que la donnée est de la minute même, et l'on cherche le bug
+    du côté du bouton.
+
+    None quand l'attribut manque — un flux d'une version antérieure de l'API,
+    ou tronqué : l'appelant n'affiche alors rien plutôt qu'une date inventée.
+    """
+    if not created:
+        return None
+
+    import datetime
+
+    return format_last_sync(datetime.datetime.fromtimestamp(created))
+
+
 def snapshot_path(kind: str, entity_id: str) -> str:
     """Emplacement de l'instantané d'inventaire (détection de mouvements)."""
     path = os.path.join(cache_dir(), "watch")
