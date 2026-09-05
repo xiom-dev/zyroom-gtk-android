@@ -1,0 +1,21 @@
+{
+  "_commentaire": "Dernière version publiée de chaque variante Android. versionCode doit croître à chaque livraison : c'est lui que l'application compare, jamais le nom. Les URL servent les APK depuis cette même page, sous un nom fixe : une Release GitHub demanderait un jeton d'API, et devrait exister avant d'être annoncée ici.",
+  "net.ryzom.zyroom": {
+    "versionCode": 45,
+    "versionName": "2.39",
+    "url": "https://xiom-dev.github.io/zyroom-gtk-android/V-RyLune-Android.apk"
+  },
+  "net.ryzom.zyroom.dev": {
+    "versionCode": 82,
+    "versionName": "2.47-dev",
+    "url": "https://xiom-dev.github.io/zyroom-gtk-android/V-RyLune-Android-dev.apk"
+  },
+  "net.ryzom.zyroomqt": {
+    "versionCode": 25,
+    "versionName": "1.11.4",
+    "urls": {
+      "linux": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Qt-linux.zip",
+      "windows": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Qt-windows.zip"
+    }
+  }
+}
