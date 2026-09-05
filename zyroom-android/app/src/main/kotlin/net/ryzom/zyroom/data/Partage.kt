@@ -47,6 +47,9 @@ object Partage {
     fun urlDuJournal(entry: EntityStore.Suivie): String =
         "$BASE${entry.kind.name.lowercase()}-${entry.id}.jsonl"
 
+    /** L'adresse du registre du personnel publié pour cette guilde. */
+    fun urlDuRegistre(guildId: String): String = "${BASE}roster-$guildId.jsonl"
+
     /**
      * Relit le journal publié et le verse dans celui d'ici.
      *
@@ -80,5 +83,66 @@ object Partage {
 
         if (lignes.isEmpty()) 0
         else runCatching { movements.importer(entry, lignes) }.getOrDefault(0)
+    }
+
+    /**
+     * Relit le registre du personnel publié et le verse dans celui d'ici.
+     *
+     * Le pendant de `recuperer` pour les arrivées, les départs et les
+     * changements de grade. Les deux applications de bureau le font déjà ;
+     * ici, le registre ne connaissait que ce que le téléphone avait vu
+     * lui-même, et un téléphone ne reste pas ouvert la nuit.
+     *
+     * Ne lève jamais, et ne concerne que les guildes : un personnage n'a pas
+     * de personnel, et le demander ne ferait qu'un 404 par lancement.
+     */
+    suspend fun recupererRegistre(
+        roster: RosterStore,
+        entry: EntityStore.Suivie,
+    ): Int = withContext(Dispatchers.IO) {
+        if (entry.kind != Entity.Kind.GUILD) return@withContext 0
+
+        val lignes = runCatching {
+            val lien = URL(urlDuRegistre(entry.id)).openConnection() as HttpURLConnection
+            lien.connectTimeout = DELAI
+            lien.readTimeout = DELAI
+            try {
+                if (lien.responseCode != HttpURLConnection.HTTP_OK) emptyList()
+                else lien.inputStream.bufferedReader().readLines()
+            } finally {
+                lien.disconnect()
+            }
+        }.getOrDefault(emptyList())
+
+        val ajoutes =
+            if (lignes.isEmpty()) 0
+            else runCatching { roster.importer(entry.id, lignes) }.getOrDefault(0)
+        noterReleve(roster, entry.id)
+        ajoutes
+    }
+
+    /** L'adresse du témoin de date du relevé publié pour cette guilde. */
+    fun urlDuReleve(guildId: String): String = "${BASE}roster-$guildId.releve"
+
+    /**
+     * Note la date du dernier relevé publié, pour que le registre local sache
+     * se taire quand le relevé horaire a déjà tout vu.
+     *
+     * Ne lève jamais, et ne se plaint pas : sans ce témoin, le registre se
+     * conduit comme avant, c'est-à-dire comme s'il était seul au monde.
+     */
+    private suspend fun noterReleve(roster: RosterStore, guildId: String) {
+        val quand = runCatching {
+            val lien = URL(urlDuReleve(guildId)).openConnection() as HttpURLConnection
+            lien.connectTimeout = DELAI
+            lien.readTimeout = DELAI
+            try {
+                if (lien.responseCode != HttpURLConnection.HTTP_OK) 0L
+                else lien.inputStream.bufferedReader().readText().trim().toLong()
+            } finally {
+                lien.disconnect()
+            }
+        }.getOrDefault(0L)
+        if (quand > 0L) roster.noterRelevePublie(guildId, quand)
     }
 }

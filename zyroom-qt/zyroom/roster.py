@@ -177,6 +177,83 @@ def diff(avant: dict[str, str], apres: dict[str, str],
     return changements
 
 
+#: Écart maximal entre deux constats du même mouvement, en secondes.
+#:
+#: Un mouvement d'effectif n'existe pas dans l'API : il se déduit de deux
+#: relevés successifs, et porte donc la date du **constat**, pas celle du fait.
+#: Un joueur parti mardi à 14 h est vu partir à 15 h par le relevé horaire, et
+#: le samedi suivant par une application restée fermée. Même départ, deux
+#: dates, et une comparaison stricte en fait deux départs.
+#:
+#: Une semaine : c'est le rythme d'une application qu'on ouvre le week-end.
+#: Plus court, on laisse passer des doublons ; plus long, on risque de
+#: confondre deux mouvements réellement distincts — risque déjà écarté par la
+#: règle du mouvement intercalé, ci-dessous.
+TOLERANCE_FUSION = 7 * 86400
+
+
+def _meme_evenement(a: "Change", b: "Change") -> bool:
+    """Deux constats décrivent-ils le même mouvement ?
+
+    Tout doit concorder sauf la date : le membre, la nature du mouvement, et
+    les deux grades. Un « Membre → Officier » et un « Officier → Membre » du
+    même joueur le même jour sont deux faits, pas un.
+    """
+    return (a.member == b.member and a.kind == b.kind
+            and a.frm == b.frm and a.to == b.to)
+
+
+def fusionner(locaux: list[Change],
+              etrangers: list[Change]) -> tuple[list[Change], int]:
+    """Le registre d'ici, enrichi de ce qu'un autre relevé a vu.
+
+    Renvoie (registre fusionné, nombre de mouvements réellement ajoutés).
+
+    **L'horodatage ne décide pas de l'identité** — c'est la leçon déjà tirée
+    par la fusion des mouvements de coffres : il dit quand on a regardé, pas
+    quand la chose est arrivée, et deux observateurs ne regardent pas ensemble.
+    Deux constats concordants séparés de moins de `TOLERANCE_FUSION` sont donc
+    tenus pour un seul mouvement, et c'est **la date la plus ancienne** qui est
+    gardée : l'événement précède toujours son constat, le premier à l'avoir vu
+    est le moins loin de la vérité.
+
+    Un garde-fou empêche de confondre deux faits distincts : si le même membre
+    a bougé autrement entre les deux constats — parti, puis revenu, puis
+    reparti —, le mouvement intercalé sépare les deux, quelle que soit la
+    tolérance. Sans lui, une semaine d'écart aurait suffi à effacer un
+    aller-retour.
+    """
+    # L'origine voyage a cote du mouvement, et non par son identite d'objet :
+    # deux constats peuvent etre egaux sans etre le meme objet, et le meme
+    # objet peut se trouver des deux cotes. Compter les ajouts sur `id()`
+    # rendait alors n'importe quoi.
+    tous = ([(0, c) for c in locaux] + [(1, c) for c in etrangers])
+    tous.sort(key=lambda paire: (paire[1].at, paire[1].member))
+
+    gardes: list[Change] = []
+    par_membre: dict[str, list[Change]] = {}
+    ajoutes = 0
+
+    for origine, mv in tous:
+        histoire = par_membre.setdefault(mv.member, [])
+        dernier = histoire[-1] if histoire else None
+        # Seul le dernier mouvement du membre est regardé : tout ce qui vient
+        # avant en est séparé par lui, et un mouvement intercalé suffit à dire
+        # que les deux constats racontent autre chose.
+        double = (dernier is not None
+                  and mv.at - dernier.at <= TOLERANCE_FUSION
+                  and _meme_evenement(dernier, mv))
+        if double:
+            continue
+        histoire.append(mv)
+        gardes.append(mv)
+        if origine == 1:
+            ajoutes += 1
+
+    gardes.sort(key=lambda c: (c.at, c.member))
+    return gardes, ajoutes
+
+
 def decrire(changement: Change) -> str:
     """Une ligne de journal, lisible telle quelle.
 
@@ -238,6 +315,19 @@ class RosterStore:
         precedent = self._lire_releve()
         changements = ([] if avant is None
                        else diff(avant, apres, entrees, precedent))
+        # Quand le relevé publié a regardé pendant qu'on dormait, on se tait.
+        #
+        # Ce qu'on déduirait ici porterait la date de **maintenant**, alors que
+        # le relevé horaire a vu la même chose à l'heure près, et l'a publiée.
+        # Deux constats d'un même fait : la fusion sait les rapprocher, mais
+        # autant ne pas fabriquer le doublon. L'état, lui, se met à jour comme
+        # toujours — c'est lui qui donne l'effectif affiché.
+        #
+        # Seulement quand le publié couvre toute notre période d'aveuglement.
+        # S'il est plus ancien que notre dernier relevé, il ne sait rien de ce
+        # qui a suivi, et nous sommes le seul témoin.
+        if changements and self._publie_couvre(precedent):
+            changements = []
         if changements:
             self._ajouter(changements)
         self._ecrire_etat(apres)
@@ -415,6 +505,25 @@ class RosterStore:
         except OSError:
             pass
         return corrigees
+
+    def _publie(self) -> str:
+        return os.path.join(self._dir, f"roster-{self._id}.publie")
+
+    def _publie_couvre(self, depuis: int) -> bool:
+        """Le relevé publié a-t-il regardé après notre dernier coup d'œil ?
+
+        `depuis` est la date de notre relevé précédent. Le témoin est écrit par
+        `partage._noter_releve_publie` au lancement ; sans lui — guilde que le
+        relevé ne suit pas, premier lancement, pas de réseau — la réponse est
+        non, et le registre se conduit comme s'il était seul, ce qu'il est.
+        """
+        if depuis <= 0:
+            return False
+        try:
+            with open(self._publie(), encoding="ascii") as fh:
+                return int(fh.read(64).strip()) >= depuis
+        except (OSError, ValueError):
+            return False
 
     def _lire_releve(self) -> int:
         """La date du relevé précédent, ou 0 si on ne l'a jamais notée.

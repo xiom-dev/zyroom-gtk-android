@@ -182,7 +182,12 @@ class RosterStoreTest {
     fun `l'élagage recopie les lignes illisibles`() = runBlocking {
         val dir = dossier.newFolder()
         val magasin = RosterStore(dir)
-        val vieux = System.currentTimeMillis() / 1000 - 40 * 86400
+        // Assez vieux pour etre elague, quelle que soit la retention : le
+        // test verifie que les lignes illisibles survivent a l'elagage, pas
+        // la valeur du delai -- qui est passee de trente a cent quatre-vingts
+        // jours le jour ou les trois applications l'ont alignee.
+        val vieux = System.currentTimeMillis() / 1000 -
+            (RosterStore.RETENTION_JOURS + 10) * 86400
         File(dir, "roster-42.jsonl").writeText(
             """{"at":$vieux,"member":"Vieux","kind":"depart","from":"Member"}""" + "\n" +
                 "ceci n'est pas du json\n"

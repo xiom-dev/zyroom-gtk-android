@@ -6,6 +6,7 @@ import net.ryzom.zyroom.model.Member
 import net.ryzom.zyroom.model.MouvementMembre
 import net.ryzom.zyroom.model.dateEntree
 import net.ryzom.zyroom.model.diffMembres
+import net.ryzom.zyroom.model.fusionnerRegistre
 import org.json.JSONObject
 import java.io.File
 
@@ -57,11 +58,19 @@ class RosterStore(private val dir: File) {
             val precedent = readReleve(guildId)
             val changements = if (avant == null) emptyList()
                               else diffMembres(avant, apres, maintenant, entrees, precedent)
-            if (changements.isNotEmpty()) append(guildId, changements)
+            // Quand le releve publie a regarde pendant qu'on dormait, on se
+            // tait : ce qu'on deduirait ici porterait la date de maintenant,
+            // alors que le releve horaire a vu la meme chose a l'heure pres et
+            // l'a publiee. L'etat, lui, se met a jour comme toujours -- c'est
+            // lui qui donne l'effectif affiche.
+            val retenus =
+                if (changements.isNotEmpty() && publieCouvre(guildId, precedent)) emptyList()
+                else changements
+            if (retenus.isNotEmpty()) append(guildId, retenus)
             writeSnapshot(guildId, apres)
             writeReleve(guildId, maintenant)
             prune(guildId)
-            changements
+            retenus
         }
 
     /** Le journal, du plus récent au plus ancien, sur les trente derniers jours. */
@@ -81,6 +90,93 @@ class RosterStore(private val dir: File) {
                 }.getOrNull()
             }.filter { it.at >= depuis }.sortedByDescending { it.at }
         }
+
+    /**
+     * Verse dans le registre d'ici les mouvements publiés par le relevé.
+     *
+     * L'API ne rend qu'un état, jamais un historique : un mouvement se déduit
+     * de deux relevés successifs, et chaque installation ne connaît donc que
+     * ce qu'elle a regardé elle-même. Un téléphone ouvert deux fois par
+     * semaine ne voit qu'un membre sur trois passer ; le relevé horaire, lui,
+     * les voit tous.
+     *
+     * Le dédoublonnage porte sur les cinq champs d'un mouvement, et non sur
+     * la seule date : deux membres peuvent être promus dans la même seconde —
+     * cela s'est vu au premier relevé du 10 août — et n'en garder qu'un
+     * perdrait l'autre pour toujours.
+     *
+     * Rend le nombre de lignes ajoutées. Ne lève jamais : ni un fichier
+     * bancal, ni un disque plein ne doivent gêner le lancement.
+     */
+    suspend fun importer(guildId: String, brut: List<String>): Int =
+        withContext(Dispatchers.IO) {
+            val etrangers = brut.mapNotNull { ligne ->
+                if (ligne.isBlank()) null
+                // Une ligne illisible ne doit pas faire perdre les autres.
+                else runCatching { lireMouvement(JSONObject(ligne)) }.getOrNull()
+            }
+            if (etrangers.isEmpty()) return@withContext 0
+
+            val brutesLocales = lignes(guildId)
+            val locaux = mutableListOf<MouvementMembre>()
+            val illisibles = mutableListOf<String>()
+            for (ligne in brutesLocales) {
+                val m = runCatching { lireMouvement(JSONObject(ligne)) }.getOrNull()
+                if (m == null) illisibles.add(ligne) else locaux.add(m)
+            }
+
+            val (fusionnes, ajoutes) = fusionnerRegistre(locaux, etrangers)
+            if (ajoutes == 0 && fusionnes.size == locaux.size) return@withContext 0
+
+            // Le fichier est reecrit, et non complete : la fusion peut rendre
+            // a un mouvement une date plus ancienne que celle qu'on avait
+            // notee. Les lignes qu'on n'a pas su lire repartent en tete --
+            // un journal n'est pas remplacable.
+            runCatching {
+                dir.mkdirs()
+                logFile(guildId).writeText(
+                    illisibles.joinToString("") { it + "\n" } +
+                        fusionnes.joinToString("") { m ->
+                            JSONObject()
+                                .put("at", m.at)
+                                .put("member", m.member)
+                                .put("kind", m.kind)
+                                .put("from", m.from)
+                                .put("to", m.to)
+                                .toString() + "\n"
+                        }
+                )
+            }.getOrElse { return@withContext 0 }
+            prune(guildId)
+            ajoutes
+        }
+
+    /**
+     * Note la date du dernier relevé publié, à côté du registre.
+     *
+     * Elle répond à la question que le registre se pose à chaque relevé :
+     * « quelqu'un a-t-il regardé pendant que je dormais ? ». Un téléphone
+     * dort beaucoup.
+     */
+    suspend fun noterRelevePublie(guildId: String, quand: Long) =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                dir.mkdirs()
+                File(dir, "roster-$guildId.publie").writeText(quand.toString())
+            }
+            Unit
+        }
+
+    private fun lireMouvement(o: JSONObject) = MouvementMembre(
+        at = o.optLong("at"),
+        member = o.optString("member"),
+        kind = o.optString("kind"),
+        from = o.optString("from"),
+        to = o.optString("to"),
+    )
+
+    private fun empreinte(m: MouvementMembre) =
+        listOf(m.at.toString(), m.member, m.kind, m.from, m.to).joinToString("\u0000")
 
     suspend fun clear(guildId: String) = withContext(Dispatchers.IO) {
         logFile(guildId).delete()
@@ -210,6 +306,21 @@ class RosterStore(private val dir: File) {
      * le jour où l'on reviendrait à une version qui l'ignore, elle entrerait
      * puis sortirait de la guilde toute seule.
      */
+    /**
+     * Le relevé publié a-t-il regardé après notre dernier coup d'œil ?
+     *
+     * Sans témoin — guilde que le relevé ne suit pas, premier lancement, pas
+     * de réseau — la réponse est non, et le registre se conduit comme s'il
+     * était seul, ce qu'il est alors.
+     */
+    private fun publieCouvre(id: String, depuis: Long): Boolean {
+        if (depuis <= 0L) return false
+        val publie = runCatching {
+            File(dir, "roster-$id.publie").readText().trim().toLong()
+        }.getOrDefault(0L)
+        return publie >= depuis
+    }
+
     private fun readReleve(id: String): Long =
         runCatching { File(dir, "roster-$id.releve").readText().trim().toLong() }
             .getOrDefault(0L)
@@ -258,12 +369,19 @@ class RosterStore(private val dir: File) {
         /**
          * Combien de temps le journal garde ses lignes, en jours.
          *
-         * Un mois : c'est la mémoire utile d'un officier — « qui est arrivé ce
-         * mois-ci ? », « qui nous a quittés depuis la dernière guerre
-         * d'avant-poste ? ». Au-delà, la liste s'allonge sans que personne la
-         * lise.
+         * Six mois, comme les deux applications de bureau. C'était un mois —
+         * la mémoire utile d'un officier —, mais ce qui se passe dans une
+         * guilde se relit sur une saison : qui est parti au printemps, qui est
+         * monté officier depuis.
+         *
+         * **Le même nombre des trois côtés, sinon rien d'autre ne sert.** Les
+         * trois journaux ont beau porter les mêmes lignes, celui qui en écarte
+         * cinq fois plus tôt montre une liste plus courte, et l'on croit
+         * qu'il lui manque des mouvements. Une ligne pèse une centaine
+         * d'octets ; six mois tiennent dans un fichier qu'un téléphone ouvre
+         * sans y penser.
          */
-        const val RETENTION_JOURS = 30L
+        const val RETENTION_JOURS = 180L
 
         /**
          * Les mouvements repris d'un autre journal, par guilde.

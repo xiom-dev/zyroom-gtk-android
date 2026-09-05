@@ -135,6 +135,77 @@ fun diffMembres(
  * Sans le signe : l'écran le pose à part, en couleur, et le répéter dans le
  * texte ferait double emploi.
  */
+/**
+ * Écart maximal entre deux constats du même mouvement, en secondes.
+ *
+ * Un mouvement d'effectif n'existe pas dans l'API : il se déduit de deux
+ * relevés successifs, et porte donc la date du **constat**, pas celle du fait.
+ * Un joueur parti mardi à 14 h est vu partir à 15 h par le relevé horaire, et
+ * le samedi suivant par un téléphone resté dans une poche. Même départ, deux
+ * dates, et une comparaison stricte en fait deux départs.
+ *
+ * Une semaine, comme dans les deux applications de bureau : les trois doivent
+ * rapprocher les mêmes lignes, sans quoi elles afficheraient encore des
+ * listes différentes à partir des mêmes données.
+ */
+const val TOLERANCE_FUSION = 7L * 86400
+
+/**
+ * Deux constats décrivent-ils le même mouvement ?
+ *
+ * Tout doit concorder sauf la date : le membre, la nature du mouvement, et les
+ * deux grades. Un « Membre → Officier » et un « Officier → Membre » du même
+ * joueur le même jour sont deux faits, pas un.
+ */
+private fun memeEvenement(a: MouvementMembre, b: MouvementMembre): Boolean =
+    a.member == b.member && a.kind == b.kind && a.from == b.from && a.to == b.to
+
+/**
+ * Le registre d'ici, enrichi de ce qu'un autre relevé a vu.
+ *
+ * Renvoie le registre fusionné et le nombre de mouvements réellement ajoutés.
+ *
+ * **L'horodatage ne décide pas de l'identité** : il dit quand on a regardé,
+ * pas quand la chose est arrivée, et deux observateurs ne regardent pas
+ * ensemble. Deux constats concordants séparés de moins de `TOLERANCE_FUSION`
+ * sont tenus pour un seul mouvement, et c'est **la date la plus ancienne** qui
+ * est gardée : l'événement précède toujours son constat.
+ *
+ * Un garde-fou empêche de confondre deux faits distincts : si le même membre a
+ * bougé autrement entre les deux constats — parti, puis revenu, puis reparti —,
+ * le mouvement intercalé les sépare, quelle que soit la tolérance.
+ */
+fun fusionnerRegistre(
+    locaux: List<MouvementMembre>,
+    etrangers: List<MouvementMembre>,
+): Pair<List<MouvementMembre>, Int> {
+    // L'origine voyage a cote du mouvement : deux constats peuvent etre egaux
+    // sans etre le meme objet, et le meme objet peut se trouver des deux cotes.
+    val tous = (locaux.map { 0 to it } + etrangers.map { 1 to it })
+        .sortedWith(compareBy({ it.second.at }, { it.second.member }))
+
+    val gardes = mutableListOf<MouvementMembre>()
+    val parMembre = mutableMapOf<String, MutableList<MouvementMembre>>()
+    var ajoutes = 0
+
+    for ((origine, mv) in tous) {
+        val histoire = parMembre.getOrPut(mv.member) { mutableListOf() }
+        val dernier = histoire.lastOrNull()
+        // Seul le dernier mouvement du membre est regarde : tout ce qui vient
+        // avant en est separe par lui, et un mouvement intercale suffit a dire
+        // que les deux constats racontent autre chose.
+        val double = dernier != null &&
+            mv.at - dernier.at <= TOLERANCE_FUSION &&
+            memeEvenement(dernier, mv)
+        if (double) continue
+        histoire.add(mv)
+        gardes.add(mv)
+        if (origine == 1) ajoutes++
+    }
+
+    return gardes.sortedWith(compareBy({ it.at }, { it.member })) to ajoutes
+}
+
 fun decrireMouvement(m: MouvementMembre): String = when (m.kind) {
     "arrivee" -> "${m.member} a rejoint la guilde (${nomGrade(m.to)})"
     "depart" -> "${m.member} a quitté la guilde (${nomGrade(m.from)})"

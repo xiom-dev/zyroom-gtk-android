@@ -247,6 +247,9 @@ class FenetrePrincipale(QMainWindow):
         #: qu'une fois par entite, pas a chaque aller-retour dans la liste.
         self._relevees: set[tuple[str, str]] = set()
         self._occupe = False
+        #: Les raisons d'attendre en cours, et les icones encore en vol.
+        self._attentes = 0
+        self._icones_en_vol = 0
 
         # Etat des filtres et du tri. Le tri se retrouve comme on l'a laisse :
         # c'est un reglage qu'on pose une fois pour toutes.
@@ -1622,11 +1625,34 @@ class FenetrePrincipale(QMainWindow):
         if entree and not self._occupe:
             self._synchroniser(entree)
 
+    def _attendre(self, oui: bool) -> None:
+        """Une raison d'attendre de plus, ou de moins.
+
+        Un compteur, et non un drapeau : plusieurs travaux se recouvrent — une
+        synchronisation pendant que les icônes d'un coffre arrivent, une mise à
+        jour qui se télécharge pendant qu'on change de contenant. Le premier
+        arrivé allume la barre, le dernier parti l'éteint ; avec un drapeau, le
+        premier fini l'éteignait au nez des autres.
+
+        Le pendant exact de `_attendre` dans la version GTK. Qt anime seul sa
+        barre indéterminée, là où GTK doit la pousser d'un minuteur — c'est la
+        seule différence, et elle ne se voit pas.
+        """
+        self._attentes = max(0, self._attentes + (1 if oui else -1))
+        self._tourniquet.setVisible(self._attentes > 0)
+
+    def _icone_arrivee(self) -> None:
+        """Une icône de moins à attendre."""
+        if self._icones_en_vol <= 0:
+            return
+        self._icones_en_vol -= 1
+        self._attendre(False)
+
     def _synchroniser(self, entree: dict) -> None:
         """Récupère le flux de l'API, dans un thread."""
         self._occupe = True
         self._btn_relever.setEnabled(False)
-        self._tourniquet.setVisible(True)
+        self._attendre(True)
         self._statut(_("Synchronisation de {}…").format(entree["name"]))
         cle, genre = entree["key"], entree["kind"]
         chercher = (ryzom_api.fetch_character_xml if genre == KIND_CHARACTER
@@ -1646,7 +1672,7 @@ class FenetrePrincipale(QMainWindow):
         def apres(resultat, erreur):
             self._occupe = False
             self._btn_relever.setEnabled(True)
-            self._tourniquet.setVisible(False)
+            self._attendre(False)
             if erreur:
                 self._statut(_("Échec de la synchro : {}").format(erreur))
                 return
@@ -1801,13 +1827,23 @@ class FenetrePrincipale(QMainWindow):
             # recalculer a chaque frappe ferait ramer un coffre de deux cents.
             cle = _norm(f"{self._names.name(objet.sheet)} {objet.sheet}")
             self._cases.append((case, objet, cle))
+            self._icones_en_vol += 1
+            self._attendre(True)
             self._icones.demander(objet,
                                   self._rappel_icone(generation, case, objet))
 
         self._appliquer_filtre()
 
     def _rappel_icone(self, generation: int, case: QListWidgetItem, objet):
+        """Le retour d'une icône : elle se pose, et l'attente diminue d'autant.
+
+        L'attente est retirée avant tout le reste, même quand l'affichage a
+        changé entre-temps : elle a bien été comptée au départ, et l'oublier
+        ici laisserait la barre tourner pour une image dont plus personne ne
+        veut.
+        """
         def rappel(chemin):
+            self._icone_arrivee()
             if generation != self._generation:
                 return                    # affichage perime : on laisse tomber
             if not chemin:
@@ -2352,7 +2388,7 @@ class FenetrePrincipale(QMainWindow):
         if not url:
             return
         self._btn_maj.setEnabled(False)
-        self._tourniquet.setVisible(True)
+        self._attendre(True)
         self._statut(_("Téléchargement de la mise à jour…"))
 
         def avancement(recu: int, total: int) -> None:
@@ -2364,7 +2400,7 @@ class FenetrePrincipale(QMainWindow):
             return updater.installer(archive)
 
         def apres(resultat, erreur):
-            self._tourniquet.setVisible(False)
+            self._attendre(False)
             self._btn_maj.setEnabled(True)
             if erreur:
                 self._statut(_("Mise à jour impossible : {}").format(erreur))

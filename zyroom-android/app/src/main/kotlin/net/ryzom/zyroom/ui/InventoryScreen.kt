@@ -192,7 +192,15 @@ fun InventoryScreen(
         val ajoutes = Partage.recuperer(movements, entry)
         if (ajoutes > 0) {
             lignes = movements.history(entry)
-            verse = "$ajoutes mouvement(s) repris du dépôt."
+        }
+        // Le registre du personnel se reprend de la meme page. Il ne se
+        // deduit pas des coffres mais de l'effectif, et le telephone ne
+        // reste pas ouvert la nuit : ce que le releve horaire a vu passer
+        // pendant ce temps n'entrait ici par aucun chemin.
+        val repris = Partage.recupererRegistre(roster, entry)
+        val total = ajoutes + repris
+        if (total > 0) {
+            verse = "$total mouvement(s) repris du dépôt."
         }
     }
 

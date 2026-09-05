@@ -307,6 +307,13 @@ class MainWindow(Gtk.ApplicationWindow):
         self._spinner.set_visible(False)
         bar1.append(self._spinner)
         self._pulse_timer = None
+        #: Les raisons d'attendre en cours, et ou en est le curseur.
+        self._attentes = 0
+        self._pas_faits = 0
+        #: Les icones encore en vol pour la grille affichee.
+        self._icones_en_vol = 0
+        #: Vrai pendant qu'une mise a jour se telecharge et s'installe.
+        self._maj_en_cours = False
         spacer = Gtk.Label(hexpand=True)
         bar1.append(spacer)
         self._season_lbl = Gtk.Label(label="")
@@ -2888,6 +2895,17 @@ class MainWindow(Gtk.ApplicationWindow):
                 total += partage.recuperer(
                     entree["kind"], entree["id"],
                     movements_path(entree["kind"], entree["id"]))
+                # Le registre du personnel se reprend de la meme page, et il
+                # ne l'etait pas ici : `partage.recuperer_registre` existait,
+                # personne ne l'appelait. Le releve horaire voit passer tout
+                # le monde ; une application ouverte deux fois par semaine ne
+                # voit qu'un membre sur trois, et l'ecart devenait, sur six
+                # mois, l'essentiel du registre.
+                if entree["kind"] == KIND_GUILD:
+                    total += partage.recuperer_registre(
+                        entree["id"],
+                        os.path.join(data_dir(),
+                                     f"roster-{entree['id']}.jsonl"))
             return total
 
         def done(total, err):
@@ -3176,6 +3194,8 @@ class MainWindow(Gtk.ApplicationWindow):
             self._flow.append(child)
             search_key = _norm(f"{self._names.name(item.sheet)} {item.sheet}")
             self._rows.append((child, item, search_key))
+            self._icones_en_vol += 1
+            self._attendre(True)
             self._icons.request(item, self._make_icon_cb(gen, image))
             gesture = Gtk.GestureClick()
             gesture.set_button(Gdk.BUTTON_SECONDARY)  # clic droit
@@ -3189,7 +3209,19 @@ class MainWindow(Gtk.ApplicationWindow):
         self._apply_filter()
 
     def _make_icon_cb(self, gen: int, image: Gtk.Image):
+        """Le retour d'une icône : elle se pose, et l'attente diminue d'autant.
+
+        Les icônes d'un coffre arrivent d'un pool de fils, parfois du réseau :
+        c'est le seul moment où l'application travaille visiblement sans rien
+        en dire. La barre le dit maintenant, et s'éteint quand la dernière est
+        arrivée.
+
+        L'attente est retirée même quand la grille a changé entre-temps
+        (`gen` périmé) : elle a bien été comptée au départ, et l'oublier ici
+        laisserait la barre tourner pour une image dont plus personne ne veut.
+        """
         def cb(path):
+            self._icone_arrivee()
             if gen != self._generation:
                 return False
             if path:
@@ -3197,6 +3229,13 @@ class MainWindow(Gtk.ApplicationWindow):
                 image.set_pixel_size(self._settings.icon_size)
             return False
         return cb
+
+    def _icone_arrivee(self) -> None:
+        """Une icône de moins à attendre."""
+        if self._icones_en_vol <= 0:
+            return
+        self._icones_en_vol -= 1
+        self._attendre(False)
 
     def _item_tooltip(self, item) -> str:
         # `name()` rend l'identifiant de fiche quand le nom est inconnu : une
@@ -3797,6 +3836,14 @@ class MainWindow(Gtk.ApplicationWindow):
             :selected, row:selected, .view:selected {
                 background-color: @zy_sarcelle_sombre; color: @zy_texte; }
             button.suggested-action {
+                background-image: none; background-color: @zy_sarcelle;
+                color: #06120e; }
+            /* Un GtkMenuButton n'est pas un `button` : c'est un `menubutton`
+               qui en contient un. La classe se pose sur le parent -- c'est lui
+               qu'on tient en Python -- et la regle ci-dessus ne l'atteignait
+               donc jamais. Le bouton « Bonus » restait gris au-dessus de ses
+               propres pages, ou l'onglet doit dire ou l'on est. */
+            menubutton.suggested-action > button {
                 background-image: none; background-color: @zy_sarcelle;
                 color: #06120e; }
             button:checked, togglebutton:checked {
@@ -4840,10 +4887,18 @@ class MainWindow(Gtk.ApplicationWindow):
     def _on_update_clicked(self, _btn) -> None:
         self._update_btn.set_sensitive(False)
         self._set_status("Mise à jour demandée — le système va confirmer.")
+        # Une mise a jour se compte en dizaines de secondes, portail compris :
+        # c'est la plus longue attente de l'application, et c'etait la seule
+        # que la barre ne disait pas. La version Qt la montrait deja.
+        self._maj_en_cours = True
+        self._attendre(True)
         self._updater.update()
 
     def _on_update_progress(self, message: str, done: bool, failed: bool) -> None:
         self._set_status(message)
+        if done and self._maj_en_cours:
+            self._maj_en_cours = False
+            self._attendre(False)
         if done:
             # Réussie, le bouton n'a plus lieu d'être. Échouée, on le rend pour
             # permettre un second essai.
@@ -4887,16 +4942,45 @@ class MainWindow(Gtk.ApplicationWindow):
 
     # ------------------------------------------------------------- États
     def _set_busy(self, busy: bool, message: str = "") -> None:
+        """L'application est occupée à une tâche qui interdit les autres.
+
+        Distinct de l'attente : `_busy` empêche une seconde synchronisation et
+        grise le bouton, l'attente ne fait que montrer que ça travaille. Une
+        grille dont les icônes arrivent est en attente sans être occupée — on
+        peut la trier, la filtrer, en changer.
+        """
         self._busy = busy
-        if busy:
+        self._attendre(busy)
+        if busy and message:
+            self._set_status(message)
+
+    #: Nombre de pulsations pour traverser la barre, plus une.
+    #:
+    #: `pulse()` avance le curseur d'un `pulse_step` par appel, et **rebondit**
+    #: au bord : arrivé à droite, il repart vers la gauche. On veut un
+    #: défilement, toujours dans le même sens, alors on le renvoie au départ
+    #: avant qu'il ne se retourne. `set_fraction` sort du mode pulsé, le
+    #: `pulse` suivant y revient — au commencement.
+    _PAS_TRAVERSEE = 8
+
+    def _attendre(self, oui: bool) -> None:
+        """Une raison d'attendre de plus, ou de moins.
+
+        Un compteur, et non un drapeau : plusieurs travaux se recouvrent —
+        une synchronisation pendant que les icônes d'un coffre arrivent, une
+        mise à jour qui se télécharge pendant qu'on change d'inventaire. Le
+        premier arrivé allume la barre, le dernier parti l'éteint ; avec un
+        drapeau, le premier fini l'éteignait au nez des autres.
+        """
+        self._attentes = max(0, self._attentes + (1 if oui else -1))
+        if self._attentes > 0:
             self._spinner.set_visible(True)
-            self._spinner.pulse()
             if self._pulse_timer is None:
+                self._pas_faits = 0
+                self._spinner.pulse()
                 # Cent millisecondes : assez lent pour ne rien coûter, assez
                 # vif pour qu'on voie que ça travaille.
                 self._pulse_timer = GLib.timeout_add(100, self._pulse_tick)
-            if message:
-                self._set_status(message)
         else:
             self._spinner.set_visible(False)
             if self._pulse_timer is not None:
@@ -4904,10 +4988,14 @@ class MainWindow(Gtk.ApplicationWindow):
                 self._pulse_timer = None
 
     def _pulse_tick(self) -> bool:
-        """Fait avancer la barre d'attente tant qu'on attend."""
-        if not self._busy:
+        """Fait courir le curseur de gauche à droite, tant qu'on attend."""
+        if self._attentes <= 0:
             self._pulse_timer = None
             return False
+        self._pas_faits += 1
+        if self._pas_faits >= self._PAS_TRAVERSEE:
+            self._pas_faits = 0
+            self._spinner.set_fraction(0.0)   # retour au depart, sans rebond
         self._spinner.pulse()
         return True
 

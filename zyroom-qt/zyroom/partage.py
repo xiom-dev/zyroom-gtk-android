@@ -85,6 +85,20 @@ def recuperer_registre(guild_id: str, chemin_local: str) -> int:
     fois par semaine ne voit qu'un membre sur trois. Sur six mois, l'écart
     devient l'essentiel du registre.
 
+    Le rapprochement passe par `roster.fusionner` : deux constats du même
+    mouvement portent des dates différentes — celles des relevés qui les ont
+    vus — et une comparaison stricte en faisait deux mouvements. Treize des
+    soixante-quatre lignes du premier versement étaient de ces doublons.
+
+    **Le fichier est réécrit**, et non complété : la fusion peut rendre à un
+    mouvement une date plus ancienne que celle qu'on avait notée. Les lignes
+    qu'on n'a pas su lire sont recopiées telles quelles en tête — un journal
+    n'est pas remplaçable, et une coupure d'écriture ne doit pas coûter
+    l'historique.
+
+    La date du dernier relevé publié est notée à côté : c'est elle qui dit au
+    registre local de se taire quand le relevé horaire a déjà tout vu.
+
     Rend le nombre de lignes ajoutées. Ne lève jamais : c'est un confort de
     fond, appelé au lancement.
     """
@@ -97,40 +111,83 @@ def recuperer_registre(guild_id: str, chemin_local: str) -> int:
 
     import json
     from . import roster
-    connus, ajoutees = set(), []
-    try:
-        with open(chemin_local, encoding="utf-8") as fh:
-            for ligne in fh:
-                ligne = ligne.strip()
-                if ligne:
-                    d = json.loads(ligne)
-                    connus.add((d["at"], d.get("member"), d.get("kind")))
-    except (OSError, ValueError, KeyError):
-        pass                       # journal absent ou bancal : on repart de la
 
+    def lire(ligne: str):
+        d = json.loads(ligne)
+        return roster.Change(int(d["at"]), d.get("member", ""), d.get("kind", ""),
+                             d.get("from", ""), d.get("to", ""))
+
+    etrangers = []
     for ligne in lignes:
         ligne = ligne.strip()
         if not ligne:
             continue
         try:
-            d = json.loads(ligne)
-            cle = (d["at"], d.get("member"), d.get("kind"))
-        except (ValueError, KeyError):
+            etrangers.append(lire(ligne))
+        except (ValueError, KeyError, TypeError):
             continue
-        if cle in connus:
-            continue
-        connus.add(cle)
-        ajoutees.append(roster.Change(d["at"], d.get("member", ""),
-                                      d.get("kind", ""), d.get("from", ""),
-                                      d.get("to", "")))
-    if not ajoutees:
+    if not etrangers:
+        _noter_releve_publie(guild_id, chemin_local)
         return 0
+
+    locaux, illisibles = [], []
     try:
-        with open(chemin_local, "a", encoding="utf-8") as fh:
-            for c in ajoutees:
+        with open(chemin_local, encoding="utf-8") as fh:
+            for ligne in fh:
+                ligne = ligne.strip()
+                if not ligne:
+                    continue
+                try:
+                    locaux.append(lire(ligne))
+                except (ValueError, KeyError, TypeError):
+                    illisibles.append(ligne)
+    except OSError:
+        pass                       # registre absent : on repart de la page
+
+    fusionnes, ajoutes = roster.fusionner(locaux, etrangers)
+    if ajoutes == 0 and len(fusionnes) == len(locaux):
+        _noter_releve_publie(guild_id, chemin_local)
+        return 0
+
+    try:
+        with open(chemin_local, "w", encoding="utf-8") as fh:
+            for brut in illisibles:
+                fh.write(brut + "\n")
+            for c in fusionnes:
                 fh.write(json.dumps({"at": c.at, "member": c.member,
                                      "kind": c.kind, "from": c.frm,
                                      "to": c.to}, ensure_ascii=False) + "\n")
     except OSError:
         return 0
-    return len(ajoutees)
+    _noter_releve_publie(guild_id, chemin_local)
+    return ajoutes
+
+
+def url_du_releve(guild_id: str) -> str:
+    """L'adresse du témoin de date du relevé publié pour cette guilde."""
+    return f"{BASE}roster-{guild_id}.releve"
+
+
+def _noter_releve_publie(guild_id: str, chemin_local: str) -> None:
+    """Note à côté du registre la date du dernier relevé publié.
+
+    Un seul nombre, en secondes Unix. Il répond à la question que le registre
+    local se pose à chaque relevé : « quelqu'un a-t-il regardé pendant que je
+    dormais ? ». Si oui, ce qu'il déduirait de son propre sommeil serait un
+    doublon plus grossier de ce que la page raconte déjà.
+
+    Ne lève jamais, et ne se plaint pas : sans ce fichier, le registre local
+    se conduit comme avant, c'est-à-dire comme s'il était seul au monde.
+    """
+    try:
+        with urllib.request.urlopen(url_du_releve(guild_id),
+                                    timeout=_DELAI) as reponse:
+            quand = int(reponse.read(64).decode("ascii", "ignore").strip())
+    except (urllib.error.URLError, OSError, ValueError):
+        return
+    try:
+        with open(chemin_local.replace(".jsonl", ".publie"), "w",
+                  encoding="ascii") as fh:
+            fh.write(str(quand))
+    except OSError:
+        pass
