@@ -2980,6 +2980,18 @@ class MainWindow(Gtk.ApplicationWindow):
             self._sync_entity(entry)
 
     def _on_refresh_clicked(self, _btn) -> None:
+        """Le bouton relève l'entité **et** demande s'il existe mieux.
+
+        Les deux questions se ressemblent — « qu'y a-t-il de neuf ? » — et
+        c'est le geste qu'on fait en revenant devant l'application. La veille
+        automatique passe au quart d'heure ; qui vient de livrer, ou qui a lu
+        l'annonce sur le Discord, n'a pas envie d'attendre le prochain tour.
+
+        Hors du `if` : sans entité choisie il n'y a rien à relever, mais la
+        version, elle, se compare toujours. La vérification part dans un fil
+        et ne retarde pas la synchronisation.
+        """
+        self._verifier_maj()
         entry = self._current_entry()
         if entry:
             self._sync_entity(entry)

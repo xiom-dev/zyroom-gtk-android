@@ -1606,6 +1606,18 @@ class FenetrePrincipale(QMainWindow):
         self._recharger_entites()
 
     def _on_relever(self) -> None:
+        """Le bouton relève l'entité **et** demande s'il existe mieux.
+
+        Comme dans la version GTK : les deux questions se ressemblent, et
+        c'est le geste qu'on fait en revenant devant l'application. La veille
+        automatique passe au quart d'heure ; qui vient de livrer n'a pas envie
+        d'attendre le prochain tour.
+
+        Avant le `if` : sans entité choisie, ou pendant une synchronisation
+        déjà en cours, il n'y a rien à relever — la version, elle, se compare
+        toujours.
+        """
+        self._verifier_maj()
         entree = self._entree_courante()
         if entree and not self._occupe:
             self._synchroniser(entree)
