@@ -64,7 +64,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.80" if _DEV else "0.52"
+VERSION = "0.81" if _DEV else "0.52"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -3815,6 +3815,14 @@ class MainWindow(Gtk.ApplicationWindow):
             progressbar.attente trough,
             progressbar.attente progress { min-height: 8px; border-radius: 4px; }
             progressbar.attente progress { background: @zy_sarcelle; }
+            /* Et sans ce `min-width`, rien de ce qui precede ne se voit :
+               Adwaita pose un plancher de cent cinquante-deux pixels sur la
+               gouttiere, et `set_size_request` ne descend jamais sous le
+               minimum du theme -- il prend le plus grand des deux. La largeur
+               demandee en Python etait donc lettre morte, a cent vingt comme a
+               soixante. On leve le plancher ici, le nombre reste la-bas. */
+            progressbar.attente,
+            progressbar.attente trough { min-width: 0; }
             /* `.zebre` et non `row.zebre` : le zébrage sert aussi aux blocs de
                matières, qui sont des boîtes et non des lignes de liste. Une
                pointe de sarcelle plutôt qu'un gris : c'est ce qui fait la
