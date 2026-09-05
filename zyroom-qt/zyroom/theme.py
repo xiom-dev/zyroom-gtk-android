@@ -93,6 +93,21 @@ def palette() -> QPalette:
     return p
 
 
+def _corps_du_bureau() -> float:
+    """Le corps de la police par défaut, en points.
+
+    `QApplication` peut ne pas exister encore — la palette se construit avant
+    lui dans certains chemins — et une police sans corps en points en rend
+    -1. Onze dans les deux cas, la valeur par défaut de GNOME, celle sur
+    laquelle la version GTK retombe elle aussi.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    corps = app.font().pointSizeF() if app is not None else -1.0
+    return corps if corps > 0 else 11.0
+
+
 def feuille(taille: int = 0) -> str:
     """Les accents, par-dessus la palette. Prête pour `setStyleSheet`.
 
@@ -113,6 +128,13 @@ def feuille(taille: int = 0) -> str:
         corps = (f"* {{ font-size: {taille}pt; }}\n"
                  f"#nom-grave {{ font-size: {taille * 2.9:.0f}pt; }}\n"
                  f"#nom-mouture {{ font-size: {taille * 2.7:.0f}pt; }}\n")
+    # La somme en dappers, un point au-dessus du reste -- comme la version
+    # GTK, qui calcule la meme chose a partir du meme corps. Quand rien n'est
+    # regle, le corps est celui du bureau : on le demande a Qt plutot que de
+    # le supposer, sinon les deux barres divergeraient sur un bureau qui
+    # n'ecrit pas en onze points.
+    base = taille if taille > 0 else _corps_du_bureau()
+    corps += f"QLabel#dappers {{ font-size: {base + 1:.0f}pt; }}\n"
     return corps + """
 /* Les bandes qui encadrent la grille : la barre du haut, celle des deux
    selecteurs, et le pied. Un cran sous le fond, pour tenir la grille entre
@@ -222,6 +244,26 @@ QProgressBar::chunk {
     border-radius: 5px;
 }
 
+/* La jauge de volume, calquee au pixel sur le Gtk.LevelBar de la version
+   GTK -- c'est elle la reference. Le theme y donne au bloc neuf pixels et
+   une bordure d'un pixel, un fond #282828 pour le vide, et un lisere qui
+   change de couleur au passage des paliers. Les trois couleurs viennent du
+   Default-dark.css de GTK, pas de notre palette : les reprendre autrement
+   aurait fait deux jauges cousines au lieu de deux jumelles. */
+QProgressBar#jauge-volume {
+    background-color: #282828;
+    border: none;             /* le lisere appartient au bloc rempli, pas au fond */
+    border-radius: 5px;
+}
+QProgressBar#jauge-volume::chunk {
+    background-color: %(sarcelle)s;
+    border: 1px solid #15539e;      /* high, le palier par defaut */
+    border-radius: 5px;
+}
+QProgressBar#jauge-volume[niveau="low"]::chunk  { border-color: #f57900; }
+QProgressBar#jauge-volume[niveau="high"]::chunk { border-color: #15539e; }
+QProgressBar#jauge-volume[niveau="full"]::chunk { border-color: #26ab62; }
+
 /* La grille d'objets. Pas de bordure sur les cases : l'icone se suffit,
    et une grille de quatre cents objets deviendrait un quadrillage. */
 QListWidget {
@@ -256,7 +298,9 @@ QToolTip {
 
 /* Les libelles discrets et les valeurs mises en avant. */
 QLabel#discret   { color: %(texte_faible)s; }
-QLabel#valeur    { color: %(or)s; font-weight: bold; }
+/* La saison d'Atys. Or, et **pas** gras : la version GTK pose la
+   couleur seule, et la graisse rendait la ligne floue. */
+QLabel#valeur    { color: %(or)s; }
 QLabel#erreur    { color: %(erreur)s; }
 QLabel#signature { color: %(texte_faible)s; }
 """ % COULEURS

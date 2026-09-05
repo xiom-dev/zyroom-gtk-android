@@ -216,13 +216,18 @@ class MainWindow(Gtk.ApplicationWindow):
         menu.append(_("Options…"), "win.options")
         menu.append(_("Analyser un chatlog…"), "win.chatlog")
         menu.append(_("Sauvegarder maintenant"), "win.backup")
+        # L'A propos ne se trouvait qu'en cliquant la signature du pied de
+        # page -- personne ne devine qu'elle est un bouton. Il est dans le
+        # menu de la version Qt depuis toujours, et c'est la qu'on le cherche.
+        menu.append(_("À propos…"), "win.apropos")
         menu_btn = Gtk.MenuButton(icon_name="open-menu-symbolic")
         menu_btn.set_tooltip_text(_("Menu"))
         menu_btn.set_menu_model(menu)
         header.pack_end(menu_btn)
         for name, handler in (("options", self._on_options),
                               ("chatlog", self._on_chatlog),
-                              ("backup", self._on_backup)):
+                              ("backup", self._on_backup),
+                              ("apropos", self._on_about)):
             act = Gio.SimpleAction.new(name, None)
             act.connect("activate", handler)
             self.add_action(act)
@@ -515,6 +520,7 @@ class MainWindow(Gtk.ApplicationWindow):
         statusbar.set_center_widget(nom)
 
         self._dappers_lbl = Gtk.Label(label="", valign=Gtk.Align.END)
+        self._dappers_lbl.add_css_class("dappers")
         statusbar.set_end_widget(self._dappers_lbl)
 
         # Signature : d'où vient cette application. Pas de traduction, ce sont
@@ -3628,6 +3634,24 @@ class MainWindow(Gtk.ApplicationWindow):
             self._display_inventory(idx)
 
     # --------------------------------------- En-tête entité + saison serveur
+    def _corps_courant(self) -> float:
+        """Le corps du texte en points : celui qu'on a réglé, sinon celui du bureau.
+
+        Le réglage vaut zéro tant qu'on n'y a pas touché — « comme le bureau »
+        — et il faut bien un nombre pour en calculer un autre. GNOME écrit sa
+        police en une chaîne, « Cantarell 11 », dont le corps est le dernier
+        mot ; onze en dernier recours, la valeur par défaut de GNOME.
+        """
+        if self._settings.font_size > 0:
+            return float(self._settings.font_size)
+        reglages = Gtk.Settings.get_default()
+        nom = reglages.get_property("gtk-font-name") if reglages else ""
+        dernier = (nom or "").rsplit(" ", 1)[-1]
+        try:
+            return float(dernier)
+        except ValueError:
+            return 11.0
+
     def _install_motd_css(self) -> None:
         """La palette de l'application, la même que sur le téléphone.
 
@@ -3664,6 +3688,11 @@ class MainWindow(Gtk.ApplicationWindow):
         # ce qui n'en demande pas d'autre en hérite.
         corps = (f"* {{ font-size: {self._settings.font_size}pt; }}\n"
                  if self._settings.font_size > 0 else "")
+        # La somme en dappers, un point au-dessus du reste. C'est le nombre
+        # qu'on vient lire dans cette barre, et au corps courant il s'y
+        # perdait. En points et non en `em` : la version Qt ne sait pas lire
+        # les unites relatives, et les deux barres doivent s'ecrire pareil.
+        corps += f".dappers {{ font-size: {self._corps_courant() + 1:.0f}pt; }}\n"
         provider.load_from_data((corps + """
             /* Les cinq couleurs d'Android, telles quelles. */
             @define-color zy_fond        #10171a;   /* background */

@@ -630,9 +630,15 @@ class FenetrePrincipale(QMainWindow):
         ligne_vol.setContentsMargins(8, 6, 8, 0)
         ligne_vol.setSpacing(8)
         ligne_vol.addWidget(QLabel(_("Volume :")))
+        # Onze pixels, comme le Gtk.LevelBar de la version GTK : neuf de bloc
+        # et un de bordure de part et d'autre. Sans hauteur fixee, le layout
+        # l'etirait a seize, et la jauge paraissait plus grasse que sa jumelle.
         self._jauge = QProgressBar()
+        self._jauge.setObjectName("jauge-volume")
         self._jauge.setRange(0, 100)
         self._jauge.setTextVisible(False)
+        self._jauge.setFixedHeight(11)
+        self._niveau_jauge = ""
         ligne_vol.addWidget(self._jauge, 1)
         self._lbl_volume = QLabel()
         self._lbl_volume.setObjectName("discret")
@@ -1176,6 +1182,7 @@ class FenetrePrincipale(QMainWindow):
         barre.addWidget(self._nom_appli(), 0, 1, Qt.AlignmentFlag.AlignBottom)
 
         self._lbl_dappers = QLabel()
+        self._lbl_dappers.setObjectName("dappers")
         barre.addWidget(self._lbl_dappers, 0, 2,
                         Qt.AlignmentFlag.AlignRight
                         | Qt.AlignmentFlag.AlignBottom)
@@ -1885,12 +1892,34 @@ class FenetrePrincipale(QMainWindow):
             morceaux.append(ligne)
         return "<br><br>".join(morceaux)
 
+    def _niveau_jauge_a(self, valeur: int) -> None:
+        """Le liseré de la jauge, aux seuils exacts du Gtk.LevelBar.
+
+        GTK pose sur son bloc une classe par palier — `low` jusqu'à 60,
+        `high` jusqu'à 85, `full` au-delà — et le thème lui donne sa couleur
+        de bordure : orange, bleu, vert. Qt n'a pas de paliers ; on les
+        rejoue avec une propriété que la feuille de style interroge.
+
+        Repolir n'a lieu qu'au changement de palier : le faire à chaque
+        volume recalculerait le style de la jauge à chaque ouverture de
+        coffre, pour un résultat identique.
+        """
+        niveau = "low" if valeur <= 60 else ("high" if valeur <= 85 else "full")
+        if niveau == self._niveau_jauge:
+            return
+        self._niveau_jauge = niveau
+        self._jauge.setProperty("niveau", niveau)
+        self._jauge.style().unpolish(self._jauge)
+        self._jauge.style().polish(self._jauge)
+
     def _maj_jauge(self, inv) -> None:
         total = inv.total_volume
         if inv.capacity > 0:
             pct = total / inv.capacity * 100.0
             self._jauge.setVisible(True)
-            self._jauge.setValue(int(min(pct, 100.0)))
+            valeur = int(min(pct, 100.0))
+            self._jauge.setValue(valeur)
+            self._niveau_jauge_a(valeur)
             alerte = " ⚠" if pct >= self._settings.volume_threshold else ""
             self._lbl_volume.setText(
                 f"{total:.0f} / {inv.capacity}  ({pct:.0f}%){alerte}")
