@@ -419,6 +419,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self._stack.add_titled(self._build_plus_page(), "plus", _("Bonus"))
         header.set_title_widget(self._build_navigation())
         self._stack.connect("notify::visible-child-name", self._on_page_changed)
+        # Et une fois, tout de suite : la pile s'ouvre sur l'inventaire sans
+        # changer de page, donc sans emettre le signal ci-dessus. Le bouton
+        # restait eteint au-dessus de la page qu'il designe, jusqu'au premier
+        # aller-retour vers le journal.
+        self._refresh_navigation()
 
         # Barre d'état : portrait du personnage + texte
         #
