@@ -611,12 +611,12 @@ QComboBox {
     border: 1px solid #1b1b1b;
     border-radius: 6px;
     color: %(texte)s;
-    /* Trente pixels a droite, huit a gauche : les vingt-deux du `drop-down`
-       plus l'air que GTK laisse entre le texte et son chevron. A huit des
-       deux cotes, la parenthese fermante de « Koii (atys) » venait toucher le
-       chevron et le nom paraissait coupe. La somme des deux remplissages ne
-       bouge pas -- trente-huit --, et `deroulante.py` mesure toujours juste. */
-    padding: 4px 30px 4px 8px;
+    /* Huit de chaque cote, et pas un de plus a droite : Qt reserve la zone du
+       `drop-down` **en plus** du remplissage, si bien qu'un padding-right de
+       trente volait vingt-deux pixels au texte -- « La Lune Eternelle (atys) »
+       s'affichait « La Lun ». L'air avant le chevron se gagne en demandant une
+       largeur plus grande, dans `deroulante.py`, jamais en rognant le texte. */
+    padding: 4px 8px;
     min-height: 25px;
 }
 QComboBox:hover { background-color: #454545; }

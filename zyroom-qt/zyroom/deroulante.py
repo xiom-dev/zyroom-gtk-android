@@ -35,8 +35,14 @@ class Deroulante(QComboBox):
         les seize le remplissage gauche et droite. Ils y sont écrits une fois ;
         les rappeler ici est le prix d'une largeur qui suit la police au lieu
         d'un nombre en dur.
+
+        Les huit derniers sont l'air que GTK laisse entre le texte et son
+        chevron : sans eux la parenthèse fermante vient toucher la flèche, et
+        le nom paraît coupé alors qu'il est entier. Ils s'ajoutent à la
+        largeur demandée — les prendre sur le remplissage rognerait le texte,
+        puisque Qt réserve la zone du chevron en plus, et non dedans.
         """
-        return self.fontMetrics().horizontalAdvance(self.currentText()) + 38
+        return self.fontMetrics().horizontalAdvance(self.currentText()) + 46
 
     def setCurrentIndex(self, index: int) -> None:    # noqa: N802 -- nom Qt
         super().setCurrentIndex(index)
