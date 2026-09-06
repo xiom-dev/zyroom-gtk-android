@@ -1,65 +1,50 @@
-"""La barre d'attente : son curseur doit courir dans un seul sens.
+"""La barre d'attente : son curseur doit parcourir toute la barre, sans retour.
 
-`Gtk.ProgressBar.pulse()` fait **rebondir** son curseur : arrivé au bord, il
-repart vers la gauche. Un défilement à sens unique demande donc de le renvoyer
-au départ avant qu'il ne se retourne, et le seuil de ce retour se déduit du
-pas — il ne s'écrit pas à la main. Posé à huit alors que le bord s'atteint en
-5,7 pulsations, il laissait le curseur rebondir puis revenir sur deux
-pulsations : un demi-tour de deux dixièmes de seconde, qui se voyait comme un
-arrêt.
+Deux erreurs successives, toutes deux visibles à l'œil et invisibles au code :
+d'abord un seuil trop grand, qui laissait le curseur rebondir puis revenir ;
+puis un seuil trop petit, qui l'arrêtait aux trois quarts de la barre. Il doit
+atteindre le bord droit, et n'aller que vers la droite.
 """
+import os
+import sys
 import unittest
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-def pas_avant_le_bord(pulse_step: float) -> int:
-    """La règle du module, éprouvée à d'autres pas que celui du programme.
-
-    `zyroom.attente.pas_avant_le_bord` ne prend pas d'argument — elle lit la
-    constante `PAS` —, alors qu'on veut la vérifier sur toute une plage. On
-    rejoue donc le calcul, et un dernier test confronte les deux pour que la
-    copie ne puisse pas dériver de l'original.
-    """
-    return max(1, int((1.0 - pulse_step) / pulse_step))
+from zyroom import attente  # noqa: E402
 
 
 class BarreAttente(unittest.TestCase):
 
-    def test_le_retour_precede_le_rebond(self):
-        """À chaque pas, le curseur doit repartir avant d'avoir touché le bord."""
-        for pas in (0.05, 0.1, 0.15, 0.2, 0.25, 0.5):
-            seuil = pas_avant_le_bord(pas)
-            # Là où en est le curseur au moment du retour : il occupe `pas` de
-            # la barre, il lui reste donc `1 - pas` à parcourir.
-            position = seuil * pas
-            self.assertLessEqual(
-                position, 1.0 - pas + 1e-9,
-                f"à {pas}, le curseur a déjà rebondi quand on le renvoie")
+    def test_le_curseur_atteint_le_bord(self):
+        """La dernière position doit poser le curseur contre le bord droit."""
+        derniere = attente.decalage(attente.positions() - 1)
+        self.assertAlmostEqual(derniere + attente.PAS, 1.0, places=9)
 
-    def test_le_seuil_ne_gaspille_pas_la_course(self):
-        """Il repart d'aussi près du bord que possible, sans le toucher."""
-        for pas in (0.1, 0.15, 0.2, 0.25):
-            seuil = pas_avant_le_bord(pas)
-            # Une pulsation de plus dépasserait : le seuil est donc le bon.
-            self.assertGreater((seuil + 1) * pas, 1.0 - pas + 1e-9,
-                               f"à {pas}, le curseur repart trop tôt")
+    def test_le_curseur_part_du_bord_gauche(self):
+        self.assertEqual(attente.decalage(0), 0.0)
 
-    def test_un_pas_grossier_garde_au_moins_une_pulsation(self):
-        """Même à 0,9, la barre doit bouger d'un cran avant de revenir."""
-        self.assertGreaterEqual(pas_avant_le_bord(0.9), 1)
+    def test_il_avance_toujours(self):
+        """Aucune position ne doit ramener le curseur en arrière."""
+        avant = [attente.decalage(i) for i in range(attente.positions())]
+        self.assertEqual(avant, sorted(avant))
+        self.assertEqual(len(set(avant)), len(avant) - 0 if avant[-1] != avant[-2]
+                         else len(avant) - 1)
 
-    def test_la_valeur_du_programme(self):
-        """Le pas retenu, 0,15, donne cinq battements — et non huit."""
-        self.assertEqual(pas_avant_le_bord(0.15), 5)
+    def test_il_ne_deborde_jamais(self):
+        """Le curseur entier doit tenir dans la barre, à toute position."""
+        for i in range(attente.positions()):
+            self.assertLessEqual(attente.decalage(i) + attente.PAS, 1.0 + 1e-9)
 
-    def test_le_module_dit_la_meme_chose(self):
-        """La règle recopiée ici et celle du programme ne doivent pas diverger."""
-        import os
-        import sys
-        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from zyroom import attente
+    def test_le_compte_suit_le_pas(self):
+        """La règle vaut pour d'autres pas que celui du programme."""
+        import math
 
-        self.assertEqual(attente.pas_avant_le_bord(),
-                         pas_avant_le_bord(attente.PAS))
+        for pas in (0.05, 0.1, 0.2, 0.25, 0.5):
+            n = math.ceil((1.0 - pas) / pas) + 1
+            dernier = min(pas * (n - 1), 1.0 - pas)
+            self.assertAlmostEqual(dernier + pas, 1.0, places=9,
+                                   msg=f"à {pas}, le curseur n'atteint pas le bord")
 
     def test_les_deux_portages_ont_les_memes_nombres(self):
         """La barre de Qt est le jumeau de celle-ci : mêmes pas, même cadence.
@@ -67,7 +52,6 @@ class BarreAttente(unittest.TestCase):
         Les deux fichiers sont écrits à la main, chacun dans son toolkit ; rien
         n'empêcherait l'un de dériver, sinon ce test.
         """
-        import os
         import re
 
         ici = os.path.dirname(os.path.abspath(__file__))
@@ -76,7 +60,6 @@ class BarreAttente(unittest.TestCase):
         if not os.path.isfile(jumeau):
             self.skipTest("le portage Qt n'est pas à côté")
         source = open(jumeau, encoding="utf-8").read()
-        from zyroom import attente
 
         for nom, valeur in (("PAS", attente.PAS), ("CADENCE", attente.CADENCE),
                             ("RAYON", attente.RAYON)):
@@ -84,6 +67,19 @@ class BarreAttente(unittest.TestCase):
             self.assertIsNotNone(trouve, f"{nom} absent du portage Qt")
             self.assertEqual(float(trouve.group(1)), float(valeur),
                              f"{nom} diffère entre les deux portages")
+
+    def test_le_jumeau_calcule_pareil(self):
+        """Les deux `decalage` doivent rendre la même chose, position par position."""
+        import re
+
+        ici = os.path.dirname(os.path.abspath(__file__))
+        jumeau = os.path.join(os.path.dirname(os.path.dirname(ici)),
+                              "zyroom-qt", "zyroom", "attente.py")
+        if not os.path.isfile(jumeau):
+            self.skipTest("le portage Qt n'est pas à côté")
+        source = open(jumeau, encoding="utf-8").read()
+        self.assertIn("return min(PAS * position, 1.0 - PAS)", source)
+        self.assertIn("math.ceil((1.0 - PAS) / PAS) + 1", source)
 
 
 if __name__ == "__main__":

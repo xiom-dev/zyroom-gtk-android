@@ -3,10 +3,40 @@
 <meta charset="utf-8">
 <title>Les applications de La Lune Éternelle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- L'apercu que Discord, Signal et les autres affichent quand on colle le
+     lien. Sans ces balises, ils ne montrent rien : ils ne devinent ni le
+     titre, ni l'image, ils lisent ce qu'on leur donne ici. C'est ce qui
+     manquait quand les quatre applications ont ete annoncees dans la guilde.
+
+     L'image est en 1200x630, le format que ces services attendent : plus
+     petite, elle est etiree ; d'un autre rapport, elle est rognee au centre.
+     Son adresse doit etre absolue -- un chemin relatif n'est pas resolu par
+     celui qui vient chercher l'apercu. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="La Lune Éternelle">
+<meta property="og:title" content="Les applications de La Lune Éternelle">
+<meta property="og:description" content="Vos inventaires Ryzom et les coffres de la guilde, hors ligne. ZyRoom pour Linux et Windows, V-RyLune pour Android, KipeeCraft pour les recettes de craft.">
+<meta property="og:url" content="https://xiom-dev.github.io/zyroom-gtk-android/">
+<meta property="og:image" content="https://xiom-dev.github.io/zyroom-gtk-android/apercu.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Les quatre applications côte à côte : ZyRoom-GTK, ZyRoom-Qt, KipeeCraft-GTK et V-RyLune.">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#10171a">
 <style>
   :root { color-scheme: light dark; }
-  body { font-family: system-ui, sans-serif; line-height: 1.65; max-width: 40rem;
+  /* Soixante rem, et non quarante : les captures tiennent alors a droite du
+     texte sans le comprimer. Le texte ne s'etale pas pour autant -- chaque
+     bloc garde sa propre largeur, plus bas. */
+  body { font-family: system-ui, sans-serif; line-height: 1.65; max-width: 60rem;
          margin: 3rem auto; padding: 0 1.2rem; }
+  /* Hors des sections d'application, le texte reste a quarante rem : une ligne
+     de soixante rem se lit mal, l'oeil perd le debut de la suivante. */
+  body > p, body > ul, body > ol, body > .aparte, body > .avis, footer {
+    max-width: 40rem; }
   h1 { font-size: 1.7rem; margin-bottom: .2rem; }
   h2 { font-size: 1.15rem; margin-top: 2.4rem; }
   .sub { color: #7a7a7a; margin-top: 0; }
@@ -21,29 +51,87 @@
   .avis { border: 1px solid #b4884a; border-left-width: 4px;
           background: rgba(180,136,74,.10); padding: .8rem 1rem;
           border-radius: 5px; margin: .8rem 0; }
+  /* La galerie des quatre applications. Une grille qui se replie d'elle-meme :
+     `auto-fit` et `minmax` posent autant de colonnes que la largeur en
+     autorise, sans qu'aucune media query n'ait a le dire -- deux de front sur
+     un ecran, une seule sur un telephone. La page fait quarante rem de large
+     au plus, les captures s'y adaptent. */
+  .apercus { display: grid; gap: 1.1rem; margin: 1.6rem 0 2.2rem;
+             grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .apercus figure { margin: 0; }
+  /* **Une hauteur maximale, sans quoi le portrait ecrase la page.** Une
+     capture de telephone est deux fois plus haute que large : a `width: 100%`
+     elle prenait sept cents pixels de haut, laissait un trou a cote de sa
+     voisine, et l'on ne voyait plus qu'elle. La hauteur commande donc, et la
+     largeur suit -- les fenetres de bureau s'arretent a la largeur de la
+     colonne, le telephone a sa hauteur. */
+  .apercus img { max-width: 100%; max-height: 17rem; width: auto; height: auto;
+                 border-radius: 6px; border: 1px solid rgba(127,127,127,.35);
+                 background: #10171a; }
+  .apercus figure { text-align: center; }
+  .apercus figcaption { font-size: .87rem; color: #7a7a7a; margin-top: .35rem; }
+  /* Une application et sa capture, cote a cote. La capture passe dessous des
+     que la page n'a plus la largeur -- `wrap` s'en charge, sans media query.
+     Le texte garde une largeur lisible : `flex: 1 1 18rem` lui donne dix-huit
+     rem au minimum, et il prend le reste quand il y en a. */
+  .appli { display: flex; flex-wrap: wrap; gap: 1.4rem;
+           align-items: flex-start; margin-bottom: 1.2rem; }
+  .appli .dit { flex: 1 1 22rem; max-width: 34rem; min-width: 0; }
+  .appli .dit > :first-child { margin-top: 0; }
+  .appli .vue { flex: 0 1 auto; margin: 0; }
+  /* La hauteur commande, la largeur suit : une capture de telephone est deux
+     fois plus haute que large, et a largeur egale elle ecrasait la page. */
+  /* Dix-sept rem de haut : la page en fait soixante de large, vingt-deux au
+     moins pour le texte, il reste de quoi montrer une fenetre entiere. La
+     hauteur commande et la largeur suit -- une capture de telephone est deux
+     fois plus haute que large, et a largeur egale elle ecrasait la page. */
+  .appli .vue img { max-width: 100%; max-height: 17rem; width: auto; height: auto;
+                    border-radius: 6px; border: 1px solid rgba(127,127,127,.35);
+                    background: #10171a; }
+  .version { font-size: .8rem; font-weight: 400; color: #7a7a7a;
+             margin-left: .5rem; }
   footer { margin-top: 3rem; font-size: .87rem; color: #7a7a7a;
            border-top: 1px solid rgba(127,127,127,.3); padding-top: 1rem; }
 </style>
 
 <h1>Les applications de La Lune Éternelle</h1>
 <p class="sub">Vos inventaires, les coffres de la guilde et vos recettes
-de craft, hors du jeu.</p>
+de craft, hors ligne.</p>
 
-<h2>V-RyLune</h2>
+
+<h2>V-RyLune <span class="version" data-paquet="net.ryzom.zyroom">…</span></h2>
+<div class="appli">
+<div class="dit">
 <p class="sub">Sur un téléphone Android</p>
 <p><a class="bouton" href="V-RyLune-Android.apk">Télécharger V-RyLune</a></p>
 <p>Ouvrez le fichier depuis vos téléchargements. Android demandera
 l'autorisation d'installer une application venant d'ailleurs que du Play
 Store : acceptez. Ensuite, l'application vous prévient elle-même quand une
 nouvelle version paraît.</p>
+</div>
+<figure class="vue">
+  <a href="apercus/v-rylune.jpg" title="Voir en grand"><img src="apercus/v-rylune.jpg" width="189" height="420"
+       loading="lazy" alt="V-RyLune : la liste des personnages et guildes suivis, sur téléphone."></a>
+</figure>
+</div>
 
-<h2>ZyRoom-GTK</h2>
+<h2>ZyRoom-GTK <span class="version">version 0.59</span></h2>
+<div class="appli">
+<div class="dit">
 <p class="sub">Sur un PC Linux</p>
 <p><a class="bouton" href="ZyRoom-GTK.flatpak">Télécharger ZyRoom-GTK</a></p>
 <p>Ouvrez le fichier téléchargé. C'est tout : votre système l'installe, et
 l'application saura d'elle-même quand une nouvelle version paraît.</p>
+</div>
+<figure class="vue">
+  <a href="apercus/zyroom-gtk.jpg" title="Voir en grand"><img src="apercus/zyroom-gtk.jpg" width="663" height="420"
+       loading="lazy" alt="ZyRoom-GTK : le coffre de la guilde, sa grille d'objets pleine et la jauge de remplissage."></a>
+</figure>
+</div>
 
-<h2>KipeeCraft</h2>
+<h2>KipeeCraft <span class="version">version 0.1.0</span></h2>
+<div class="appli">
+<div class="dit">
 <p class="sub">Sur un PC Linux</p>
 <p><a class="bouton" href="KipeeCraft-GTK.flatpak">Télécharger KipeeCraft</a></p>
 <p>Une autre application, pour l'artisanat : simulateur de craft, base de
@@ -53,8 +141,16 @@ travers Wine — vos fichiers de recettes existants restent lisibles.</p>
 <p>S'installe comme la précédente : ouvrez le fichier téléchargé.</p>
 <p class="aparte">Celle-ci ne se met pas à jour toute seule : revenez sur cette
 page de temps en temps.</p>
+</div>
+<figure class="vue">
+  <a href="apercus/kipeecraft.jpg" title="Voir en grand"><img src="apercus/kipeecraft.jpg" width="642" height="420"
+       loading="lazy" alt="KipeeCraft-GTK : une recette de hache, ses matériaux et les caractéristiques obtenues."></a>
+</figure>
+</div>
 
-<h2>ZyRoom-Qt</h2>
+<h2>ZyRoom-Qt <span class="version" data-paquet="net.ryzom.zyroomqt">…</span></h2>
+<div class="appli">
+<div class="dit">
 <p class="sub">Sur un PC Windows</p>
 <p><a class="bouton" href="ZyRoom-Qt-windows.zip">Télécharger ZyRoom-Qt</a></p>
 
@@ -84,6 +180,12 @@ d'euros par an. Cliquez sur <em>Informations complémentaires</em>, puis sur
 ci-dessus : c'est la même application, dans une autre boîte à outils. Cette
 archive-là se décompresse pareil, et son <code>installer.sh</code> pose
 l'entrée dans le menu.</em></p>
+</div>
+<figure class="vue">
+  <a href="apercus/zyroom-qt.jpg" title="Voir en grand"><img src="apercus/zyroom-qt.jpg" width="663" height="420"
+       loading="lazy" alt="ZyRoom-Qt : le même coffre, dans la version Windows et Linux."></a>
+</figure>
+</div>
 
 <h2>Au premier démarrage</h2>
 <p>L'application s'ouvre vide. Par le bouton <strong>+</strong>, ajoutez :</p>
@@ -105,6 +207,33 @@ jour ; vous n'avez plus à retélécharger de fichier.</p>
 ne connaît pas encore la source des mises à jour. Retirez-la une fois —
 <code>flatpak uninstall --user net.ryzom.zyroomgtk</code> — puis installez le
 nouveau fichier. Vos réglages et vos clés sont conservés.</p>
+
+<!-- Les numeros de ZyRoom-Qt et de V-RyLune viennent de `version.json`, le
+     manifeste que les applications interrogent elles-memes pour savoir si une
+     version plus recente existe. La page dit donc toujours ce qui est en
+     ligne, sans qu'on ait a y repasser a chaque livraison.
+
+     Ceux de ZyRoom-GTK et de KipeeCraft sont ecrits en clair dans les titres :
+     ils vivent dans un depot Flatpak, dont le sommaire est binaire et ne se
+     lit pas depuis une page. A tenir a jour a la main.
+
+     Sans JavaScript, ou si le manifeste ne repond pas, les deux premiers
+     gardent leurs points de suspension : une version absente vaut mieux
+     qu'une version fausse. -->
+<script>
+  fetch("version.json")
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(manifeste => {
+      document.querySelectorAll(".version[data-paquet]").forEach(marque => {
+        const entree = manifeste[marque.dataset.paquet];
+        marque.textContent = entree ? "version " + entree.versionName : "";
+      });
+    })
+    .catch(() => {
+      document.querySelectorAll(".version[data-paquet]")
+              .forEach(marque => { marque.textContent = ""; });
+    });
+</script>
 
 <footer>
   <p>Chaque mise à jour est signée : votre système vérifie qu'elle vient bien

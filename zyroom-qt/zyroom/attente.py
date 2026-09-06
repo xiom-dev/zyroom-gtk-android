@@ -41,15 +41,26 @@ LISERE = "#15539e"
 RAYON = 4.0
 
 
-def pas_avant_le_bord() -> int:
-    """Combien de battements avant que le curseur n'atteigne le bord.
+def positions() -> int:
+    """Combien de positions le curseur occupe avant de revenir au départ.
 
-    La même règle que dans `window.py` : le curseur occupe `PAS` de la barre,
-    il lui reste donc `1 - PAS` à parcourir. On le renvoie au départ avant
-    qu'il ne touche le bord, sans quoi il ferait demi-tour — et ce demi-tour
-    se lit comme un arrêt.
+    Sept positions à 0,15 : six pas pleins, puis un dernier raccourci pour que
+    le curseur **touche le bord droit**. Le compte précédent — cinq positions —
+    l'arrêtait aux trois quarts de la barre, et il repartait de là : on voyait
+    un curseur qui n'allait jamais au bout.
     """
-    return max(1, int((1.0 - PAS) / PAS))
+    import math
+
+    return math.ceil((1.0 - PAS) / PAS) + 1
+
+
+def decalage(position: int) -> float:
+    """Où commence le curseur, en fraction de la barre.
+
+    Le dernier pas est **borné** : sans cela le curseur dépasserait le bord et
+    serait dessiné à cheval sur le vide.
+    """
+    return min(PAS * position, 1.0 - PAS)
 
 
 class BarreAttente(QWidget):
@@ -77,9 +88,7 @@ class BarreAttente(QWidget):
             self._minuteur.stop()
 
     def _battre(self) -> None:
-        self._position += 1
-        if self._position >= pas_avant_le_bord():
-            self._position = 0
+        self._position = (self._position + 1) % positions()
         self.update()
 
     def paintEvent(self, evenement) -> None:          # noqa: N802 -- nom Qt
@@ -92,7 +101,7 @@ class BarreAttente(QWidget):
         peintre.drawRoundedRect(cadre, RAYON, RAYON)
 
         largeur = cadre.width() * PAS
-        depart = cadre.width() * PAS * self._position
+        depart = cadre.width() * decalage(self._position)
         curseur = QRectF(depart, 0.0, largeur, cadre.height())
         # Le liseré est peint à l'intérieur : sans ce retrait d'un demi-pixel,
         # Qt le centre sur le bord et la moitié tombe hors du curseur.

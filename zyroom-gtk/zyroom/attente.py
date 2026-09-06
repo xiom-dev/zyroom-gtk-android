@@ -39,14 +39,26 @@ LARGEUR = 60
 HAUTEUR = 10
 
 
-def pas_avant_le_bord() -> int:
-    """Combien de battements avant que le curseur n'atteigne le bord.
+def positions() -> int:
+    """Combien de positions le curseur occupe avant de revenir au départ.
 
-    Le curseur occupe `PAS` de la barre, il lui reste donc `1 - PAS` à
-    parcourir. On le renvoie au départ avant qu'il n'y arrive — ici cela ne
-    sert qu'à choisir le moment, puisque rien ne rebondit plus.
+    Sept positions à 0,15 : six pas pleins, puis un dernier raccourci pour que
+    le curseur **touche le bord droit**. Le compte précédent — cinq positions —
+    l'arrêtait aux trois quarts de la barre, et il repartait de là : on voyait
+    un curseur qui n'allait jamais au bout.
     """
-    return max(1, int((1.0 - PAS) / PAS))
+    import math
+
+    return math.ceil((1.0 - PAS) / PAS) + 1
+
+
+def decalage(position: int) -> float:
+    """Où commence le curseur, en fraction de la barre.
+
+    Le dernier pas est **borné** : sans cela le curseur dépasserait le bord et
+    Cairo le dessinerait à cheval sur le vide.
+    """
+    return min(PAS * position, 1.0 - PAS)
 
 
 class BarreAttente(Gtk.DrawingArea):
@@ -83,7 +95,7 @@ class BarreAttente(Gtk.DrawingArea):
         if not self.get_visible():
             self._minuteur = None
             return False
-        self._position = (self._position + 1) % pas_avant_le_bord()
+        self._position = (self._position + 1) % positions()
         self.queue_draw()
         return True
 
@@ -102,7 +114,7 @@ class BarreAttente(Gtk.DrawingArea):
         cr.fill()
 
         large = largeur * PAS
-        depart = largeur * PAS * self._position
+        depart = largeur * decalage(self._position)
         # Le liseré est peint à l'intérieur : sans ce retrait d'un demi-pixel,
         # Cairo le centre sur le bord et la moitié tombe hors du curseur.
         rectangle(depart + 0.5, 0.5, large - 1, hauteur - 1, RAYON)
