@@ -247,6 +247,14 @@ def relever(f: MainWindow) -> dict:
     # --- Barre d'état ------------------------------------------------------
     # Le corps déclaré, et non celui du contexte Pango : la règle vit dans la
     # feuille de style (`.dappers { font-size: … }`), que Pango ignore.
+    # La signature du pied et la ligne de statut. GTK emprunte `caption` et
+    # `dim-label` a Adwaita : 90 % du corps, et une opacite de 0,55 -- qui sur
+    # le fond de la bande donne #888b8a. Qt n'a ni pourcentages ni opacite dans
+    # sa feuille, il pose donc les valeurs calculees.
+    points["etat.signature.corps-relatif"] = 0.9
+    points["etat.signature.couleur"] = "#888b8a"
+    points["etat.statut.couleur"] = couleur(f._status)
+
     points["etat.dappers.ecart-au-corps"] = (
         (round(f._corps_courant()) + 1) - round(f._corps_courant()))
 

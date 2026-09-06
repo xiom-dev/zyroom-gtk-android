@@ -11,7 +11,8 @@ gagne, et le comportement est identique.
 """
 from __future__ import annotations
 
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox,
+from PySide6.QtWidgets import (QAbstractSpinBox,
+                               QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QFileDialog, QGridLayout, QLabel, QLineEdit,
                                QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
@@ -76,6 +77,10 @@ class FenetreOptions(QDialog):
             QLabel(_("Taille du texte (points, 0 = celle du bureau)")),
             rang, 0)
         self._police = QSpinBox()
+        # Un moins et un plus, comme le Gtk.SpinButton d'Adwaita, et
+        # non les deux fleches que Qt met par defaut.
+        self._police.setButtonSymbols(
+            QAbstractSpinBox.ButtonSymbols.PlusMinus)
         self._police.setRange(0, 30)
         self._police.setSpecialValueText(_("taille du bureau"))
         self._police.setValue(settings.font_size)
@@ -88,6 +93,10 @@ class FenetreOptions(QDialog):
 
         grille.addWidget(QLabel(_("Taille des icônes (pixels)")), rang, 0)
         self._icones = QSpinBox()
+        # Un moins et un plus, comme le Gtk.SpinButton d'Adwaita, et
+        # non les deux fleches que Qt met par defaut.
+        self._icones.setButtonSymbols(
+            QAbstractSpinBox.ButtonSymbols.PlusMinus)
         self._icones.setRange(24, 128)
         self._icones.setSingleStep(8)
         self._icones.setValue(settings.icon_size)
@@ -176,6 +185,10 @@ class FenetreOptions(QDialog):
         """Une ligne « libellé + compteur ». Rend le rang suivant."""
         grille.addWidget(QLabel(_(libelle)), rang, 0)
         compteur = QSpinBox()
+        # Un moins et un plus, comme le Gtk.SpinButton d'Adwaita, et
+        # non les deux fleches que Qt met par defaut.
+        compteur.setButtonSymbols(
+            QAbstractSpinBox.ButtonSymbols.PlusMinus)
         compteur.setRange(mini, maxi)
         compteur.setSingleStep(pas)
         compteur.setValue(valeur)

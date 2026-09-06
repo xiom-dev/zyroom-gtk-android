@@ -97,6 +97,34 @@ def palette() -> QPalette:
     return p
 
 
+def echelle_du_bureau() -> float:
+    """Le facteur d'agrandissement du texte que GNOME applique, ou 1.
+
+    **GTK l'applique tout seul, Qt l'ignore.** Un bureau réglé sur 1,25 — ce
+    qui est courant — affiche donc un « 10 » à 12,5 points dans la version GTK
+    et à 10 dans celle-ci : le même réglage, un texte un quart plus petit d'un
+    côté. C'est ce que Ludo voyait en comparant les deux à taille égale.
+
+    Lu par `gsettings`, sans lequel on ne peut pas le connaître : Qt n'expose
+    pas ce réglage, et il ne vit ni dans les variables d'environnement ni dans
+    les métriques de l'écran. Hors de GNOME — sous Windows, ou si la commande
+    manque — on rend 1, et rien ne change.
+    """
+    import subprocess
+
+    try:
+        fait = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface",
+             "text-scaling-factor"],
+            capture_output=True, text=True, timeout=3)
+        facteur = float(fait.stdout.strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 1.0
+    # Un facteur aberrant ferait une fenêtre illisible : on s'en tient à ce que
+    # GNOME lui-même propose, de la moitié au double.
+    return facteur if 0.5 <= facteur <= 2.0 else 1.0
+
+
 def _corps_du_bureau() -> float:
     """Le corps de la police par défaut, en points.
 
@@ -109,7 +137,10 @@ def _corps_du_bureau() -> float:
 
     app = QApplication.instance()
     corps = app.font().pointSizeF() if app is not None else -1.0
-    return corps if corps > 0 else 11.0
+    corps = corps if corps > 0 else 11.0
+    # La police que Qt rend est celle du bureau, mais sans son agrandissement :
+    # GNOME le tient a part, dans `text-scaling-factor`.
+    return corps * echelle_du_bureau()
 
 
 def feuille(taille: int = 0) -> str:
@@ -124,6 +155,11 @@ def feuille(taille: int = 0) -> str:
     `app.font()` en annonçait seize. Écrite dans la feuille, la règle survit
     au polish parce qu'elle en fait partie.
     """
+    # L'echelle du bureau s'applique a tout ce qui suit : c'est ce que GTK
+    # fait de son cote, et sans quoi le meme reglage donne deux tailles.
+    echelle = echelle_du_bureau()
+    taille = taille * echelle if taille > 0 else 0
+
     corps = ""
     if taille > 0:
         # `*` atteint tout, y compris les deux libelles du nom grave, dont le
@@ -139,6 +175,9 @@ def feuille(taille: int = 0) -> str:
     # n'ecrit pas en onze points.
     base = taille if taille > 0 else _corps_du_bureau()
     corps += f"QLabel#dappers {{ font-size: {base + 1:.0f}pt; }}\n"
+    # La signature a 90 % du corps : la classe `caption` de GTK, que Qt ne sait
+    # pas exprimer en pourcentage.
+    corps += f"QLabel#signature {{ font-size: {base * 0.9:.0f}pt; }}\n"
     return corps + """
 /* Les bandes qui encadrent la grille : la barre du haut, celle des deux
    selecteurs, et le pied. Un cran sous le fond, pour tenir la grille entre
@@ -345,7 +384,15 @@ QLabel#discret   { color: %(texte_faible)s; }
    couleur seule, et la graisse rendait la ligne floue. */
 QLabel#valeur    { color: %(or)s; }
 QLabel#erreur    { color: %(erreur)s; }
-QLabel#signature { color: %(texte_faible)s; }
+/* La signature du pied. **#888b8a et non la couleur de texte attenuee** : GTK
+   lui pose la classe `dim-label` d'Adwaita, qui n'est pas une couleur mais une
+   opacite de 0,55 ; sur le fond de la bande, cela donne exactement ce gris. Et
+   `caption`, qui la met a 90 %% du corps -- ce que Qt ne faisait pas, d'ou une
+   signature plus grande et plus claire que celle de la reference.
+
+   Le corps est pose plus haut, avec les autres tailles calculees : les
+   pourcentages n'existent pas dans une feuille Qt. */
+QLabel#signature { color: #888b8a; }
 """ % COULEURS
 
 

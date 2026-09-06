@@ -37,7 +37,11 @@
      de soixante rem se lit mal, l'oeil perd le debut de la suivante. */
   body > p, body > ul, body > ol, body > .aparte, body > .avis, footer {
     max-width: 40rem; }
-  h1 { font-size: 1.7rem; margin-bottom: .2rem; }
+  /* Le chapeau au centre : le titre et sa phrase coiffent toute la page, et
+     non la seule colonne de gauche. Le reste garde son alignement -- un
+     paragraphe centre se lit mal, chaque ligne commencant ailleurs. */
+  h1 { font-size: 1.7rem; margin-bottom: .2rem; text-align: center; }
+  h1 + .sub { text-align: center; }
   h2 { font-size: 1.15rem; margin-top: 2.4rem; }
   .sub { color: #7a7a7a; margin-top: 0; }
   h2 + .sub { margin: -.15rem 0 .9rem; font-size: .93rem; }
@@ -115,7 +119,7 @@ nouvelle version paraît.</p>
 </figure>
 </div>
 
-<h2>ZyRoom-GTK <span class="version">version 0.59</span></h2>
+<h2>ZyRoom-GTK <span class="version">version 0.60</span></h2>
 <div class="appli">
 <div class="dit">
 <p class="sub">Sur un PC Linux</p>

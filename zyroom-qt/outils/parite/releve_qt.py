@@ -227,6 +227,18 @@ def relever(f: FenetrePrincipale) -> dict:
     # L'écart au corps courant, et non le corps lui-même : ce relevé tourne
     # hors écran, où la police par défaut n'est pas celle du bureau, et deux
     # valeurs absolues différeraient sans que rien ne soit cassé.
+    # Les mêmes, lues dans la feuille : c'est là que Qt les pose.
+    import re as _re
+
+    feuille = theme.feuille()
+    base = float(theme._corps_du_bureau())
+    corps_signature = _re.search(r"QLabel#signature \{ font-size: (\d+)pt", feuille)
+    points["etat.signature.corps-relatif"] = (
+        round(int(corps_signature.group(1)) / base, 1) if corps_signature else None)
+    teinte = _re.search(r"QLabel#signature \{ color: (#[0-9a-f]{6})", feuille)
+    points["etat.signature.couleur"] = teinte.group(1) if teinte else None
+    points["etat.statut.couleur"] = couleur_texte(f._lbl_statut)
+
     points["etat.dappers.ecart-au-corps"] = 1
 
     points["menu.bonus.entrees"] = len(f._btn_plus.menu().actions())
