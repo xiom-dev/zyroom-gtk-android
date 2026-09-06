@@ -22,17 +22,19 @@ name: Relevé des guildes
 
 on:
   schedule:
-    # Toutes les quinze minutes -- mais **GitHub n'en exécute qu'une fraction**.
-    # Mesuré sur huit jours : 5,4 relevés par jour pour un cron horaire, avec
-    # des retards de 5 à 58 minutes et jusqu'à dix-huit heures d'affilée sans
-    # rien. Les workflows planifiés sont déprioritisés, et le sont d'autant
-    # plus qu'ils sont fréquents.
+    # Toutes les heures -- **et GitHub n'en exécute qu'une fraction**. Mesuré
+    # sur huit jours : 5,4 relevés par jour au lieu de 24, des retards de 5 à
+    # 58 minutes, et jusqu'à dix-huit heures d'affilée sans rien. Les
+    # workflows planifiés sont déprioritisés, et demander plus souvent n'y
+    # change rien : on ne fait qu'ignorer davantage de créneaux.
     #
-    # D'où les deux mesures, ensemble : demander souvent — chaque créneau est
-    # une chance —, et **ne pas dépendre du créneau** une fois le job lancé,
-    # puisqu'il relève alors plusieurs fois lui-même. C'est la seconde qui
-    # fait le travail ; celle-ci ne fait qu'ouvrir la porte plus souvent.
-    - cron: "*/15 * * * *"
+    # Ce relevé-ci n'est donc plus le principal, mais le **filet**. Le travail
+    # régulier se fait sur la machine du mainteneur, toutes les quinze
+    # minutes, par `outils/releve-local.py` et son minuteur systemd. Celui-ci
+    # prend le relais quand cette machine est éteinte -- la nuit, les jours
+    # sans jeu — et publie sur la même branche, où la fusion des registres
+    # rapproche les constats en double.
+    - cron: "17 * * * *"
   # Pour déclencher à la main depuis l'onglet Actions, sans attendre l'heure.
   workflow_dispatch:
 
@@ -44,22 +46,16 @@ permissions:
 concurrency:
   # Deux relevés en même temps se marcheraient sur les pieds au moment de
   # pousser, et le second perdrait ce que le premier vient d'écrire.
-  #
-  # Depuis que le job dure une heure, les déclenchements suivants s'empilent :
-  # GitHub en garde **un** en attente et annule les autres. C'est le
-  # comportement voulu — le run en attente prend la suite du précédent, et la
-  # couverture s'enchaîne. Les annulations qui paraissent dans l'onglet
-  # Actions ne sont donc pas des échecs, mais des créneaux en trop.
   group: releve-guildes
   cancel-in-progress: false
 
 jobs:
   relever:
     runs-on: ubuntu-latest
-    # Le job dort trois quarts d'heure sur les quatre qu'il vit. Sans borne,
-    # un `sleep` qui ne rendrait jamais la main retiendrait un runner six
-    # heures, et la file d'attente derrière lui.
-    timeout-minutes: 75
+    # Le relevé dure une quinzaine de secondes. Dix minutes laissent la place
+    # à un réseau poussif sans qu'une exécution coincée retienne un runner
+    # six heures — la limite par défaut.
+    timeout-minutes: 10
     steps:
       - name: Le code du relevé
         uses: actions/checkout@v5
@@ -79,52 +75,29 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Relever et publier, quatre fois par heure
+      - name: Relever les guildes
         env:
           CLES_GUILDES: ${{ secrets.CLES_GUILDES }}
           DOSSIER_JOURNAUX: ${{ github.workspace }}/journaux
-          JETON: ${{ github.token }}
-        # Quatre tours espacés d'un quart d'heure : le job couvre une heure
-        # pleine, quelle que soit l'heure à laquelle GitHub a bien voulu le
-        # lancer. C'est ce qui rend le relevé régulier alors que son
-        # déclenchement ne l'est pas.
-        #
-        # Le travail utile dure une douzaine de secondes par tour ; le reste
-        # du temps le runner dort. Pour en faire plus, augmenter TOURS —
-        # un job peut vivre six heures — au prix d'un runner immobilisé
-        # d'autant. Quatre est le compromis : une heure de couverture, et la
-        # place laissée au déclenchement suivant.
+        run: python3 zyroom-gtk/outils/releve-guildes.py
+
+      - name: Publier ce qui a bougé
         run: |
-          TOURS=4
-          ATTENTE=900
-          for tour in $(seq 1 $TOURS); do
-            echo "::group::Relevé $tour/$TOURS"
-            python3 zyroom-gtk/outils/releve-guildes.py || echo "Relevé en échec, on continue."
-
-            cd "${GITHUB_WORKSPACE}/journaux"
-            # Une branche orpheline, refaite à neuf : `git init` et non un
-            # commit de plus. L'historique ne doit pas s'accumuler, c'est tout
-            # l'objet de la manœuvre.
-            rm -rf .git
-            git init -q -b journaux
-            git config user.name  "Relevé des guildes"
-            git config user.email "noreply@github.com"
-            git add -A
-            if git diff --cached --quiet; then
-              echo "Aucun journal à publier."
-            else
-              git commit -q -m "Relevé des guildes : $(date -u '+%d/%m/%Y %Hh%M UTC')"
-              git push -f \
-                "https://x-access-token:${JETON}@github.com/${GITHUB_REPOSITORY}.git" \
-                journaux:refs/heads/journaux
-              echo "Publié sur la branche journaux."
-            fi
-            cd "${GITHUB_WORKSPACE}"
-            echo "::endgroup::"
-
-            # Pas d'attente après le dernier tour : elle ne servirait qu'à
-            # retenir le runner pour rien.
-            if [ "$tour" -lt "$TOURS" ]; then
-              sleep "$ATTENTE"
-            fi
-          done
+          cd "${GITHUB_WORKSPACE}/journaux"
+          # Une branche orpheline, refaite à neuf : `git init` et non un
+          # commit de plus. L'historique ne doit pas s'accumuler, c'est tout
+          # l'objet de la manœuvre.
+          rm -rf .git
+          git init -q -b journaux
+          git config user.name  "Relevé des guildes"
+          git config user.email "noreply@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Aucun journal à publier."
+            exit 0
+          fi
+          git commit -q -m "Relevé des guildes : $(date -u '+%d/%m/%Y %Hh%M UTC')"
+          git push -f \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" \
+            journaux:refs/heads/journaux
+          echo "Publié sur la branche journaux."
