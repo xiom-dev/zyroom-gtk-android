@@ -176,19 +176,25 @@ def feuille(taille: int = 0) -> str:
         # corps est calcule a part -- il les rapetissait a la taille courante.
         # On le leur rend ici, dans les memes proportions que fenetre.py.
         corps = (f"* {{ font-size: {taille}pt; }}\n"
-                 f"#nom-grave {{ font-size: {taille * 2.4:.0f}pt; }}\n"
-                 f"#nom-mouture {{ font-size: {taille * 2.2:.0f}pt; }}\n")
+                 f"#nom-grave {{ font-size: {taille * 2.4:.2f}pt; }}\n"
+                 f"#nom-mouture {{ font-size: {taille * 2.2:.2f}pt; }}\n")
     # La somme en dappers, un point au-dessus du reste -- comme la version
     # GTK, qui calcule la meme chose a partir du meme corps. Quand rien n'est
     # regle, le corps est celui du bureau : on le demande a Qt plutot que de
     # le supposer, sinon les deux barres divergeraient sur un bureau qui
     # n'ecrit pas en onze points.
     base = taille if taille > 0 else _corps_du_bureau()
-    corps += f"QLabel#dappers {{ font-size: {base + 1:.0f}pt; }}\n"
+    # **Deux decimales et non un entier.** Sur un bureau qui grossit le texte
+    # -- celui de Ludo est a 1,25 --, un reglage de dix points fait douze
+    # points et demi. `f"{12.5:.0f}"` rend « 12 » : Python arrondit au pair, et
+    # ce demi-point perdu se voyait a l'oeil, tout le texte de Qt etant un
+    # pixel plus court que celui de GTK. Une feuille Qt accepte les decimales ;
+    # GTK, lui, ne tronque rien.
+    corps += f"QLabel#dappers {{ font-size: {base + 1:.2f}pt; }}\n"
     # La signature a 90 % du corps : la classe `caption` de GTK, que Qt ne sait
     # pas exprimer en pourcentage.
     corps += (f"QLabel#signature, QPushButton#signature "
-              f"{{ font-size: {base * 0.9:.0f}pt; }}\n")
+              f"{{ font-size: {base * 0.9:.2f}pt; }}\n")
     return corps + """
 /* Les bandes qui encadrent la grille : la barre du haut, celle des deux
    selecteurs, et le pied. Un cran sous le fond, pour tenir la grille entre
