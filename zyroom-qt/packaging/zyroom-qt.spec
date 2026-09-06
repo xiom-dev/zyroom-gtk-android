@@ -31,6 +31,10 @@ donnees = [
     (os.path.join(RACINE, "zyroom", "locale"), "zyroom/locale"),
     (os.path.join(RACINE, "zyroom", "cartes"), "zyroom/cartes"),
     (os.path.join(RACINE, "zyroom", "symboles"), "zyroom/symboles"),
+    # Les images que Qt dessine lui-meme la ou GTK s'en remet a Adwaita : la
+    # coche des cases a cocher et le chevron des listes deroulantes. A part de
+    # `symboles/`, que la synchronisation du noyau refait a neuf.
+    (os.path.join(RACINE, "zyroom", "aspect"), "zyroom/aspect"),
     (os.path.join(RACINE, "zyroom", "polices", "pirata_one.ttf"),
      "zyroom/polices"),
     (os.path.join(RACINE, "zyroom", "polices", "OFL-PirataOne.txt"),

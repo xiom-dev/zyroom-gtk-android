@@ -152,8 +152,16 @@ def _corps_du_bureau() -> float:
 #: `symboles/` sous `zyroom/`. Les separateurs sont des barres obliques -- une
 #: feuille de style Qt ne lit pas les antislashs de Windows.
 def _symbole(nom: str) -> str:
+    """Le chemin d'une image d'aspect, en separateurs avant.
+
+    **Dans `aspect/` et non dans `symboles/`.** Ce dernier est recopie tel quel
+    depuis la version GTK par `outils/sync-noyau.sh`, qui le refait a neuf a
+    chaque passage : la coche et le chevron y auraient disparu a la premiere
+    synchronisation. Ils n'ont d'ailleurs rien a y faire -- GTK n'en a pas
+    besoin, Adwaita les dessine.
+    """
     return os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "symboles", nom).replace(os.sep, "/")
+                        "aspect", nom).replace(os.sep, "/")
 
 
 COCHE = _symbole("coche.png")
