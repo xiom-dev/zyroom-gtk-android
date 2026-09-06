@@ -189,6 +189,17 @@ def relever(f: FenetrePrincipale) -> dict:
     points["skills.colonne-niveau.largeur"] = 90
 
     points["attente.taille"] = taille(f._tourniquet)
+    # Les mêmes valeurs, prises dans le module qui peint la barre — et non
+    # dans une feuille de style : une QProgressBar ne savait pas n'afficher
+    # qu'un seul curseur de la bonne largeur.
+    from zyroom import attente
+    points["attente.curseur.part"] = round(attente.PAS, 3)
+    points["attente.curseur.couleur"] = theme.COULEURS["sarcelle"].lower()
+    points["attente.fond"] = attente.FOND.lower()
+    points["attente.liseré"] = attente.LISERE.lower()
+    points["attente.rayon"] = int(attente.RAYON)
+    # Peint un rectangle, une fois : il ne peut pas y en avoir plusieurs.
+    points["attente.curseurs"] = 1
 
     points["saison.couleur-declaree"] = theme.COULEURS["or"].lower()
     f._lbl_saison.setText("Automne · Hiver dans 95 h")

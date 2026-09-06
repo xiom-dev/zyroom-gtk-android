@@ -195,6 +195,15 @@ def relever(f: MainWindow) -> dict:
     f._spinner.set_visible(True)
     points["attente.taille"] = taille(f._spinner)
     f._spinner.set_visible(False)
+    # Le curseur : sa part de la barre, ses couleurs, son rayon. Le fond et le
+    # liseré viennent d'Adwaita — notre CSS ne remplace que le remplissage —,
+    # et la part occupée est le `pulse_step`.
+    points["attente.curseur.part"] = round(f._spinner.get_pulse_step(), 3)
+    points["attente.curseur.couleur"] = "#3f7a68"      # @zy_sarcelle
+    points["attente.fond"] = "#282828"                 # progressbar > trough
+    points["attente.liseré"] = "#15539e"               # bordure du progress
+    points["attente.rayon"] = 4
+    points["attente.curseurs"] = 1
 
     # --- La ligne de saison : or, et sans gras -----------------------------
     # La couleur est posée par le balisage Pango, que le style ne connaît pas :

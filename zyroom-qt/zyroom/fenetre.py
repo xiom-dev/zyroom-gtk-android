@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 from . import (alerts, apropos, backup, chatlog, cles, detail, enchantements,
                i18n, movements, notifications, outposts, partage, polices,
                roster, ryzom_api, sorting, specialites, theme, updater)
+from .attente import BarreAttente
 from .categorydb import CategoryDb
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      data_dir, detect_pack, detect_save_folder,
@@ -586,9 +587,11 @@ class FenetrePrincipale(QMainWindow):
 
         # Le tourniquet de la synchro. Qt n'a pas de `Gtk.Spinner` : une barre
         # de progression sans bornes tourne en boucle et dit la meme chose.
-        self._tourniquet = QProgressBar()
-        self._tourniquet.setRange(0, 0)
-        self._tourniquet.setTextVisible(False)
+        # Peinte a la main, et non par une QProgressBar indeterminee : celle-ci
+        # repete le motif de son chunk pour remplir la zone, et l'on voyait
+        # trois curseurs balayer de front la ou GTK n'en promene qu'un. Voir
+        # `attente.py` -- le fond, le lisere et le rythme y sont ceux de GTK.
+        self._tourniquet = BarreAttente()
         # La meme largeur que la version GTK. Cent vingt pixels donnaient une
         # barre si longue que le curseur y paraissait immobile ; soixante la
         # ramenent a la taille de ce qu'elle dit -- une attente, pas une

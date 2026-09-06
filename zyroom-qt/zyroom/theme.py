@@ -269,6 +269,27 @@ QProgressBar::chunk {
    change de couleur au passage des paliers. Les trois couleurs viennent du
    Default-dark.css de GTK, pas de notre palette : les reprendre autrement
    aurait fait deux jauges cousines au lieu de deux jumelles. */
+/* La barre d'attente, calquee sur celle de GTK. Adwaita lui donne un fond
+   #282828 et un lisere #15539e, que notre CSS ne remplace pas -- il ne change
+   que la couleur de remplissage. Le rayon est de 4, contre 5 pour les jauges.
+
+   **`width` est ce qui n'en fait qu'un.** Sans largeur declaree, Qt repete le
+   motif du chunk sur toute la barre : on voyait plusieurs curseurs balayer de
+   front, la ou GTK n'en promene qu'un. Neuf pixels, soit le `pulse_step` de
+   0,15 applique aux soixante de la barre -- la meme mesure des deux cotes. */
+QProgressBar#attente {
+    background-color: #282828;
+    border: none;
+    border-radius: 4px;
+}
+QProgressBar#attente::chunk {
+    background-color: %(sarcelle)s;
+    border: 1px solid #15539e;
+    border-radius: 4px;
+    width: 9px;
+    margin: 0px;
+}
+
 QProgressBar#jauge, QProgressBar#jauge-volume {
     background-color: #282828;
     border: none;             /* le lisere appartient au bloc rempli, pas au fond */
