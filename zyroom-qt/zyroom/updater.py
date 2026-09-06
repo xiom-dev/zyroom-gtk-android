@@ -362,31 +362,52 @@ def _relais_windows(cible: str) -> bool:
     exe = os.path.abspath(sys.executable)
 
     script = os.path.join(tempfile.gettempdir(), "zyroom-qt-maj.bat")
+    # **Les chemins passent par l'environnement, jamais par le script.**
+    #
+    # Ils y étaient écrits en toutes lettres, et le fichier ouvert en ASCII :
+    # un joueur dont l'installation passe par « C:\Users\Frédéric » ou par
+    # « Téléchargements » faisait lever UnicodeEncodeError, que le `except`
+    # d'en dessous avalait — le bouton « Relancer » ne relançait rien, et
+    # n'en disait pas grand-chose. Un prénom accentué suffisait.
+    #
+    # L'écrire en UTF-8 n'aurait fait que déplacer la panne : `cmd` lit les
+    # fichiers de commandes dans la codepage OEM, et l'accent y serait devenu
+    # un autre caractère, donc un chemin qui n'existe pas. Les variables
+    # d'environnement, elles, voyagent en UTF-16 jusqu'à `cmd` : le script
+    # reste en ASCII pur quels que soient les chemins, et il n'y a plus rien
+    # à encoder.
+    environnement = dict(os.environ)
+    environnement["ZY_CIBLE"] = cible
+    environnement["ZY_ANCIENNE"] = ancienne
+    environnement["ZY_ATTENTE"] = attente
+    environnement["ZY_EXE"] = exe
+    environnement["ZY_PID"] = str(os.getpid())
+
     # `tasklist` plutot qu'une attente fixe : la duree de fermeture depend de
     # la machine, et une seconde de trop ou de moins deciderait du succes.
     # Trente essais d'une seconde laissent le temps a Qt de rendre la main,
     # puis on tente quand meme -- au pire le renommage echoue et l'ancienne
     # version reste, ce qui est le cas sur lequel on sait revenir.
-    contenu = f"""@echo off
+    contenu = """@echo off
 setlocal
 for /l %%i in (1,1,30) do (
-    tasklist /fi "PID eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul || goto :libre
+    tasklist /fi "PID eq %ZY_PID%" 2>nul | find "%ZY_PID%" >nul || goto :libre
     ping -n 2 127.0.0.1 >nul
 )
 :libre
-if exist "{ancienne}" rmdir /s /q "{ancienne}"
-move "{cible}" "{ancienne}" >nul 2>&1
+if exist "%ZY_ANCIENNE%" rmdir /s /q "%ZY_ANCIENNE%"
+move "%ZY_CIBLE%" "%ZY_ANCIENNE%" >nul 2>&1
 if errorlevel 1 goto :echec
-move "{attente}" "{cible}" >nul 2>&1
+move "%ZY_ATTENTE%" "%ZY_CIBLE%" >nul 2>&1
 if errorlevel 1 (
     rem Le remplacement a echoue a mi-chemin : l'application doit exister.
-    move "{ancienne}" "{cible}" >nul 2>&1
+    move "%ZY_ANCIENNE%" "%ZY_CIBLE%" >nul 2>&1
     goto :echec
 )
-start "" "{exe}"
+start "" "%ZY_EXE%"
 goto :fin
 :echec
-start "" "{exe}"
+start "" "%ZY_EXE%"
 :fin
 rem Le script s'efface lui-meme : `del` sur le fichier en cours fonctionne
 rem sous cmd, la derniere ligne ayant deja ete lue.
@@ -396,6 +417,7 @@ del "%~f0"
         with open(script, "w", encoding="ascii", newline="\r\n") as f:
             f.write(contenu)
         subprocess.Popen(["cmd", "/c", script], close_fds=True,
+                         env=environnement,
                          creationflags=0x00000008 | 0x08000000)
         return True
     except Exception:                                   # noqa: BLE001

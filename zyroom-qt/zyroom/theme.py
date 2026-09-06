@@ -50,7 +50,11 @@ COULEURS = {
     # melanger, on pose donc le resultat.
     "zebre":           "#1d2e2f",
     # Le vert de ce qui est monte au maximum : mix(sarcelle, blanc, 0.35).
-    "fini":            "#82a89d",
+    # Le vert de ce qui est monte au maximum. La valeur exacte que GTK
+    # calcule pour `mix(@zy_sarcelle, white, 0.35)` : 0,65 de sarcelle et 0,35
+    # de blanc, composante par composante. Elle etait a #82a89d, un point de
+    # vert en dessous.
+    "fini":            "#82a99d",
     "vert":            "#4caf50",
 }
 
@@ -250,16 +254,19 @@ QProgressBar::chunk {
    change de couleur au passage des paliers. Les trois couleurs viennent du
    Default-dark.css de GTK, pas de notre palette : les reprendre autrement
    aurait fait deux jauges cousines au lieu de deux jumelles. */
-QProgressBar#jauge-volume {
+QProgressBar#jauge, QProgressBar#jauge-volume {
     background-color: #282828;
     border: none;             /* le lisere appartient au bloc rempli, pas au fond */
     border-radius: 5px;
 }
-QProgressBar#jauge-volume::chunk {
+QProgressBar#jauge::chunk, QProgressBar#jauge-volume::chunk {
     background-color: %(sarcelle)s;
     border: 1px solid #15539e;      /* high, le palier par defaut */
     border-radius: 5px;
 }
+/* Seule la jauge de volume a des paliers : GTK lui pose trois
+   `add_offset_value`, la jauge des competences aucun -- son bloc ne porte
+   que « filled », et son lisere reste bleu de bout en bout. */
 QProgressBar#jauge-volume[niveau="low"]::chunk  { border-color: #f57900; }
 QProgressBar#jauge-volume[niveau="high"]::chunk { border-color: #15539e; }
 QProgressBar#jauge-volume[niveau="full"]::chunk { border-color: #26ab62; }

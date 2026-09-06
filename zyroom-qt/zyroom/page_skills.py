@@ -233,10 +233,20 @@ class PageCompetences(QWidget):
 
         if noeud.skill.progress:
             barre = QProgressBar()
+            barre.setObjectName("jauge")
             barre.setRange(0, 100)
             barre.setValue(noeud.skill.progress)
             barre.setTextVisible(False)
-            barre.setFixedWidth(theme.largeur(barre, 4.7))
+            # Quatre-vingt-dix sur onze, les mesures du Gtk.LevelBar de la
+            # version GTK. **En pixels et non en hauteurs de ligne** : GTK pose
+            # ces deux nombres en dur, et une jauge qui suivrait la police
+            # cesserait de lui ressembler des qu'on change de corps.
+            #
+            # La hauteur surtout : sans elle, le layout etirait la barre sur
+            # toute la hauteur de la rangee -- soixante-six sur quatre cent
+            # quatre-vingts, mesure -- et ce qui devait etre une petite jauge
+            # devenait une colonne qu'on ne reconnaissait plus.
+            barre.setFixedSize(90, 11)
             ligne.addWidget(barre)
 
         # Le niveau atteint, et non le plafond de l'echelon : "Creer bijoux"
