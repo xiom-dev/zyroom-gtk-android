@@ -151,7 +151,11 @@ def feuille(taille: int = 0) -> str:
    de GTK. Les coins ne s'arrondissent qu'aux extremites du bloc. */
 QPushButton#nav, QToolButton#nav {
     background-color: %(variante)s;
-    color: %(texte)s;
+    /* #eeeeec et non la couleur de texte du theme : c'est celle qu'Adwaita
+       donne au texte d'un bouton, et la version GTK ne la redefinit pas. Douze
+       points d'ecart sur chaque composante, invisibles a l'oeil -- mais GTK
+       fait foi, et le controle de parite les voit. */
+    color: #eeeeec;
     border: 1px solid %(bande)s;
     border-radius: 0;
     padding: 4px 14px;
@@ -163,9 +167,18 @@ QPushButton#nav:hover, QToolButton#nav:hover {
    largeur du texte : le bouton s'elargissait d'un coup au clic, poussant ses
    voisins, et la police epaissie a la volee -- sans graisse dessinee dans la
    fonte -- paraissait floue. */
-QPushButton#nav:checked, QToolButton#nav[actif="true"] {
+QPushButton#nav:checked {
     background-color: %(sarcelle_sombre)s;
     color: %(texte)s;
+}
+/* Le bouton « Bonus » enfonce ne se peint pas comme les deux autres : GTK lui
+   pose la classe `suggested-action`, qui est plus claire et porte un texte
+   presque noir, la ou un onglet choisi prend la sarcelle sombre. Deux verts
+   differents, donc, et c'est voulu : le menu se distingue des onglets. Qt les
+   confondait, faute d'avoir deux regles. */
+QToolButton#nav[actif="true"] {
+    background-color: %(sarcelle)s;
+    color: #06120e;
 }
 
 /* Le message du jour d'une guilde, encadre comme sur Android. */

@@ -74,6 +74,18 @@ echo
 echo "== Noyau =="
 outils/sync-noyau.sh --verifie
 
+# L'aspect, confronte a celui de la version GTK, qui fait foi.
+#
+# Tous les ecarts trouves jusqu'ici l'ont ete a l'oeil, apres livraison : une
+# jauge etiree sur toute la hauteur d'une rangee, une ligne de saison en gras,
+# un vert a un point du bon, un bouton qui ne s'allumait pas. Chacun se voyait
+# pourtant dans une mesure. La livraison s'arrete donc ici, tant qu'un point
+# differe -- corriger apres coup demande une version de plus, et c'est le
+# joueur qui la subit.
+echo
+echo "== Parite avec GTK =="
+outils/parite.py
+
 echo
 echo "== Construction =="
 packaging/build.sh >/dev/null
