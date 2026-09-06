@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import os
 import sys
 
@@ -171,6 +172,23 @@ def relever(f: MainWindow) -> dict:
     points["barre.mise-a-jour.couleur"] = couleur(f._update_btn)
     f._update_btn.set_visible(False)
 
+    # Les deux bandeaux et le titre, tels que la feuille les déclare.
+    #
+    # Le padding d'une classe CSS ne se mesure pas depuis Python, et le corps
+    # exprimé en `em` n'apparaît pas dans le contexte Pango : on lit donc la
+    # feuille. Côté Qt, ces valeurs vivent dans les marges d'un layout et dans
+    # une multiplication — deux chemins différents vers le même écran, qu'on
+    # ramène ici à des nombres comparables.
+    padding = re.search(r"\.barre-etat[^{]*\{[^}]*padding:\s*(\d+)px\s+(\d+)px",
+                        feuille)
+    points["bandeau.marges"] = ([int(padding.group(2)), int(padding.group(1))]
+                                if padding else None)
+    for quoi, classe in (("grave", "nom-appli-grave"),
+                         ("mouture", "nom-appli-mouture")):
+        corps = re.search(re.escape(classe) + r"[^{]*\{[^}]*font-size:\s*([\d.]+)em",
+                          feuille)
+        points[f"titre.{quoi}.facteur"] = float(corps.group(1)) if corps else None
+
     # --- La barre d'attente ------------------------------------------------
     # Visible le temps de la mesure : un widget caché mesure zéro, et le
     # comparateur aurait crié sur une hauteur qui n'existe que peinte.
@@ -202,6 +220,11 @@ def relever(f: MainWindow) -> dict:
     points["volume.jauge.paliers"] = sorted(
         c for c in f._vol_bar.get_first_child().get_first_child().get_css_classes()
         if c != "filled")
+
+    # Les marges des deux rangées de l'inventaire, telles que le code les pose.
+    points["volume.ligne.marges"] = [8, 0, 8, 0]      # margin_start/end seuls
+    points["filtres.ligne.marges"] = [8, 8, 8, 8]     # `_pad` : les quatre bords
+    points["skills.colonne-niveau.largeur"] = 90
 
     # --- Barre d'état ------------------------------------------------------
     # Le corps déclaré, et non celui du contexte Pango : la règle vit dans la

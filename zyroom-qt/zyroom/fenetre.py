@@ -420,7 +420,11 @@ class FenetrePrincipale(QMainWindow):
         barre = QWidget()
         barre.setObjectName("entete")
         ligne = QHBoxLayout(barre)
-        ligne.setContentsMargins(6, 4, 6, 4)
+        # Huit et quatre : le `padding: 4px 8px` que GTK pose sur sa
+        # `.barre-etat`. Qt ne peut pas le prendre de sa feuille — un padding
+        # QSS sur un conteneur ne deplace pas ses enfants, c'est le layout qui
+        # commande — d'ou ces marges, qui disent la meme chose.
+        ligne.setContentsMargins(8, 4, 8, 4)
         ligne.setSpacing(4)
 
         # A gauche : ce qui parle de l'entite affichee.
@@ -630,7 +634,10 @@ class FenetrePrincipale(QMainWindow):
         # Ligne volume : jauge de remplissage du contenant courant.
         boite_vol = QWidget()
         ligne_vol = QHBoxLayout(boite_vol)
-        ligne_vol.setContentsMargins(8, 6, 8, 0)
+        # Huit sur les cotes, rien en haut ni en bas : GTK ne pose que
+        # `margin_start` et `margin_end` sur sa ligne de volume. Les six pixels
+        # qu'on avait au-dessus la decalaient d'autant.
+        ligne_vol.setContentsMargins(8, 0, 8, 0)
         ligne_vol.setSpacing(8)
         ligne_vol.addWidget(QLabel(_("Volume :")))
         # Onze pixels, comme le Gtk.LevelBar de la version GTK : neuf de bloc
@@ -651,7 +658,10 @@ class FenetrePrincipale(QMainWindow):
         # Ligne 2 : recherche, filtres, tri.
         boite2 = QWidget()
         ligne2 = QHBoxLayout(boite2)
-        ligne2.setContentsMargins(8, 0, 8, 0)
+        # Huit tout autour : GTK passe cette ligne a `_pad`, qui pose la meme
+        # marge aux quatre bords. Sans le haut et le bas, la rangee des filtres
+        # se collait a la jauge et a la grille.
+        ligne2.setContentsMargins(8, 8, 8, 8)
         ligne2.setSpacing(8)
 
         self._recherche = QLineEdit()
@@ -1151,7 +1161,9 @@ class FenetrePrincipale(QMainWindow):
         pied = QWidget()
         pied.setObjectName("bande")
         colonne = QVBoxLayout(pied)
-        colonne.setContentsMargins(8, 2, 8, 2)
+        # Quatre en haut et en bas, comme GTK : a deux, le bandeau du bas etait
+        # visiblement plus mince que celui du haut.
+        colonne.setContentsMargins(8, 4, 8, 4)
         colonne.setSpacing(0)
 
         barre = QGridLayout()
@@ -1229,7 +1241,9 @@ class FenetrePrincipale(QMainWindow):
         grave = QLabel(NOM_GRAVE)
         police = grave.font()
         police.setFamily(polices.FAMILLE)
-        police.setPointSizeF(base * 2.9)
+        # 2,4 fois le corps courant : le `font-size: 2.4em` de GTK. On etait a
+        # 2,9, soit un titre un cinquieme plus grand que celui de la reference.
+        police.setPointSizeF(base * 2.4)
         grave.setFont(police)
         grave.setObjectName("nom-grave")
         ligne.addWidget(grave, 0, Qt.AlignmentFlag.AlignBaseline)
@@ -1241,7 +1255,7 @@ class FenetrePrincipale(QMainWindow):
         # Arial Narrow tient ce role sous Windows.
         pm.setFamilies(["TeX Gyre Heros Cn", "Liberation Sans Narrow",
                         "Arial Narrow", "sans-serif"])
-        pm.setPointSizeF(base * 2.7)
+        pm.setPointSizeF(base * 2.2)      # `font-size: 2.2em` en GTK
         pm.setBold(True)
         mouture.setFont(pm)
         mouture.setObjectName("nom-mouture")

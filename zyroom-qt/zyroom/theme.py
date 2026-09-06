@@ -130,8 +130,8 @@ def feuille(taille: int = 0) -> str:
         # corps est calcule a part -- il les rapetissait a la taille courante.
         # On le leur rend ici, dans les memes proportions que fenetre.py.
         corps = (f"* {{ font-size: {taille}pt; }}\n"
-                 f"#nom-grave {{ font-size: {taille * 2.9:.0f}pt; }}\n"
-                 f"#nom-mouture {{ font-size: {taille * 2.7:.0f}pt; }}\n")
+                 f"#nom-grave {{ font-size: {taille * 2.4:.0f}pt; }}\n"
+                 f"#nom-mouture {{ font-size: {taille * 2.2:.0f}pt; }}\n")
     # La somme en dappers, un point au-dessus du reste -- comme la version
     # GTK, qui calcule la meme chose a partir du meme corps. Quand rien n'est
     # regle, le corps est celui du bureau : on le demande a Qt plutot que de

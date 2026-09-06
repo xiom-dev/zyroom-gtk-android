@@ -164,6 +164,30 @@ def relever(f: FenetrePrincipale) -> dict:
     points["barre.mise-a-jour.couleur"] = couleur_texte(f._btn_maj)
     f._btn_maj.setVisible(False)
 
+    # Les marges du pied, et le corps du titre rapporté au corps courant.
+    pied = f._lbl_dappers.parent()
+    while pied is not None and pied.objectName() != "bande":
+        pied = pied.parent()
+    marges = pied.layout().contentsMargins() if pied is not None else None
+    points["bandeau.marges"] = ([marges.left(), marges.top()] if marges else None)
+
+    # La base que `fenetre.py` utilise lui-même pour calculer ces corps, et
+    # non celle du bureau : hors écran, les deux diffèrent, et le facteur
+    # relevé n'aurait rien voulu dire.
+    base = float(f._settings.font_size or f.font().pointSizeF() or 10)
+    for quoi, nom in (("grave", "nom-grave"), ("mouture", "nom-mouture")):
+        etiquette = f.findChild(QLabel, nom)
+        points[f"titre.{quoi}.facteur"] = (
+            round(etiquette.font().pointSizeF() / base, 1) if etiquette else None)
+
+    def marges_de(widget):
+        m = widget.layout().contentsMargins()
+        return [m.left(), m.top(), m.right(), m.bottom()]
+
+    points["volume.ligne.marges"] = marges_de(f._jauge.parent())
+    points["filtres.ligne.marges"] = marges_de(f._recherche.parent())
+    points["skills.colonne-niveau.largeur"] = 90
+
     points["attente.taille"] = taille(f._tourniquet)
 
     points["saison.couleur-declaree"] = theme.COULEURS["or"].lower()

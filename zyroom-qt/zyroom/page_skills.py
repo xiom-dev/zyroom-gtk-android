@@ -261,10 +261,12 @@ class PageCompetences(QWidget):
             points = getattr(self._entite, "skill_points", {}).get(
                 noeud.skill.code)
         niveau = QLabel(texte_niveau)
-        # Assez large pour « 250 · 99 % » : a 4,7 hauteurs de ligne, les
-        # centaines se faisaient couper -- « 128 · 38 % » s'affichait
-        # « 28 · 38 % », et le niveau devenait faux a la lecture.
-        niveau.setFixedWidth(theme.largeur(niveau, 6.2))
+        # Quatre-vingt-dix pixels, comme GTK, et non plus 6,2 hauteurs de
+        # ligne : les deux coincidaient a la police d'alors, et divergeaient
+        # partout ailleurs -- 112 pixels contre 90 avec la Cantarell 11 du
+        # bureau, soit une colonne un quart plus large que celle de la
+        # reference. « 250 · 99 % » y tient : il mesure 71 pixels.
+        niveau.setFixedWidth(90)
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight
                             | Qt.AlignmentFlag.AlignVCenter)
         if finie:
