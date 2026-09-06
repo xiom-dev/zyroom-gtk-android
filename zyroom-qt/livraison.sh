@@ -83,8 +83,22 @@ outils/sync-noyau.sh --verifie
 # differe -- corriger apres coup demande une version de plus, et c'est le
 # joueur qui la subit.
 echo
-echo "== Parite avec GTK =="
+echo "== Parite avec GTK, point par point =="
 outils/parite.py
+
+# Et l'aspect par l'image, parce que le releve point par point ne voit que ce
+# qu'on pense a lui demander. Celui-ci photographie les deux fenetres sur un
+# serveur X virtuel et confronte leurs bandes et leurs couleurs : il a trouve
+# seul un bandeau du bas trop mince, des boutons sans cadre, des icones non
+# recolorees, des onglets peints du mauvais gris et un trait de separation
+# absent -- tous invisibles au releve, et tous bien reels a l'ecran.
+#
+# Il prend une quarantaine de secondes : le temps de poser deux fenetres et de
+# les photographier. C'est le prix d'une livraison qui ne fait pas decouvrir
+# l'ecart au joueur.
+echo
+echo "== Parite avec GTK, par l'image =="
+outils/parite-image.py
 
 echo
 echo "== Construction =="

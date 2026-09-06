@@ -41,6 +41,7 @@ from . import (alerts, apropos, backup, chatlog, cles, detail, enchantements,
                roster, ryzom_api, sorting, specialites, theme, updater)
 from .attente import BarreAttente
 from .categorydb import CategoryDb
+from .deroulante import Deroulante
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      data_dir, detect_pack, detect_save_folder,
                      entity_xml_path, format_api_created, format_last_sync,
@@ -195,7 +196,13 @@ def _bouton_icone(nom_theme: str, repli: str, infobulle: str) -> QToolButton:
     textuel prend alors la place, et c'est pourquoi chaque appel en fournit un.
     """
     bouton = QToolButton()
-    icone = QIcon.fromTheme(nom_theme)
+    # Le cadre d'Adwaita, comme dans la barre de GTK : la feuille le peint sur
+    # tout ce qui s'appelle « barre ». Seuls les deux boutons de zoom y
+    # echappent, la version GTK leur posant la classe `flat`.
+    bouton.setObjectName("barre")
+    # Recoloree : une icone symbolique prend la couleur du texte chez GTK, et
+    # restait gris foncé chez nous. Voir `theme.icone_symbolique`.
+    icone = theme.icone_symbolique(nom_theme)
     if icone.isNull():
         bouton.setText(repli)
     else:
@@ -447,6 +454,7 @@ class FenetrePrincipale(QMainWindow):
         # La cloche va a gauche, avec l'ajout et le retrait : ce sont les
         # boutons qui parlent de l'entite affichee.
         self._cloche = QToolButton()
+        self._cloche.setObjectName("barre")
         self._cloche.setText("🔔")
         self._cloche.setToolTip(_("Alertes"))
         self._cloche.setAutoRaise(True)
@@ -462,6 +470,10 @@ class FenetrePrincipale(QMainWindow):
             bouton = QToolButton()
             bouton.setText(signe)
             bouton.setToolTip(mot)
+            # Sans cadre : la version GTK pose la classe `flat` sur ces deux
+            # boutons-la, et sur eux seuls. Tous les autres portent le fond
+            # gris d'Adwaita.
+            bouton.setObjectName("plat")
             bouton.setAutoRaise(True)
             police = bouton.font()
             police.setPointSizeF(police.pointSizeF() * 1.6)
@@ -494,6 +506,7 @@ class FenetrePrincipale(QMainWindow):
         ligne.addWidget(self._btn_relever)
 
         menu_btn = QToolButton()
+        menu_btn.setObjectName("barre")
         menu_btn.setText("☰")
         menu_btn.setToolTip(_("Menu"))
         menu_btn.setAutoRaise(True)
@@ -577,14 +590,16 @@ class FenetrePrincipale(QMainWindow):
         ligne.setSpacing(8)
 
         ligne.addWidget(QLabel(_("Entité :")))
-        self._dd_entite = QComboBox()
-        self._dd_entite.setMinimumWidth(200)
+        # Large de son seul texte courant, comme la `Gtk.DropDown` de la
+        # version GTK : voir `deroulante.py`.
+        self._dd_entite = Deroulante()
         self._dd_entite.currentIndexChanged.connect(self._on_entite_choisie)
         ligne.addWidget(self._dd_entite)
 
         ligne.addWidget(QLabel(_("Inventaire :")))
-        self._dd_inv = QComboBox()
-        self._dd_inv.setMinimumWidth(200)
+        # Large de son seul texte courant, comme la `Gtk.DropDown` de la
+        # version GTK : voir `deroulante.py`.
+        self._dd_inv = Deroulante()
         self._dd_inv.currentIndexChanged.connect(self._on_contenant_choisi)
         ligne.addWidget(self._dd_inv)
 
@@ -635,7 +650,11 @@ class FenetrePrincipale(QMainWindow):
         page = QWidget()
         colonne = QVBoxLayout(page)
         colonne.setContentsMargins(0, 0, 0, 0)
-        colonne.setSpacing(4)
+        # Rien entre les lignes : la `Gtk.Box` de la version GTK n'a pas de
+        # `spacing`. Les quatre pixels qu'on mettait ici s'ajoutaient a chaque
+        # separation -- la ligne de volume faisait trente et un pixels au lieu
+        # de vingt-sept, et tout ce qui suit descendait d'autant.
+        colonne.setSpacing(0)
 
         # Ligne volume : jauge de remplissage du contenant courant.
         boite_vol = QWidget()
@@ -673,6 +692,16 @@ class FenetrePrincipale(QMainWindow):
         self._recherche = QLineEdit()
         self._recherche.setPlaceholderText(_("Rechercher un item par nom…"))
         self._recherche.setClearButtonEnabled(True)
+        # La loupe, a gauche du texte : la version GTK emploie une
+        # `Gtk.SearchEntry`, qui la porte d'origine. Un `QLineEdit` n'a rien de
+        # tel -- il faut la poser soi-meme. La comparaison par l'image l'a vue
+        # avant qu'on y pense.
+        loupe = theme.icone_symbolique("system-search-symbolic")
+        if loupe.isNull():
+            loupe = theme.icone_symbolique("edit-find-symbolic")
+        if not loupe.isNull():
+            self._recherche.addAction(
+                loupe, QLineEdit.ActionPosition.LeadingPosition)
         self._recherche.textChanged.connect(self._appliquer_filtre)
         ligne2.addWidget(self._recherche, 1)
 

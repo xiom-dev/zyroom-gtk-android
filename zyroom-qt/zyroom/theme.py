@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtGui import QColor, QFontMetrics, QPalette
+from PySide6.QtCore import Qt
+from PySide6.QtGui import (QColor, QFontMetrics, QIcon, QPainter,
+                           QPalette, QPixmap)
 
 #: Les cinq couleurs d'Android, telles quelles.
 COULEURS = {
@@ -149,8 +151,15 @@ def _corps_du_bureau() -> float:
 #: il tombe juste dans les sources comme dans le bundle PyInstaller, qui range
 #: `symboles/` sous `zyroom/`. Les separateurs sont des barres obliques -- une
 #: feuille de style Qt ne lit pas les antislashs de Windows.
-COCHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     "symboles", "coche.png").replace(os.sep, "/")
+def _symbole(nom: str) -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "symboles", nom).replace(os.sep, "/")
+
+
+COCHE = _symbole("coche.png")
+#: Le chevron d'une liste deroulante. Qt n'en dessine plus des que la feuille
+#: touche au `drop-down` ; celui-la est le « v » d'Adwaita.
+CHEVRON = _symbole("chevron.png")
 
 
 def feuille(taille: int = 0) -> str:
@@ -202,11 +211,96 @@ def feuille(taille: int = 0) -> str:
 #entete, #bande {
     background-color: %(bande)s;
 }
+/* Le trait qui separe la barre du haut de la ligne des selecteurs. Adwaita le
+   pose sous sa `headerbar` ; sans lui, les deux bandes de Qt n'en faisaient
+   qu'une. Un pixel de #070707, mesure sur toute la largeur de la fenetre GTK
+   -- c'est la comparaison par l'image qui l'a trouve, personne ne l'avait vu. */
+#entete {
+    border-bottom: 1px solid #070707;
+}
+
+/* **Tous les boutons**, et non les seuls boutons nommes. Adwaita donne a un
+   bouton un fond gris, des coins de six pixels et un texte presque blanc ;
+   Fusion, lui, dessinait un degrade clair borde de gris bleute, que la
+   comparaison par l'image a repere bande par bande (#404850 et #485058
+   « presents chez Qt, absents chez GTK »). Les boutons nommes -- le principal,
+   la navigation, la signature, le compteur -- gardent leur regle : un
+   selecteur d'identifiant l'emporte sur un selecteur de type.
+
+   Les seuls boutons sans cadre s'appellent « plat », comme la classe `flat`
+   que la version GTK pose sur les deux boutons de zoom. */
+QPushButton, QToolButton {
+    /* Le degrade d'Adwaita, releve en coupe sur un bouton de la fenetre GTK :
+       #3a3a3a en haut, #373737 en bas, et une bordure #1b1b1b tout autour. Un
+       aplat sans bordure s'en approchait de loin -- la comparaison par l'image
+       reclamait ces deux couleurs bande apres bande. */
+    background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #3a3a3a, stop: 0.5 #393939,
+                                      stop: 1 #373737);
+    border: 1px solid #1b1b1b;
+    border-radius: 6px;
+    color: #eeeeec;
+    padding: 4px 10px;
+    min-height: 21px;
+}
+QPushButton:hover, QToolButton:hover     { background-color: #454545; }
+QPushButton:pressed, QToolButton:pressed { background-color: #2a2a2a; }
+QPushButton:disabled, QToolButton:disabled {
+    background-color: #2d2d2d;
+    color: #6a6a6a;
+}
+QPushButton#plat, QToolButton#plat {
+    background: transparent;
+    border: none;
+}
+QPushButton#plat:hover, QToolButton#plat:hover {
+    background-color: #303030;
+}
+
+/* Les boutons d'action de la barre du haut : l'ajout, la corbeille, la
+   cloche, le dossier, la resynchronisation et le menu. Adwaita leur donne un
+   fond gris et des coins de six pixels ; Qt, lui, les laissait plats --
+   `setAutoRaise`. La comparaison par l'image l'a vu la premiere : le #383838
+   d'Adwaita etait « present chez GTK, absent chez Qt » dans toute la bande du
+   haut. Trente-quatre pixels sur trente et un, mesures sur la fenetre GTK.
+
+   Les deux boutons de zoom, eux, restent plats : la version GTK leur pose la
+   classe `flat`, et ils n'ont donc pas ce nom. */
+QToolButton#barre, QPushButton#barre {
+    background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #3a3a3a, stop: 0.5 #393939,
+                                      stop: 1 #373737);
+    border: 1px solid #1b1b1b;
+    border-radius: 6px;
+    color: #eeeeec;
+    min-width: 22px;
+    min-height: 21px;
+    padding: 4px 5px;
+}
+QToolButton#barre:hover, QPushButton#barre:hover {
+    background-color: #454545;
+}
+QToolButton#barre:pressed, QPushButton#barre:pressed {
+    background-color: #2a2a2a;
+}
+QToolButton#barre:disabled, QPushButton#barre:disabled {
+    background-color: #2d2d2d;
+    color: #6a6a6a;
+}
+/* Le menu deroulant du bouton « ☰ » n'affiche pas de fleche : GTK n'en met
+   pas non plus a cote de son icone. */
+QToolButton#barre::menu-indicator { image: none; width: 0; }
 
 /* La navigation : trois boutons qui se touchent, comme la classe « linked »
    de GTK. Les coins ne s'arrondissent qu'aux extremites du bloc. */
 QPushButton#nav, QToolButton#nav {
-    background-color: %(variante)s;
+    /* #383838, le gris qu'Adwaita donne a un bouton -- et non la variante du
+       theme. Mesure sur la fenetre GTK : l'onglet « Journal » au repos y est
+       gris, il etait bleu-vert chez nous. La comparaison par l'image l'a vu,
+       le releve point par point ne regardait que le bouton choisi. */
+    background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #3a3a3a, stop: 0.5 #393939,
+                                      stop: 1 #373737);
     /* #eeeeec et non la couleur de texte du theme : c'est celle qu'Adwaita
        donne au texte d'un bouton, et la version GTK ne la redefinit pas. Douze
        points d'ecart sur chaque composante, invisibles a l'oeil -- mais GTK
@@ -453,7 +547,7 @@ QCheckBox::indicator:disabled { background-color: %(fond)s; }
    les dessinait dix pixels plus courts, et les rangees de la fenetre d'Options
    se suivaient tous les trente-trois pixels la ou GTK les espace de
    quarante-quatre. Mesure sur les deux fenetres. */
-QLineEdit, QComboBox {
+QLineEdit {
     background-color: %(variante)s;
     border: 1px solid #1b1b1b;
     border-radius: 6px;
@@ -461,7 +555,30 @@ QLineEdit, QComboBox {
     padding: 4px 8px;
     min-height: 25px;
 }
-QLineEdit:focus, QComboBox:focus { border-color: %(sarcelle)s; }
+QLineEdit:focus { border-color: %(sarcelle)s; }
+
+/* Une liste deroulante n'est pas un champ : GTK en fait un **bouton**, et
+   Adwaita lui donne le meme gris qu'a l'ajout ou a la corbeille de la barre du
+   haut -- #383838, mesure. La peindre du bleu-vert des champs etait une erreur
+   de ma part, que la comparaison par l'image a relevee. */
+QComboBox {
+    background-color: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                                      stop: 0 #3a3a3a, stop: 0.5 #393939,
+                                      stop: 1 #373737);
+    border: 1px solid #1b1b1b;
+    border-radius: 6px;
+    color: %(texte)s;
+    padding: 4px 8px;
+    min-height: 25px;
+}
+QComboBox:hover { background-color: #454545; }
+QComboBox:focus { border-color: %(sarcelle)s; }
+QComboBox::drop-down { border: none; width: 22px; }
+QComboBox::down-arrow {
+    image: url("%(chevron)s");
+    width: 14px;
+    height: 14px;
+}
 
 /* Le compteur des Options : un champ, un moins, un plus, sur une seule ligne.
    Toutes ces valeurs sont relevees au pixel sur la fenetre GTK : le fond d'un
@@ -493,7 +610,44 @@ QPushButton#compteur-bouton:hover   { background-color: %(surface)s; }
 QPushButton#compteur-bouton:pressed { background-color: %(fond)s; }
 /* Eteint a la borne : le compteur dit ce qu'il peut encore faire. */
 QPushButton#compteur-bouton:disabled { color: #5c6462; }
-""" % dict(COULEURS, coche=COCHE)
+""" % dict(COULEURS, coche=COCHE, chevron=CHEVRON)
+
+
+#: La couleur qu'Adwaita donne au texte -- et donc a l'icone -- d'un bouton.
+ENCRE_BOUTON = "#eeeeec"
+
+
+def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON) -> QIcon:
+    """Une icône du thème du bureau, **recolorée** comme GTK le ferait.
+
+    Les icônes dites « symboliques » sont des silhouettes destinées à prendre
+    la couleur du texte qui les entoure : GTK les repeint, Qt les sert telles
+    quelles. Sur un fond sombre, la loupe du champ de recherche et la corbeille
+    de la barre du haut restaient donc gris foncé là où GTK les montre
+    presque blanches. C'est la comparaison par l'image qui l'a vu.
+
+    Le procédé est celui de tout le monde : on dessine l'icône, puis on remplit
+    par-dessus en ne gardant que ce qui est déjà opaque (`SourceIn`).
+
+    Rend une icône vide si le bureau n'a pas cette icône — sous Windows, par
+    exemple, où l'appelant retombe sur son repli textuel.
+    """
+    source = QIcon.fromTheme(nom)
+    if source.isNull():
+        return QIcon()
+    # Assez grand pour que la réduction reste nette sur un écran fin.
+    pixmap = source.pixmap(64, 64)
+    if pixmap.isNull():
+        return QIcon()
+    teinte = QPixmap(pixmap.size())
+    teinte.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(teinte)
+    peintre.drawPixmap(0, 0, pixmap)
+    peintre.setCompositionMode(
+        QPainter.CompositionMode.CompositionMode_SourceIn)
+    peintre.fillRect(teinte.rect(), QColor(couleur))
+    peintre.end()
+    return QIcon(teinte)
 
 
 def largeur(widget, facteur: float) -> int:
