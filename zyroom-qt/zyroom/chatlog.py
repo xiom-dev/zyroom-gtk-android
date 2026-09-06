@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QHBoxLayout,
                                QLabel, QLineEdit, QPushButton, QTextEdit,
                                QVBoxLayout)
 
+from . import theme
 from .i18n import _
 
 _LINE_RE = re.compile(r"^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2}):(\d{2}) "
@@ -167,6 +168,7 @@ class FenetreChatlog(QDialog):
         barre.setSpacing(6)
         self._recherche = QLineEdit()
         self._recherche.setPlaceholderText(_("Filtrer les messages…"))
+        theme.poser_loupe(self._recherche)
         self._recherche.setClearButtonEnabled(True)
         self._recherche.textChanged.connect(self._afficher)
         barre.addWidget(self._recherche, 1)

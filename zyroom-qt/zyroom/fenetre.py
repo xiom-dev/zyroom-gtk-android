@@ -28,7 +28,7 @@ from PySide6.QtCore import QEvent, QSize, Qt, QObject, QTimer, Signal
 from PySide6.QtGui import (QAction, QColor, QFont, QGuiApplication, QIcon,
                            QPainter, QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
-                               QFileDialog, QGridLayout,
+                               QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QListWidget, QListWidgetItem, QMainWindow,
                                QMenu, QMessageBox, QProgressBar, QPushButton,
@@ -186,6 +186,25 @@ def _norm(texte: str) -> str:
     """Minuscule sans accents, pour une recherche tolérante."""
     texte = unicodedata.normalize("NFKD", texte)
     return "".join(c for c in texte if not unicodedata.combining(c)).lower()
+
+
+def _trait_de_jour() -> QWidget:
+    """Le trait qui separe deux journees du journal, copie sur celui de GTK.
+
+    GTK empile six pixels d'air, un trait d'un pixel a l'or du theme (#e8c15a
+    a 55 %, soit 140 sur 255), puis six pixels d'air : treize en tout. Un
+    `QTableWidgetItem` ne sait peindre que sa cellule entiere, d'ou ce widget
+    -- un trait fin au milieu de son air, plutot qu'un bandeau plein.
+    """
+    boite = QWidget()
+    colonne = QVBoxLayout(boite)
+    colonne.setContentsMargins(0, 6, 0, 6)
+    colonne.setSpacing(0)
+    trait = QFrame()
+    trait.setFixedHeight(1)
+    trait.setStyleSheet("background-color: rgba(232, 193, 90, 140);")
+    colonne.addWidget(trait)
+    return boite
 
 
 def _bouton_icone(nom_theme: str, repli: str, infobulle: str) -> QToolButton:
@@ -530,8 +549,11 @@ class FenetrePrincipale(QMainWindow):
         boite = QWidget()
         ligne = QHBoxLayout(boite)
         ligne.setContentsMargins(0, 0, 0, 0)
-        # Zero espacement : les trois boutons se touchent, comme la classe
-        # "linked" de GTK qui en fait un seul bloc.
+        # Zero espacement, et la bordure gauche retiree a tous sauf au
+        # premier : c'est ainsi que la classe "linked" de GTK fond les
+        # bordures voisines en un seul trait d'un pixel. A zero seul, chacun
+        # garde la sienne et la separation en fait deux ; a -1, Qt comprend
+        # « l'espacement par defaut du style » et les ecarte de huit.
         ligne.setSpacing(0)
 
         self._nav_boutons = {}
@@ -540,6 +562,8 @@ class FenetrePrincipale(QMainWindow):
             bouton = QPushButton(etiquette)
             bouton.setCheckable(True)
             bouton.setObjectName("nav")
+            bouton.setProperty("rang", "premier" if nom == "inventory"
+                               else "suite")
             bouton.clicked.connect(lambda _c, n=nom: self._montrer_page(n))
             self._nav_boutons[nom] = bouton
             ligne.addWidget(bouton)
@@ -547,6 +571,7 @@ class FenetrePrincipale(QMainWindow):
         self._btn_plus = QToolButton()
         self._btn_plus.setText(_("Bonus"))
         self._btn_plus.setObjectName("nav")
+        self._btn_plus.setProperty("rang", "suite")
         self._btn_plus.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._btn_plus.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -692,16 +717,7 @@ class FenetrePrincipale(QMainWindow):
         self._recherche = QLineEdit()
         self._recherche.setPlaceholderText(_("Rechercher un item par nom…"))
         self._recherche.setClearButtonEnabled(True)
-        # La loupe, a gauche du texte : la version GTK emploie une
-        # `Gtk.SearchEntry`, qui la porte d'origine. Un `QLineEdit` n'a rien de
-        # tel -- il faut la poser soi-meme. La comparaison par l'image l'a vue
-        # avant qu'on y pense.
-        loupe = theme.icone_symbolique("system-search-symbolic")
-        if loupe.isNull():
-            loupe = theme.icone_symbolique("edit-find-symbolic")
-        if not loupe.isNull():
-            self._recherche.addAction(
-                loupe, QLineEdit.ActionPosition.LeadingPosition)
+        theme.poser_loupe(self._recherche)
         self._recherche.textChanged.connect(self._appliquer_filtre)
         ligne2.addWidget(self._recherche, 1)
 
@@ -856,6 +872,7 @@ class FenetrePrincipale(QMainWindow):
         self._recherche_journal.setPlaceholderText(
             _("Rechercher dans le journal…"))
         self._recherche_journal.setClearButtonEnabled(True)
+        theme.poser_loupe(self._recherche_journal)
         self._recherche_journal.textChanged.connect(self._rafraichir_journal)
         ligne.addWidget(self._recherche_journal, 1)
 
@@ -881,6 +898,10 @@ class FenetrePrincipale(QMainWindow):
         # sommet d'une liste qu'on parcourt du regard ne servent a rien.
         self._table.horizontalHeader().setVisible(False)
         self._table.verticalHeader().setVisible(False)
+        # Sans cela, Qt refuse a une rangee moins d'une vingtaine de pixels --
+        # une hauteur minimale calculee sur la police -- et le trait qui separe
+        # deux journees, treize pixels chez GTK, en aurait fait dix-huit.
+        self._table.verticalHeader().setMinimumSectionSize(1)
         self._table.setShowGrid(False)
         self._table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -960,12 +981,14 @@ class FenetrePrincipale(QMainWindow):
             jour = mv.when[:10]
             if jour_precedent is not None and jour != jour_precedent:
                 self._table.insertRow(rang)
-                self._table.setRowHeight(rang, 7)
+                # GTK pose un `Gtk.Separator` d'un pixel, l'or du theme a
+                # 55 %, avec six pixels d'air au-dessus et six au-dessous :
+                # treize en tout, dont un seul peint. Une rangee entierement
+                # remplie d'or pale -- sept pixels a 35 % -- en faisait un
+                # bandeau, la ou GTK trace un trait qu'on longe.
+                self._table.setRowHeight(rang, 13)
                 self._table.setSpan(rang, 0, 1, 6)
-                trait = QTableWidgetItem()
-                trait.setFlags(Qt.ItemFlag.NoItemFlags)
-                trait.setBackground(QColor(232, 193, 90, 90))
-                self._table.setItem(rang, 0, trait)
+                self._table.setCellWidget(rang, 0, _trait_de_jour())
                 rang += 1
             jour_precedent = jour
 

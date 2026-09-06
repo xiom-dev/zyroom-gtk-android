@@ -31,6 +31,7 @@ import os
 from PySide6.QtCore import Qt
 from PySide6.QtGui import (QColor, QFontMetrics, QIcon, QPainter,
                            QPalette, QPixmap)
+from PySide6.QtWidgets import QLineEdit
 
 #: Les cinq couleurs d'Android, telles quelles.
 COULEURS = {
@@ -317,6 +318,32 @@ QPushButton#nav, QToolButton#nav {
     border: 1px solid %(bande)s;
     border-radius: 0;
     padding: 4px 14px;
+    /* Trente-deux pixels de haut, mesures sur la fenetre GTK. Le contenu seul
+       en donnait vingt-neuf : trois de moins, visibles des qu'on pose les deux
+       captures l'une sous l'autre. */
+    min-height: 24px;
+}
+/* Le chevron du menu « Bonus ». Qt pose sa fleche par defaut dans le coin en
+   bas a droite, minuscule et sombre ; GTK dessine un chevron clair a hauteur
+   du texte, a sa droite -- `set_always_show_arrow`. On reprend donc le chevron
+   des listes deroulantes, centre verticalement, et on reserve sa place dans le
+   remplissage du bouton pour que le texte ne se decale pas. */
+QToolButton#nav {
+    padding-right: 16px;
+}
+QToolButton#nav::menu-indicator {
+    image: url("%(chevron)s");
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 14px;
+    height: 14px;
+    right: 2px;
+}
+/* La bordure gauche de tous sauf le premier : sans cela deux bordures d'un
+   pixel se touchent et la separation en fait deux, la ou GTK n'en montre
+   qu'une seule -- mesure sur les deux captures. */
+QPushButton#nav[rang="suite"], QToolButton#nav[rang="suite"] {
+    border-left: none;
 }
 QPushButton#nav:hover, QToolButton#nav:hover {
     background-color: %(sarcelle_sombre)s;
@@ -477,8 +504,16 @@ QProgressBar#jauge::chunk, QProgressBar#jauge-volume::chunk {
 }
 /* Seule la jauge de volume a des paliers : GTK lui pose trois
    `add_offset_value`, la jauge des competences aucun -- son bloc ne porte
-   que « filled », et son lisere reste bleu de bout en bout. */
-QProgressBar#jauge-volume[niveau="low"]::chunk  { border-color: #f57900; }
+   que « filled », et son lisere reste bleu de bout en bout.
+
+   **« low » n'est pas orange.** La classe existe bien -- GTK la pose sous les
+   soixante pour cent --, mais Adwaita ne lui donne aucune couleur propre :
+   un `Gtk.LevelBar` aux memes trois offsets, mesure a cinquante-neuf pour
+   cent, peint exactement le meme bleu qu'a soixante-dix, et ne vire au vert
+   qu'au dernier palier. L'orange
+   #f57900 qu'on lui avait donne dessinait un lisere rouge-orange autour de la
+   ligne de volume, que la fenetre GTK ne montre a aucun moment. */
+QProgressBar#jauge-volume[niveau="low"]::chunk  { border-color: #15539e; }
 QProgressBar#jauge-volume[niveau="high"]::chunk { border-color: #15539e; }
 QProgressBar#jauge-volume[niveau="full"]::chunk { border-color: #26ab62; }
 
@@ -576,7 +611,12 @@ QComboBox {
     border: 1px solid #1b1b1b;
     border-radius: 6px;
     color: %(texte)s;
-    padding: 4px 8px;
+    /* Trente pixels a droite, huit a gauche : les vingt-deux du `drop-down`
+       plus l'air que GTK laisse entre le texte et son chevron. A huit des
+       deux cotes, la parenthese fermante de « Koii (atys) » venait toucher le
+       chevron et le nom paraissait coupe. La somme des deux remplissages ne
+       bouge pas -- trente-huit --, et `deroulante.py` mesure toujours juste. */
+    padding: 4px 30px 4px 8px;
     min-height: 25px;
 }
 QComboBox:hover { background-color: #454545; }
@@ -584,8 +624,10 @@ QComboBox:focus { border-color: %(sarcelle)s; }
 QComboBox::drop-down { border: none; width: 22px; }
 QComboBox::down-arrow {
     image: url("%(chevron)s");
-    width: 14px;
-    height: 14px;
+    /* Seize pixels comme le chevron de GTK, et non quatorze : a l'oeil, la
+       fleche de Qt paraissait plus timide que celle d'a cote. */
+    width: 16px;
+    height: 16px;
 }
 
 /* Le compteur des Options : un champ, un moins, un plus, sur une seule ligne.
@@ -656,6 +698,52 @@ def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON) -> QIcon:
     peintre.fillRect(teinte.rect(), QColor(couleur))
     peintre.end()
     return QIcon(teinte)
+
+
+def caler_icones() -> None:
+    """Les memes icones que GTK : celles d'Adwaita, et pas celles du bureau.
+
+    GTK4 ne va pas chercher ses icones symboliques dans le theme du bureau :
+    il les porte dans ses propres ressources, et ce sont donc toujours celles
+    d'Adwaita qui s'affichent -- la loupe, la corbeille, le dossier, la
+    resynchronisation. Qt, lui, prend celles du theme courant, quand il en
+    trouve un : d'ou une loupe au trait plus fin et pas tout a fait posee au
+    meme endroit.
+
+    On lui designe donc Adwaita, la ou il est installe, et on ajoute les
+    dossiers d'icones du systeme a sa recherche -- il ne connait d'origine que
+    ses propres ressources. Sans Adwaita -- sous Windows -- rien ne change et
+    l'appelant garde ses replis textuels.
+    """
+    chemins = list(QIcon.themeSearchPaths())
+    for dossier in ("/usr/share/icons",
+                    os.path.expanduser("~/.local/share/icons")):
+        if os.path.isdir(dossier) and dossier not in chemins:
+            chemins.append(dossier)
+    QIcon.setThemeSearchPaths(chemins)
+    if any(os.path.isdir(os.path.join(d, "Adwaita")) for d in chemins):
+        QIcon.setThemeName("Adwaita")
+        QIcon.setFallbackThemeName("Adwaita")
+
+
+def poser_loupe(champ) -> None:
+    """La loupe a gauche d'un champ de recherche, comme GTK la pose partout.
+
+    La version GTK n'emploie que des `Gtk.SearchEntry`, et une `SearchEntry`
+    porte sa loupe d'origine — les cinq champs de recherche de l'application
+    en ont donc une. Un `QLineEdit`, lui, n'a rien de tel : il faut la poser
+    soi-meme, et il suffisait d'oublier un champ pour que celui-la seul s'en
+    passe. C'est ce qui etait arrive au journal, au chatlog, aux competences
+    et au roster : seul l'inventaire avait la sienne.
+
+    Sans icone dans le theme du bureau — sous Windows, par exemple — le champ
+    reste tel quel plutot que de montrer un carre vide.
+    """
+    loupe = icone_symbolique("system-search-symbolic")
+    if loupe.isNull():
+        loupe = icone_symbolique("edit-find-symbolic")
+    if not loupe.isNull():
+        champ.addAction(loupe, QLineEdit.ActionPosition.LeadingPosition)
 
 
 def largeur(widget, facteur: float) -> int:

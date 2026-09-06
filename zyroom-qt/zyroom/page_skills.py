@@ -75,6 +75,7 @@ class PageCompetences(QWidget):
 
         self._recherche = QLineEdit()
         self._recherche.setPlaceholderText(_("Rechercher une compétence…"))
+        theme.poser_loupe(self._recherche)
         self._recherche.setClearButtonEnabled(True)
         self._recherche.textChanged.connect(self.rafraichir)
         ligne.addWidget(self._recherche, 1)

@@ -51,6 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     # exactement le probleme qu'Adwaita posait cote GTK.
     app.setStyle("Fusion")
     charger_traductions_qt(app)
+    # Avant toute icone : c'est ce qui aligne la loupe, la corbeille et le
+    # dossier sur celles que GTK porte dans ses ressources.
+    theme.caler_icones()
     polices.charger()
     # La palette d'abord, la feuille ensuite : l'une informe le style natif,
     # l'autre pose les accents par-dessus. Voir zyroom/theme.py.

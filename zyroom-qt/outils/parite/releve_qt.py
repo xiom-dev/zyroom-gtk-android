@@ -66,7 +66,7 @@ SANS_TEMOIN = {
 }
 
 
-def couleur_texte(widget) -> str:
+def couleur_texte(widget, sans_a_droite: int = 0) -> str:
     """La couleur du texte, **lue dans le rendu du widget**.
 
     Et non dans sa palette : une feuille de style Qt ne la modifie pas, si
@@ -90,9 +90,15 @@ def couleur_texte(widget) -> str:
 
     image = widget.grab().toImage()
     marge = 4
+    # Un pictogramme clair fausse tout : le chevron du menu « Bonus » est plus
+    # eloigne du fond que les lettres, et c'est lui qu'on relevait comme
+    # couleur du texte. Le releve GTK, lui, lit la couleur declaree du widget
+    # et ne voit jamais son chevron : les deux mesures ne comparaient plus la
+    # meme chose. On ecarte donc la bande ou vit l'indicateur.
+    droite = max(marge + 1, image.width() - marge - sans_a_droite)
     pixels = collections.Counter(
         image.pixelColor(x, y).name()
-        for x in range(marge, max(marge + 1, image.width() - marge))
+        for x in range(marge, droite)
         for y in range(marge, max(marge + 1, image.height() - marge)))
     if not pixels:
         return "widget sans surface"
@@ -213,9 +219,11 @@ def relever(f: FenetrePrincipale) -> dict:
     # là où GTK pose une classe. Ce sont les couleurs qu'on compare, pas la
     # façon de les obtenir.
     f._montrer_page("plus")
-    points["nav.bonus.couleur-active"] = couleur_texte(f._btn_plus)
+    # Trente pixels de moins a droite : la place du chevron, que la feuille
+    # reserve dans le remplissage du bouton.
+    points["nav.bonus.couleur-active"] = couleur_texte(f._btn_plus, 30)
     f._montrer_page("inventory")
-    points["nav.bonus.couleur-inactive"] = couleur_texte(f._btn_plus)
+    points["nav.bonus.couleur-inactive"] = couleur_texte(f._btn_plus, 30)
 
     f._jauge.setValue(50)
     points["volume.jauge.taille"] = taille(f._jauge)

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from . import roster
+from . import theme
 from .config import data_dir
 from .i18n import _
 from .ryzom_api import KIND_GUILD
@@ -103,6 +104,7 @@ class PageEffectif(QWidget):
         # sa date, et un champ qui ne filtrerait rien serait pire qu'absent.
         self._recherche = QLineEdit()
         self._recherche.setPlaceholderText(_("Rechercher un membre…"))
+        theme.poser_loupe(self._recherche)
         self._recherche.setClearButtonEnabled(True)
         self._recherche.textChanged.connect(self.rafraichir)
         self._recherche.setMinimumWidth(240)
