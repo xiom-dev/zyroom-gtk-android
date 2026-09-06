@@ -4954,14 +4954,24 @@ class MainWindow(Gtk.ApplicationWindow):
         if busy and message:
             self._set_status(message)
 
-    #: Nombre de pulsations pour traverser la barre, plus une.
-    #:
-    #: `pulse()` avance le curseur d'un `pulse_step` par appel, et **rebondit**
-    #: au bord : arrivé à droite, il repart vers la gauche. On veut un
-    #: défilement, toujours dans le même sens, alors on le renvoie au départ
-    #: avant qu'il ne se retourne. `set_fraction` sort du mode pulsé, le
-    #: `pulse` suivant y revient — au commencement.
-    _PAS_TRAVERSEE = 8
+    def _pas_avant_le_bord(self) -> int:
+        """Combien de pulsations avant que le curseur n'atteigne le bord droit.
+
+        `pulse()` avance le curseur d'un `pulse_step` par appel et **rebondit**
+        au bord : arrivé à droite, il repart vers la gauche. On veut un
+        défilement, toujours dans le même sens, alors on le renvoie au départ
+        avant qu'il ne se retourne — `set_fraction` sort du mode pulsé, le
+        `pulse` suivant y revient, au commencement.
+
+        Le compte se déduit du pas, il ne s'écrit pas : le curseur occupe
+        `pulse_step` de la barre et lui reste donc `1 - pulse_step` à
+        parcourir. À 0,15, cela fait 5,7 pulsations — et le seuil de huit
+        qu'on avait posé laissait le curseur rebondir puis revenir sur deux
+        pulsations avant le retour au départ. Ce demi-tour de deux dixièmes de
+        seconde se voyait comme un arrêt.
+        """
+        pas = self._spinner.get_pulse_step()
+        return max(1, int((1.0 - pas) / pas))
 
     def _attendre(self, oui: bool) -> None:
         """Une raison d'attendre de plus, ou de moins.
@@ -4993,7 +5003,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self._pulse_timer = None
             return False
         self._pas_faits += 1
-        if self._pas_faits >= self._PAS_TRAVERSEE:
+        if self._pas_faits >= self._pas_avant_le_bord():
             self._pas_faits = 0
             self._spinner.set_fraction(0.0)   # retour au depart, sans rebond
         self._spinner.pulse()
