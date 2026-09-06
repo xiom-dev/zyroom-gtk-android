@@ -727,6 +727,11 @@ class FenetrePrincipale(QMainWindow):
         self._grille.customContextMenuRequested.connect(self._menu_objet)
         self._grille.itemDoubleClicked.connect(
             lambda case: self._afficher_details(self._objet_de(case)))
+        # Huit pixels autour de la grille, comme le `_pad` que GTK pose sur son
+        # FlowBox : sans eux, les icones se collaient a la rangee des filtres.
+        # Mesure sur les captures : quarante-cinq pixels entre la recherche et
+        # la premiere icone en GTK, trente-six ici.
+        self._grille.setViewportMargins(8, 8, 8, 8)
         colonne.addWidget(self._grille, 1)
         return page
 
