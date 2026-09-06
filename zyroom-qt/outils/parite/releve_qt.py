@@ -198,6 +198,7 @@ def relever(f: FenetrePrincipale) -> dict:
     points["attente.fond"] = attente.FOND.lower()
     points["attente.liseré"] = attente.LISERE.lower()
     points["attente.rayon"] = int(attente.RAYON)
+    points["attente.cadence"] = attente.CADENCE
     # Peint un rectangle, une fois : il ne peut pas y en avoir plusieurs.
     points["attente.curseurs"] = 1
 

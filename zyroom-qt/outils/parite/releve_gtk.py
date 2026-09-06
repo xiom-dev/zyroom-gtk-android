@@ -198,11 +198,20 @@ def relever(f: MainWindow) -> dict:
     # Le curseur : sa part de la barre, ses couleurs, son rayon. Le fond et le
     # liseré viennent d'Adwaita — notre CSS ne remplace que le remplissage —,
     # et la part occupée est le `pulse_step`.
-    points["attente.curseur.part"] = round(f._spinner.get_pulse_step(), 3)
-    points["attente.curseur.couleur"] = "#3f7a68"      # @zy_sarcelle
-    points["attente.fond"] = "#282828"                 # progressbar > trough
-    points["attente.liseré"] = "#15539e"               # bordure du progress
-    points["attente.rayon"] = 4
+    # Lues dans le module qui peint la barre, des deux côtés : les deux
+    # portages la dessinent eux-mêmes, chacun dans son toolkit, et c'est là
+    # que vivent les nombres.
+    from zyroom import attente as attente_gtk
+
+    def teinte(composantes):
+        return "#%02x%02x%02x" % tuple(round(c * 255) for c in composantes)
+
+    points["attente.curseur.part"] = round(attente_gtk.PAS, 3)
+    points["attente.curseur.couleur"] = teinte(attente_gtk.CURSEUR)
+    points["attente.fond"] = teinte(attente_gtk.FOND)
+    points["attente.liseré"] = teinte(attente_gtk.LISERE)
+    points["attente.rayon"] = int(attente_gtk.RAYON)
+    points["attente.cadence"] = attente_gtk.CADENCE
     points["attente.curseurs"] = 1
 
     # --- La ligne de saison : or, et sans gras -----------------------------

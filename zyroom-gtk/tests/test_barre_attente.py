@@ -12,10 +12,12 @@ import unittest
 
 
 def pas_avant_le_bord(pulse_step: float) -> int:
-    """La règle telle que `MainWindow._pas_avant_le_bord` l'applique.
+    """La règle du module, éprouvée à d'autres pas que celui du programme.
 
-    Recopiée ici plutôt qu'importée : instancier la fenêtre demande GTK, un
-    affichage et une application, quand la règle tient en une division.
+    `zyroom.attente.pas_avant_le_bord` ne prend pas d'argument — elle lit la
+    constante `PAS` —, alors qu'on veut la vérifier sur toute une plage. On
+    rejoue donc le calcul, et un dernier test confronte les deux pour que la
+    copie ne puisse pas dériver de l'original.
     """
     return max(1, int((1.0 - pulse_step) / pulse_step))
 
@@ -46,8 +48,42 @@ class BarreAttente(unittest.TestCase):
         self.assertGreaterEqual(pas_avant_le_bord(0.9), 1)
 
     def test_la_valeur_du_programme(self):
-        """Le pas retenu, 0,15, donne cinq pulsations — et non huit."""
+        """Le pas retenu, 0,15, donne cinq battements — et non huit."""
         self.assertEqual(pas_avant_le_bord(0.15), 5)
+
+    def test_le_module_dit_la_meme_chose(self):
+        """La règle recopiée ici et celle du programme ne doivent pas diverger."""
+        import os
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from zyroom import attente
+
+        self.assertEqual(attente.pas_avant_le_bord(),
+                         pas_avant_le_bord(attente.PAS))
+
+    def test_les_deux_portages_ont_les_memes_nombres(self):
+        """La barre de Qt est le jumeau de celle-ci : mêmes pas, même cadence.
+
+        Les deux fichiers sont écrits à la main, chacun dans son toolkit ; rien
+        n'empêcherait l'un de dériver, sinon ce test.
+        """
+        import os
+        import re
+
+        ici = os.path.dirname(os.path.abspath(__file__))
+        jumeau = os.path.join(os.path.dirname(os.path.dirname(ici)),
+                              "zyroom-qt", "zyroom", "attente.py")
+        if not os.path.isfile(jumeau):
+            self.skipTest("le portage Qt n'est pas à côté")
+        source = open(jumeau, encoding="utf-8").read()
+        from zyroom import attente
+
+        for nom, valeur in (("PAS", attente.PAS), ("CADENCE", attente.CADENCE),
+                            ("RAYON", attente.RAYON)):
+            trouve = re.search(rf"^{nom} = ([\d.]+)", source, re.M)
+            self.assertIsNotNone(trouve, f"{nom} absent du portage Qt")
+            self.assertEqual(float(trouve.group(1)), float(valeur),
+                             f"{nom} diffère entre les deux portages")
 
 
 if __name__ == "__main__":

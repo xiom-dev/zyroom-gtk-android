@@ -27,6 +27,7 @@ from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, data_dir, Settings,
                      detect_save_folder, entity_xml_path, format_api_created,
                      format_last_sync, guard_path, last_sync, movements_path,
                      names_cache_path, portrait_path, snapshot_path)
+from .attente import BarreAttente
 from .icons import IconLoader
 from .options import OptionsWindow
 from .namedb import NameDb
@@ -299,17 +300,14 @@ class MainWindow(Gtk.ApplicationWindow):
         # qu'on ne voit pas avancer. Courte, avec un curseur d'un cran plus
         # large, le va-et-vient se lit d'un coup d'oeil. La version Qt tient
         # la meme largeur -- deux applications qui se ressemblent.
-        self._spinner = Gtk.ProgressBar()
-        self._spinner.add_css_class("attente")
-        self._spinner.set_pulse_step(0.15)
-        self._spinner.set_valign(Gtk.Align.CENTER)
-        self._spinner.set_size_request(60, -1)
-        self._spinner.set_visible(False)
+        # Peinte a la main : la ProgressBar pulsee rebondit au bord, et la
+        # renvoyer au depart interrompait son animation interne -- le curseur
+        # finissait par se bloquer. Voir `attente.py`, dont la version Qt est
+        # le jumeau, nombre pour nombre.
+        self._spinner = BarreAttente()
         bar1.append(self._spinner)
-        self._pulse_timer = None
-        #: Les raisons d'attendre en cours, et ou en est le curseur.
+        #: Les raisons d'attendre en cours. La barre tient son propre rythme.
         self._attentes = 0
-        self._pas_faits = 0
         #: Les icones encore en vol pour la grille affichee.
         self._icones_en_vol = 0
         #: Vrai pendant qu'une mise a jour se telecharge et s'installe.
@@ -4954,60 +4952,22 @@ class MainWindow(Gtk.ApplicationWindow):
         if busy and message:
             self._set_status(message)
 
-    def _pas_avant_le_bord(self) -> int:
-        """Combien de pulsations avant que le curseur n'atteigne le bord droit.
-
-        `pulse()` avance le curseur d'un `pulse_step` par appel et **rebondit**
-        au bord : arrivé à droite, il repart vers la gauche. On veut un
-        défilement, toujours dans le même sens, alors on le renvoie au départ
-        avant qu'il ne se retourne — `set_fraction` sort du mode pulsé, le
-        `pulse` suivant y revient, au commencement.
-
-        Le compte se déduit du pas, il ne s'écrit pas : le curseur occupe
-        `pulse_step` de la barre et lui reste donc `1 - pulse_step` à
-        parcourir. À 0,15, cela fait 5,7 pulsations — et le seuil de huit
-        qu'on avait posé laissait le curseur rebondir puis revenir sur deux
-        pulsations avant le retour au départ. Ce demi-tour de deux dixièmes de
-        seconde se voyait comme un arrêt.
-        """
-        pas = self._spinner.get_pulse_step()
-        return max(1, int((1.0 - pas) / pas))
-
     def _attendre(self, oui: bool) -> None:
         """Une raison d'attendre de plus, ou de moins.
 
-        Un compteur, et non un drapeau : plusieurs travaux se recouvrent —
-        une synchronisation pendant que les icônes d'un coffre arrivent, une
-        mise à jour qui se télécharge pendant qu'on change d'inventaire. Le
-        premier arrivé allume la barre, le dernier parti l'éteint ; avec un
-        drapeau, le premier fini l'éteignait au nez des autres.
+        Un compteur, et non un drapeau : plusieurs travaux se recouvrent — une
+        synchronisation pendant que les icônes d'un coffre arrivent, une mise à
+        jour qui se télécharge pendant qu'on change d'inventaire. Le premier
+        arrivé allume la barre, le dernier parti l'éteint ; avec un drapeau, le
+        premier fini l'éteignait au nez des autres.
+
+        **La barre tient seule son animation** : elle démarre son minuteur en
+        devenant visible, l'arrête en se cachant. Le piloter d'ici demandait de
+        tenir un identifiant à jour depuis deux endroits, et il s'y perdait —
+        la barre restait alors visible, et figée.
         """
         self._attentes = max(0, self._attentes + (1 if oui else -1))
-        if self._attentes > 0:
-            self._spinner.set_visible(True)
-            if self._pulse_timer is None:
-                self._pas_faits = 0
-                self._spinner.pulse()
-                # Cent millisecondes : assez lent pour ne rien coûter, assez
-                # vif pour qu'on voie que ça travaille.
-                self._pulse_timer = GLib.timeout_add(100, self._pulse_tick)
-        else:
-            self._spinner.set_visible(False)
-            if self._pulse_timer is not None:
-                GLib.source_remove(self._pulse_timer)
-                self._pulse_timer = None
-
-    def _pulse_tick(self) -> bool:
-        """Fait courir le curseur de gauche à droite, tant qu'on attend."""
-        if self._attentes <= 0:
-            self._pulse_timer = None
-            return False
-        self._pas_faits += 1
-        if self._pas_faits >= self._pas_avant_le_bord():
-            self._pas_faits = 0
-            self._spinner.set_fraction(0.0)   # retour au depart, sans rebond
-        self._spinner.pulse()
-        return True
+        self._spinner.set_visible(self._attentes > 0)
 
     def _on_zoom_icones(self, _btn, pas: int) -> None:
         """Agrandit ou réduit les icônes, et redessine ce qui est à l'écran."""
