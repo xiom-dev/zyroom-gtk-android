@@ -11,11 +11,12 @@ gagne, et le comportement est identique.
 """
 from __future__ import annotations
 
-from PySide6.QtWidgets import (QAbstractSpinBox,
-                               QCheckBox, QComboBox, QDialog, QDialogButtonBox,
-                               QFileDialog, QGridLayout, QLabel, QLineEdit,
-                               QPushButton, QSpinBox, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog,
+                               QDialogButtonBox, QFileDialog, QGridLayout,
+                               QLabel, QLineEdit, QPushButton, QVBoxLayout,
+                               QWidget)
 
+from .compteur import Compteur
 from .i18n import LANGUAGES, _
 
 
@@ -76,13 +77,10 @@ class FenetreOptions(QDialog):
         grille.addWidget(
             QLabel(_("Taille du texte (points, 0 = celle du bureau)")),
             rang, 0)
-        self._police = QSpinBox()
-        # Un moins et un plus, comme le Gtk.SpinButton d'Adwaita, et
-        # non les deux fleches que Qt met par defaut.
-        self._police.setButtonSymbols(
-            QAbstractSpinBox.ButtonSymbols.PlusMinus)
+        # Un moins et un plus cote a cote, comme le Gtk.SpinButton
+        # d'Adwaita : voir `compteur.py`. Le `PlusMinus` de Qt les empilait.
+        self._police = Compteur()
         self._police.setRange(0, 30)
-        self._police.setSpecialValueText(_("taille du bureau"))
         self._police.setValue(settings.font_size)
         self._police.setToolTip(_(
             "Le corps du texte, comme dans un traitement de texte. Le bureau "
@@ -92,11 +90,7 @@ class FenetreOptions(QDialog):
         rang += 1
 
         grille.addWidget(QLabel(_("Taille des icônes (pixels)")), rang, 0)
-        self._icones = QSpinBox()
-        # Un moins et un plus, comme le Gtk.SpinButton d'Adwaita, et
-        # non les deux fleches que Qt met par defaut.
-        self._icones.setButtonSymbols(
-            QAbstractSpinBox.ButtonSymbols.PlusMinus)
+        self._icones = Compteur()
         self._icones.setRange(24, 128)
         self._icones.setSingleStep(8)
         self._icones.setValue(settings.icon_size)
@@ -184,11 +178,7 @@ class FenetreOptions(QDialog):
                       valeur: int) -> int:
         """Une ligne « libellé + compteur ». Rend le rang suivant."""
         grille.addWidget(QLabel(_(libelle)), rang, 0)
-        compteur = QSpinBox()
-        # Un moins et un plus, comme le Gtk.SpinButton d'Adwaita, et
-        # non les deux fleches que Qt met par defaut.
-        compteur.setButtonSymbols(
-            QAbstractSpinBox.ButtonSymbols.PlusMinus)
+        compteur = Compteur()
         compteur.setRange(mini, maxi)
         compteur.setSingleStep(pas)
         compteur.setValue(valeur)

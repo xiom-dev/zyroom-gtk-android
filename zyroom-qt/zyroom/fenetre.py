@@ -107,6 +107,9 @@ SIGNATURE = "Original by Misugi, fork by Xiom"
 #: une illustration.
 HAUTEUR_PORTRAIT = 44
 
+#: L'air reserve au-dessus du portrait. Le `margin_top` de la version GTK.
+AIR_PORTRAIT = 6
+
 _PREFIXE_GENRE = {KIND_CHARACTER: "👤", KIND_GUILD: "🛡"}
 
 #: Le role ou chaque case de la grille range l'objet qu'elle montre. Qt sait
@@ -1189,7 +1192,16 @@ class FenetrePrincipale(QMainWindow):
         # l'oeil ne savait plus ou finissait l'image et ou commencait le nom.
         ligne_g.setSpacing(12)
         self._portrait = QLabel()
-        self._portrait.setFixedHeight(HAUTEUR_PORTRAIT)
+        self._portrait.setObjectName("portrait")
+        # Quarante-quatre pixels d'image et six d'air au-dessus, comme le
+        # `margin_top` que la version GTK pose sur le sien : c'est une
+        # signature, pas une illustration du tableau. Reserver l'air dans la
+        # hauteur du libelle plutot que par une marge de feuille -- Qt ignore
+        # `margin-top` sur un widget place par un gestionnaire. Sans lui, le
+        # bandeau du bas etait six pixels plus mince que celui de GTK.
+        self._portrait.setFixedHeight(HAUTEUR_PORTRAIT + AIR_PORTRAIT)
+        self._portrait.setAlignment(Qt.AlignmentFlag.AlignBottom
+                                    | Qt.AlignmentFlag.AlignLeft)
         self._portrait.setToolTip(_("Cliquer pour agrandir"))
         self._portrait.setCursor(Qt.CursorShape.PointingHandCursor)
         self._portrait.mouseReleaseEvent = self._on_portrait_clic

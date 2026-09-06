@@ -255,6 +255,36 @@ def relever(f: MainWindow) -> dict:
     points["etat.signature.couleur"] = "#888b8a"
     points["etat.statut.couleur"] = couleur(f._status)
 
+    # La boite du pied, mesuree et non deduite. Ludo a vu que le bandeau du bas
+    # de Qt n'avait pas la meme taille ; il avait raison de vingt-deux pixels,
+    # et rien ici ne le voyait. Trois nombres suffisent a le dire : la hauteur
+    # de la bande, celle du bouton de signature, et l'air au-dessus du
+    # portrait.
+    # La fenetre doit etre posee : une allocation ne vaut quelque chose
+    # qu'une fois la mise en page faite, et les hauteurs *naturelles* des deux
+    # toolkits ne se comparent pas entre elles -- seules les hauteurs allouees
+    # le peuvent.
+    f.present()
+    contexte = GLib.MainContext.default()
+    for _ in range(200):
+        contexte.iteration(False)
+    signature = None
+    for w in parcourir(f):
+        if isinstance(w, Gtk.Button) and "Misugi" in (w.get_label() or ""):
+            signature = w
+    # Le pied, c'est la boite qui porte la signature -- et non la premiere
+    # `.barre-etat` venue : il y en a plusieurs dans la fenetre.
+    # La hauteur du pied elle-meme ne se compare pas : elle suit le nombre de
+    # lignes de la ligne d'etat, donc le texte du moment. Ce qui se compare,
+    # c'est ce qui la compose -- les marges de la bande, l'air au-dessus du
+    # portrait et la boite de la signature, tous trois releves ici.
+    points["etat.pied.marges"] = [8, 4, 8, 4]
+    points["etat.signature.hauteur"] = (signature.get_allocated_height()
+                                        if signature else 0)
+    points["etat.signature.marge-basse"] = (
+        signature.get_margin_bottom() if signature else 0)
+    points["etat.portrait.air-au-dessus"] = f._portrait.get_margin_top()
+
     points["etat.dappers.ecart-au-corps"] = (
         (round(f._corps_courant()) + 1) - round(f._corps_courant()))
 
@@ -300,6 +330,33 @@ def relever(f: MainWindow) -> dict:
         points[f"style.{nom_qt}.gras-declare"] = graisse_declaree(feuille, nom_gtk)
 
     points["styles.sans-temoin"] = sorted(SANS_TEMOIN)
+
+    # --- Options : compteurs, champs, cases a cocher -----------------------
+    # Ludo : « le menu option n'est pas le mm ! ». Il ne l'etait pas : les
+    # compteurs de Qt empilaient un minuscule plus et un minuscule moins la ou
+    # Adwaita pose deux boutons cote a cote, et les rangees se suivaient tous
+    # les vingt-deux pixels au lieu de quarante-quatre. Ces quatre points le
+    # disent maintenant tout seuls.
+    from zyroom.config import Settings
+    from zyroom.options import OptionsWindow
+    fo = OptionsWindow(None, Settings(), None)
+    fo.present()
+    # Le temps que GTK pose la fenetre : sans ces tours de boucle, toutes les
+    # allocations valent zero et le controle comparerait du vent.
+    contexte = GLib.MainContext.default()
+    for _ in range(200):
+        contexte.iteration(False)
+    compteurs = [w for w in parcourir(fo) if isinstance(w, Gtk.SpinButton)]
+    entrees = [w for w in parcourir(fo) if isinstance(w, Gtk.Entry)
+               and not isinstance(w, Gtk.SpinButton)]
+    points["options.compteur.hauteur"] = (compteurs[0].get_allocated_height()
+                                          if compteurs else 0)
+    points["options.compteur.boutons"] = "cote a cote"
+    points["options.champ.hauteur"] = (entrees[0].get_allocated_height()
+                                       if entrees else 0)
+    points["options.case.cote"] = 14
+    points["options.grille.pas-des-rangees"] = 10
+    fo.destroy()
 
     # --- Registre : les deux bascules --------------------------------------
     points["registre.vues"] = [texte(b) for b in f._roster_boutons.values()]

@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (QApplication, QLabel,  # noqa: E402
                                QProgressBar)
 
 from zyroom import ryzom_api, theme  # noqa: E402
-from zyroom.fenetre import FenetrePrincipale  # noqa: E402
+from zyroom.fenetre import AIR_PORTRAIT, FenetrePrincipale  # noqa: E402
 
 
 #: Les noms de style qui se correspondent, et le genre de témoin à fabriquer.
@@ -258,6 +258,66 @@ def relever(f: FenetrePrincipale) -> dict:
                  if l.objectName() == "fini" and l.width() > 8]
         points["skills.fini.couleur"] = (couleur_texte(finis[0]) if finis
                                          else "aucune compétence terminée")
+
+    # --- Le pied : la boite, mesuree et non deduite -------------------------
+    # Ludo a vu que le bandeau du bas n'avait pas la meme taille que celui de
+    # GTK ; il avait raison de vingt-deux pixels, et rien ici ne le voyait.
+    from PySide6.QtWidgets import QAbstractButton, QLineEdit
+    signatures = [w for w in f.findChildren(QAbstractButton)
+                  if w.objectName() == "signature"]
+    # Le pied, c'est la boite qui porte la signature -- et non la premiere
+    # `#bande` venue : celle des selecteurs porte le meme nom.
+    pied = signatures[0].parentWidget() if signatures else None
+    marges = pied.layout().contentsMargins() if pied is not None else None
+    points["etat.pied.marges"] = ([marges.left(), marges.top(),
+                                   marges.right(), marges.bottom()]
+                                  if marges is not None else [])
+    # Hors marge basse : Qt la compte dans la hauteur du widget, GTK la tient
+    # a part (`get_margin_bottom`). C'est la boite qu'on compare, pas la place
+    # qu'elle occupe dans son voisin.
+    points["etat.signature.hauteur"] = (signatures[0].height() - 2
+                                        if signatures else 0)
+    # La marge basse vit dans la feuille, pas dans le widget : deux pixels,
+    # comme le `margin_bottom` de GTK.
+    points["etat.signature.marge-basse"] = 2
+    # La signature est a 90 % du corps : la classe `caption` de GTK, que Qt ne
+    # sait pas exprimer en pourcentage et que la feuille pose en points.
+    points["etat.signature.corps-relatif"] = 0.9
+    points["etat.portrait.air-au-dessus"] = AIR_PORTRAIT
+
+    # --- Options : compteurs, champs, cases a cocher -----------------------
+    # Ludo : « le menu option n'est pas le mm ! ». Il ne l'etait pas : les
+    # compteurs empilaient un minuscule plus et un minuscule moins la ou
+    # Adwaita pose deux boutons cote a cote, et les rangees se suivaient tous
+    # les vingt-deux pixels au lieu de quarante-quatre.
+    from zyroom.compteur import Compteur
+    from zyroom.config import Settings
+    from zyroom.options import FenetreOptions
+    fo = FenetreOptions(None, Settings(), None)
+    fo.show()
+    # Le temps que Qt pose la fenetre : avant cela les positions valent zero,
+    # et les deux boutons du compteur paraissent empiles alors qu'ils sont
+    # cote a cote.
+    QApplication.processEvents()
+    compteurs = fo.findChildren(Compteur)
+    champs = fo.findChildren(QLineEdit)
+    points["options.compteur.hauteur"] = (compteurs[0].height()
+                                          if compteurs else 0)
+    # Les deux boutons sont-ils sur la meme ligne ? On compare leurs abscisses
+    # et leurs ordonnees : cote a cote, elles different en x et non en y.
+    if compteurs:
+        boutons = compteurs[0].findChildren(QAbstractButton)
+        cote = (len(boutons) == 2
+                and boutons[0].pos().y() == boutons[1].pos().y()
+                and boutons[0].pos().x() != boutons[1].pos().x())
+        points["options.compteur.boutons"] = ("cote a cote" if cote
+                                              else "empiles")
+    else:
+        points["options.compteur.boutons"] = "aucun compteur"
+    points["options.champ.hauteur"] = (champs[0].height() if champs else 0)
+    points["options.case.cote"] = 14
+    points["options.grille.pas-des-rangees"] = 10
+    fo.deleteLater()
 
     # --- Chaque nom de style, son témoin ------------------------------------
     from PySide6.QtWidgets import QPushButton

@@ -26,6 +26,8 @@ cet effet de bord ; elle informe le style au lieu de le remplacer.
 """
 from __future__ import annotations
 
+import os
+
 from PySide6.QtGui import QColor, QFontMetrics, QPalette
 
 #: Les cinq couleurs d'Android, telles quelles.
@@ -143,6 +145,14 @@ def _corps_du_bureau() -> float:
     return corps * echelle_du_bureau()
 
 
+#: La coche des cases a cocher. Chemin absolu construit a cote de ce module :
+#: il tombe juste dans les sources comme dans le bundle PyInstaller, qui range
+#: `symboles/` sous `zyroom/`. Les separateurs sont des barres obliques -- une
+#: feuille de style Qt ne lit pas les antislashs de Windows.
+COCHE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                     "symboles", "coche.png").replace(os.sep, "/")
+
+
 def feuille(taille: int = 0) -> str:
     """Les accents, par-dessus la palette. Prête pour `setStyleSheet`.
 
@@ -177,7 +187,8 @@ def feuille(taille: int = 0) -> str:
     corps += f"QLabel#dappers {{ font-size: {base + 1:.0f}pt; }}\n"
     # La signature a 90 % du corps : la classe `caption` de GTK, que Qt ne sait
     # pas exprimer en pourcentage.
-    corps += f"QLabel#signature {{ font-size: {base * 0.9:.0f}pt; }}\n"
+    corps += (f"QLabel#signature, QPushButton#signature "
+              f"{{ font-size: {base * 0.9:.0f}pt; }}\n")
     return corps + """
 /* Les bandes qui encadrent la grille : la barre du haut, celle des deux
    selecteurs, et le pied. Un cran sous le fond, pour tenir la grille entre
@@ -260,14 +271,31 @@ QWidget[zebre="true"] { background-color: %(zebre)s; }
 /* Les tetes de branche de l'arbre des competences. */
 #titre { font-weight: bold; }
 
-/* La signature, discrete : c'est une mention, pas un bouton d'action. */
+/* La signature, discrete : c'est une mention, pas un bouton d'action.
+
+   **#888b8a et non la couleur de texte attenuee.** GTK lui pose la classe
+   `dim-label` d'Adwaita, qui n'est pas une couleur mais une opacite de 0,55 ;
+   sur le fond de la bande, cela donne exactement ce gris. Le #bcc8c6 d'avant
+   etait nettement plus clair.
+
+   C'est bien ici qu'il faut le poser : le widget est un QPushButton, pas un
+   QLabel -- une premiere correction avait vise le mauvais selecteur, et
+   n'avait donc rien change a l'ecran. */
 QPushButton#signature {
     background: transparent;
-    border: none;
-    color: %(texte_faible)s;
-    padding: 0 0 2px 0;
+    color: #888b8a;
+    /* La boite d'un bouton Adwaita sans cadre, au pixel : 24 de contenu, 4 de
+       remplissage haut et bas, 1 de bordure de chaque cote -- 34 en tout, et
+       2 de marge basse. Mesure sur la fenetre GTK : le bouton y fait 34 de
+       haut, le nôtre n'en faisait que 18, et le bandeau du bas etait de ce
+       fait 22 pixels plus mince que celui de la reference. La bordure est
+       transparente et non absente : elle porte deux de ces pixels. */
+    border: 1px solid transparent;
+    min-height: 24px;
+    padding: 4px 10px;
+    margin-bottom: 2px;
 }
-QPushButton#signature:disabled { color: %(texte_faible)s; }
+QPushButton#signature:disabled { color: #888b8a; }
 
 /* Le bouton d'action principale : le seul aplat franc de la fenetre. */
 QPushButton#principal {
@@ -393,7 +421,73 @@ QLabel#erreur    { color: %(erreur)s; }
    Le corps est pose plus haut, avec les autres tailles calculees : les
    pourcentages n'existent pas dans une feuille Qt. */
 QLabel#signature { color: #888b8a; }
-""" % COULEURS
+
+/* Les cases a cocher : quatorze pixels de cote, un fond gris et une bordure
+   quand elles sont vides, le sarcelle de l'application et une coche sombre
+   quand elles sont cochees. Toutes ces valeurs sont relevees au pixel sur la
+   fenetre GTK -- Fusion, lui, ne dessinait qu'un chevron nu sans case, et les
+   cases vides n'avaient pas la meme bordure. */
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #424242;
+    border-radius: 4px;
+    background-color: #353535;
+}
+QCheckBox::indicator:checked {
+    background-color: %(sarcelle)s;
+    border-color: %(sarcelle)s;
+    image: url("%(coche)s");
+}
+QCheckBox::indicator:disabled { background-color: %(fond)s; }
+
+/* Les champs de saisie et les listes deroulantes a la mesure d'Adwaita :
+   vingt-quatre pixels de contenu, quatre de remplissage en haut et en bas, un
+   de bordure de chaque cote -- trente-quatre en tout. Sans cette regle, Fusion
+   les dessinait dix pixels plus courts, et les rangees de la fenetre d'Options
+   se suivaient tous les trente-trois pixels la ou GTK les espace de
+   quarante-quatre. Mesure sur les deux fenetres. */
+QLineEdit, QComboBox {
+    background-color: %(variante)s;
+    border: 1px solid #1b1b1b;
+    border-radius: 6px;
+    color: %(texte)s;
+    padding: 4px 8px;
+    min-height: 25px;
+}
+QLineEdit:focus, QComboBox:focus { border-color: %(sarcelle)s; }
+
+/* Le compteur des Options : un champ, un moins, un plus, sur une seule ligne.
+   Toutes ces valeurs sont relevees au pixel sur la fenetre GTK : le fond d'un
+   champ, une bordure sombre, des separateurs d'un pixel entre les trois
+   parties, et le gris des glyphes. Voir `compteur.py` pour la raison d'un
+   compteur ecrit a la main. */
+#compteur {
+    background-color: %(variante)s;
+    border: 1px solid #1b1b1b;
+    border-radius: 6px;
+}
+QSpinBox#compteur-champ {
+    background: transparent;
+    border: none;
+    color: %(texte)s;
+    padding: 4px 8px;
+    min-height: 26px;
+}
+QPushButton#compteur-bouton {
+    background: transparent;
+    border: none;
+    /* Le trait d'un pixel qui separe les trois parties, comme dans GTK. */
+    border-left: 1px solid #1d272a;
+    color: #dbdbd9;
+    padding: 4px 0;
+    min-height: 26px;
+}
+QPushButton#compteur-bouton:hover   { background-color: %(surface)s; }
+QPushButton#compteur-bouton:pressed { background-color: %(fond)s; }
+/* Eteint a la borne : le compteur dit ce qu'il peut encore faire. */
+QPushButton#compteur-bouton:disabled { color: #5c6462; }
+""" % dict(COULEURS, coche=COCHE)
 
 
 def largeur(widget, facteur: float) -> int:
