@@ -1,0 +1,9 @@
+* Les arrivées et les départs se reprennent du relevé publié. L'API ne rend
+  qu'un état : un mouvement se déduit de deux relevés, et un téléphone ouvert
+  deux fois par semaine ne voyait qu'un membre sur trois passer. Le registre
+  reçoit désormais ce que le relevé a vu pendant ce temps, et rapproche les
+  constats faits deux fois du même départ au lieu de les compter deux fois.
+
+* Le registre garde six mois au lieu d'un. C'est la mémoire des deux
+  applications de bureau : à durée différente, les trois montraient des listes
+  différentes des mêmes données, et l'on croyait qu'il manquait des mouvements.

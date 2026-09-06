@@ -76,7 +76,21 @@ aapt2=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | tail -1 || true)
 # telephones qui la refuseront un par un.
 empreinte_attendue=56aa274b98215cedfd12b5c6505b776d5df1817172d1f441f0a9bfca7009c5d4
 
-lire()   { grep -E "^$1=" "$proprietes" | head -1 | cut -d= -f2 | tr -d '[:space:]'; }
+# Sans tuyau, et c'est tout l'objet : `grep ... | head -1` faisait recevoir un
+# SIGPIPE au grep des que head fermait le tuyau, et `set -o pipefail` en faisait
+# un echec du script -- code 141, sans un mot. La course se gagnait dans un
+# terminal, ou grep avait souvent fini d'ecrire, et se perdait des qu'on
+# redirigeait la sortie : la livraison marchait a la main et mourait en tache
+# de fond. Awk filtre, coupe et s'arrete tout seul, sans que personne n'ait a
+# fermer quoi que ce soit.
+lire() {
+    awk -v cle="$1" 'index($0, cle "=") == 1 {
+        valeur = substr($0, length(cle) + 2)
+        gsub(/[[:space:]]/, "", valeur)
+        print valeur
+        exit
+    }' "$proprietes"
+}
 ecrire() {
     grep -qE "^$1=" "$proprietes" || { echo "clé $1 absente de $proprietes" >&2; exit 1; }
     sed -i -E "s|^$1=.*|$1=$2|" "$proprietes"
@@ -107,7 +121,11 @@ verifie_apk() {
     # "package: name='net.ryzom.zyroom' versionCode='45' versionName='2.39' ..."
     # Les valeurs sont entre apostrophes, dans cet ordre : le 2e champ est le
     # nom du paquet, le 4e son versionCode.
-    badging=$("$aapt2" dump badging "$apk" | head -1)
+    # La premiere ligne, prise apres coup et non par un `| head -1` : aapt2 en
+    # ecrit des dizaines, et head lui aurait ferme le tuyau au nez -- meme
+    # SIGPIPE, meme mort silencieuse que pour `lire` ci-dessus.
+    badging=$("$aapt2" dump badging "$apk")
+    badging=${badging%%$'\n'*}
     [ "$(cut -d"'" -f2 <<<"$badging")" = "$paquet" ] || {
         echo "Erreur : l'APK annonce le paquet $(cut -d"'" -f2 <<<"$badging")," >&2
         echo "la ou $paquet etait attendu. Un identifiant different fait une" >&2

@@ -1,0 +1,9 @@
+* Joinings and departures are now taken from the published survey. The API
+  only returns a state: a movement is deduced from two surveys, and a phone
+  opened twice a week saw only one member in three go by. The roster now
+  receives what the survey saw meanwhile, and reconciles two sightings of the
+  same departure instead of counting them twice.
+
+* The roster keeps six months instead of one. That is what both desktop
+  applications keep: with different spans, the three showed different lists of
+  the same data, and movements seemed to be missing.
