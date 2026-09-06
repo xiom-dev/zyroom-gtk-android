@@ -28,6 +28,44 @@ from zyroom import ryzom_api, theme  # noqa: E402
 from zyroom.fenetre import FenetrePrincipale  # noqa: E402
 
 
+#: Les noms de style qui se correspondent, et le genre de témoin à fabriquer.
+#:
+#: Le contrôle ne choisit plus quoi regarder : pour chaque paire, il pose un
+#: témoin des deux côtés et relève les mêmes propriétés. C'est ce qui manquait
+#: à la première version — elle vérifiait la présence du bouton de mise à jour
+#: sans jamais regarder son gras, et il a fallu un œil humain pour le voir.
+#:
+#: Les noms diffèrent parce que les deux portages ne nomment pas pareil : GTK
+#: emprunte `suggested-action` et `dim-label` à Adwaita, Qt les appelle
+#: `principal` et `discret`.
+PAIRES = (
+    ("fini", "fini", "label"),
+    ("peuple", "peuple", "label"),
+    ("nom-appli", "nom-appli", "label"),
+    ("suggested-action", "principal", "bouton"),
+)
+
+#: Les styles écartés du relevé mécanique, et la raison de chacun.
+#:
+#: Ce n'est pas une liste d'exceptions à des écarts constatés : ce sont les
+#: styles qu'un témoin isolé ne sait pas reproduire, parce que les deux
+#: portages arrivent au même rendu par des chemins différents. Les comparer
+#: donnerait un écart permanent là où l'écran ne montre aucune différence —
+#: et un contrôle qui crie pour rien finit ignoré.
+#:
+#: Ils restent couverts par les points nommés du relevé (la couleur du fini,
+#: le corps des dappers, la taille des jauges) : c'est le relevé *par témoin*
+#: qui ne les prend pas, pas le contrôle.
+SANS_TEMOIN = {
+    "dappers": "GTK n'y pose qu'un corps, la couleur vient du parent",
+    "compact": "aucune couleur déclarée d'aucun côté, tout est hérité",
+    "motd": "les deux n'y déclarent qu'un fond ; le texte est hérité",
+    "dim-label / discret": "GTK atténue par l'opacité, Qt par une couleur",
+    "nom-grave, nom-mouture": "GTK pose la couleur sur le parent .nom-appli et "
+                              "le gras de la mouture vient du code Python en Qt",
+}
+
+
 def couleur_texte(widget) -> str:
     """La couleur du texte, **lue dans le rendu du widget**.
 
@@ -68,6 +106,25 @@ def couleur_texte(widget) -> str:
     return max(candidates, key=ecart)
 
 
+def graisse_declaree(selecteur: str) -> bool:
+    """La feuille graisse-t-elle ce sélecteur ?
+
+    Interrogée dans la feuille et non mesurée : le pendant GTK ne se mesure
+    pas — GTK ne rend rien hors écran —, et comparer une mesure à une
+    déclaration n'aurait pas de sens.
+    """
+    import re
+
+    from zyroom import theme
+    # Le nom entier, comme du côté GTK : « #nom-appli » ne doit pas se
+    # reconnaître dans « #nom-appli-mouture ».
+    motif = re.compile(re.escape(selecteur) + r"(?![a-z0-9-])")
+    for bloc in re.finditer(r"([^{}]+)\{([^}]*)\}", theme.feuille()):
+        if motif.search(bloc.group(1)) and "font-weight" in bloc.group(2):
+            return "bold" in bloc.group(2) or "700" in bloc.group(2)
+    return False
+
+
 def gras(widget) -> bool:
     return widget.font().bold()
 
@@ -100,6 +157,12 @@ def relever(f: FenetrePrincipale) -> dict:
                         ("alertes", f._cloche),
                         ("bonus", f._btn_plus)):
         points[f"barre.{nom}.present"] = bouton is not None
+
+    points["barre.mise-a-jour.gras-declare"] = graisse_declaree(
+        "QPushButton#principal")
+    f._btn_maj.setVisible(True)
+    points["barre.mise-a-jour.couleur"] = couleur_texte(f._btn_maj)
+    f._btn_maj.setVisible(False)
 
     points["attente.taille"] = taille(f._tourniquet)
 
@@ -147,6 +210,19 @@ def relever(f: FenetrePrincipale) -> dict:
                  if l.objectName() == "fini" and l.width() > 8]
         points["skills.fini.couleur"] = (couleur_texte(finis[0]) if finis
                                          else "aucune compétence terminée")
+
+    # --- Chaque nom de style, son témoin ------------------------------------
+    from PySide6.QtWidgets import QPushButton
+    for nom_gtk, nom_qt, genre in PAIRES:
+        temoin = QPushButton("Témoin") if genre == "bouton" else QLabel("Témoin")
+        temoin.setObjectName(nom_qt)
+        temoin.setParent(f)
+        temoin.resize(160, 30)
+        temoin.show()
+        points[f"style.{nom_qt}.couleur"] = couleur_texte(temoin)
+        points[f"style.{nom_qt}.gras-declare"] = graisse_declaree("#" + nom_qt)
+
+    points["styles.sans-temoin"] = sorted(SANS_TEMOIN)
 
     effectif = page_de(f, "PageEffectif")
     points["registre.vues"] = [b.text() for b in effectif._boutons.values()] \

@@ -234,7 +234,9 @@ QPushButton#signature:disabled { color: %(texte_faible)s; }
 QPushButton#principal {
     background-color: %(sarcelle)s;
     color: %(accent_texte)s;
-    font-weight: bold;
+    /* Pas de gras : la version GTK pose `suggested-action` sur ce bouton, et
+       ni le theme d'Adwaita ni la feuille du programme ne le graissent. Ludo
+       l'a vu a l'oeil ; le controle de parite le voit maintenant aussi. */
     border: 1px solid %(sarcelle_sombre)s;
     border-radius: 4px;
     padding: 4px 12px;

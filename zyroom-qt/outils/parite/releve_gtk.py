@@ -21,6 +21,7 @@ exactement l'écart qu'on cherche.
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
@@ -35,6 +36,44 @@ sys.path.insert(0, os.path.join(os.path.dirname(RACINE), "zyroom-gtk"))
 
 from zyroom import ryzom_api  # noqa: E402
 from zyroom.window import MainWindow  # noqa: E402
+
+
+#: Les noms de style qui se correspondent, et le genre de témoin à fabriquer.
+#:
+#: Le contrôle ne choisit plus quoi regarder : pour chaque paire, il pose un
+#: témoin des deux côtés et relève les mêmes propriétés. C'est ce qui manquait
+#: à la première version — elle vérifiait la présence du bouton de mise à jour
+#: sans jamais regarder son gras, et il a fallu un œil humain pour le voir.
+#:
+#: Les noms diffèrent parce que les deux portages ne nomment pas pareil : GTK
+#: emprunte `suggested-action` et `dim-label` à Adwaita, Qt les appelle
+#: `principal` et `discret`.
+PAIRES = (
+    ("fini", "fini", "label"),
+    ("peuple", "peuple", "label"),
+    ("nom-appli", "nom-appli", "label"),
+    ("suggested-action", "principal", "bouton"),
+)
+
+#: Les styles écartés du relevé mécanique, et la raison de chacun.
+#:
+#: Ce n'est pas une liste d'exceptions à des écarts constatés : ce sont les
+#: styles qu'un témoin isolé ne sait pas reproduire, parce que les deux
+#: portages arrivent au même rendu par des chemins différents. Les comparer
+#: donnerait un écart permanent là où l'écran ne montre aucune différence —
+#: et un contrôle qui crie pour rien finit ignoré.
+#:
+#: Ils restent couverts par les points nommés du relevé (la couleur du fini,
+#: le corps des dappers, la taille des jauges) : c'est le relevé *par témoin*
+#: qui ne les prend pas, pas le contrôle.
+SANS_TEMOIN = {
+    "dappers": "GTK n'y pose qu'un corps, la couleur vient du parent",
+    "compact": "aucune couleur déclarée d'aucun côté, tout est hérité",
+    "motd": "les deux n'y déclarent qu'un fond ; le texte est hérité",
+    "dim-label / discret": "GTK atténue par l'opacité, Qt par une couleur",
+    "nom-grave, nom-mouture": "GTK pose la couleur sur le parent .nom-appli et "
+                              "le gras de la mouture vient du code Python en Qt",
+}
 
 
 def couleur(widget) -> str:
@@ -70,6 +109,44 @@ def taille(widget) -> list[int]:
     return [demandee, hauteur]
 
 
+def feuille_du_programme() -> str:
+    """La feuille de style que `window.py` porte, lue dans son code source.
+
+    Elle n'est pas exposée autrement : GTK la donne à un `CssProvider` et n'en
+    garde rien de lisible. On la relit donc là où elle est écrite.
+    """
+    import ast
+
+    source = io.open(os.path.join(os.path.dirname(RACINE), "zyroom-gtk",
+                                  "zyroom", "window.py"), encoding="utf-8").read()
+    for noeud in ast.walk(ast.parse(source)):
+        if (isinstance(noeud, ast.Constant) and isinstance(noeud.value, str)
+                and "@define-color zy_sarcelle" in noeud.value):
+            return noeud.value
+    return ""
+
+
+def graisse_declaree(feuille: str, selecteur: str) -> bool:
+    """Une règle graisse-t-elle ce sélecteur ?
+
+    Le gras ne se mesure pas comme une couleur : GTK ne rend pas ses pixels
+    hors écran, et son contexte Pango ignore ce que la feuille pose. On
+    interroge donc les deux feuilles, chacune dans sa langue, et l'on compare
+    ce qu'elles déclarent. C'est suffisant pour ce qu'on cherche : un côté qui
+    graisse quand l'autre ne graisse pas.
+    """
+    import re
+
+    # Le nom entier, et rien que lui : « nom-appli » ne doit pas se reconnaître
+    # dans « nom-appli-mouture », qui est un autre style — et qui, lui, est en
+    # gras. Le contrôle annonçait sinon un écart qui n'existait pas.
+    motif = re.compile(r"(?<![a-z0-9-])" + re.escape(selecteur) + r"(?![a-z0-9-])")
+    for bloc in re.finditer(r"([^{}]+)\{([^}]*)\}", feuille):
+        if motif.search(bloc.group(1)) and "font-weight" in bloc.group(2):
+            return "bold" in bloc.group(2) or "700" in bloc.group(2)
+    return False
+
+
 def texte(widget) -> str:
     return widget.get_label() if hasattr(widget, "get_label") else widget.get_text()
 
@@ -84,6 +161,15 @@ def relever(f: MainWindow) -> dict:
                         ("alertes", f._bell),
                         ("bonus", f._plus_btn)):
         points[f"barre.{nom}.present"] = bouton is not None
+
+    # Le bouton de mise à jour : le thème d'Adwaita ne graisse pas
+    # `suggested-action`, et la feuille du programme non plus.
+    feuille = feuille_du_programme()
+    points["barre.mise-a-jour.gras-declare"] = graisse_declaree(
+        feuille, "suggested-action")
+    f._update_btn.set_visible(True)
+    points["barre.mise-a-jour.couleur"] = couleur(f._update_btn)
+    f._update_btn.set_visible(False)
 
     # --- La barre d'attente ------------------------------------------------
     # Visible le temps de la mesure : un widget caché mesure zéro, et le
@@ -151,6 +237,20 @@ def relever(f: MainWindow) -> dict:
             ligne = ligne.get_next_sibling()
         points["skills.jauge.taille"] = jauges[0] if jauges else None
         points["skills.fini.couleur"] = finis[0] if finis else None
+
+    # --- Chaque nom de style, son témoin ------------------------------------
+    for nom_gtk, nom_qt, genre in PAIRES:
+        temoin = (Gtk.Button(label="Témoin") if genre == "bouton"
+                  else Gtk.Label(label="Témoin"))
+        temoin.add_css_class(nom_gtk)
+        # Dans l'arbre de la fenêtre : hors de lui, un widget ne reçoit rien du
+        # style — les couleurs relevées valaient toutes #ffffff.
+        f._motd_box.append(temoin)
+        cible = temoin.get_first_child() if genre == "bouton" else temoin
+        points[f"style.{nom_qt}.couleur"] = couleur(cible or temoin)
+        points[f"style.{nom_qt}.gras-declare"] = graisse_declaree(feuille, nom_gtk)
+
+    points["styles.sans-temoin"] = sorted(SANS_TEMOIN)
 
     # --- Registre : les deux bascules --------------------------------------
     points["registre.vues"] = [texte(b) for b in f._roster_boutons.values()]
