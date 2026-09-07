@@ -152,6 +152,12 @@ PART_ICONE_BOUTON = 0.42
 #: gardant d'un bout a l'autre de l'echelle.
 PART_BOURSE = PART_ICONE_BOUTON * 1.5
 
+#: Les ecrans dont l'image est dessinee plus petite que les autres dans son
+#: carre : silhouettes fines, cartes de biais, tache de forage. A taille
+#: egale elles paraissaient en retrait des autres ; elles prennent la meme
+#: fois et demie que la bourse.
+PAGES_AGRANDIES = ("roster", "betes", "meteo")
+
 #: La memoire du journal, en jours. Tout ce qui est plus recent s'affiche,
 #: quel qu'en soit le nombre de lignes. Une semaine est ce qu'il faut pour
 #: retrouver "qui a pris quoi" apres un week-end.
@@ -226,6 +232,52 @@ ICONES_PAGES = {
     "outposts": "avant-poste.png",
     "meteo": "meteo-forage.png",
 }
+
+
+#: L'image d'un contenant, par le début de sa clé technique.
+#:
+#: `bag`, `room`, `chest1`, `chest2`... : la clé dit ce qu'est le contenant
+#: bien mieux que son libellé, qui est traduit et que le joueur renomme.
+IMAGES_CONTENANTS = (("bag", "sac.png"), ("room", "appartement.png"),
+                     ("chest", "coffre.png"))
+
+
+def icone_contenant(cle: str) -> QIcon:
+    """L'image d'un sac, d'un appartement ou d'un coffre, ou rien.
+
+    Les montures -- `animal1`, `animal2`... -- n'en ont pas : le jeu ne
+    fournit d'icone ni pour le mektoub ni pour le zig.
+    """
+    for prefixe, fichier in IMAGES_CONTENANTS:
+        if cle.startswith(prefixe):
+            chemin = os.path.join(SYMBOLES, fichier)
+            return QIcon(chemin) if os.path.exists(chemin) else QIcon()
+    return QIcon()
+
+
+def icone_dans_carre(nom: str, dedans: int, carre: int) -> QIcon:
+    """L'image d'un ecran, a `dedans` pixels, centree dans un carre plus grand.
+
+    Le carre est celui que le menu donne a toutes ses entrees ; l'image, elle,
+    n'occupe que la place qu'on lui laisse. C'est ce qui permet d'en agrandir
+    trois sans toucher aux autres.
+    """
+    fichier = ICONES_PAGES.get(nom)
+    chemin = os.path.join(SYMBOLES, fichier) if fichier else ""
+    if not chemin or not os.path.exists(chemin):
+        return QIcon()
+    image = QPixmap(chemin).scaled(
+        dedans, dedans, Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation)
+    if carre <= dedans:
+        return QIcon(image)
+    fond = QPixmap(carre, carre)
+    fond.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(fond)
+    peintre.drawPixmap((carre - image.width()) // 2,
+                       (carre - image.height()) // 2, image)
+    peintre.end()
+    return QIcon(fond)
 
 
 def icone_page(nom: str) -> QIcon:
@@ -1335,12 +1387,21 @@ class FenetrePrincipale(QMainWindow):
         son theme, quelle que soit celle qu'on donne aux actions.
         """
         cote = self._settings.icone(PART_ICONE_BOUTON)
+        grand = self._settings.icone(PART_BOURSE)
         for bouton in list(self._nav_boutons.values()) + [self._btn_plus]:
             bouton.setIconSize(QSize(cote, cote))
         menu = self._btn_plus.menu()
         if menu is not None:
+            # **Un carre commun, des images de tailles differentes dedans.**
+            # Un `QMenu` ne sait donner qu'une taille a toutes ses images : on
+            # lui donne donc la plus grande, et l'on compose chaque icone dans
+            # un carre de cette taille -- l'effectif, le perdu et la meteo a
+            # pleine echelle, les autres a la leur, centrees.
             menu.setStyleSheet(
-                f"QMenu::icon {{ width: {cote}px; height: {cote}px; }}")
+                f"QMenu::icon {{ width: {grand}px; height: {grand}px; }}")
+            for action, (nom, _etiquette) in zip(menu.actions(), PLUS_PAGES):
+                dedans = grand if nom in PAGES_AGRANDIES else cote
+                action.setIcon(icone_dans_carre(nom, dedans, grand))
         if hasattr(self, "_img_bourse"):
             bourse = self._settings.icone(PART_BOURSE)
             self._img_bourse.setPixmap(QPixmap(BOURSE).scaled(
@@ -1747,6 +1808,7 @@ class FenetrePrincipale(QMainWindow):
                 self._dd_entite.addItem(
                     f"{_PREFIXE_GENRE.get(entree['kind'], '')} {entree['name']}")
         self._dd_entite.blockSignals(False)
+        self._dd_entite.updateGeometry()
 
         if not self._entrees:
             self._btn_relever.setEnabled(False)
@@ -2015,15 +2077,24 @@ class FenetrePrincipale(QMainWindow):
         ent = self._entite
         self._dd_inv.blockSignals(True)
         self._dd_inv.clear()
+        cote = self._settings.icone(PART_ICONE_BOUTON)
+        self._dd_inv.setIconSize(QSize(cote, cote))
         if ent:
             for inv in ent.inventories:
                 # Le numero du coffre, son nom, son taux -- et rien du reste
                 # de phrase que l'API laisse pendre apres une parenthese
                 # jamais refermee.
                 self._dd_inv.addItem(
+                    icone_contenant(inv.key),
                     f"{movements.sans_parenthese(inv.label)}"
                     f"{self._remplissage(inv)}")
         self._dd_inv.blockSignals(False)
+        # **La largeur ne se recalcule pas toute seule ici.** Elle suit le
+        # signal `currentIndexChanged` -- et il est justement bloque le temps
+        # du remplissage, sans quoi chaque ligne ajoutee changerait d'onglet.
+        # Le selecteur gardait donc la largeur du contenant precedent, et
+        # « Coffre 1 (73%) » s'affichait « Coffre 1 (73 ».
+        self._dd_inv.updateGeometry()
 
         if ent and ent.inventories:
             self._dd_inv.setCurrentIndex(0)

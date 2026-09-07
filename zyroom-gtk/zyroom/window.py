@@ -66,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.99" if _DEV else "0.71"
+VERSION = "1.00" if _DEV else "0.72"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -313,6 +313,15 @@ class MainWindow(Gtk.ApplicationWindow):
         bar1.append(self._entity_dd)
         bar1.append(Gtk.Label(label=_("Inventaire :")))
         self._inv_dd = Gtk.DropDown(model=Gtk.StringList())
+        # Comme le sélecteur d'entités : une fabrique, sans quoi une
+        # `Gtk.DropDown` ne montre que du texte.
+        fabrique_inv = Gtk.SignalListItemFactory()
+        fabrique_inv.connect("setup", self._entite_setup)
+        fabrique_inv.connect("bind", self._contenant_bind)
+        self._inv_dd.set_factory(fabrique_inv)
+        #: Les clés des contenants affichés, dans l'ordre du modèle : c'est
+        #: elle qui dit quelle image poser, et non le libellé traduit.
+        self._inv_keys = []
         self._inv_dd.connect("notify::selected", self._on_inventory_selected)
         bar1.append(self._inv_dd)
         # Une barre qui va et vient plutot qu'un cercle : le cercle d'Adwaita
@@ -722,9 +731,10 @@ class MainWindow(Gtk.ApplicationWindow):
                                   "symboles", fichier)
             if os.path.exists(chemin):
                 image = Gtk.Image.new_from_file(chemin)
-                image.set_pixel_size(
-                    self._settings.icone(self.PART_ICONE_BOUTON))
-                self._images_boutons.append(image)
+                part = (self.PART_BOURSE if page in self.PAGES_AGRANDIES
+                        else self.PART_ICONE_BOUTON)
+                image.set_pixel_size(self._settings.icone(part))
+                self._images_boutons.append((image, part))
                 boite.append(image)
         boite.append(Gtk.Label(label=etiquette))
         if chevron:
@@ -2841,6 +2851,21 @@ class MainWindow(Gtk.ApplicationWindow):
     #: se gardant d'un bout à l'autre de l'échelle.
     PART_BOURSE = PART_ICONE_BOUTON * 1.5
 
+    #: L'image d'un contenant, par le début de sa clé technique.
+    #:
+    #: `bag`, `room`, `chest1`, `chest2`… : la clé dit ce qu'est le contenant
+    #: bien mieux que son libellé, qui est traduit et que le joueur renomme.
+    #: Les montures — `animal1`, `animal2`… — n'en ont pas : le jeu ne fournit
+    #: d'icône ni pour le mektoub ni pour le zig.
+    IMAGES_CONTENANTS = (("bag", "sac.png"), ("room", "appartement.png"),
+                         ("chest", "coffre.png"))
+
+    #: Les écrans dont l'image est dessinée plus petite que les autres dans
+    #: son carré : silhouettes fines, cartes de biais, tache de forage. À
+    #: taille égale elles paraissaient en retrait ; elles prennent la même
+    #: fois et demie que la bourse.
+    PAGES_AGRANDIES = ("roster", "betes", "meteo")
+
     #: L'or du thème, celui d'Android — repris ici pour le balisage Pango,
     #: qui ne sait pas lire une classe CSS.
     OR = "#e8c15a"
@@ -3241,8 +3266,10 @@ class MainWindow(Gtk.ApplicationWindow):
     def _populate_inventories(self) -> None:
         ent = self._entity
         model = Gtk.StringList()
+        self._inv_keys = []
         if ent:
             for inv in ent.inventories:
+                self._inv_keys.append(inv.key)
                 # Le numero du coffre, son nom, son taux -- et rien du reste
                 # de phrase que l'API laisse pendre apres une parenthese
                 # jamais refermee. Le journal et les alertes coupent deja la.
@@ -4147,6 +4174,32 @@ class MainWindow(Gtk.ApplicationWindow):
         boite.append(Gtk.Image())
         boite.append(Gtk.Label(xalign=0.0))
         item.set_child(boite)
+
+    def _contenant_bind(self, _fabrique, item) -> None:
+        """Remplit une ligne du sélecteur d'inventaire : image, puis libellé.
+
+        Le sac, l'appartement et les coffres ont la leur ; les montures n'en
+        ont pas, et gardent une case vide de la même largeur pour que les
+        libellés restent alignés.
+        """
+        boite = item.get_child()
+        image = boite.get_first_child()
+        etiquette = image.get_next_sibling()
+        chaine = item.get_item()
+        etiquette.set_text(chaine.get_string() if chaine is not None else "")
+
+        image.set_pixel_size(self._settings.icone(self.PART_ICONE_BOUTON))
+        rang = item.get_position()
+        cle = (self._inv_keys[rang]
+               if 0 <= rang < len(self._inv_keys) else "")
+        fichier = next((f for prefixe, f in self.IMAGES_CONTENANTS
+                        if cle.startswith(prefixe)), "")
+        chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "symboles", fichier) if fichier else ""
+        if chemin and os.path.exists(chemin):
+            image.set_from_file(chemin)
+        else:
+            image.clear()
 
     def _entite_bind(self, _fabrique, item) -> None:
         """Remplit la ligne : l'image de l'entité, ou son genre à défaut."""
@@ -5191,9 +5244,8 @@ class MainWindow(Gtk.ApplicationWindow):
         Les deux onglets, le menu « Bonus », ses cinq entrées et la bourse du
         pied : tout ce qui porte une image la voit grandir avec le reste.
         """
-        cote = self._settings.icone(self.PART_ICONE_BOUTON)
-        for image in getattr(self, "_images_boutons", ()):
-            image.set_pixel_size(cote)
+        for image, part in getattr(self, "_images_boutons", ()):
+            image.set_pixel_size(self._settings.icone(part))
         if hasattr(self, "_bourse_img"):
             self._bourse_img.set_pixel_size(
                 self._settings.icone(self.PART_BOURSE))
