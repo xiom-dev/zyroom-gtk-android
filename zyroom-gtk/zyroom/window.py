@@ -66,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.05" if _DEV else "0.77"
+VERSION = "1.06" if _DEV else "0.78"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -4080,6 +4080,16 @@ class MainWindow(Gtk.ApplicationWindow):
                à peine — c'est un repère qu'on longe, pas une information à
                lire. Plein plutôt que dégradé : un trait d'un pixel dégradé
                disparaît sur un écran à forte densité. */
+            /* **Les lignes des listes déroulantes, resserrées.** Adwaita
+               ajoute seize pixels autour du contenu d'une ligne : avec un
+               texte seul cela se voyait à peine, mais depuis que chaque
+               contenant porte son image de trente pixels, les lignes en
+               réclamaient quarante-six et la liste s'étirait — huit coffres
+               ou huit montures y prenaient une demi-fenêtre. Quatre pixels
+               suffisent : l'image tient, et les lignes se suivent. */
+            dropdown > popover listview > row {
+                min-height: 0; padding-top: 2px; padding-bottom: 2px; }
+
             /* La glissière qui porte toute la fenêtre ne peint rien : ce
                qu'elle contient a déjà ses fonds, et le sien les recouvrait. */
             .glissiere-fenetre, .glissiere-fenetre > viewport {
