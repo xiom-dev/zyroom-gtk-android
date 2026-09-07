@@ -927,12 +927,21 @@ class FenetrePrincipale(QMainWindow):
         entete = self._table.horizontalHeader()
         for col in range(6):
             entete.setSectionResizeMode(
-                col, QHeaderView.ResizeMode.ResizeToContents)
+                col, QHeaderView.ResizeMode.Interactive)
         entete.setStretchLastSection(True)
         colonne.addWidget(self._table, 1)
 
+        # **Les icones attendent que le defilement se calme.** Servies a chaque
+        # cran, elles arrivaient par rafales au milieu du glissement : chaque
+        # icone posee repeint sa ligne, et l'ensemble saccadait. Quatre-vingts
+        # millisecondes de silence suffisent a distinguer un arret d'un
+        # glissement en cours, sans que l'attente se remarque.
+        self._minuteur_icones = QTimer(self)
+        self._minuteur_icones.setSingleShot(True)
+        self._minuteur_icones.setInterval(80)
+        self._minuteur_icones.timeout.connect(self._servir_icones_visibles)
         self._table.verticalScrollBar().valueChanged.connect(
-            self._servir_icones_visibles)
+            self._minuteur_icones.start)
 
         self._lbl_journal = QLabel()
         self._lbl_journal.setObjectName("discret")
@@ -994,9 +1003,13 @@ class FenetrePrincipale(QMainWindow):
         try:
             self._remplir_journal()
         finally:
-            for colonne in range(self._table.columnCount()):
-                entete.setSectionResizeMode(
-                    colonne, QHeaderView.ResizeMode.ResizeToContents)
+            # **Une seule mesure, puis les colonnes ne bougent plus.** Laisser
+            # `ResizeToContents` en place faisait recalculer une colonne
+            # entiere -- et relayouter la table -- a chaque icone posee au fil
+            # du defilement : l'application saccadait des qu'on faisait glisser
+            # le journal. On mesure donc une fois, la derniere ligne posee, et
+            # l'on garde ces largeurs.
+            self._table.resizeColumnsToContents()
             entete.setStretchLastSection(True)
             self._table.setUpdatesEnabled(True)
 

@@ -65,7 +65,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.94" if _DEV else "0.66"
+VERSION = "0.95" if _DEV else "0.67"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -275,7 +275,23 @@ class MainWindow(Gtk.ApplicationWindow):
             header.pack_start(bouton)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.set_child(root)
+        # **Tout glisse ensemble, et non les seules pages.** Enfermer la pile
+        # seule laissait la barre des entités, celle du volume et le pied se
+        # faire couper pendant que le tableau, lui, glissait : la fenêtre se
+        # déchirait en deux au lieu de suivre d'un bloc.
+        #
+        # Rien en vertical ici : chaque page a déjà son propre défilement, et
+        # deux ascenseurs empilés se disputeraient la molette.
+        glissiere_fenetre = Gtk.ScrolledWindow()
+        glissiere_fenetre.set_policy(Gtk.PolicyType.AUTOMATIC,
+                                     Gtk.PolicyType.NEVER)
+        glissiere_fenetre.set_child(root)
+        # Sans fond propre : une `Gtk.ScrolledWindow` peint le sien, et la
+        # bande de huit pixels qui sépare la ligne de volume de la grille
+        # disparaissait sous lui — la comparaison par l'image l'a vue tout de
+        # suite, cinq bandes chez GTK contre six chez Qt.
+        glissiere_fenetre.add_css_class("glissiere-fenetre")
+        self.set_child(glissiere_fenetre)
 
         # Ligne 1 : portrait, sélecteurs d'entité et d'inventaire, dappers
         bar1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -339,21 +355,12 @@ class MainWindow(Gtk.ApplicationWindow):
         # Le sélecteur d'entité reste au-dessus, il vaut pour les deux.
         self._stack = Gtk.Stack()
         self._stack.set_vexpand(True)
-        # **Une barre horizontale plutôt qu'une fenêtre qui refuse de
-        # rétrécir.** Les pages réclamaient huit cent cinquante-deux pixels de
-        # large, et la fenêtre ne descendait pas en dessous : on ne pouvait
-        # plus la poser à côté du jeu. Enfermées ici, elles glissent, et la
-        # fenêtre suit la seule contrainte qui reste, sa barre de titre.
-        #
-        # Rien en vertical : chaque page a déjà son propre défilement, et deux
-        # ascenseurs empilés se disputeraient la molette.
+        # La pile est dans la glissière posée plus haut : c'est elle qui
+        # permet à la fenêtre de descendre sous la largeur que réclament les
+        # pages.
         inv_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._stack.add_titled(inv_page, "inventory", _("Inventaire"))
-        glissiere = Gtk.ScrolledWindow()
-        glissiere.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
-        glissiere.set_vexpand(True)
-        glissiere.set_child(self._stack)
-        root.append(glissiere)
+        root.append(self._stack)
 
         # Ligne volume : jauge de remplissage de l'inventaire courant
         barvol = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -3898,6 +3905,11 @@ class MainWindow(Gtk.ApplicationWindow):
                à peine — c'est un repère qu'on longe, pas une information à
                lire. Plein plutôt que dégradé : un trait d'un pixel dégradé
                disparaît sur un écran à forte densité. */
+            /* La glissière qui porte toute la fenêtre ne peint rien : ce
+               qu'elle contient a déjà ses fonds, et le sien les recouvrait. */
+            .glissiere-fenetre, .glissiere-fenetre > viewport {
+                background-color: transparent; }
+
             .separation-jour { background-color: alpha(@zy_or, 0.55);
                                min-height: 1px; }
 
