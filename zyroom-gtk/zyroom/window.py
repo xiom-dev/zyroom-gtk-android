@@ -66,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.00" if _DEV else "0.72"
+VERSION = "1.01" if _DEV else "0.73"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2835,21 +2835,23 @@ class MainWindow(Gtk.ApplicationWindow):
         "meteo": "meteo-forage.png",
     }
 
-    #: La part qu'occupe l'image d'un bouton — les deux onglets, le menu
-    #: « Bonus » et ses cinq entrées, la bourse du pied.
+    #: La part qu'occupe un logo — les deux onglets, le menu « Bonus » et ses
+    #: cinq entrées, les contenants du sélecteur, la bourse du pied.
     #:
-    #: Les boutons de zoom valent pour elles aussi : une icône de vingt pixels
-    #: à côté d'un texte grossi paraîtrait perdue. La même part que dans la
-    #: version Qt, pour que les deux fenêtres montrent la même taille.
-    PART_ICONE_BOUTON = 0.42
+    #: Les boutons de zoom valent pour eux aussi : une icône de vingt pixels à
+    #: côté d'un texte grossi paraîtrait perdue. Trente pixels au réglage par
+    #: défaut — une fois et demie ce qu'ils faisaient d'abord, la hauteur
+    #: d'une ligne de texte s'étant révélée trop chiche pour des dessins
+    #: pleins. La même part que dans la version Qt.
+    #:
+    #: Les icônes d'items, elles, ne bougent pas : la grille et le journal ont
+    #: leur propre mesure, et ce sont des objets, pas des repères.
+    PART_ICONE_BOUTON = 0.63
 
-    #: La bourse, une fois et demie les autres.
-    #:
-    #: Elle est dessinée pleine — un sac vu de face — là où les images des
-    #: boutons portent un objet sur fond vide : à taille égale, elle paraissait
-    #: la plus petite des neuf. Le zoom l'emporte comme les autres, ce facteur
-    #: se gardant d'un bout à l'autre de l'échelle.
-    PART_BOURSE = PART_ICONE_BOUTON * 1.5
+    #: La bourse et les écrans agrandis ont rejoint les autres : une seule
+    #: part vaut pour tous les logos. Les deux noms restent, le code les cite
+    #: en plusieurs endroits, mais ils ne disent plus qu'une chose.
+    PART_BOURSE = PART_ICONE_BOUTON
 
     #: L'image d'un contenant, par le début de sa clé technique.
     #:
@@ -2860,11 +2862,7 @@ class MainWindow(Gtk.ApplicationWindow):
     IMAGES_CONTENANTS = (("bag", "sac.png"), ("room", "appartement.png"),
                          ("chest", "coffre.png"))
 
-    #: Les écrans dont l'image est dessinée plus petite que les autres dans
-    #: son carré : silhouettes fines, cartes de biais, tache de forage. À
-    #: taille égale elles paraissaient en retrait ; elles prennent la même
-    #: fois et demie que la bourse.
-    PAGES_AGRANDIES = ("roster", "betes", "meteo")
+    PAGES_AGRANDIES = ()
 
     #: L'or du thème, celui d'Android — repris ici pour le balisage Pango,
     #: qui ne sait pas lire une classe CSS.

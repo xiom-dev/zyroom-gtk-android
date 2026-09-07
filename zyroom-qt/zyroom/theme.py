@@ -321,8 +321,10 @@ QPushButton#nav, QToolButton#nav {
     padding: 4px 14px;
     /* Trente-deux pixels de haut, mesures sur la fenetre GTK. Le contenu seul
        en donnait vingt-neuf : trois de moins, visibles des qu'on pose les deux
-       captures l'une sous l'autre. */
-    min-height: 24px;
+       captures l'une sous l'autre. Vingt-sept depuis que les boutons portent
+       une image de trente : c'est elle qui commande la hauteur, et la barre
+       de GTK en faisait trois de plus que la notre. */
+    min-height: 27px;
 }
 /* Le chevron du menu « Bonus ». Qt pose sa fleche par defaut dans le coin en
    bas a droite, minuscule et sombre ; GTK dessine un chevron clair a hauteur
@@ -617,6 +619,11 @@ QComboBox {
        trente volait vingt-deux pixels au texte -- « La Lune Eternelle (atys) »
        s'affichait « La Lun ». L'air avant le chevron se gagne en demandant une
        largeur plus grande, dans `deroulante.py`, jamais en rognant le texte. */
+    /* Six pixels en haut et en bas, et non quatre : depuis que les
+       contenants portent leur image, la ligne des selecteurs faisait quatre
+       pixels de moins que celle de GTK -- vu par la comparaison par l'image,
+       qui lit les bandes de la fenetre. Le remplissage horizontal, lui, ne
+       bouge pas : `deroulante.py` mesure avec. */
     padding: 4px 8px;
     min-height: 25px;
 }

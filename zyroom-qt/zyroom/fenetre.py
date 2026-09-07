@@ -135,14 +135,17 @@ TRI_LIBELLES = ("Ordre d'origine", "Type", "Écosystème", "Classe", "Qualité",
 #: journal se parcourt.
 PART_ICONE_JOURNAL = 0.5
 
-#: La part qu'occupe l'image d'un bouton -- les deux onglets, le menu
-#: « Bonus » et ses cinq entrees, la bourse du pied.
+#: La part qu'occupe un logo -- les deux onglets, le menu « Bonus » et ses
+#: cinq entrees, les contenants du selecteur, la bourse du pied.
 #:
-#: Les boutons de zoom valent pour elles aussi : une icone de vingt pixels a
-#: cote d'un texte grossi paraitrait perdue. Deux cinquiemes de la taille
-#: reglee pour l'inventaire donnent vingt pixels au reglage par defaut, la
-#: hauteur d'une ligne de texte.
-PART_ICONE_BOUTON = 0.42
+#: Les boutons de zoom valent pour eux aussi : une icone de vingt pixels a
+#: cote d'un texte grossi paraitrait perdue. Trente pixels au reglage par
+#: defaut -- une fois et demie ce qu'ils faisaient d'abord, la hauteur d'une
+#: ligne de texte s'etant revelee trop chiche pour des dessins pleins.
+#:
+#: Les icones d'items, elles, ne bougent pas : la grille et le journal ont
+#: leur propre mesure, et ce sont des objets, pas des reperes.
+PART_ICONE_BOUTON = 0.63
 
 #: La bourse, une fois et demie les autres.
 #:
@@ -150,13 +153,11 @@ PART_ICONE_BOUTON = 0.42
 #: boutons portent un objet sur fond vide : a taille egale, elle paraissait la
 #: plus petite des neuf. Le zoom l'emporte comme les autres, ce facteur se
 #: gardant d'un bout a l'autre de l'echelle.
-PART_BOURSE = PART_ICONE_BOUTON * 1.5
-
-#: Les ecrans dont l'image est dessinee plus petite que les autres dans son
-#: carre : silhouettes fines, cartes de biais, tache de forage. A taille
-#: egale elles paraissaient en retrait des autres ; elles prennent la meme
-#: fois et demie que la bourse.
-PAGES_AGRANDIES = ("roster", "betes", "meteo")
+#: La bourse et les ecrans agrandis ont rejoint les autres : une seule part
+#: vaut pour tous les logos. Les deux noms restent, le code les cite en
+#: plusieurs endroits, mais ils ne disent plus qu'une chose.
+PART_BOURSE = PART_ICONE_BOUTON
+PAGES_AGRANDIES = ()
 
 #: La memoire du journal, en jours. Tout ce qui est plus recent s'affiche,
 #: quel qu'en soit le nombre de lignes. Une semaine est ce qu'il faut pour
