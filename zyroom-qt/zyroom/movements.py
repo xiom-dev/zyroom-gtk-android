@@ -129,8 +129,19 @@ class Movement:
 
     @property
     def when(self) -> str:
-        """Date et heure lisibles, au format de l'original."""
-        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.ts))
+        """Date et heure lisibles, a la minute.
+
+        **Pas de secondes.** Un mouvement est constate par comparaison de deux
+        releves, espaces de plusieurs minutes : la seconde affichee n'est pas
+        celle ou l'objet a bouge, c'est celle ou l'on s'en est apercu. Elle
+        donnait une precision que le journal n'a pas, et allongeait la colonne
+        la plus a gauche de trois signes sur chacune de ses deux mille lignes.
+
+        L'horodatage complet reste dans le fichier -- `ts` porte la seconde et
+        la fraction --, et c'est lui qui trie. Seul l'affichage s'arrete a la
+        minute, ici comme dans le texte que copie le bouton « Copier ».
+        """
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(self.ts))
 
     def as_dict(self) -> dict:
         return {"ts": self.ts, "inv": self.inv_key, "label": self.inv_label,

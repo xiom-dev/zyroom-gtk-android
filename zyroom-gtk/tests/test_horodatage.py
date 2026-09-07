@@ -166,3 +166,32 @@ class LeFluxRendSaDate(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LeJournalSArreteALaMinute(unittest.TestCase):
+    """Pas de secondes à l'affichage.
+
+    Un mouvement est constaté en comparant deux relevés espacés de plusieurs
+    minutes : la seconde affichée n'était pas celle où l'objet avait bougé,
+    mais celle où on s'en était aperçu.
+    """
+
+    def test_l_affichage_ne_porte_plus_de_secondes(self):
+        mv = movements.Movement(ts=1786255868.628438, inv_key="chest1",
+                                inv_label="Coffre 1", sheet="fleur.sitem",
+                                quality=250, kind="added", delta=1)
+        self.assertRegex(mv.when, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
+
+    def test_le_jour_se_lit_toujours_sur_les_dix_premiers_signes(self):
+        mv = movements.Movement(ts=1786255868.628438, inv_key="chest1",
+                                inv_label="Coffre 1", sheet="fleur.sitem",
+                                quality=250, kind="added", delta=1)
+        self.assertEqual(10, len(mv.when[:10]))
+        self.assertEqual(mv.when[:10], mv.when.split(" ")[0])
+
+    def test_la_seconde_reste_dans_l_horodatage_qui_trie(self):
+        """`ts` garde tout : c'est lui qui ordonne le journal."""
+        mv = movements.Movement(ts=1786255868.628438, inv_key="chest1",
+                                inv_label="Coffre 1", sheet="fleur.sitem",
+                                quality=250, kind="added", delta=1)
+        self.assertEqual(1786255868.628438, mv.ts)
