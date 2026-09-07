@@ -65,7 +65,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.90" if _DEV else "0.62"
+VERSION = "0.91" if _DEV else "0.63"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2659,13 +2659,21 @@ class MainWindow(Gtk.ApplicationWindow):
         self._refresh_log()
 
     def _filtered_log(self) -> list:
-        needle = _norm(self._log_search.get_text().strip())
+        saisie = self._log_search.get_text().strip()
+        # « Q250 », « q150 » : la qualité, et non le nom. Elle ne figure dans
+        # aucun des textes fouillés — elle a sa propre colonne —, si bien que
+        # la chercher ne rendait rien. La recette est dans `movements`, pour
+        # que les deux portages répondent au même mot.
+        qualite = movements.qualite_cherchee(saisie)
+        needle = "" if qualite is not None else _norm(saisie)
         mode = self._log_filter.get_selected()
         out = []
         for mv in self._log_entries:
             if mode == 1 and mv.delta <= 0:
                 continue
             if mode == 2 and mv.delta >= 0:
+                continue
+            if qualite is not None and mv.quality != qualite:
                 continue
             if needle:
                 hay = _norm(f"{self._names.name(mv.sheet)} {mv.sheet} {mv.inv_label}")

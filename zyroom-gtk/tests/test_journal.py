@@ -8,12 +8,23 @@ le libellé réel, pas un exemple inventé : il vient du journal de Ludo.
 
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from zyroom import movements                                      # noqa: E402
 from zyroom.window import MainWindow                              # noqa: E402
+
+
+def _ecran_disponible() -> bool:
+    """Monter une fenêtre demande un écran ; le reste du fichier s'en passe."""
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return False
+    import gi
+    gi.require_version("Gtk", "4.0")
+    from gi.repository import Gtk
+    return bool(Gtk.init_check())
 
 
 class LibelleDeCoffre(unittest.TestCase):
@@ -144,3 +155,73 @@ class MemoireDuJournal(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RechercheParQualite(unittest.TestCase):
+    """« Q250 » cherche une qualité, pas un nom.
+
+    La qualité ne figure dans aucun des textes fouillés par le journal — ni le
+    nom de l'objet, ni sa fiche, ni son coffre : elle a sa propre colonne. La
+    chercher comme un mot ne rendait donc jamais rien.
+    """
+
+    def test_reconnait_les_deux_casses(self):
+        for saisie in ("Q250", "q250", "Q 250", "q 250"):
+            self.assertEqual(movements.qualite_cherchee(saisie), 250, saisie)
+
+    def test_toutes_les_qualites_du_jeu(self):
+        for niveau in (50, 100, 150, 200, 250):
+            self.assertEqual(movements.qualite_cherchee(f"Q{niveau}"), niveau)
+            self.assertEqual(movements.qualite_cherchee(f"q{niveau}"), niveau)
+
+    def test_un_nom_reste_un_nom(self):
+        for saisie in ("fleur", "q", "quartz", "Q12345", "", "250"):
+            self.assertIsNone(movements.qualite_cherchee(saisie), saisie)
+
+
+@unittest.skipUnless(_ecran_disponible(), "aucun écran : la fenêtre ne se monte pas")
+class LeJournalFiltreParQualite(unittest.TestCase):
+    """La recherche par qualité, dans la vraie fenêtre et non en théorie.
+
+    La fonction du noyau est testée juste au-dessus ; ce qui reste à vérifier,
+    c'est qu'elle est bien branchée sur le champ de recherche du journal — et
+    que taper un nom d'objet continue de chercher un nom.
+    """
+
+    def setUp(self):
+        self._jetable = tempfile.TemporaryDirectory()
+        self._anciennes = {}
+        for variable in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME"):
+            self._anciennes[variable] = os.environ.get(variable)
+            os.environ[variable] = os.path.join(self._jetable.name,
+                                                variable.lower())
+        self.fenetre = MainWindow(None)
+        self.fenetre._log_entries = [
+            movements.Movement(ts=1.0, inv_key="chest1", inv_label="Coffre 1",
+                               sheet="fleur.sitem", quality=q, kind="added",
+                               delta=1)
+            for q in (50, 100, 150, 200, 250, 250, 200)
+        ]
+
+    def tearDown(self):
+        for variable, valeur in self._anciennes.items():
+            if valeur is None:
+                os.environ.pop(variable, None)
+            else:
+                os.environ[variable] = valeur
+        self._jetable.cleanup()
+
+    def combien(self, saisie: str) -> int:
+        self.fenetre._log_search.set_text(saisie)
+        return len(self.fenetre._filtered_log())
+
+    def test_la_qualite_se_cherche_dans_les_deux_casses(self):
+        self.assertEqual(2, self.combien("Q250"))
+        self.assertEqual(2, self.combien("q250"))
+        self.assertEqual(2, self.combien("Q 200"))
+        self.assertEqual(1, self.combien("q50"))
+
+    def test_un_nom_cherche_toujours_un_nom(self):
+        self.assertEqual(7, self.combien("fleur"))
+        self.assertEqual(0, self.combien("gubani"))
+        self.assertEqual(7, self.combien(""))

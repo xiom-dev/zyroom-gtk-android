@@ -950,13 +950,21 @@ class FenetrePrincipale(QMainWindow):
         self._rafraichir_journal()
 
     def _journal_filtre(self) -> list:
-        motif = _norm(self._recherche_journal.text().strip())
+        saisie = self._recherche_journal.text().strip()
+        # « Q250 », « q150 » : la qualite, et non le nom. Elle ne figure dans
+        # aucun des textes fouilles -- elle a sa propre colonne --, si bien
+        # que la chercher ne rendait rien. La recette vient de `movements`,
+        # le noyau partage : les deux portages repondent au meme mot.
+        qualite = movements.qualite_cherchee(saisie)
+        motif = "" if qualite is not None else _norm(saisie)
         mode = self._dd_journal.currentIndex()
         sortie = []
         for mv in self._journal:
             if mode == 1 and mv.delta <= 0:
                 continue
             if mode == 2 and mv.delta >= 0:
+                continue
+            if qualite is not None and mv.quality != qualite:
                 continue
             if motif:
                 foin = _norm(f"{self._names.name(mv.sheet)} {mv.sheet} "

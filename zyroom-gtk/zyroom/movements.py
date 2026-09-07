@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -62,6 +63,29 @@ def sans_parenthese(libelle: str) -> str:
     """
     coupe = libelle.split("(", 1)[0]
     return coupe.strip() or libelle
+
+
+#: « Q250 », « q 150 » : une recherche par qualite, et non par nom.
+#:
+#: La casse ne compte pas — on tape vite, et la majuscule d'un Q n'apprend
+#: rien. L'espace non plus : « Q 250 » cherche la meme chose que « Q250 ».
+#: Quatre chiffres au plus, les qualites de Ryzom montant a 500.
+_QUALITE = re.compile(r"^q\s*(\d{1,4})$", re.IGNORECASE)
+
+
+def qualite_cherchee(motif: str):
+    """La qualite que ce motif reclame, ou None si c'en est pas un.
+
+    Les deux journaux cherchent dans le nom de l'objet, sa fiche et son
+    coffre — la qualite, elle, n'y figure pas : elle vit dans une colonne a
+    part. Taper « Q250 » ne rendait donc rien, alors que c'est le premier
+    tri qu'on veut faire dans un journal de guilde.
+
+    Rend un entier, jamais une chaine : le journal compare a `mv.quality`,
+    qui en est un, et « Q0250 » doit trouver ce que « Q250 » trouve.
+    """
+    trouve = _QUALITE.match(motif.strip())
+    return int(trouve.group(1)) if trouve else None
 
 
 def montant(nombre: int) -> str:
