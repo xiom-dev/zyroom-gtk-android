@@ -144,6 +144,14 @@ PART_ICONE_JOURNAL = 0.5
 #: hauteur d'une ligne de texte.
 PART_ICONE_BOUTON = 0.42
 
+#: La bourse, une fois et demie les autres.
+#:
+#: Elle est dessinee pleine -- un sac vu de face -- la ou les images des
+#: boutons portent un objet sur fond vide : a taille egale, elle paraissait la
+#: plus petite des neuf. Le zoom l'emporte comme les autres, ce facteur se
+#: gardant d'un bout a l'autre de l'echelle.
+PART_BOURSE = PART_ICONE_BOUTON * 1.5
+
 #: La memoire du journal, en jours. Tout ce qui est plus recent s'affiche,
 #: quel qu'en soit le nombre de lignes. Une semaine est ce qu'il faut pour
 #: retrouver "qui a pris quoi" apres un week-end.
@@ -1334,8 +1342,9 @@ class FenetrePrincipale(QMainWindow):
             menu.setStyleSheet(
                 f"QMenu::icon {{ width: {cote}px; height: {cote}px; }}")
         if hasattr(self, "_img_bourse"):
+            bourse = self._settings.icone(PART_BOURSE)
             self._img_bourse.setPixmap(QPixmap(BOURSE).scaled(
-                cote, cote, Qt.AspectRatioMode.KeepAspectRatio,
+                bourse, bourse, Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation))
 
     def _pied(self) -> QWidget:
@@ -1400,7 +1409,7 @@ class FenetrePrincipale(QMainWindow):
         # La bourse et la somme cote a cote, dans le meme ordre et au meme
         # ecart que dans la version GTK -- six pixels, l'image a vingt.
         self._img_bourse = QLabel()
-        cote_bourse = self._settings.icone(PART_ICONE_BOUTON)
+        cote_bourse = self._settings.icone(PART_BOURSE)
         self._img_bourse.setPixmap(QPixmap(BOURSE).scaled(
             cote_bourse, cote_bourse, Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))

@@ -66,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.98" if _DEV else "0.70"
+VERSION = "0.99" if _DEV else "0.71"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -563,7 +563,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # porter d'image, Pango n'ayant pas de balise pour cela.
         self._bourse_img = Gtk.Image.new_from_file(self.BOURSE)
         self._bourse_img.set_pixel_size(
-            self._settings.icone(self.PART_ICONE_BOUTON))
+            self._settings.icone(self.PART_BOURSE))
         self._bourse_img.set_valign(Gtk.Align.END)
         self._bourse_img.set_visible(False)
         somme = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -2832,6 +2832,14 @@ class MainWindow(Gtk.ApplicationWindow):
     #: à côté d'un texte grossi paraîtrait perdue. La même part que dans la
     #: version Qt, pour que les deux fenêtres montrent la même taille.
     PART_ICONE_BOUTON = 0.42
+
+    #: La bourse, une fois et demie les autres.
+    #:
+    #: Elle est dessinée pleine — un sac vu de face — là où les images des
+    #: boutons portent un objet sur fond vide : à taille égale, elle paraissait
+    #: la plus petite des neuf. Le zoom l'emporte comme les autres, ce facteur
+    #: se gardant d'un bout à l'autre de l'échelle.
+    PART_BOURSE = PART_ICONE_BOUTON * 1.5
 
     #: L'or du thème, celui d'Android — repris ici pour le balisage Pango,
     #: qui ne sait pas lire une classe CSS.
@@ -5187,7 +5195,8 @@ class MainWindow(Gtk.ApplicationWindow):
         for image in getattr(self, "_images_boutons", ()):
             image.set_pixel_size(cote)
         if hasattr(self, "_bourse_img"):
-            self._bourse_img.set_pixel_size(cote)
+            self._bourse_img.set_pixel_size(
+                self._settings.icone(self.PART_BOURSE))
 
     def _set_status(self, text: str) -> None:
         self._status.set_text(text)
