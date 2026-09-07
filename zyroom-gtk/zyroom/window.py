@@ -65,7 +65,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.93" if _DEV else "0.65"
+VERSION = "0.94" if _DEV else "0.66"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -339,9 +339,21 @@ class MainWindow(Gtk.ApplicationWindow):
         # Le sélecteur d'entité reste au-dessus, il vaut pour les deux.
         self._stack = Gtk.Stack()
         self._stack.set_vexpand(True)
+        # **Une barre horizontale plutôt qu'une fenêtre qui refuse de
+        # rétrécir.** Les pages réclamaient huit cent cinquante-deux pixels de
+        # large, et la fenêtre ne descendait pas en dessous : on ne pouvait
+        # plus la poser à côté du jeu. Enfermées ici, elles glissent, et la
+        # fenêtre suit la seule contrainte qui reste, sa barre de titre.
+        #
+        # Rien en vertical : chaque page a déjà son propre défilement, et deux
+        # ascenseurs empilés se disputeraient la molette.
         inv_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self._stack.add_titled(inv_page, "inventory", _("Inventaire"))
-        root.append(self._stack)
+        glissiere = Gtk.ScrolledWindow()
+        glissiere.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
+        glissiere.set_vexpand(True)
+        glissiere.set_child(self._stack)
+        root.append(glissiere)
 
         # Ligne volume : jauge de remplissage de l'inventaire courant
         barvol = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -775,7 +787,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._roster_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self._roster_box.add_css_class("survol")
         scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
         scrolled.set_child(self._roster_box)
         page.append(scrolled)
@@ -1055,7 +1067,7 @@ class MainWindow(Gtk.ApplicationWindow):
         for colonne in (self._op_gauche, self._op_droite):
             colonne.set_selection_mode(Gtk.SelectionMode.NONE)
             defilement = Gtk.ScrolledWindow()
-            defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            defilement.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
             defilement.set_vexpand(True)
             defilement.set_child(colonne)
             colonnes.append(defilement)
@@ -1065,7 +1077,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._op_box.set_selection_mode(Gtk.SelectionMode.NONE)
         self._op_box.add_css_class("survol")
         journal = Gtk.ScrolledWindow()
-        journal.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        journal.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         journal.set_vexpand(True)
         journal.set_child(self._op_box)
 
@@ -1676,7 +1688,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # sont pires : on ne sait plus laquelle on tient, et comparer deux
         # tableaux qui glissent séparément demande de les recaler à la main.
         defilement = Gtk.ScrolledWindow()
-        defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        defilement.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         defilement.set_vexpand(True)
         dedans = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self._pad(dedans)
