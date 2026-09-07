@@ -188,6 +188,15 @@ def _norm(texte: str) -> str:
     return "".join(c for c in texte if not unicodedata.combining(c)).lower()
 
 
+#: La bourse de dappers, celle du jeu -- et non l'emoji du sac de billets.
+#:
+#: Elle vit dans `zyroom/symboles/`, que la synchronisation du noyau recopie
+#: depuis la version GTK : les deux fenetres montrent donc la meme image, et
+#: elle n'a a etre remplacee qu'a un seul endroit.
+BOURSE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                      "symboles", "dappers.png")
+
+
 def _trait_de_jour() -> QWidget:
     """Le trait qui separe deux journees du journal, copie sur celui de GTK.
 
@@ -1080,7 +1089,9 @@ class FenetrePrincipale(QMainWindow):
 
             # L'icone de l'objet, juste avant sa qualite : c'est elle qu'on
             # reconnait en parcourant le journal, bien avant de lire un nom.
-            icone = QTableWidgetItem("💰" if argent else "")
+            icone = QTableWidgetItem()
+            if argent:
+                icone.setIcon(QIcon(BOURSE))
             self._table.setItem(rang, 4, icone)
             if not argent:
                 # L'icone n'est pas demandee ici : deux mille lignes, ce sont
@@ -1327,7 +1338,21 @@ class FenetrePrincipale(QMainWindow):
 
         self._lbl_dappers = QLabel()
         self._lbl_dappers.setObjectName("dappers")
-        barre.addWidget(self._lbl_dappers, 0, 2,
+        # La bourse et la somme cote a cote, dans le meme ordre et au meme
+        # ecart que dans la version GTK -- six pixels, l'image a vingt.
+        self._img_bourse = QLabel()
+        self._img_bourse.setPixmap(QPixmap(BOURSE).scaled(
+            20, 20, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+        self._img_bourse.setVisible(False)
+        somme = QWidget()
+        ligne_somme = QHBoxLayout(somme)
+        ligne_somme.setContentsMargins(0, 0, 0, 0)
+        ligne_somme.setSpacing(6)
+        ligne_somme.addWidget(self._img_bourse, 0, Qt.AlignmentFlag.AlignBottom)
+        ligne_somme.addWidget(self._lbl_dappers, 0,
+                              Qt.AlignmentFlag.AlignBottom)
+        barre.addWidget(somme, 0, 2,
                         Qt.AlignmentFlag.AlignRight
                         | Qt.AlignmentFlag.AlignBottom)
         colonne.addLayout(barre)
@@ -1871,9 +1896,11 @@ class FenetrePrincipale(QMainWindow):
                 montant = f"{int(ent.money):,}".replace(",", " ")
             except ValueError:
                 montant = ent.money
-            self._lbl_dappers.setText(f"💰 {montant} dappers")
+            self._lbl_dappers.setText(f"{montant} dappers")
+            self._img_bourse.setVisible(True)
         else:
             self._lbl_dappers.clear()
+            self._img_bourse.setVisible(False)
         if ent.motd:
             self._motd_lbl.setText(ent.motd)
             self._motd_boite.setVisible(True)

@@ -65,7 +65,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.96" if _DEV else "0.68"
+VERSION = "0.97" if _DEV else "0.69"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -550,7 +550,16 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self._dappers_lbl = Gtk.Label(label="", valign=Gtk.Align.END)
         self._dappers_lbl.add_css_class("dappers")
-        statusbar.set_end_widget(self._dappers_lbl)
+        # La bourse et la somme, côte à côte : un `Gtk.Label` ne sait pas
+        # porter d'image, Pango n'ayant pas de balise pour cela.
+        self._bourse_img = Gtk.Image.new_from_file(self.BOURSE)
+        self._bourse_img.set_pixel_size(20)
+        self._bourse_img.set_valign(Gtk.Align.END)
+        self._bourse_img.set_visible(False)
+        somme = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        somme.append(self._bourse_img)
+        somme.append(self._dappers_lbl)
+        statusbar.set_end_widget(somme)
 
         # Signature : d'où vient cette application. Pas de traduction, ce sont
         # des noms propres. Cliquable, parce que c'est là qu'on cherche d'où
@@ -2728,6 +2737,16 @@ class MainWindow(Gtk.ApplicationWindow):
             return False
         return arrivee
 
+    #: La bourse de dappers, celle du jeu.
+    #:
+    #: Elle remplace l'emoji du sac de billets : un sac vert de dollars n'a
+    #: rien à faire dans Atys, et la bourse est ce que le joueur voit dans son
+    #: inventaire. Trente-deux pixels de côté, avec sa transparence ; elle vit
+    #: dans `zyroom/symboles/`, que le Makefile recopie et que la
+    #: synchronisation du noyau porte jusqu'à la version Qt.
+    BOURSE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "symboles", "dappers.png")
+
     #: L'or du thème, celui d'Android — repris ici pour le balisage Pango,
     #: qui ne sait pas lire une classe CSS.
     OR = "#e8c15a"
@@ -2802,7 +2821,8 @@ class MainWindow(Gtk.ApplicationWindow):
             # arrière-plan — et une image générique tient la place en attendant,
             # pour que la colonne ne se décale pas à l'arrivée.
             if argent:
-                icone = Gtk.Label(label="💰")
+                icone = Gtk.Image.new_from_file(self.BOURSE)
+                icone.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
                 self._log_grid.attach(icone, 4, row, 1, 1)
             else:
                 icone = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
@@ -3998,9 +4018,11 @@ class MainWindow(Gtk.ApplicationWindow):
                 amount = f"{int(ent.money):,}".replace(",", " ")
             except ValueError:
                 amount = ent.money
-            self._dappers_lbl.set_text(f"💰 {amount} dappers")
+            self._dappers_lbl.set_text(f"{amount} dappers")
+            self._bourse_img.set_visible(True)
         else:
             self._dappers_lbl.set_text("")
+            self._bourse_img.set_visible(False)
         if ent.motd:
             self._motd_lbl.set_text(ent.motd)
             self._motd_box.set_visible(True)
