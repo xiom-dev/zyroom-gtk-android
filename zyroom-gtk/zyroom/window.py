@@ -65,7 +65,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.92" if _DEV else "0.64"
+VERSION = "0.93" if _DEV else "0.65"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2775,11 +2775,6 @@ class MainWindow(Gtk.ApplicationWindow):
             name = Gtk.Label(label=_("Dappers") if argent
                              else self._names.name(mv.sheet),
                              xalign=0.0, selectable=True)
-            # Cette colonne prend l'espace libre, et pousse l'icone et la
-            # qualite contre le bord droit. Sans cela la grille se cale sur le
-            # nom le plus long du journal -- pas forcement affiche -- et les
-            # deux dernieres colonnes changent de place d'une guilde a l'autre.
-            name.set_hexpand(True)
             self._log_grid.attach(name, 3, row, 1, 1)
 
             # L'icône de l'objet, sur la ligne, juste avant sa qualité : c'est
@@ -2801,6 +2796,12 @@ class MainWindow(Gtk.ApplicationWindow):
             quality = Gtk.Label(label=f"Q{mv.quality}" if mv.quality else "",
                                 xalign=0.0)
             quality.add_css_class("dim-label")
+            # C'est la derniere colonne qui prend l'espace libre, et non celle
+            # des noms : la qualite se pose alors juste apres l'icone, sous le
+            # bouton « Copier », et le vide reste a sa droite. C'est la
+            # disposition de la version Qt, ou l'espace va lui aussi a la
+            # derniere colonne -- texte cale a gauche.
+            quality.set_hexpand(True)
             self._log_grid.attach(quality, 5, row, 1, 1)
             row += 1
 
