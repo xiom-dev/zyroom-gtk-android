@@ -243,12 +243,17 @@ IMAGES_CONTENANTS = (("bag", "sac.png"), ("room", "appartement.png"),
                      ("chest", "coffre.png"))
 
 
-def icone_contenant(cle: str) -> QIcon:
-    """L'image d'un sac, d'un appartement ou d'un coffre, ou rien.
+def icone_contenant(cle: str, libelle: str = "") -> QIcon:
+    """L'image d'un contenant : sac, appartement, coffre, monture.
 
-    Les montures -- `animal1`, `animal2`... -- n'en ont pas : le jeu ne
-    fournit d'icone ni pour le mektoub ni pour le zig.
+    Les montures partagent la cle `animal1`, `animal2`... : c'est leur libelle
+    qui dit laquelle -- « Zig 1 », « Mektoub 2 », « Monture 3 ». Le mektoub et
+    la monture montrent la meme bete, le jeu n'en distingue pas le dessin.
     """
+    if cle.startswith("animal"):
+        fichier = "zig.png" if "zig" in libelle.lower() else "mektoub.png"
+        chemin = os.path.join(SYMBOLES, fichier)
+        return QIcon(chemin) if os.path.exists(chemin) else QIcon()
     for prefixe, fichier in IMAGES_CONTENANTS:
         if cle.startswith(prefixe):
             chemin = os.path.join(SYMBOLES, fichier)
@@ -1398,8 +1403,14 @@ class FenetrePrincipale(QMainWindow):
             # lui donne donc la plus grande, et l'on compose chaque icone dans
             # un carre de cette taille -- l'effectif, le perdu et la meteo a
             # pleine echelle, les autres a la leur, centrees.
+            # **Et la place de l'image dans la ligne.** Une image posee par la
+            # feuille n'entre pas dans la largeur que le menu se calcule : il
+            # la peignait par-dessus le debut des libelles, et « Avant-postes »
+            # s'y lisait tronque. On reserve donc, a gauche de chaque ligne,
+            # le carre de l'image et l'air qui la separe du mot.
             menu.setStyleSheet(
-                f"QMenu::icon {{ width: {grand}px; height: {grand}px; }}")
+                f"QMenu::icon {{ width: {grand}px; height: {grand}px; }}"
+                f"QMenu::item {{ padding-left: {grand + 14}px; }}")
             for action, (nom, _etiquette) in zip(menu.actions(), PLUS_PAGES):
                 dedans = grand if nom in PAGES_AGRANDIES else cote
                 action.setIcon(icone_dans_carre(nom, dedans, grand))
@@ -2086,7 +2097,7 @@ class FenetrePrincipale(QMainWindow):
                 # de phrase que l'API laisse pendre apres une parenthese
                 # jamais refermee.
                 self._dd_inv.addItem(
-                    icone_contenant(inv.key),
+                    icone_contenant(inv.key, inv.label),
                     f"{movements.sans_parenthese(inv.label)}"
                     f"{self._remplissage(inv)}")
         self._dd_inv.blockSignals(False)

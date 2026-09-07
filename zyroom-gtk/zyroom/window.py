@@ -66,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.01" if _DEV else "0.73"
+VERSION = "1.02" if _DEV else "0.74"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -4190,8 +4190,16 @@ class MainWindow(Gtk.ApplicationWindow):
         rang = item.get_position()
         cle = (self._inv_keys[rang]
                if 0 <= rang < len(self._inv_keys) else "")
-        fichier = next((f for prefixe, f in self.IMAGES_CONTENANTS
-                        if cle.startswith(prefixe)), "")
+        if cle.startswith("animal"):
+            # Les montures partagent la clé `animal1`, `animal2`… : c'est leur
+            # libellé qui dit laquelle — « Zig 1 », « Mektoub 2 », « Monture
+            # 3 ». Le mektoub et la monture montrent la même bête, le jeu n'en
+            # distingue pas le dessin.
+            libelle = chaine.get_string() if chaine is not None else ""
+            fichier = "zig.png" if "zig" in libelle.lower() else "mektoub.png"
+        else:
+            fichier = next((f for prefixe, f in self.IMAGES_CONTENANTS
+                            if cle.startswith(prefixe)), "")
         chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "symboles", fichier) if fichier else ""
         if chemin and os.path.exists(chemin):
