@@ -65,7 +65,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.89" if _DEV else "0.61"
+VERSION = "0.90" if _DEV else "0.62"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -3741,7 +3741,14 @@ class MainWindow(Gtk.ApplicationWindow):
         if reglages is not None:
             reglages.set_property("gtk-application-prefer-dark-theme", True)
 
-        provider = Gtk.CssProvider()
+        # Un seul fournisseur pour toute la vie de la fenêtre, rechargé au
+        # lieu d'être empilé : c'est ce qui permet de rejouer cette feuille
+        # quand le corps du texte change, sans redémarrer et sans accumuler
+        # une couche de style par passage aux options.
+        provider = getattr(self, "_css_provider", None)
+        premier_passage = provider is None
+        if premier_passage:
+            provider = self._css_provider = Gtk.CssProvider()
         # Le corps du texte, s'il a été réglé. En tête de la feuille et sur
         # `*` : GTK le résout comme n'importe quelle autre propriété, et tout
         # ce qui n'en demande pas d'autre en hérite.
@@ -3945,9 +3952,10 @@ class MainWindow(Gtk.ApplicationWindow):
             .tri-depart  { color: @zy_erreur; font-weight: bold; }
             .tri-grade   { color: @zy_texte; font-weight: bold; }
         """).encode("utf-8"))
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(), provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        if premier_passage:
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(), provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def _update_entity_header(self, ent, entry) -> None:
         if ent.money:
@@ -4813,6 +4821,11 @@ class MainWindow(Gtk.ApplicationWindow):
                                   s.proxy_username, s.proxy_password)
 
     def _on_options_saved(self) -> None:
+        # Le corps du texte prend effet sur-le-champ, comme dans la version
+        # Qt : il fallait fermer et rouvrir la fenêtre pour voir le réglage,
+        # et on croyait qu'il ne marchait pas. La feuille est rejouée avec la
+        # nouvelle taille, sur le fournisseur déjà en place.
+        self._install_motd_css()
         self._apply_proxy()
         self._load_names(self._settings.pack_file)
         self._schedule_sync()          # nouvel intervalle, sans redémarrer

@@ -29,7 +29,8 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import (QColor, QFontMetrics, QIcon, QPainter,
+from PySide6.QtGui import (QColor, QFont, QFontDatabase, QFontMetrics,
+                           QIcon, QPainter,
                            QPalette, QPixmap)
 from PySide6.QtWidgets import QLineEdit
 
@@ -682,6 +683,16 @@ def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON) -> QIcon:
     Rend une icône vide si le bureau n'a pas cette icône — sous Windows, par
     exemple, où l'appelant retombe sur son repli textuel.
     """
+    # La cascade de GTK, dans cet ordre : le nom demande dans le theme du
+    # bureau ; a defaut, dans ce meme theme, la version **coloree** -- rendue
+    # telle quelle, un plus bleu reste bleu ; et seulement ensuite le repli
+    # d'Adwaita, silhouette blanche qu'on repeint. C'est ce qui fait qu'une
+    # machine reglee sur « gnome » montre le plus bleu et le dossier beige,
+    # mais garde le menu blanc d'Adwaita, que « gnome » ne porte pas.
+    if nom.endswith("-symbolic") and _fichier_du_bureau(nom) is None:
+        colore = _fichier_du_bureau(nom[: -len("-symbolic")])
+        if colore is not None:
+            return QIcon(colore)
     source = QIcon.fromTheme(nom)
     if source.isNull():
         return QIcon()
@@ -698,6 +709,51 @@ def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON) -> QIcon:
     peintre.fillRect(teinte.rect(), QColor(couleur))
     peintre.end()
     return QIcon(teinte)
+
+
+def _fichier_du_bureau(nom: str):
+    """Le fichier de cette icone dans le theme du bureau, ou None.
+
+    On regarde le disque plutot que d'interroger `QIcon.fromTheme` : celui-ci
+    a deja un repli sur Adwaita, et rendrait la silhouette blanche au moment
+    meme ou l'on cherche a savoir si le theme du bureau, lui, a quelque chose.
+    Les tailles sont parcourues de la plus grande a la plus petite -- une
+    icone reduite reste nette, agrandie non.
+    """
+    import glob
+    theme = _theme_du_bureau()
+    if not theme:
+        return None
+    for racine in ("/usr/share/icons", os.path.expanduser("~/.local/share/icons")):
+        trouves = []
+        for suffixe in ("svg", "png"):
+            trouves += glob.glob(f"{racine}/{theme}/**/{nom}.{suffixe}",
+                                 recursive=True)
+        if trouves:
+            def taille(chemin: str) -> int:
+                for morceau in chemin.split(os.sep):
+                    if "x" in morceau and morceau.split("x")[0].isdigit():
+                        return int(morceau.split("x")[0])
+                return 1024          # « scalable » passe devant les tailles fixes
+            return max(trouves, key=taille)
+    return None
+
+
+def _theme_du_bureau() -> str:
+    """Le theme d'icones choisi dans GNOME, ou rien.
+
+    Lu par `gsettings`, faute de mieux : Qt ne recoit pas ce reglage sous
+    Wayland, et le portail ne le sert qu'a grand renfort de D-Bus. Absent ou
+    illisible -- un autre bureau, Windows --, l'appelant retombe sur Adwaita.
+    """
+    import subprocess
+    try:
+        sortie = subprocess.run(
+            ["gsettings", "get", "org.gnome.desktop.interface", "icon-theme"],
+            capture_output=True, text=True, timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return sortie.stdout.strip().strip("'\"") if sortie.returncode == 0 else ""
 
 
 def caler_icones() -> None:
@@ -721,9 +777,54 @@ def caler_icones() -> None:
         if os.path.isdir(dossier) and dossier not in chemins:
             chemins.append(dossier)
     QIcon.setThemeSearchPaths(chemins)
-    if any(os.path.isdir(os.path.join(d, "Adwaita")) for d in chemins):
+    # **Le theme du bureau, et non un theme impose.** GTK suit le reglage de
+    # GNOME : sur une machine reglee sur « gnome », il montre le plus bleu de
+    # `list-add` et le dossier beige de `document-open`, faute de version
+    # symbolique dans ce theme -- pas les silhouettes blanches d'Adwaita. Qt
+    # ne lit pas ce reglage sous Wayland ; on le lui donne, sans quoi les deux
+    # fenetres ne montrent pas les memes pictogrammes sur la meme machine.
+    bureau = _theme_du_bureau()
+    if bureau and any(os.path.isdir(os.path.join(d, bureau)) for d in chemins):
+        QIcon.setThemeName(bureau)
+    elif any(os.path.isdir(os.path.join(d, "Adwaita")) for d in chemins):
         QIcon.setThemeName("Adwaita")
-        QIcon.setFallbackThemeName("Adwaita")
+    QIcon.setFallbackThemeName("Adwaita")
+
+
+def _famille_emoji() -> str:
+    """La fonte emoji en couleur, nommee explicitement.
+
+    Laisser Qt choisir son repli ne donne pas le meme dessin que GTK : la
+    loupe sortait bleue et penchee a droite, la ou GTK -- qui passe par Noto
+    Color Emoji -- la montre orange et penchee a gauche, et le signe plus
+    sortait gris au lieu du bleu de Noto. On nomme donc la fonte, avec les
+    equivalents des autres systemes derriere.
+    """
+    connues = set(QFontDatabase.families())
+    for famille in ("Noto Color Emoji", "Segoe UI Emoji", "Apple Color Emoji",
+                    "Noto Emoji"):
+        if famille in connues:
+            return famille
+    return ""
+
+
+def icone_emoji(caractere: str, cote: int = 32) -> QIcon:
+    """Un emoji en couleur, servi comme icone.
+
+    Une action de `QLineEdit` reclame une `QIcon` : le glyphe est donc peint
+    dans une image, avec la police emoji du systeme, plutot que pose comme du
+    texte. `QFont` choisit seul la fonte de repli qui porte le caractere --
+    Noto Color Emoji ici --, et la peinture garde ses couleurs.
+    """
+    pixmap = QPixmap(cote, cote)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(pixmap)
+    police = QFont(_famille_emoji())
+    police.setPixelSize(int(cote * 0.82))
+    peintre.setFont(police)
+    peintre.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, caractere)
+    peintre.end()
+    return QIcon(pixmap)
 
 
 def poser_loupe(champ) -> None:
@@ -736,8 +837,10 @@ def poser_loupe(champ) -> None:
     passe. C'est ce qui etait arrive au journal, au chatlog, aux competences
     et au roster : seul l'inventaire avait la sienne.
 
-    Sans icone dans le theme du bureau — sous Windows, par exemple — le champ
-    reste tel quel plutot que de montrer un carre vide.
+    **L'emoji, et non l'icone symbolique.** La fenetre GTK du paquet montre la
+    loupe en couleur — cercle orange, verre vert — et non le trait blanc de
+    `system-search-symbolic` : releve au pixel sur la capture, et c'est elle
+    qui fait foi.
     """
     loupe = icone_symbolique("system-search-symbolic")
     if loupe.isNull():

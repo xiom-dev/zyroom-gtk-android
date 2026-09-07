@@ -213,6 +213,13 @@ def _bouton_icone(nom_theme: str, repli: str, infobulle: str) -> QToolButton:
     `QIcon.fromTheme` sert les icônes symboliques du bureau sous Linux, comme
     le fait GTK. Sous Windows il n'existe pas de thème d'icônes : le repli
     textuel prend alors la place, et c'est pourquoi chaque appel en fournit un.
+
+    **Un nom de thème vide impose le repli.** Trois boutons de la barre GTK
+    montrent un emoji et non l'icône symbolique que leur code demande — le
+    ➕ bleu, la 🗑 et le 📂, relevés au pixel sur la fenêtre du paquet. La
+    resynchronisation et le menu, eux, sortent bien en symbolique blanc.
+    C'est GTK qui fait foi : ces trois-là passent donc un nom vide, et Qt
+    affiche le même emoji plutôt qu'une icône que GTK ne montre pas.
     """
     bouton = QToolButton()
     # Le cadre d'Adwaita, comme dans la barre de GTK : la feuille le peint sur
@@ -221,7 +228,8 @@ def _bouton_icone(nom_theme: str, repli: str, infobulle: str) -> QToolButton:
     bouton.setObjectName("barre")
     # Recoloree : une icone symbolique prend la couleur du texte chez GTK, et
     # restait gris foncé chez nous. Voir `theme.icone_symbolique`.
-    icone = theme.icone_symbolique(nom_theme)
+    icone = (theme.icone_symbolique(nom_theme) if nom_theme
+             else theme.icone_emoji(repli))
     if icone.isNull():
         bouton.setText(repli)
     else:
@@ -458,13 +466,13 @@ class FenetrePrincipale(QMainWindow):
         ligne.setSpacing(4)
 
         # A gauche : ce qui parle de l'entite affichee.
-        btn_ajout = _bouton_icone("list-add-symbolic", "+",
+        btn_ajout = _bouton_icone("list-add-symbolic", "\u2795",
                                   _("Clés API : en ajouter une, relire ou "
                                     "remplacer celles qu'on a"))
         btn_ajout.clicked.connect(self._on_ajouter)
         ligne.addWidget(btn_ajout)
 
-        self._btn_retirer = _bouton_icone("user-trash-symbolic", "🗑",
+        self._btn_retirer = _bouton_icone("user-trash-symbolic", "\U0001f5d1\ufe0f",
                                           _("Retirer l'entité sélectionnée"))
         self._btn_retirer.clicked.connect(self._on_retirer)
         self._btn_retirer.setEnabled(False)
@@ -513,7 +521,7 @@ class FenetrePrincipale(QMainWindow):
         ligne.addWidget(self._btn_maj)
 
         btn_pack = _bouton_icone(
-            "document-open-symbolic", "📂",
+            "document-open-symbolic", "\U0001f4c2",
             _("Charger string_client.pack (noms d'items lisibles)"))
         btn_pack.clicked.connect(self._on_pack)
         ligne.addWidget(btn_pack)
