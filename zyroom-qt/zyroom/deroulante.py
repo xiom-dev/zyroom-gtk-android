@@ -54,7 +54,15 @@ class Deroulante(QComboBox):
         largeur demandée — les prendre sur le remplissage rognerait le texte,
         puisque Qt réserve la zone du chevron en plus, et non dedans.
         """
-        return self.fontMetrics().horizontalAdvance(self.currentText()) + 46
+        large = self.fontMetrics().horizontalAdvance(self.currentText()) + 46
+        # Et l'image, quand la ligne en porte une : l'emblème de la guilde ou
+        # le portrait du personnage. Sans la compter, la place lui était prise
+        # sur le nom — « Koii » s'affichait « K » le jour où le portrait est
+        # arrivé. Quatre pixels d'écart entre l'image et le texte, comme Qt en
+        # laisse.
+        if not self.itemIcon(self.currentIndex()).isNull():
+            large += self.iconSize().width() + 4
+        return large
 
     def showPopup(self) -> None:                      # noqa: N802 -- nom Qt
         """La liste ouverte prend la largeur de son plus long nom.

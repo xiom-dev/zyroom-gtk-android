@@ -79,6 +79,35 @@ def names_cache_path() -> str:
     return os.path.join(cache_dir(), "names.json")
 
 
+def portrait_en_cache(kind: str, entity_id: str) -> str:
+    """Le portrait déjà téléchargé de cette entité, ou une chaîne vide.
+
+    `portrait_path` sait où *écrire* — encore faut-il connaître l'adresse du
+    rendu, qui n'est connue que de l'entité chargée. Le sélecteur, lui, montre
+    toutes les entités : il ne peut que chercher ce qui est déjà là, par le
+    préfixe que porte le nom du fichier.
+
+    Le portrait d'un personnage et l'emblème d'une guilde partagent ce cache :
+    c'est la même image d'identité, à la même place.
+    """
+    dossier = os.path.join(cache_dir(), "portrait")
+    prefixe = f"{kind}-{entity_id}"
+    try:
+        noms = sorted(os.listdir(dossier))
+    except OSError:
+        return ""
+    for nom in noms:
+        if not nom.startswith(prefixe) or not nom.endswith(".png"):
+            continue
+        chemin = os.path.join(dossier, nom)
+        try:
+            if os.path.getsize(chemin) > 0:
+                return chemin
+        except OSError:
+            continue
+    return ""
+
+
 def portrait_path(kind: str, entity_id: str, url: str = "") -> str:
     """Emplacement du cache du portrait d'une entité (rendu 3D / icône).
 

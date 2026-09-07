@@ -26,7 +26,8 @@ from .i18n import _
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, data_dir, Settings, detect_pack,
                      detect_save_folder, entity_xml_path, format_api_created,
                      format_last_sync, guard_path, last_sync, movements_path,
-                     names_cache_path, portrait_path, snapshot_path)
+                     names_cache_path, portrait_en_cache, portrait_path,
+                     snapshot_path)
 from .attente import BarreAttente
 from .icons import IconLoader
 from .options import OptionsWindow
@@ -65,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.97" if _DEV else "0.69"
+VERSION = "0.98" if _DEV else "0.70"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -300,6 +301,14 @@ class MainWindow(Gtk.ApplicationWindow):
         root.append(bar1)
         bar1.append(Gtk.Label(label=_("Entité :")))
         self._entity_dd = Gtk.DropDown(model=Gtk.StringList())
+        # La fabrique dès la création, et non au premier remplissage : une
+        # `Gtk.DropDown` neuve en a déjà une — celle qui n'affiche que du
+        # texte —, si bien qu'un test « n'en a-t-elle pas ? » ne posait jamais
+        # la nôtre, et le sélecteur restait sans image.
+        fabrique = Gtk.SignalListItemFactory()
+        fabrique.connect("setup", self._entite_setup)
+        fabrique.connect("bind", self._entite_bind)
+        self._entity_dd.set_factory(fabrique)
         self._entity_dd.connect("notify::selected", self._on_entity_selected)
         bar1.append(self._entity_dd)
         bar1.append(Gtk.Label(label=_("Inventaire :")))
@@ -553,7 +562,8 @@ class MainWindow(Gtk.ApplicationWindow):
         # La bourse et la somme, côte à côte : un `Gtk.Label` ne sait pas
         # porter d'image, Pango n'ayant pas de balise pour cela.
         self._bourse_img = Gtk.Image.new_from_file(self.BOURSE)
-        self._bourse_img.set_pixel_size(20)
+        self._bourse_img.set_pixel_size(
+            self._settings.icone(self.PART_ICONE_BOUTON))
         self._bourse_img.set_valign(Gtk.Align.END)
         self._bourse_img.set_visible(False)
         somme = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -648,7 +658,7 @@ class MainWindow(Gtk.ApplicationWindow):
     #: renommer toucherait l'action D-Bus, la pile et six méthodes pour rien.
     PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
                   ("betes", "Perdu ?"), ("outposts", "Avant-postes"),
-                  ("meteo", "Météo"))
+                  ("meteo", "Météo / forage"))
 
     def _build_navigation(self) -> Gtk.Widget:
         """La navigation de la barre de titre : deux boutons et un menu.
@@ -662,24 +672,75 @@ class MainWindow(Gtk.ApplicationWindow):
         boite.add_css_class("linked")
 
         self._nav_boutons = {}
-        for nom, etiquette in (("inventory", _("Inventaire")), ("log", _("Journal"))):
-            bouton = Gtk.ToggleButton(label=etiquette)
+        #: Les images posées sur les boutons, pour que le zoom les retrouve.
+        self._images_boutons = []
+        for nom, etiquette in (("inventory", _("Inventaire")),
+                               ("log", _("Journal"))):
+            bouton = Gtk.ToggleButton()
+            bouton.set_child(self._image_et_texte(nom, etiquette))
             bouton.connect("toggled", self._on_nav_toggled, nom)
             self._nav_boutons[nom] = bouton
             boite.append(bouton)
 
-        menu = Gio.Menu()
+        # **Un popover de boutons, et non un `Gio.Menu`.** GTK4 n'affiche pas
+        # les icônes d'un menu — c'est un parti pris d'Adwaita, et aucun
+        # attribut ne le fléchit. Les cinq écrans sont donc des boutons posés
+        # dans un popover : ils portent leur image comme les deux onglets, et
+        # activent la même action que le menu activait.
+        self._plus_btn = Gtk.MenuButton()
+        self._plus_btn.set_child(self._image_et_texte("plus", _("Bonus"),
+                                                      chevron=True))
+        popover = Gtk.Popover()
+        popover.add_css_class("menu")
+        liste = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         for nom, etiquette in self.PLUS_PAGES:
-            menu.append(_(etiquette), f"win.plus::{nom}")
-        self._plus_btn = Gtk.MenuButton(label=_("Bonus"))
-        self._plus_btn.set_menu_model(menu)
-        self._plus_btn.set_always_show_arrow(True)
+            entree = Gtk.Button()
+            entree.add_css_class("flat")
+            entree.set_child(self._image_et_texte(nom, _(etiquette)))
+            entree.connect("clicked", self._on_plus_bouton, nom, popover)
+            liste.append(entree)
+        popover.set_child(liste)
+        self._plus_btn.set_popover(popover)
         boite.append(self._plus_btn)
 
         action = Gio.SimpleAction.new("plus", GLib.VariantType.new("s"))
         action.connect("activate", self._on_plus_choisi)
         self.add_action(action)
         return boite
+
+    def _image_et_texte(self, page: str, etiquette: str,
+                        chevron: bool = False) -> Gtk.Widget:
+        """Un bouton de navigation : son image, son nom, parfois un chevron.
+
+        L'image est retenue dans `_images_boutons` : les boutons de zoom la
+        retrouvent là pour la faire grandir avec le reste.
+        """
+        boite = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        fichier = self.ICONES_PAGES.get(page)
+        if fichier:
+            chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "symboles", fichier)
+            if os.path.exists(chemin):
+                image = Gtk.Image.new_from_file(chemin)
+                image.set_pixel_size(
+                    self._settings.icone(self.PART_ICONE_BOUTON))
+                self._images_boutons.append(image)
+                boite.append(image)
+        boite.append(Gtk.Label(label=etiquette))
+        if chevron:
+            boite.append(Gtk.Image.new_from_icon_name("pan-down-symbolic"))
+        return boite
+
+    def _on_plus_bouton(self, _bouton, nom: str, popover) -> None:
+        """Une entrée du popover : elle ouvre son écran et referme le menu.
+
+        Elle fait exactement ce que faisait l'entrée de menu qu'elle remplace
+        — l'action `win.plus` reste d'ailleurs en place, le clavier et D-Bus
+        s'en servent encore.
+        """
+        popover.popdown()
+        self._stack.set_visible_child_name("plus")
+        self._plus_stack.set_visible_child_name(nom)
 
     def _on_nav_toggled(self, bouton, nom: str) -> None:
         if bouton.get_active():
@@ -730,7 +791,8 @@ class MainWindow(Gtk.ApplicationWindow):
                                     _("Perdu ?"))
         self._plus_stack.add_titled(self._build_outposts_page(), "outposts",
                                     _("Avant-postes"))
-        self._plus_stack.add_titled(self._build_meteo_page(), "meteo", _("Météo"))
+        self._plus_stack.add_titled(self._build_meteo_page(), "meteo",
+                                    _("Météo / forage"))
 
         # Aucune rangée de boutons ici : c'est le menu déroulant de la barre de
         # titre qui commande cette pile, et il porte le nom de l'écran affiché.
@@ -2747,6 +2809,30 @@ class MainWindow(Gtk.ApplicationWindow):
     BOURSE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "symboles", "dappers.png")
 
+    #: L'image de chaque écran, par le nom que porte sa page.
+    #:
+    #: Les fichiers vivent dans `zyroom/symboles/`, que la synchronisation du
+    #: noyau porte jusqu'à la version Qt : les deux fenêtres montrent les mêmes
+    #: images, et il n'y a qu'un endroit où les remplacer.
+    ICONES_PAGES = {
+        "inventory": "inventaire.png",
+        "log": "journal.png",
+        "plus": "bonus.png",
+        "skills": "competences.png",
+        "roster": "effectif.png",
+        "betes": "perdu.png",
+        "outposts": "avant-poste.png",
+        "meteo": "meteo-forage.png",
+    }
+
+    #: La part qu'occupe l'image d'un bouton — les deux onglets, le menu
+    #: « Bonus » et ses cinq entrées, la bourse du pied.
+    #:
+    #: Les boutons de zoom valent pour elles aussi : une icône de vingt pixels
+    #: à côté d'un texte grossi paraîtrait perdue. La même part que dans la
+    #: version Qt, pour que les deux fenêtres montrent la même taille.
+    PART_ICONE_BOUTON = 0.42
+
     #: L'or du thème, celui d'Android — repris ici pour le balisage Pango,
     #: qui ne sait pas lire une classe CSS.
     OR = "#e8c15a"
@@ -2986,8 +3072,11 @@ class MainWindow(Gtk.ApplicationWindow):
             # se relève vient d'Atys, et la mention se répétait sur chaque
             # ligne du menu sans jamais distinguer quoi que ce soit. La place
             # gagnée va au nom, qui, lui, peut être long.
-            model.append(
-                f"{_KIND_PREFIX.get(entry['kind'], '')} {entry['name']}")
+            #
+            # Le pictogramme non plus : c'est l'image de l'entité qui le
+            # remplace, posée par la fabrique — l'emblème de la guilde ou le
+            # portrait du personnage, les mêmes qu'en bas de la fenêtre.
+            model.append(entry["name"])
 
         self._entity_dd.handler_block_by_func(self._on_entity_selected)
         self._entity_dd.set_model(model)
@@ -4039,6 +4128,40 @@ class MainWindow(Gtk.ApplicationWindow):
     #: illustration.
     _PORTRAIT_HEIGHT = 44
 
+    def _entite_setup(self, _fabrique, item) -> None:
+        """Une ligne du sélecteur : une image, puis un nom.
+
+        Une `Gtk.DropDown` ne montre que du texte tant qu'on ne lui donne pas
+        de fabrique. Celle-ci sert aussi bien au bouton fermé qu'à la liste
+        ouverte — c'est la même par défaut.
+        """
+        boite = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        boite.append(Gtk.Image())
+        boite.append(Gtk.Label(xalign=0.0))
+        item.set_child(boite)
+
+    def _entite_bind(self, _fabrique, item) -> None:
+        """Remplit la ligne : l'image de l'entité, ou son genre à défaut."""
+        boite = item.get_child()
+        image = boite.get_first_child()
+        etiquette = image.get_next_sibling()
+        chaine = item.get_item()
+        etiquette.set_text(chaine.get_string() if chaine is not None else "")
+
+        cote = self._settings.icone(self.PART_ICONE_BOUTON)
+        image.set_pixel_size(cote)
+        rang = item.get_position()
+        entree = (self._entries[rang]
+                  if 0 <= rang < len(self._entries) else None)
+        portrait = (portrait_en_cache(entree["kind"], str(entree["id"]))
+                    if entree else "")
+        if portrait:
+            image.set_from_file(portrait)
+        elif entree is not None and entree["kind"] == KIND_GUILD:
+            image.set_from_icon_name("system-users-symbolic")
+        else:
+            image.set_from_icon_name("avatar-default-symbolic")
+
     def _set_portrait_file(self, path: str) -> None:
         """Affiche le portrait. Un rendu de personnage (image haute, corps
         entier) est recadré en tête/épaules pour un vrai portrait."""
@@ -5050,8 +5173,21 @@ class MainWindow(Gtk.ApplicationWindow):
         if taille == self._settings.icon_size:
             return
         self._settings.icon_size = taille
+        self._appliquer_taille_boutons()
         self._redisplay_current()
         self._set_status(_("Icônes : {} pixels").format(taille))
+
+    def _appliquer_taille_boutons(self) -> None:
+        """Les images des boutons suivent elles aussi les boutons de zoom.
+
+        Les deux onglets, le menu « Bonus », ses cinq entrées et la bourse du
+        pied : tout ce qui porte une image la voit grandir avec le reste.
+        """
+        cote = self._settings.icone(self.PART_ICONE_BOUTON)
+        for image in getattr(self, "_images_boutons", ()):
+            image.set_pixel_size(cote)
+        if hasattr(self, "_bourse_img"):
+            self._bourse_img.set_pixel_size(cote)
 
     def _set_status(self, text: str) -> None:
         self._status.set_text(text)

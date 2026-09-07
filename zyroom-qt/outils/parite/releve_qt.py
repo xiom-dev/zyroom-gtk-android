@@ -66,7 +66,8 @@ SANS_TEMOIN = {
 }
 
 
-def couleur_texte(widget, sans_a_droite: int = 0) -> str:
+def couleur_texte(widget, sans_a_droite: int = 0,
+                  sans_a_gauche: int = 0) -> str:
     """La couleur du texte, **lue dans le rendu du widget**.
 
     Et non dans sa palette : une feuille de style Qt ne la modifie pas, si
@@ -96,9 +97,13 @@ def couleur_texte(widget, sans_a_droite: int = 0) -> str:
     # et ne voit jamais son chevron : les deux mesures ne comparaient plus la
     # meme chose. On ecarte donc la bande ou vit l'indicateur.
     droite = max(marge + 1, image.width() - marge - sans_a_droite)
+    # Et l'image du bouton, a gauche, pour la meme raison que le chevron a
+    # droite : elle est plus eloignee du fond que les lettres, et c'est elle
+    # qu'on relevait comme couleur du texte depuis qu'elle y est.
+    gauche = min(marge + sans_a_gauche, droite - 1)
     pixels = collections.Counter(
         image.pixelColor(x, y).name()
-        for x in range(marge, droite)
+        for x in range(gauche, droite)
         for y in range(marge, max(marge + 1, image.height() - marge)))
     if not pixels:
         return "widget sans surface"
@@ -221,9 +226,13 @@ def relever(f: FenetrePrincipale) -> dict:
     f._montrer_page("plus")
     # Trente pixels de moins a droite : la place du chevron, que la feuille
     # reserve dans le remplissage du bouton.
-    points["nav.bonus.couleur-active"] = couleur_texte(f._btn_plus, 30)
+    # Vingt-six a gauche : l'image et son ecart au texte. Vingt-deux a
+    # droite : le chevron et sa marge. Ce qui reste entre les deux, ce sont
+    # les lettres -- assez larges pour qu'on y trouve autre chose que du
+    # lissage, ce qui arrivait quand on ecartait trop.
+    points["nav.bonus.couleur-active"] = couleur_texte(f._btn_plus, 22, 26)
     f._montrer_page("inventory")
-    points["nav.bonus.couleur-inactive"] = couleur_texte(f._btn_plus, 30)
+    points["nav.bonus.couleur-inactive"] = couleur_texte(f._btn_plus, 22, 26)
 
     f._jauge.setValue(50)
     points["volume.jauge.taille"] = taille(f._jauge)

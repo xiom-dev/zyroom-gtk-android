@@ -149,7 +149,34 @@ def graisse_declaree(feuille: str, selecteur: str) -> bool:
 
 
 def texte(widget) -> str:
-    return widget.get_label() if hasattr(widget, "get_label") else widget.get_text()
+    """Le libellé d'un widget, qu'il le porte lui-même ou dans son contenu.
+
+    Les boutons de navigation portent désormais une image et un nom dans une
+    boîte : `get_label` y rend None, et le relevé croyait le bouton muet. On
+    descend donc chercher le premier `Gtk.Label` du contenu.
+    """
+    direct = widget.get_label() if hasattr(widget, "get_label") else None
+    if direct:
+        return direct
+    if hasattr(widget, "get_text") and not hasattr(widget, "get_child"):
+        return widget.get_text()
+    trouve = _premier_label(widget)
+    if trouve is not None:
+        return trouve.get_text()
+    return widget.get_text() if hasattr(widget, "get_text") else None
+
+
+def _premier_label(widget):
+    """Le premier `Gtk.Label` sous ce widget, en profondeur."""
+    enfant = widget.get_first_child() if hasattr(widget, "get_first_child") else None
+    while enfant is not None:
+        if isinstance(enfant, Gtk.Label):
+            return enfant
+        dessous = _premier_label(enfant)
+        if dessous is not None:
+            return dessous
+        enfant = enfant.get_next_sibling()
+    return None
 
 
 def relever(f: MainWindow) -> dict:
@@ -289,8 +316,22 @@ def relever(f: MainWindow) -> dict:
         (round(f._corps_courant()) + 1) - round(f._corps_courant()))
 
     # --- Menu --------------------------------------------------------------
+    # Les cinq écrans sont des boutons dans un popover, et non les entrées
+    # d'un `Gio.Menu` : GTK4 n'affiche pas les icônes d'un menu, et ils en
+    # portent une depuis qu'elles ont été demandées. On compte donc les
+    # boutons, qui sont ce que l'œil voit.
     modele = f._plus_btn.get_menu_model()
-    points["menu.bonus.entrees"] = modele.get_n_items() if modele else 0
+    if modele is not None:
+        points["menu.bonus.entrees"] = modele.get_n_items()
+    else:
+        popover = f._plus_btn.get_popover()
+        liste = popover.get_child() if popover is not None else None
+        entrees = 0
+        enfant = liste.get_first_child() if liste is not None else None
+        while enfant is not None:
+            entrees += isinstance(enfant, Gtk.Button)
+            enfant = enfant.get_next_sibling()
+        points["menu.bonus.entrees"] = entrees
 
     # --- Compétences : la jauge et le vert des terminées -------------------
     chemin = os.path.expanduser(

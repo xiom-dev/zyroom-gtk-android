@@ -46,7 +46,7 @@ from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      data_dir, detect_pack, detect_save_folder,
                      entity_xml_path, format_api_created, format_last_sync,
                      guard_path, last_sync, movements_path, names_cache_path,
-                     portrait_path, snapshot_path)
+                     portrait_en_cache, portrait_path, snapshot_path)
 from .i18n import _
 from .icones import ChargeurIcones
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
@@ -122,7 +122,7 @@ _ROLE_OBJET = Qt.ItemDataRole.UserRole + 1
 #: GTK : six onglets ne tenaient pas dans une barre de titre.
 PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
               ("betes", "Perdu ?"), ("outposts", "Avant-postes"),
-              ("meteo", "Météo"))
+              ("meteo", "Météo / forage"))
 
 TRI_LIBELLES = ("Ordre d'origine", "Type", "Écosystème", "Classe", "Qualité",
                 "Volume", "Quantité", "Prix", "Nom")
@@ -134,6 +134,15 @@ TRI_LIBELLES = ("Ordre d'origine", "Type", "Écosystème", "Classe", "Qualité",
 #: deux lignes et l'on en verrait deux fois moins d'un coup d'oeil, or le
 #: journal se parcourt.
 PART_ICONE_JOURNAL = 0.5
+
+#: La part qu'occupe l'image d'un bouton -- les deux onglets, le menu
+#: « Bonus » et ses cinq entrees, la bourse du pied.
+#:
+#: Les boutons de zoom valent pour elles aussi : une icone de vingt pixels a
+#: cote d'un texte grossi paraitrait perdue. Deux cinquiemes de la taille
+#: reglee pour l'inventaire donnent vingt pixels au reglage par defaut, la
+#: hauteur d'une ligne de texte.
+PART_ICONE_BOUTON = 0.42
 
 #: La memoire du journal, en jours. Tout ce qui est plus recent s'affiche,
 #: quel qu'en soit le nombre de lignes. Une semaine est ce qu'il faut pour
@@ -188,13 +197,36 @@ def _norm(texte: str) -> str:
     return "".join(c for c in texte if not unicodedata.combining(c)).lower()
 
 
-#: La bourse de dappers, celle du jeu -- et non l'emoji du sac de billets.
+#: Le dossier des images d'interface, partage avec la version GTK.
 #:
-#: Elle vit dans `zyroom/symboles/`, que la synchronisation du noyau recopie
-#: depuis la version GTK : les deux fenetres montrent donc la meme image, et
-#: elle n'a a etre remplacee qu'a un seul endroit.
-BOURSE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                      "symboles", "dappers.png")
+#: `outils/sync-noyau.sh` le recopie depuis zyroom-gtk a chaque passage : les
+#: deux fenetres tirent donc les memes fichiers, et une image ne se remplace
+#: qu'a un seul endroit.
+SYMBOLES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "symboles")
+
+#: La bourse de dappers, celle du jeu -- et non l'emoji du sac de billets.
+BOURSE = os.path.join(SYMBOLES, "dappers.png")
+
+#: L'image de chaque ecran, par le nom que porte sa page.
+ICONES_PAGES = {
+    "inventory": "inventaire.png",
+    "log": "journal.png",
+    "plus": "bonus.png",
+    "skills": "competences.png",
+    "roster": "effectif.png",
+    "betes": "perdu.png",
+    "outposts": "avant-poste.png",
+    "meteo": "meteo-forage.png",
+}
+
+
+def icone_page(nom: str) -> QIcon:
+    """L'image d'un ecran, ou une icone vide s'il n'en a pas."""
+    fichier = ICONES_PAGES.get(nom)
+    if not fichier:
+        return QIcon()
+    chemin = os.path.join(SYMBOLES, fichier)
+    return QIcon(chemin) if os.path.exists(chemin) else QIcon()
 
 
 def _trait_de_jour() -> QWidget:
@@ -451,6 +483,10 @@ class FenetrePrincipale(QMainWindow):
 
         colonne.addWidget(self._pied())
         self.setCentralWidget(central)
+        # Les images des boutons prennent leur taille des le montage : sans
+        # cela elles restaient aux seize pixels par defaut de Qt jusqu'au
+        # premier coup de zoom.
+        self._appliquer_taille_boutons()
         self._montrer_page("inventory")
 
     def _entete(self) -> QWidget:
@@ -579,6 +615,7 @@ class FenetrePrincipale(QMainWindow):
             bouton = QPushButton(etiquette)
             bouton.setCheckable(True)
             bouton.setObjectName("nav")
+            bouton.setIcon(icone_page(nom))
             bouton.setProperty("rang", "premier" if nom == "inventory"
                                else "suite")
             bouton.clicked.connect(lambda _c, n=nom: self._montrer_page(n))
@@ -588,13 +625,14 @@ class FenetrePrincipale(QMainWindow):
         self._btn_plus = QToolButton()
         self._btn_plus.setText(_("Bonus"))
         self._btn_plus.setObjectName("nav")
+        self._btn_plus.setIcon(icone_page("plus"))
         self._btn_plus.setProperty("rang", "suite")
         self._btn_plus.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._btn_plus.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         menu = QMenu(self._btn_plus)
         for nom, etiquette in PLUS_PAGES:
-            action = QAction(_(etiquette), menu)
+            action = QAction(icone_page(nom), _(etiquette), menu)
             action.triggered.connect(
                 lambda _c=False, n=nom: self._montrer_bonus(n))
             menu.addAction(action)
@@ -1272,12 +1310,33 @@ class FenetrePrincipale(QMainWindow):
         # valent pour toutes les icones, pas seulement pour l'inventaire.
         cote = self._settings.icone(PART_ICONE_JOURNAL)
         self._table.setIconSize(QSize(cote, cote))
+        self._appliquer_taille_boutons()
         self._cache_icones.clear()
         if self._pile.currentIndex() == self._pages["log"]:
             self._charger_journal()
         self._page_avant_postes._rafraichir()
         self._page_meteo.rafraichir()
         self._reafficher()
+
+    def _appliquer_taille_boutons(self) -> None:
+        """Les images des boutons suivent elles aussi les boutons de zoom.
+
+        Les deux onglets, le menu « Bonus », ses cinq entrees et la bourse du
+        pied : tout ce qui porte une image la voit grandir avec le reste. Le
+        menu passe par une feuille de style -- Qt y prend sinon la taille de
+        son theme, quelle que soit celle qu'on donne aux actions.
+        """
+        cote = self._settings.icone(PART_ICONE_BOUTON)
+        for bouton in list(self._nav_boutons.values()) + [self._btn_plus]:
+            bouton.setIconSize(QSize(cote, cote))
+        menu = self._btn_plus.menu()
+        if menu is not None:
+            menu.setStyleSheet(
+                f"QMenu::icon {{ width: {cote}px; height: {cote}px; }}")
+        if hasattr(self, "_img_bourse"):
+            self._img_bourse.setPixmap(QPixmap(BOURSE).scaled(
+                cote, cote, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation))
 
     def _pied(self) -> QWidget:
         """La bande du bas : portrait et état, nom gravé au centre, dappers.
@@ -1341,8 +1400,9 @@ class FenetrePrincipale(QMainWindow):
         # La bourse et la somme cote a cote, dans le meme ordre et au meme
         # ecart que dans la version GTK -- six pixels, l'image a vingt.
         self._img_bourse = QLabel()
+        cote_bourse = self._settings.icone(PART_ICONE_BOUTON)
         self._img_bourse.setPixmap(QPixmap(BOURSE).scaled(
-            20, 20, Qt.AspectRatioMode.KeepAspectRatio,
+            cote_bourse, cote_bourse, Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation))
         self._img_bourse.setVisible(False)
         somme = QWidget()
@@ -1659,13 +1719,24 @@ class FenetrePrincipale(QMainWindow):
 
         self._dd_entite.blockSignals(True)
         self._dd_entite.clear()
+        cote = self._settings.icone(PART_ICONE_BOUTON)
+        self._dd_entite.setIconSize(QSize(cote, cote))
         for entree in self._entrees:
             # Le nom seul, sans le serveur entre parentheses : comme dans la
             # version GTK, dont ceci est la copie. Tout ce qui se releve vient
             # d'Atys, et la mention se repetait sur chaque ligne sans jamais
             # rien distinguer. La place gagnee va au nom.
-            self._dd_entite.addItem(
-                f"{_PREFIXE_GENRE.get(entree['kind'], '')} {entree['name']}")
+            #
+            # Et l'image de l'entite plutot qu'un pictogramme : l'embleme de la
+            # guilde, le portrait du personnage -- les memes qu'en bas de la
+            # fenetre. Faute de l'avoir en cache, on retombe sur l'ecusson ou
+            # la silhouette, qui disent au moins de quel genre il s'agit.
+            portrait = portrait_en_cache(entree["kind"], str(entree["id"]))
+            if portrait:
+                self._dd_entite.addItem(QIcon(portrait), entree["name"])
+            else:
+                self._dd_entite.addItem(
+                    f"{_PREFIXE_GENRE.get(entree['kind'], '')} {entree['name']}")
         self._dd_entite.blockSignals(False)
 
         if not self._entrees:
