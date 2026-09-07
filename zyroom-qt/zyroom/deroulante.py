@@ -30,6 +30,12 @@ class Deroulante(QComboBox):
         # lui, part quel que soit le chemin.
         self.currentIndexChanged.connect(self.updateGeometry)
         self.currentTextChanged.connect(self.updateGeometry)
+        # La liste qui s'ouvre est une fenêtre à part : elle s'arrondit comme
+        # les menus, et comme le popover de la version GTK.
+        from . import theme
+        fenetre = self.view().window()
+        if fenetre is not None:
+            theme.arrondir_popup(fenetre)
 
     def sizeHint(self) -> QSize:                      # noqa: N802 -- nom Qt
         base = super().sizeHint()

@@ -345,8 +345,21 @@ QToolButton#nav::menu-indicator {
 /* La bordure gauche de tous sauf le premier : sans cela deux bordures d'un
    pixel se touchent et la separation en fait deux, la ou GTK n'en montre
    qu'une seule -- mesure sur les deux captures. */
-QPushButton#nav[rang="suite"], QToolButton#nav[rang="suite"] {
+QPushButton#nav[rang="suite"], QToolButton#nav[rang="suite"],
+QPushButton#nav[rang="dernier"], QToolButton#nav[rang="dernier"] {
     border-left: none;
+}
+/* **Les coins exterieurs du bloc, et eux seuls.** La classe « linked » de GTK
+   arrondit le bord gauche du premier bouton et le bord droit du dernier, et
+   laisse droits ceux du milieu : c'est ce qui fait un bloc et non trois
+   boutons colles. Six pixels, le rayon que la feuille donne partout. */
+QPushButton#nav[rang="premier"], QToolButton#nav[rang="premier"] {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+}
+QPushButton#nav[rang="dernier"], QToolButton#nav[rang="dernier"] {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
 }
 QPushButton#nav:hover, QToolButton#nav:hover {
     background-color: %(sarcelle_sombre)s;
@@ -519,6 +532,41 @@ QProgressBar#jauge::chunk, QProgressBar#jauge-volume::chunk {
 QProgressBar#jauge-volume[niveau="low"]::chunk  { border-color: #15539e; }
 QProgressBar#jauge-volume[niveau="high"]::chunk { border-color: #15539e; }
 QProgressBar#jauge-volume[niveau="full"]::chunk { border-color: #26ab62; }
+
+/* **Les fenetres de menu, et les listes qu'ouvre une deroulante.** GTK leur
+   donne des coins arrondis -- un popover en a douze --, Qt les laissait
+   carres : c'est la derniere chose qui distinguait les deux fenetres quand on
+   ouvrait « Bonus » ou un selecteur.
+
+   L'arrondi ne suffit pas a lui seul : une fenetre de menu est opaque, et ses
+   coins montreraient du noir. `theme.arrondir_popup` pose la transparence qui
+   va avec, cote code -- une feuille de style ne sait pas le faire. */
+QMenu {
+    background-color: %(surface)s;
+    border: 1px solid %(bande)s;
+    border-radius: 12px;
+    padding: 6px;
+}
+QMenu::item {
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: %(texte)s;
+}
+QMenu::item:selected { background-color: %(sarcelle_sombre)s; }
+QMenu::separator {
+    height: 1px;
+    background-color: %(bande)s;
+    margin: 4px 8px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: %(surface)s;
+    border: 1px solid %(bande)s;
+    border-radius: 12px;
+    padding: 4px;
+    outline: none;
+    selection-background-color: %(sarcelle_sombre)s;
+}
 
 /* La grille d'objets. Pas de bordure sur les cases : l'icone se suffit,
    et une grille de quatre cents objets deviendrait un quadrillage. */
@@ -761,6 +809,22 @@ def _theme_du_bureau() -> str:
     except (OSError, subprocess.SubprocessError):
         return ""
     return sortie.stdout.strip().strip("'\"") if sortie.returncode == 0 else ""
+
+
+def arrondir_popup(widget) -> None:
+    """Rend transparent le fond d'une fenetre de menu, pour qu'elle s'arrondisse.
+
+    Une fenetre de menu est opaque : lui donner un `border-radius` dessine bien
+    l'arrondi, mais les quatre coins gardent le fond de la fenetre -- du noir
+    sur un bureau sombre. On demande donc la transparence et l'on retire le
+    cadre du systeme, faute de quoi l'arrondi ne se voit pas.
+
+    Sans effet sur les plateformes qui composent elles-memes leurs menus ; on
+    ne perd rien a le demander.
+    """
+    widget.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+    widget.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+    widget.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
 
 
 def caler_icones() -> None:

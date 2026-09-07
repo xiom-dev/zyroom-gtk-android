@@ -226,13 +226,14 @@ def relever(f: FenetrePrincipale) -> dict:
     f._montrer_page("plus")
     # Trente pixels de moins a droite : la place du chevron, que la feuille
     # reserve dans le remplissage du bouton.
-    # Vingt-six a gauche : l'image et son ecart au texte. Vingt-deux a
-    # droite : le chevron et sa marge. Ce qui reste entre les deux, ce sont
-    # les lettres -- assez larges pour qu'on y trouve autre chose que du
-    # lissage, ce qui arrivait quand on ecartait trop.
-    points["nav.bonus.couleur-active"] = couleur_texte(f._btn_plus, 22, 26)
+    # Trente-six a gauche : l'image -- trente depuis qu'elle est mise a
+    # l'echelle -- et son ecart au texte. Vingt-deux a droite : le chevron et
+    # sa marge. Ce qui reste entre les deux, ce sont les lettres. Le « + » de
+    # Bonus a un centre blanc : le laisser entrer dans la mesure, et c'est lui
+    # qu'on relevait comme couleur du texte.
+    points["nav.bonus.couleur-active"] = couleur_texte(f._btn_plus, 22, 36)
     f._montrer_page("inventory")
-    points["nav.bonus.couleur-inactive"] = couleur_texte(f._btn_plus, 22, 26)
+    points["nav.bonus.couleur-inactive"] = couleur_texte(f._btn_plus, 22, 36)
 
     f._jauge.setValue(50)
     points["volume.jauge.taille"] = taille(f._jauge)

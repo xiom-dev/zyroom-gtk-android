@@ -650,6 +650,7 @@ class FenetrePrincipale(QMainWindow):
         menu_btn.setAutoRaise(True)
         menu_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(menu_btn)
+        theme.arrondir_popup(menu)
         menu.addAction(_("Options…"), self._on_options)
         menu.addAction(_("Analyser un chatlog…"), self._on_chatlog)
         menu.addAction(_("Sauvegarder maintenant"), self._on_sauvegarde)
@@ -692,11 +693,14 @@ class FenetrePrincipale(QMainWindow):
         self._btn_plus.setText(_("Bonus"))
         self._btn_plus.setObjectName("nav")
         self._btn_plus.setIcon(icone_page("plus"))
-        self._btn_plus.setProperty("rang", "suite")
+        # « dernier » et non « suite » : il ferme le bloc, et ses deux coins
+        # de droite s'arrondissent comme ceux du premier a gauche.
+        self._btn_plus.setProperty("rang", "dernier")
         self._btn_plus.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._btn_plus.setToolButtonStyle(
             Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         menu = QMenu(self._btn_plus)
+        theme.arrondir_popup(menu)
         for nom, etiquette in PLUS_PAGES:
             action = QAction(icone_page(nom), _(etiquette), menu)
             action.triggered.connect(
@@ -1394,7 +1398,15 @@ class FenetrePrincipale(QMainWindow):
         """
         cote = self._settings.icone(PART_ICONE_BOUTON)
         grand = self._settings.icone(PART_BOURSE)
-        for bouton in list(self._nav_boutons.values()) + [self._btn_plus]:
+        # **Une image mise a l'echelle, et non seulement un carre plus grand.**
+        # `QIcon` ne grossit jamais au-dela du pixmap qu'on lui a donne : les
+        # images recadrees sur leur sujet -- le « + » de Bonus n'en fait plus
+        # que quatorze, la carte de « Perdu ? » vingt-deux -- s'affichaient
+        # donc a leur taille d'origine, la ou GTK les redimensionne. On refait
+        # l'icone a chaque changement de taille.
+        for nom, bouton in list(self._nav_boutons.items()) + [("plus",
+                                                              self._btn_plus)]:
+            bouton.setIcon(icone_dans_carre(nom, cote, cote))
             bouton.setIconSize(QSize(cote, cote))
         menu = self._btn_plus.menu()
         if menu is not None:
