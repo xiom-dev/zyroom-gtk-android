@@ -66,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.03" if _DEV else "0.75"
+VERSION = "1.04" if _DEV else "0.76"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -199,6 +199,14 @@ class MainWindow(Gtk.ApplicationWindow):
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
+        #: Les images posées sur les boutons et les bandeaux, avec la part de
+        #: taille que chacune demande : les boutons de zoom les retrouvent là.
+        #:
+        #: Déclarée ici et non dans la navigation : le message de guilde se
+        #: monte avant elle, et y ajoutait son mégaphone dans une liste qui
+        #: n'existait pas encore.
+        self._images_boutons = []
+
         header = Gtk.HeaderBar()
         self.set_titlebar(header)
 
@@ -362,7 +370,18 @@ class MainWindow(Gtk.ApplicationWindow):
         self._motd_box.props.margin_end = 8
         self._motd_box.props.margin_top = 2
         self._motd_box.props.margin_bottom = 2
-        self._motd_box.append(Gtk.Label(label="📢", valign=Gtk.Align.START))
+        # Le mégaphone en image, et non en emoji : posé comme du texte, il
+        # suivait le corps de la police et non les boutons de zoom — il restait
+        # donc plus petit que les autres logos, qui prennent tous la même part.
+        # L'image est celle du même emoji, dessinée une fois.
+        self._motd_img = Gtk.Image.new_from_file(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "symboles", "megaphone.png"))
+        self._motd_img.set_pixel_size(
+            self._settings.icone(self.PART_ICONE_BOUTON))
+        self._motd_img.set_valign(Gtk.Align.START)
+        self._images_boutons.append((self._motd_img, self.PART_ICONE_BOUTON))
+        self._motd_box.append(self._motd_img)
         self._motd_lbl = Gtk.Label(xalign=0.0, wrap=True, hexpand=True)
         self._motd_box.append(self._motd_lbl)
         self._motd_box.set_visible(False)
@@ -681,8 +700,6 @@ class MainWindow(Gtk.ApplicationWindow):
         boite.add_css_class("linked")
 
         self._nav_boutons = {}
-        #: Les images posées sur les boutons, pour que le zoom les retrouve.
-        self._images_boutons = []
         for nom, etiquette in (("inventory", _("Inventaire")),
                                ("log", _("Journal"))):
             bouton = Gtk.ToggleButton()

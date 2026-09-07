@@ -787,9 +787,13 @@ class FenetrePrincipale(QMainWindow):
         ligne = QHBoxLayout(self._motd_boite)
         ligne.setContentsMargins(10, 8, 10, 8)
         ligne.setSpacing(8)
-        mega = QLabel("📢")
-        mega.setAlignment(Qt.AlignmentFlag.AlignTop)
-        ligne.addWidget(mega)
+        # Le megaphone en image, et non en emoji : pose comme du texte, il
+        # suivait le corps de la police et non les boutons de zoom -- il
+        # restait donc plus petit que les autres logos, qui prennent tous la
+        # meme part. L'image est celle du meme emoji, dessinee une fois.
+        self._img_motd = QLabel()
+        self._img_motd.setAlignment(Qt.AlignmentFlag.AlignTop)
+        ligne.addWidget(self._img_motd)
         self._motd_lbl = QLabel()
         self._motd_lbl.setWordWrap(True)
         ligne.addWidget(self._motd_lbl, 1)
@@ -1426,6 +1430,11 @@ class FenetrePrincipale(QMainWindow):
             for action, (nom, _etiquette) in zip(menu.actions(), PLUS_PAGES):
                 dedans = grand if nom in PAGES_AGRANDIES else cote
                 action.setIcon(icone_dans_carre(nom, dedans, grand))
+        if hasattr(self, "_img_motd"):
+            self._img_motd.setPixmap(
+                QPixmap(os.path.join(SYMBOLES, "megaphone.png")).scaled(
+                    cote, cote, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation))
         if hasattr(self, "_img_bourse"):
             bourse = self._settings.icone(PART_BOURSE)
             self._img_bourse.setPixmap(QPixmap(BOURSE).scaled(
