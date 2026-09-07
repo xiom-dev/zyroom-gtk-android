@@ -44,6 +44,22 @@ class Deroulante(QComboBox):
         """
         return self.fontMetrics().horizontalAdvance(self.currentText()) + 46
 
+    def showPopup(self) -> None:                      # noqa: N802 -- nom Qt
+        """La liste ouverte prend la largeur de son plus long nom.
+
+        Le champ ferme, lui, se regle sur la seule ligne affichee — c'est tout
+        l'objet de cette classe. Mais la liste deroulante heritait de cette
+        largeur-la, et coupait les noms plus longs que celui en cours : une
+        guilde au nom de trente signes s'y lisait a moitie. La `Gtk.DropDown`
+        de la version GTK ouvre sa liste a la largeur du plus long ; on fait
+        de meme, en ajoutant de quoi loger la bordure et l'ascenseur.
+        """
+        metriques = self.view().fontMetrics()
+        plus_long = max((metriques.horizontalAdvance(self.itemText(rang))
+                         for rang in range(self.count())), default=0)
+        self.view().setMinimumWidth(plus_long + 34)
+        super().showPopup()
+
     def setCurrentIndex(self, index: int) -> None:    # noqa: N802 -- nom Qt
         super().setCurrentIndex(index)
         # Le texte change, la largeur voulue aussi : sans cela le selecteur

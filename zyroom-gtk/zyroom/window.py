@@ -65,7 +65,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "0.91" if _DEV else "0.63"
+VERSION = "0.92" if _DEV else "0.64"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2942,10 +2942,12 @@ class MainWindow(Gtk.ApplicationWindow):
 
         model = Gtk.StringList()
         for entry in self._entries:
-            label = f"{_KIND_PREFIX.get(entry['kind'], '')} {entry['name']}"
-            if entry["server"]:
-                label += f" ({entry['server']})"
-            model.append(label)
+            # Le nom seul, sans le serveur entre parenthèses : tout ce qui
+            # se relève vient d'Atys, et la mention se répétait sur chaque
+            # ligne du menu sans jamais distinguer quoi que ce soit. La place
+            # gagnée va au nom, qui, lui, peut être long.
+            model.append(
+                f"{_KIND_PREFIX.get(entry['kind'], '')} {entry['name']}")
 
         self._entity_dd.handler_block_by_func(self._on_entity_selected)
         self._entity_dd.set_model(model)

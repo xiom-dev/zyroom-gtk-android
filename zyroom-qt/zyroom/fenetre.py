@@ -1594,10 +1594,12 @@ class FenetrePrincipale(QMainWindow):
         self._dd_entite.blockSignals(True)
         self._dd_entite.clear()
         for entree in self._entrees:
-            libelle = f"{_PREFIXE_GENRE.get(entree['kind'], '')} {entree['name']}"
-            if entree["server"]:
-                libelle += f" ({entree['server']})"
-            self._dd_entite.addItem(libelle)
+            # Le nom seul, sans le serveur entre parentheses : comme dans la
+            # version GTK, dont ceci est la copie. Tout ce qui se releve vient
+            # d'Atys, et la mention se repetait sur chaque ligne sans jamais
+            # rien distinguer. La place gagnee va au nom.
+            self._dd_entite.addItem(
+                f"{_PREFIXE_GENRE.get(entree['kind'], '')} {entree['name']}")
         self._dd_entite.blockSignals(False)
 
         if not self._entrees:
