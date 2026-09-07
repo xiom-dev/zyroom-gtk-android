@@ -19,6 +19,18 @@ from PySide6.QtWidgets import QComboBox
 class Deroulante(QComboBox):
     """Une liste déroulante large de son seul texte courant."""
 
+    def __init__(self, *arguments, **nommes) -> None:
+        super().__init__(*arguments, **nommes)
+        # **Le signal, et non la seule methode surchargee.** Un choix fait a
+        # la souris pose l'index depuis le C++ de Qt : `setCurrentIndex` en
+        # Python n'est alors jamais appele, et le selecteur gardait la largeur
+        # de l'entite precedente -- « La Lune Eternelle » s'affichait
+        # « La Lu » apres qu'on l'eut choisie dans la liste, alors que la
+        # meme selection faite par le code passait sans encombre. Le signal,
+        # lui, part quel que soit le chemin.
+        self.currentIndexChanged.connect(self.updateGeometry)
+        self.currentTextChanged.connect(self.updateGeometry)
+
     def sizeHint(self) -> QSize:                      # noqa: N802 -- nom Qt
         base = super().sizeHint()
         return QSize(self._largeur_du_texte(), base.height())
@@ -60,8 +72,8 @@ class Deroulante(QComboBox):
         self.view().setMinimumWidth(plus_long + 34)
         super().showPopup()
 
-    def setCurrentIndex(self, index: int) -> None:    # noqa: N802 -- nom Qt
-        super().setCurrentIndex(index)
-        # Le texte change, la largeur voulue aussi : sans cela le selecteur
-        # garderait celle de l'entite precedente.
-        self.updateGeometry()
+    def setItemText(self, index: int, texte: str) -> None:   # noqa: N802
+        """Renommer l'element affiche change aussi la largeur voulue."""
+        super().setItemText(index, texte)
+        if index == self.currentIndex():
+            self.updateGeometry()
