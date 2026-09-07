@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
 
 from . import outposts, ryzom_api
 from . import theme
+from .config import noter_erreur
 from .i18n import _
 from .ryzom_api import KIND_GUILD
 
@@ -204,9 +205,25 @@ class PageAvantPostes(QWidget):
                     continue
                 pile.addWidget(self._entete_peuple(nom))
                 for avant_poste in siens:
-                    pile.addWidget(self._ligne(avant_poste,
-                                               avant_poste.guild == ma_guilde,
-                                               rang % 2 == 0))
+                    # **Une ligne qui casse ne doit pas emporter l'ecran.**
+                    # Un joueur sous Windows n'avait plus qu'un titre de peuple
+                    # et du vide : la construction s'arretait a la premiere
+                    # ligne fautive, et l'exception partait sur une sortie
+                    # qu'un paquet sans console n'affiche jamais. On note ce
+                    # qui a casse, on montre que la ligne manque, et l'on
+                    # continue -- vingt-huit avant-postes lisibles valent mieux
+                    # qu'un ecran blanc.
+                    try:
+                        rangee = self._ligne(avant_poste,
+                                             avant_poste.guild == ma_guilde,
+                                             rang % 2 == 0)
+                    except Exception as souci:           # noqa: BLE001
+                        noter_erreur(
+                            f"avant-poste {getattr(avant_poste, 'code', '?')}",
+                            souci)
+                        rangee = self._ligne_simple(
+                            _("(ligne illisible — voir erreurs.log)"), True)
+                    pile.addWidget(rangee)
                     rang += 1
 
         orphelins = [o for o in carte if o.people not in connus]

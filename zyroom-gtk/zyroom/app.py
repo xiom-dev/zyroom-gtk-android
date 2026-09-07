@@ -35,6 +35,26 @@ class ZyroomApp(Gtk.Application):
         self._window.present()
 
 
+def installer_journal_erreurs() -> None:
+    """Note dans un fichier ce qui casse, faute de console.
+
+    Une application lancée depuis le bureau n'a pas de terminal : une exception
+    s'imprime sur une sortie que personne ne lit, et l'écran reste à moitié
+    construit sans que rien ne le dise. Le crochet la range dans le journal,
+    puis laisse la trace partir où elle allait.
+    """
+    import sys
+    from .config import noter_erreur
+    ancien = sys.excepthook
+
+    def crochet(genre, valeur, trace):
+        noter_erreur("exception non rattrapée", valeur)
+        ancien(genre, valeur, trace)
+
+    sys.excepthook = crochet
+
+
 def main(argv=None) -> int:
     import sys
+    installer_journal_erreurs()
     return ZyroomApp().run(argv if argv is not None else sys.argv)

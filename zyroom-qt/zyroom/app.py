@@ -7,7 +7,7 @@ from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
 from PySide6.QtWidgets import QApplication
 
 from . import polices, theme
-from .config import Settings
+from .config import Settings, noter_erreur
 from .fenetre import APP_NAME, FenetrePrincipale
 
 
@@ -34,9 +34,31 @@ def charger_traductions_qt(app: QApplication) -> None:
             app.installTranslator(traducteur)
 
 
+def installer_journal_erreurs() -> None:
+    """Note dans un fichier ce qui casse, faute de console.
+
+    Un paquet Windows se lance sans terminal : une exception s'imprime sur une
+    sortie que personne ne lit, et l'ecran reste a moitie construit sans que
+    rien ne le dise -- c'est ainsi qu'un joueur s'est retrouve devant un ecran
+    d'avant-postes vide, sans autre indice qu'une capture.
+
+    PySide passe par `sys.excepthook` pour les exceptions levees dans un slot :
+    l'y accrocher suffit a les voir toutes. On garde l'ancien crochet derriere,
+    pour que la trace continue de partir ou elle allait.
+    """
+    ancien = sys.excepthook
+
+    def crochet(genre, valeur, trace):
+        noter_erreur("exception non rattrapee", valeur)
+        ancien(genre, valeur, trace)
+
+    sys.excepthook = crochet
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv if argv is None else argv)
 
+    installer_journal_erreurs()
     app = QApplication(argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)

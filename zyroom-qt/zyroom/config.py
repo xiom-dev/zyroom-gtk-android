@@ -94,6 +94,38 @@ def config_dir() -> str:
     return path
 
 
+def journal_erreurs() -> str:
+    """Le fichier où l'application note ce qui a casse.
+
+    **Pourquoi il existe.** Un paquet Windows se lance sans console : une
+    exception s'y imprime sur une sortie que personne ne voit, et l'écran
+    reste à moitié construit sans que rien ne le dise. Un joueur ne peut alors
+    remonter qu'une capture, et l'on devine. Ici, il envoie un fichier.
+
+    Il vit dans le cache, à côté du reste : il se perd sans conséquence, et
+    l'effacer ne coûte rien.
+    """
+    return os.path.join(cache_dir(), "erreurs.log")
+
+
+def noter_erreur(ou: str, souci: BaseException) -> None:
+    """Écrit une exception dans le journal, sans jamais en lever une autre.
+
+    Appelée depuis un garde : si elle échouait — disque plein, dossier
+    illisible —, elle emporterait ce qu'elle est censée sauver.
+    """
+    import datetime
+    import traceback
+    try:
+        with open(journal_erreurs(), "a", encoding="utf-8") as fichier:
+            quand = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            fichier.write(f"\n=== {quand} — {ou}\n")
+            traceback.print_exception(type(souci), souci,
+                                      souci.__traceback__, file=fichier)
+    except Exception:                                    # noqa: BLE001
+        pass
+
+
 def cache_dir() -> str:
     path = _dossier("XDG_CACHE_HOME", ".cache", "local/cache")
     # Les instantanes d'inventaire : sans eux, la premiere synchro ne verrait
