@@ -28,6 +28,7 @@ from PySide6.QtCore import QEvent, QSize, Qt, QObject, QTimer, Signal
 from PySide6.QtGui import (QAction, QColor, QFont, QGuiApplication, QIcon,
                            QPainter, QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
+                               QProxyStyle, QStyle,
                                QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QListWidget, QListWidgetItem, QMainWindow,
@@ -259,6 +260,26 @@ def icone_contenant(cle: str, libelle: str = "") -> QIcon:
             chemin = os.path.join(SYMBOLES, fichier)
             return QIcon(chemin) if os.path.exists(chemin) else QIcon()
     return QIcon()
+
+
+class StyleMenu(QProxyStyle):
+    """Le style d'un menu, pour la seule taille de ses images.
+
+    **Une feuille de style ne suffit pas.** `QMenu::icon` reserve bien un carre
+    de la taille demandee, mais Qt y dessine l'image a la taille que lui donne
+    le style -- seize pixels, sa « petite icone » -- et l'on obtenait de grands
+    carres vides avec un timbre-poste dedans. C'est cette mesure-la qu'il faut
+    changer, et elle ne s'atteint pas autrement.
+    """
+
+    def __init__(self, cote: int) -> None:
+        super().__init__()
+        self._cote = cote
+
+    def pixelMetric(self, mesure, option=None, widget=None) -> int:  # noqa: N802
+        if mesure == QStyle.PixelMetric.PM_SmallIconSize:
+            return self._cote
+        return super().pixelMetric(mesure, option, widget)
 
 
 def icone_dans_carre(nom: str, dedans: int, carre: int) -> QIcon:
@@ -1424,9 +1445,17 @@ class FenetrePrincipale(QMainWindow):
             # la peignait par-dessus le debut des libelles, et « Avant-postes »
             # s'y lisait tronque. On reserve donc, a gauche de chaque ligne,
             # le carre de l'image et l'air qui la separe du mot.
+            # Le style porte la taille des images ; la feuille, l'air autour
+            # d'elles. La version GTK laisse douze pixels entre l'image et le
+            # mot, et respire en hauteur : ses entrees font une bonne
+            # cinquantaine de pixels, la ou Qt s'en tenait a trente.
+            self._style_menu = StyleMenu(grand)
+            menu.setStyle(self._style_menu)
+            # Douze pixels a gauche, et non la largeur de l'image : le style
+            # reserve deja sa place, et l'ajouter au remplissage la comptait
+            # deux fois -- le texte partait alors tres loin de son image.
             menu.setStyleSheet(
-                f"QMenu::icon {{ width: {grand}px; height: {grand}px; }}"
-                f"QMenu::item {{ padding-left: {grand + 14}px; }}")
+                "QMenu::item { padding: 10px 16px 10px 12px; }")
             for action, (nom, _etiquette) in zip(menu.actions(), PLUS_PAGES):
                 dedans = grand if nom in PAGES_AGRANDIES else cote
                 action.setIcon(icone_dans_carre(nom, dedans, grand))
