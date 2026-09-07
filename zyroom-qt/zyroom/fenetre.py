@@ -978,6 +978,34 @@ class FenetrePrincipale(QMainWindow):
         self._generation_journal += 1
         self._table.setRowCount(0)
         self._icones_a_venir = {}
+        # **Rien ne se recalcule pendant qu'on remplit.** Les six colonnes
+        # sont en `ResizeToContents` : chaque cellule posee faisait reparcourir
+        # a Qt toute sa colonne, et chaque trait de separation -- un widget
+        # dans une cellule fusionnee -- relayoutait la table entiere. Deux
+        # mille lignes, et l'application tournait plusieurs minutes a pleine
+        # charge sans repondre, alors que le remplissage lui-meme prend un
+        # dixieme de seconde. On fige donc la mise en page, et on ne la rend
+        # qu'une fois la derniere ligne posee.
+        entete = self._table.horizontalHeader()
+        self._table.setUpdatesEnabled(False)
+        for colonne in range(self._table.columnCount()):
+            entete.setSectionResizeMode(colonne,
+                                        QHeaderView.ResizeMode.Interactive)
+        try:
+            self._remplir_journal()
+        finally:
+            for colonne in range(self._table.columnCount()):
+                entete.setSectionResizeMode(
+                    colonne, QHeaderView.ResizeMode.ResizeToContents)
+            entete.setStretchLastSection(True)
+            self._table.setUpdatesEnabled(True)
+
+    def _remplir_journal(self) -> None:
+        """Les lignes du journal, posees une a une.
+
+        Separee de `_rafraichir_journal` pour que celle-ci n'ait plus qu'a
+        tenir la mise en page gelee autour, quoi qu'il arrive ici.
+        """
 
         montres = self._journal_filtre()
         nombre = movements.lignes_recentes(montres, JOURNAL_JOURS,
