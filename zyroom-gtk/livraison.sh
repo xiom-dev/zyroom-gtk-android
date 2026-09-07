@@ -227,6 +227,29 @@ for v in "${variantes[@]}"; do
     # ne convient pas à des gens qui ne connaissent pas GitHub.
     servi=$([ "$v" = dev ] && echo "ZyRoom-GTK-dev.flatpak" || echo "ZyRoom-GTK.flatpak")
     cp "dist/$fichier.flatpak" "$racine/../pages/$servi"
+
+    # Le numéro dans `version.json`, d'où la page de téléchargement le lit.
+    #
+    # Il y était écrit en clair, « à tenir à jour à la main » : la page a donc
+    # annoncé la 0.60 quatorze livraisons durant. Rien n'obligeait à le faire à
+    # la main — le manifeste est déjà servi par cette page, et la version Qt s'y
+    # inscrit depuis toujours. Aucun `versionCode` ici : Flatpak met à jour sur
+    # l'empreinte du commit, ce numéro ne sert qu'à l'affichage.
+    python3 - "$racine/../pages/version.json" "$app" "$nom" \
+             "$url_depot" "$servi" <<'PY'
+import json, sys
+chemin, application, nom, base, servi = sys.argv[1:6]
+with open(chemin, encoding="utf-8") as fh:
+    manifeste = json.load(fh)
+entree = manifeste.get(application, {})
+entree["versionName"] = nom
+entree["url"] = base.rsplit("/repo/", 1)[0] + "/" + servi
+manifeste[application] = entree
+with open(chemin, "w", encoding="utf-8") as fh:
+    json.dump(manifeste, fh, ensure_ascii=False, indent=2)
+    fh.write("\n")
+print(f"  version.json : {application} -> {nom}")
+PY
 done
 
 if [ "$sans_signature" = 1 ]; then
