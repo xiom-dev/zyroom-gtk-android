@@ -159,6 +159,44 @@ def page_de(fenetre, classe: str):
     return None
 
 
+def _geometrie(f: FenetrePrincipale) -> dict:
+    """Position et taille des elements qui structurent la fenetre.
+
+    **En milliemes de la largeur de la fenetre, et non en pixels.** Une mesure
+    absolue dependrait de la taille de capture, et deux fenetres larges de
+    quelques pixels de difference ne se compareraient plus. Le milieu d'un bloc
+    dit s'il est centre ; sa largeur, s'il occupe la meme place.
+    """
+    mesures = {}
+    largeur = max(1, f.width())
+
+    def situer(nom, widget):
+        if widget is None or not widget.isVisible():
+            return
+        coin = widget.mapTo(f, widget.rect().topLeft())
+        mesures[f"{nom}.milieu"] = round(
+            (coin.x() + widget.width() / 2) * 1000 / largeur)
+        mesures[f"{nom}.largeur"] = round(widget.width() * 1000 / largeur)
+        mesures[f"{nom}.hauteur"] = round(widget.height())
+
+    situer("geo.navigation", f._btn_plus.parent())
+    situer("geo.entite", f._dd_entite)
+    situer("geo.inventaire", f._dd_inv)
+    situer("geo.recherche", f._recherche)
+    return mesures
+
+
+#: La taille de fenetre des releves, la meme des deux côtes.
+#:
+#: **Sans elle, aucune mesure de geometrie ne vaut.** Chaque releve ouvrait sa
+#: fenetre a la taille que son toolkit voulait bien lui donner — neuf cent
+#: cinquante pixels d'un côte, douze cents de l'autre — et l'on comparait alors
+#: la place d'un selecteur dans deux fenetres de largeurs differentes. Les memes
+#: chiffres que le banc d'images, pour que les deux outils parlent de la meme
+#: fenetre.
+LARGEUR_RELEVE, HAUTEUR_RELEVE = 1200, 760
+
+
 def relever(f: FenetrePrincipale) -> dict:
     points: dict = {}
 
@@ -353,6 +391,11 @@ def relever(f: FenetrePrincipale) -> dict:
     effectif = page_de(f, "PageEffectif")
     points["registre.vues"] = [b.text() for b in effectif._boutons.values()] \
         if effectif is not None and hasattr(effectif, "_boutons") else []
+
+    # --- Geometrie : ou les choses sont. Voir `releve_gtk.py`, qui porte les
+    # memes cles : c'est ce qui permet de confronter deux fenetres sur la place
+    # de leurs blocs, et non plus seulement sur leurs couleurs et leurs bandes.
+    points.update(_geometrie(f))
     return points
 
 
@@ -362,6 +405,7 @@ def main() -> int:
     app.setStyleSheet(theme.feuille())
     try:
         fenetre = FenetrePrincipale()
+        fenetre.resize(LARGEUR_RELEVE, HAUTEUR_RELEVE)
         fenetre.show()
         resultat.update(relever(fenetre))
     except Exception as souci:                          # noqa: BLE001

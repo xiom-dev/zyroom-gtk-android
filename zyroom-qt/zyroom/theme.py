@@ -707,7 +707,11 @@ QSpinBox#compteur-champ {
     border: none;
     color: %(texte)s;
     padding: 4px 8px;
-    min-height: 26px;
+    /* Vingt-quatre : le compteur de GTK fait trente-quatre pixels de haut, le
+       notre en faisait trente-six. Les deux pixels de trop ne se voyaient pas
+       tant que le releve laissait fuir l'agrandissement du bureau -- il les
+       noyait des deux cotes. */
+    min-height: 24px;
 }
 QPushButton#compteur-bouton {
     background: transparent;
@@ -716,7 +720,7 @@ QPushButton#compteur-bouton {
     border-left: 1px solid #1d272a;
     color: #dbdbd9;
     padding: 4px 0;
-    min-height: 26px;
+    min-height: 24px;
 }
 QPushButton#compteur-bouton:hover   { background-color: %(surface)s; }
 QPushButton#compteur-bouton:pressed { background-color: %(fond)s; }

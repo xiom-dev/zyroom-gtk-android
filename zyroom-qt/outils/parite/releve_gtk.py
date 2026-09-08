@@ -179,6 +179,47 @@ def _premier_label(widget):
     return None
 
 
+def _geometrie(f: MainWindow) -> dict:
+    """Position et taille des éléments qui structurent la fenêtre.
+
+    **En millièmes de la largeur de la fenêtre, et non en pixels.** Une mesure
+    absolue dépendrait de la taille de capture, et deux fenêtres larges de
+    quelques pixels de différence — ce que le cadre de GTK suffit à produire —
+    ne se compareraient plus. Le milieu d'un bloc dit s'il est centré ; sa
+    largeur, s'il occupe la même place.
+    """
+    mesures = {}
+    largeur = max(1, f.get_width())
+
+    def situer(nom, widget):
+        if widget is None or not widget.get_mapped():
+            return
+        ok, rect = widget.compute_bounds(f)
+        if not ok or rect is None:
+            return
+        mesures[f"{nom}.milieu"] = round(
+            (rect.origin.x + rect.size.width / 2) * 1000 / largeur)
+        mesures[f"{nom}.largeur"] = round(rect.size.width * 1000 / largeur)
+        mesures[f"{nom}.hauteur"] = round(rect.size.height)
+
+    situer("geo.navigation", f._plus_btn.get_parent())
+    situer("geo.entite", f._entity_dd)
+    situer("geo.inventaire", f._inv_dd)
+    situer("geo.recherche", f._search)
+    return mesures
+
+
+#: La taille de fenêtre des relevés, la même des deux côtés.
+#:
+#: **Sans elle, aucune mesure de géométrie ne vaut.** Chaque relevé ouvrait sa
+#: fenêtre à la taille que son toolkit voulait bien lui donner — neuf cent
+#: cinquante pixels d'un côté, douze cents de l'autre — et l'on comparait alors
+#: la place d'un sélecteur dans deux fenêtres de largeurs différentes. Les mêmes
+#: chiffres que le banc d'images, pour que les deux outils parlent de la même
+#: fenêtre.
+LARGEUR_RELEVE, HAUTEUR_RELEVE = 1200, 760
+
+
 def relever(f: MainWindow) -> dict:
     points: dict = {}
 
@@ -291,6 +332,7 @@ def relever(f: MainWindow) -> dict:
     # qu'une fois la mise en page faite, et les hauteurs *naturelles* des deux
     # toolkits ne se comparent pas entre elles -- seules les hauteurs allouees
     # le peuvent.
+    f.set_default_size(LARGEUR_RELEVE, HAUTEUR_RELEVE)
     f.present()
     contexte = GLib.MainContext.default()
     for _ in range(200):
@@ -401,6 +443,16 @@ def relever(f: MainWindow) -> dict:
 
     # --- Registre : les deux bascules --------------------------------------
     points["registre.vues"] = [texte(b) for b in f._roster_boutons.values()]
+
+    # --- Géométrie : où les choses sont, et non plus seulement de quelle
+    # couleur. C'est l'angle mort qui a coûté le plus cher cette semaine : deux
+    # fenêtres peuvent s'accorder sur toutes leurs bandes et tous leurs styles,
+    # et montrer un bloc de navigation décalé de cinquante pixels. La
+    # comparaison par l'image ne sait pas le dire — elle lit des hauteurs —, et
+    # l'analyser colonne par colonne s'est révélé illisible : les deux fenêtres
+    # n'affichent pas le même contenu, et le découpage diverge sans qu'aucun
+    # défaut n'existe. Les widgets, eux, savent où ils sont.
+    points.update(_geometrie(f))
     return points
 
 

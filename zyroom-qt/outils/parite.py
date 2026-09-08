@@ -29,7 +29,10 @@ from __future__ import annotations
 
 import json
 import os
+import contextlib
+import shutil
 import subprocess
+import time
 import sys
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,10 +45,64 @@ PYTHON_QT = os.path.join(RACINE, ".venv", "bin", "python")
 PYTHON_GTK = "python3"
 
 
-def relever(python: str, script: str, nom: str) -> dict | None:
+#: Ce qu'on retire à l'environnement avant de mesurer.
+#:
+#: **Les deux relevés doivent être logés à la même enseigne.** `gsettings` ne
+#: regarde pas le HOME : il passe par dconf, donc par le bus de session, et
+#: rapporte les réglages réels du bureau. La version Qt les interroge —
+#: l'agrandissement du texte, le thème d'icônes — et les applique ; la version
+#: GTK, sur un serveur X virtuel sans démon XSettings, ne les voit pas. Un
+#: bureau réglé à 1,25 donnait alors des largeurs Qt trente pour cent au-dessus
+#: de celles de GTK, et l'outil accusait les fenêtres d'un écart qui venait de
+#: la mesure.
+#:
+#: `memory` rend les valeurs par défaut du schéma, identiques pour les deux.
+ENVIRONNEMENT_NEUTRE = {"GSETTINGS_BACKEND": "memory"}
+
+
+@contextlib.contextmanager
+def ecran_virtuel():
+    """Un serveur X à nous, le temps d'un relevé.
+
+    **Le relevé GTK doit y tourner, et pas dans la session du bureau.** Sous
+    Wayland, GTK demande au portail l'agrandissement du texte et le thème
+    d'icônes, et les applique — tandis que le relevé Qt, hors écran, ne les a
+    pas. On mesurait alors une fenêtre agrandie contre une autre qui ne l'était
+    pas, et l'écart passait pour un défaut de l'application.
+
+    Sans Xvfb, on rend None : le relevé se fera dans la session, avec un
+    résultat moins sûr mais un outil qui marche quand même.
+    """
+    if not shutil.which("Xvfb"):
+        yield None
+        return
+    numero = ":97"
+    serveur = subprocess.Popen(
+        ["Xvfb", numero, "-screen", "0", "1200x760x24", "-dpi", "96"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(60):
+            pret = subprocess.run(["xdpyinfo"], capture_output=True,
+                                  env=dict(os.environ, DISPLAY=numero))
+            if pret.returncode == 0:
+                break
+            time.sleep(0.2)
+        yield numero
+    finally:
+        serveur.terminate()
+        serveur.wait(timeout=10)
+
+
+def relever(python: str, script: str, nom: str, ecran: str | None = None) -> dict | None:
     """Lance un relevé et rend son contenu, ou None s'il a échoué."""
+    milieu = dict(os.environ, **ENVIRONNEMENT_NEUTRE)
+    if ecran:
+        milieu["DISPLAY"] = ecran
+        milieu["GDK_BACKEND"] = "x11"
+        milieu.pop("WAYLAND_DISPLAY", None)
     fait = subprocess.run([python, os.path.join(RELEVES, script)],
-                          capture_output=True, text=True, timeout=300)
+                          capture_output=True, text=True, timeout=300,
+                          env=milieu)
     if not fait.stdout.strip():
         print(f"Le relevé {nom} n'a rien rendu.", file=sys.stderr)
         if fait.stderr.strip():
@@ -62,29 +119,52 @@ def relever(python: str, script: str, nom: str) -> dict | None:
     return points
 
 
+#: Les points montrés mais qui n'arrêtent pas la livraison.
+#:
+#: La géométrie vient d'entrer dans le relevé : treize écarts s'y sont
+#: révélés d'un coup, dont aucun n'est neuf — ils étaient là depuis toujours,
+#: personne ne les mesurait. Les rendre bloquants aujourd'hui reviendrait à
+#: interdire toute livraison jusqu'à ce qu'ils soient tous traités.
+INFORMATIF = "geo."
+
+
 def main() -> int:
     details = "--details" in sys.argv[1:]
 
-    gtk = relever(PYTHON_GTK, "releve_gtk.py", "GTK")
+    with ecran_virtuel() as ecran:
+        gtk = relever(PYTHON_GTK, "releve_gtk.py", "GTK", ecran)
     qt = relever(PYTHON_QT, "releve_qt.py", "Qt")
     if gtk is None or qt is None:
         return 1
 
-    ecarts, accords = [], []
+    ecarts, signales, accords = [], [], []
     for cle in sorted(set(gtk) | set(qt)):
         if cle not in gtk:
-            ecarts.append((cle, "— (rien de tel en GTK)", qt[cle]))
+            trouve = (cle, "— (rien de tel en GTK)", qt[cle])
         elif cle not in qt:
-            ecarts.append((cle, gtk[cle], "— (absent de Qt)"))
+            trouve = (cle, gtk[cle], "— (absent de Qt)")
         elif gtk[cle] != qt[cle]:
-            ecarts.append((cle, gtk[cle], qt[cle]))
+            trouve = (cle, gtk[cle], qt[cle])
         else:
             accords.append((cle, gtk[cle]))
+            continue
+        # Les mesures de géométrie sont montrées, pas opposées : elles
+        # viennent d'arriver, aucune n'a encore été traitée, et faire échouer
+        # le contrôle dessus arrêterait toutes les livraisons pour des écarts
+        # connus. Elles passeront du côté bloquant à mesure qu'on les corrige.
+        (signales if cle.startswith(INFORMATIF) else ecarts).append(trouve)
 
     if details:
         print(f"Ce qui concorde ({len(accords)} points) :")
         for cle, valeur in accords:
             print(f"  {cle:38} {valeur}")
+        print()
+
+    if signales:
+        print(f"{len(signales)} mesure(s) de géométrie à traiter — signalées, "
+              "non bloquantes :")
+        for cle, cote_gtk, cote_qt in signales:
+            print(f"  {cle:34} GTK {cote_gtk}   Qt {cote_qt}")
         print()
 
     if not ecarts:
