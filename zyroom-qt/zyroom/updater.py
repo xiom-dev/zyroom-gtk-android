@@ -125,6 +125,7 @@ class Veilleur:
         entree = manifeste.get(APPLICATION)
         if not isinstance(entree, dict):
             return ""                # le manifeste ne nous connait pas encore
+        entree = _annonce_pour_ici(entree)
         try:
             code = int(entree.get("versionCode", 0))
         except (TypeError, ValueError):
@@ -136,6 +137,37 @@ class Veilleur:
         # Sans archive pour ce systeme-la, on se tait : annoncer une version
         # qu'on ne saurait pas aller chercher ne servirait qu'a agacer.
         return self.version_publiee if self.url else ""
+
+
+def cle_systeme() -> str:
+    """« windows » ou « linux » : le nom du système sous lequel on tourne."""
+    return "windows" if os.name == "nt" else "linux"
+
+
+def _annonce_pour_ici(entree: dict) -> dict:
+    """Le numéro qui vaut pour ce système-là, à défaut celui de la racine.
+
+    **Un manifeste, deux paquets, et longtemps un seul numéro.** Les archives
+    Linux et Windows ne se construisent pas au même endroit — celle de Windows
+    sort d'une machine que le mainteneur n'a pas —, et rien n'oblige les deux à
+    paraître ensemble. Or l'application comparait le numéro de la racine, celui
+    du dernier paquet livré, quel que soit le système : sous Windows, elle se
+    trouvait donc en retard, téléchargeait une archive plus ancienne que ce que
+    la racine annonçait, s'installait, se retrouvait en retard, recommençait.
+    Une boucle sans fin, et deux joueurs l'ont vécue.
+
+    Le manifeste porte désormais, à côté, ce que chaque système a réellement en
+    ligne. Les versions déjà installées ne connaissent pas ce bloc et
+    continuent de lire la racine : elle reste donc écrite, et c'est pourquoi
+    l'on ne peut pas se contenter de la remplacer.
+    """
+    systemes = entree.get("systemes")
+    if isinstance(systemes, dict):
+        propre = systemes.get(cle_systeme())
+        if isinstance(propre, dict) and "versionCode" in propre:
+            # L'adresse reste celle de la racine : elle ne change jamais.
+            return dict(entree, **propre)
+    return entree
 
 
 def _url_pour_ici(entree: dict) -> str:

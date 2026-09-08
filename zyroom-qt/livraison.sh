@@ -138,6 +138,16 @@ with open(chemin, encoding="utf-8") as fh:
 entree = manifeste.get(application, {})
 entree["versionCode"] = int(code)
 entree["versionName"] = nom
+# **Et le meme numero dans la case de ce systeme-la.** La racine dit ce qui a
+# ete livre en dernier, quel que soit le systeme ; les cases disent ce que
+# chacun a reellement en ligne. Sans elles, une version Windows en retard ne se
+# contentait pas d'etre en retard : elle se croyait perpetuellement a mettre a
+# jour, telechargeait une archive plus ancienne que ce que la racine annoncait,
+# et recommencait. La racine reste ecrite : les versions deja installees ne
+# connaissent qu'elle.
+systemes = entree.get("systemes") or {}
+systemes["linux"] = {"versionCode": int(code), "versionName": nom}
+entree["systemes"] = systemes
 # Une adresse par systeme : un bundle Linux ne se lance pas sous Windows.
 # Celle de Windows est conservee telle quelle -- ce script ne la construit
 # pas, et l'ecraser effacerait une livraison faite depuis l'autre machine.
@@ -150,6 +160,29 @@ with open(chemin, "w", encoding="utf-8") as fh:
     json.dump(manifeste, fh, ensure_ascii=False, indent=2)
     fh.write("\n")
 print(f"  version.json : {application} -> {nom} (code {code})")
+PY
+
+# **L'archive Windows a-t-elle suivi ?** Elle ne se construit pas ici, et il
+# est arrive deux fois qu'on livre plusieurs versions sans la deposer : les
+# joueurs de ce systeme-la tournaient alors en rond. Le manifeste sait
+# desormais ce que Windows a en ligne, et l'on regarde s'il a decroche.
+python3 - "$manifeste" <<'PY'
+import json, sys
+manifeste = json.load(open(sys.argv[1], encoding="utf-8"))
+entree = manifeste.get("net.ryzom.zyroomqt", {})
+cases = entree.get("systemes") or {}
+# La racine, et non la case de Linux : elle porte toujours ce qu'on vient de
+# livrer, meme la premiere fois -- quand aucune case n'existe encore.
+ici = entree.get("versionCode", 0)
+la_bas = cases.get("windows", {}).get("versionCode")
+if la_bas is None:
+    print("\n  ⚠ Le manifeste ne dit pas ce que Windows a en ligne.")
+    print("    Deposez son paquet avec outils/publier-windows.sh.")
+elif la_bas < ici:
+    print(f"\n  ⚠ Windows est reste a la {cases['windows']['versionName']}, "
+          f"nous livrons la {cases['linux']['versionName']}.")
+    print("    Ses joueurs ne verront rien de neuf tant que son paquet n'est")
+    print("    pas depose : outils/publier-windows.sh")
 PY
 
 cat <<'FINAL'
