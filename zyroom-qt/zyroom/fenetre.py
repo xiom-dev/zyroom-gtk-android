@@ -28,6 +28,7 @@ from PySide6.QtCore import QEvent, QSize, Qt, QObject, QTimer, Signal
 from PySide6.QtGui import (QAction, QColor, QFont, QGuiApplication, QIcon,
                            QPainter, QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
+                               QSizePolicy,
                                QProxyStyle, QStyle,
                                QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit,
@@ -578,6 +579,7 @@ class FenetrePrincipale(QMainWindow):
         # cela elles restaient aux seize pixels par defaut de Qt jusqu'au
         # premier coup de zoom.
         self._appliquer_taille_boutons()
+        self._equilibrer_barre()
         self._montrer_page("inventory")
 
     def _entete(self) -> QWidget:
@@ -645,8 +647,24 @@ class FenetrePrincipale(QMainWindow):
                 lambda _c=False, p=pas: self._zoomer_icones(p))
             ligne.addWidget(bouton)
 
+        # **Centree sur la fenetre, et non entre les deux groupes de boutons.**
+        # Deux ressorts egaux centrent ce qu'il y a entre eux dans la place qui
+        # reste ; or il y a cinq boutons a gauche et trois a droite, et la
+        # navigation tombait donc quarante-six milliemes trop a droite, la ou
+        # GTK la pose au milieu exact. On reserve de part et d'autre la meme
+        # largeur -- celle du plus charge des deux bords --, et le milieu tombe
+        # au milieu. `_equilibrer_barre` la recalcule quand la barre change.
+        # Un ressort de chaque cote, et entre eux une cale de largeur fixe du
+        # cote le plus leger : c'est elle qui ramene le milieu au milieu. Une
+        # largeur *minimale* n'y suffirait pas -- deux ressorts se partagent
+        # egalement ce qui depasse leurs minimums, et le plus court rattrape
+        # aussitot ce qu'on lui avait donne.
         ligne.addStretch(1)
+        self._cale_gauche = QWidget()
+        ligne.addWidget(self._cale_gauche)
         ligne.addWidget(self._navigation())
+        self._cale_droite = QWidget()
+        ligne.addWidget(self._cale_droite)
         ligne.addStretch(1)
 
         # A droite : ce qui parle de l'application.
@@ -1416,6 +1434,39 @@ class FenetrePrincipale(QMainWindow):
         self._page_avant_postes._rafraichir()
         self._page_meteo.rafraichir()
         self._reafficher()
+
+    def _equilibrer_barre(self) -> None:
+        """Reserve la meme largeur des deux cotes de la navigation.
+
+        **Ce qu'on mesure : ce que chaque bord demande.** Les boutons vivent
+        dans la barre, avant et apres la navigation ; on additionne ce que
+        chacun reclame, et l'on donne au bord le plus leger de quoi rattraper
+        l'autre. Deterministe, sans boucle ni mesure de position -- les
+        tentatives par ajustement successif ne convergeaient pas, le layout ne
+        rendant ses tailles qu'au cycle suivant.
+
+        A rappeler quand la barre change : le bouton « Mettre a jour » parait
+        et disparait, et il pese une centaine de pixels.
+        """
+        if not hasattr(self, "_cale_gauche"):
+            return
+        ligne = self._cale_gauche.parent().layout()
+        if ligne is None:
+            return
+        navigation = self._btn_plus.parent()
+        cotes, cote = [0, 0], 0
+        for rang in range(ligne.count()):
+            objet = ligne.itemAt(rang).widget()
+            if objet is navigation:
+                cote = 1
+                continue
+            if objet in (None, self._cale_gauche, self._cale_droite):
+                continue
+            if objet.isVisibleTo(self):
+                cotes[cote] += objet.sizeHint().width() + ligne.spacing()
+        manque = abs(cotes[0] - cotes[1])
+        self._cale_gauche.setFixedWidth(manque if cotes[1] > cotes[0] else 0)
+        self._cale_droite.setFixedWidth(manque if cotes[0] > cotes[1] else 0)
 
     def _appliquer_taille_boutons(self) -> None:
         """Les images des boutons suivent elles aussi les boutons de zoom.
@@ -2764,6 +2815,9 @@ class FenetrePrincipale(QMainWindow):
             if erreur or not version:
                 return
             self._btn_maj.setVisible(True)
+            # Cent quarante et un pixels de plus a droite : la navigation
+            # cesserait d'etre centree si l'on ne recalait pas les cales.
+            self._equilibrer_barre()
             self._btn_maj.setToolTip(
                 _("Une nouvelle version est disponible") + f" ({version})")
             self._statut(
@@ -2800,6 +2854,7 @@ class FenetrePrincipale(QMainWindow):
                 # Reussie, le bouton n'a plus lieu d'etre. Echouee, on le
                 # rend pour permettre un second essai.
                 self._btn_maj.setVisible(False)
+                self._equilibrer_barre()
                 self._proposer_redemarrage()
 
         self._passerelle.lancer(travail, apres)

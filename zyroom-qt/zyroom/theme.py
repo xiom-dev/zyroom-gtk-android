@@ -678,8 +678,12 @@ QComboBox {
        pixels de moins que celle de GTK -- vu par la comparaison par l'image,
        qui lit les bandes de la fenetre. Le remplissage horizontal, lui, ne
        bouge pas : `deroulante.py` mesure avec. */
-    padding: 4px 8px;
-    min-height: 25px;
+    /* Trois pixels en haut et en bas, et non quatre : les selecteurs de GTK
+       font quarante pixels de haut, les notres en faisaient quarante-deux. Ce
+       n'est pas `min-height` qui commande ici mais l'image de trente pixels
+       qu'ils portent, et c'est donc le remplissage qu'il faut reprendre. */
+    padding: 3px 8px;
+    min-height: 23px;
 }
 QComboBox:hover { background-color: #454545; }
 QComboBox:focus { border-color: %(sarcelle)s; }

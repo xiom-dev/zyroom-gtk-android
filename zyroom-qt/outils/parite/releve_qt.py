@@ -179,7 +179,13 @@ def _geometrie(f: FenetrePrincipale) -> dict:
         mesures[f"{nom}.largeur"] = round(widget.width() * 1000 / largeur)
         mesures[f"{nom}.hauteur"] = round(widget.height())
 
+    # Le bloc, pour sa place et sa largeur ; le bouton lui-meme pour sa
+    # hauteur -- voir `releve_gtk.py`, qui explique pourquoi.
     situer("geo.navigation", f._btn_plus.parent())
+    mesures.pop("geo.navigation.hauteur", None)
+    situer("geo.bouton", f._btn_plus)
+    mesures.pop("geo.bouton.milieu", None)
+    mesures.pop("geo.bouton.largeur", None)
     situer("geo.entite", f._dd_entite)
     situer("geo.inventaire", f._dd_inv)
     situer("geo.recherche", f._recherche)

@@ -54,13 +54,15 @@ class Deroulante(QComboBox):
         les rappeler ici est le prix d'une largeur qui suit la police au lieu
         d'un nombre en dur.
 
-        Les huit derniers sont l'air que GTK laisse entre le texte et son
-        chevron : sans eux la parenthèse fermante vient toucher la flèche, et
-        le nom paraît coupé alors qu'il est entier. Ils s'ajoutent à la
+        Les vingt derniers sont l'air que GTK laisse autour du texte : sans
+        eux la parenthèse fermante vient toucher la flèche, et le nom paraît
+        coupé alors qu'il est entier. Douze de plus depuis que le relevé sait
+        mesurer les largeurs : le sélecteur d'entité faisait cent un pixels
+        quand celui de GTK en fait cent treize. Ils s'ajoutent à la
         largeur demandée — les prendre sur le remplissage rognerait le texte,
         puisque Qt réserve la zone du chevron en plus, et non dedans.
         """
-        large = self.fontMetrics().horizontalAdvance(self.currentText()) + 46
+        large = self.fontMetrics().horizontalAdvance(self.currentText()) + 58
         # Et l'image, quand la ligne en porte une : l'emblème de la guilde ou
         # le portrait du personnage. Sans la compter, la place lui était prise
         # sur le nom — « Koii » s'affichait « K » le jour où le portrait est

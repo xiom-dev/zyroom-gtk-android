@@ -202,7 +202,16 @@ def _geometrie(f: MainWindow) -> dict:
         mesures[f"{nom}.largeur"] = round(rect.size.width * 1000 / largeur)
         mesures[f"{nom}.hauteur"] = round(rect.size.height)
 
+    # Le bloc, pour sa place et sa largeur ; le bouton lui-meme pour sa
+    # hauteur. La boite qui porte les trois boutons n'a pas les memes marges
+    # d'un toolkit a l'autre -- cinquante-deux pixels chez GTK pour trente-huit
+    # de boutons --, et comparer ces marges-la n'apprend rien : ce qu'on voit,
+    # c'est le bouton.
     situer("geo.navigation", f._plus_btn.get_parent())
+    mesures.pop("geo.navigation.hauteur", None)
+    situer("geo.bouton", f._plus_btn)
+    mesures.pop("geo.bouton.milieu", None)
+    mesures.pop("geo.bouton.largeur", None)
     situer("geo.entite", f._entity_dd)
     situer("geo.inventaire", f._inv_dd)
     situer("geo.recherche", f._search)
