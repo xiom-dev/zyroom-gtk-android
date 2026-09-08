@@ -23,3 +23,7 @@
 # Le prefixe Wine du paquet Windows : 1,9 Go de Windows reconstitue,
 # refait a la demande par packaging/build-windows-wine.sh.
 .wine-zyroom-qt/
+
+# La copie de la page pour le domaine : elle se regenere avec
+# `outils/site-domaine.py`, elle n'a pas a etre versionnee.
+site-domaine/
