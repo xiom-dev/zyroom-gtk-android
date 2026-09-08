@@ -63,7 +63,11 @@
      paragraphe centre se lit mal, chaque ligne commencant ailleurs. */
   h1 { font-size: 1.7rem; margin-bottom: .2rem; text-align: center;
        color: var(--or); }
-  h1 + .sub { text-align: center; }
+  /* Centree sur la page, et non sur les quarante rem du texte courant. La
+     regle qui limite les paragraphes a quarante rem l'attrapait elle aussi :
+     centree dans cette colonne-la, elle paraissait decalee vers la gauche
+     sous un titre qui, lui, occupe les soixante rem. */
+  h1 + .sub { text-align: center; max-width: none; }
   h2 { font-size: 1.15rem; margin-top: 2.4rem; }
   .sub { color: var(--texte-faible); margin-top: 0; }
   h2 + .sub { margin: -.15rem 0 .9rem; font-size: .93rem; }
