@@ -937,7 +937,8 @@ class FenetrePrincipale(QMainWindow):
         self._grille.setViewMode(QListWidget.ViewMode.IconMode)
         taille = self._settings.icon_size
         self._grille.setIconSize(QSize(taille, taille))
-        self._grille.setGridSize(QSize(taille + 8, taille + 8))
+        self._grille.setGridSize(QSize(taille + theme.px(8),
+                                       taille + theme.px(8)))
         self._grille.setResizeMode(QListWidget.ResizeMode.Adjust)
         self._grille.setMovement(QListWidget.Movement.Static)
         self._grille.setUniformItemSizes(True)
@@ -962,7 +963,8 @@ class FenetrePrincipale(QMainWindow):
         # FlowBox : sans eux, les icones se collaient a la rangee des filtres.
         # Mesure sur les captures : quarante-cinq pixels entre la recherche et
         # la premiere icone en GTK, trente-six ici.
-        self._grille.setViewportMargins(8, 8, 8, 8)
+        self._grille.setViewportMargins(
+            theme.px(8), theme.px(8), theme.px(8), theme.px(8))
         colonne.addWidget(self._grille, 1)
         return page
 
@@ -1093,7 +1095,7 @@ class FenetrePrincipale(QMainWindow):
         # rangees. Qt en donnait trente, soit quatre lignes de moins par
         # ecran, et un journal qu'on parcourait plus lentement pour la meme
         # fenetre.
-        self._table.verticalHeader().setDefaultSectionSize(26)
+        self._table.verticalHeader().setDefaultSectionSize(theme.px(26))
         self._table.setShowGrid(False)
         self._table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -1234,7 +1236,7 @@ class FenetrePrincipale(QMainWindow):
                 # treize en tout, dont un seul peint. Une rangee entierement
                 # remplie d'or pale -- sept pixels a 35 % -- en faisait un
                 # bandeau, la ou GTK trace un trait qu'on longe.
-                self._table.setRowHeight(rang, 13)
+                self._table.setRowHeight(rang, theme.px(13))
                 self._table.setSpan(rang, 0, 1, 6)
                 self._table.setCellWidget(rang, 0, _trait_de_jour())
                 rang += 1
@@ -1432,13 +1434,35 @@ class FenetrePrincipale(QMainWindow):
             return True
         return super().eventFilter(objet, evenement)
 
+    def _poser_la_feuille(self) -> None:
+        """Rejoue la feuille de style au zoom courant.
+
+        Elle porte le corps du texte et toutes les longueurs de l'interface :
+        c'est par elle que le zoom agrandit autre chose que les images.
+        """
+        from PySide6.QtWidgets import QApplication
+        QApplication.instance().setStyleSheet(
+            theme.feuille(theme.corps_de_base(self._settings),
+                          self._settings.zoom))
+
     def _zoomer_icones(self, pas: int) -> None:
-        taille = max(24, min(128, self._settings.icon_size + pas))
-        if taille == self._settings.icon_size:
+        """Agrandit ou réduit **toute** l'application, et la redessine.
+
+        Images, texte, bordures, hauteurs de rangées : le zoom est le seul
+        réglage d'apparence depuis qu'il a remplacé la taille du texte. Tout
+        prend effet sur-le-champ — la feuille est rejouée ici même, et non au
+        prochain lancement : l'ancien réglage de police, lui, demandait de
+        fermer l'application, et l'on croyait qu'il ne marchait pas.
+        """
+        reglages = self._settings
+        taille = max(reglages.ZOOM_NORMAL,
+                     min(reglages.ZOOM_MAXIMUM, reglages.icon_size + pas))
+        if taille == reglages.icon_size:
             return
-        self._settings.icon_size = taille
+        reglages.icon_size = taille
+        self._poser_la_feuille()
         self._appliquer_taille_icones()
-        self._statut(_("Icônes : {} pixels").format(taille))
+        self._statut(_("Zoom : {} %").format(round(reglages.zoom * 100)))
 
     def _appliquer_taille_icones(self) -> None:
         """Pose la taille des icônes et redessine la grille.
@@ -1449,11 +1473,16 @@ class FenetrePrincipale(QMainWindow):
         """
         taille = self._settings.icon_size
         self._grille.setIconSize(QSize(taille, taille))
-        self._grille.setGridSize(QSize(taille + 8, taille + 8))
+        self._grille.setGridSize(QSize(taille + theme.px(8),
+                                       taille + theme.px(8)))
+        self._grille.setViewportMargins(
+            theme.px(8), theme.px(8), theme.px(8), theme.px(8))
         # Le journal et les ecrans de "Bonus" suivent : les boutons de zoom
         # valent pour toutes les icones, pas seulement pour l'inventaire.
         cote = self._settings.icone(PART_ICONE_JOURNAL)
         self._table.setIconSize(QSize(cote, cote))
+        # La hauteur d'une ligne suit le corps du texte, qui suit le zoom.
+        self._table.verticalHeader().setDefaultSectionSize(theme.px(26))
         self._appliquer_taille_boutons()
         self._cache_icones.clear()
         if self._pile.currentIndex() == self._pages["log"]:
@@ -1664,7 +1693,9 @@ class FenetrePrincipale(QMainWindow):
 
         # La taille reglee, et non celle du widget : la feuille de style la
         # pose apres coup, et `self.font()` rendrait encore celle du bureau.
-        base = float(self._settings.font_size or self.font().pointSizeF() or 10)
+        # Le zoom y est compris : le nom de l'application grossit avec le
+        # reste, comme le `2.4em` de GTK grossit avec le corps courant.
+        base = theme.corps_a_l_ecran(self._settings)
 
         grave = QLabel(NOM_GRAVE)
         police = grave.font()
@@ -2755,9 +2786,7 @@ class FenetrePrincipale(QMainWindow):
         # La police et les icones prennent effet sur-le-champ. Attendre le
         # prochain lancement laissait croire que le reglage ne marchait pas --
         # on regle, rien ne bouge, on recommence.
-        from PySide6.QtWidgets import QApplication
-        QApplication.instance().setStyleSheet(
-            theme.feuille(self._settings.font_size))
+        self._poser_la_feuille()
         self._appliquer_taille_icones()
         self._appliquer_proxy()
         self._charger_noms(self._settings.pack_file)

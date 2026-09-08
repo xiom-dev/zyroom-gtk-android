@@ -68,8 +68,12 @@ class Deroulante(QComboBox):
         largeur demandée — les prendre sur le remplissage rognerait le texte,
         puisque Qt réserve la zone du chevron en plus, et non dedans.
         """
+        from . import theme
+        # L'air au zoom courant : la feuille double ses remplissages et son
+        # chevron a deux cents pour cent, et une place reservee en pixels
+        # fixes aurait rogne le texte d'autant.
         large = (self.fontMetrics().horizontalAdvance(self.currentText())
-                 + self.AIR)
+                 + theme.px(self.AIR))
         # Et l'image, quand la ligne en porte une : l'emblème de la guilde ou
         # le portrait du personnage. Sans la compter, la place lui était prise
         # sur le nom — « Koii » s'affichait « K » le jour où le portrait est

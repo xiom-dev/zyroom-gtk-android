@@ -27,6 +27,9 @@ ecran=:99
 LARGEUR=1200
 HAUTEUR=760
 CORPS=11
+# Le zoom a cent pour cent des deux cotes : c'est lui qui commande maintenant
+# la taille du texte et celle des images ensemble, et deux fenetres zoomees
+# differemment ne se comparent pas.
 
 rm -rf "$sortie"
 mkdir -p "$foyer/.config/zyroom-gtk" "$foyer/.config/zyroom-qt" \
@@ -42,6 +45,7 @@ for app in zyroom-gtk zyroom-qt; do
 WindowWidth = $LARGEUR
 WindowHeight = $HAUTEUR
 FontSize = $CORPS
+IconSize = 48
 SyncOnStart = 0
 SyncInterval = 0
 Notifications = 0

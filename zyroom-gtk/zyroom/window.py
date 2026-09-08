@@ -8,6 +8,7 @@ ne pas figer l'interface.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import threading
 import unicodedata
@@ -1682,7 +1683,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if not texte:
             return
         cr.select_font_face("Sans")
-        cr.set_font_size(13)
+        cr.set_font_size(13 * self._settings.zoom)
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 if dx or dy:
@@ -1723,7 +1724,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     cr.arc(jx, jy, rayon, 0, 6.2832)
                     cr.fill()
                 cr.select_font_face("Sans")
-                cr.set_font_size(13)
+                cr.set_font_size(13 * self._settings.zoom)
                 for dx in (-1, 0, 1):
                     for dy in (-1, 0, 1):
                         if dx or dy:
@@ -1750,7 +1751,7 @@ class MainWindow(Gtk.ApplicationWindow):
                    int((marge_y + py * echelle) / self.SEUIL_GROUPE))
             groupes.setdefault(cle, []).append(b)
         cr.select_font_face("Sans")
-        cr.set_font_size(13)
+        cr.set_font_size(13 * self._settings.zoom)
         for groupe in groupes.values():
             px, py = carte.pixel(groupe[0].x, groupe[0].y)
             x, y = marge_x + px * echelle, marge_y + py * echelle
@@ -2483,7 +2484,7 @@ class MainWindow(Gtk.ApplicationWindow):
         cr.restore()
 
         cr.select_font_face("Sans")
-        cr.set_font_size(10)
+        cr.set_font_size(10 * self._settings.zoom)
 
         # Deux graduations, plus discrètes que les seuils : elles ne veulent
         # rien dire pour le jeu, elles servent seulement à situer un taux à
@@ -3903,13 +3904,18 @@ class MainWindow(Gtk.ApplicationWindow):
             self._display_inventory(idx)
 
     # --------------------------------------- En-tête entité + saison serveur
-    def _corps_courant(self) -> float:
-        """Le corps du texte en points : celui qu'on a réglé, sinon celui du bureau.
+    def _corps_de_base(self) -> float:
+        """Le corps du texte avant le zoom, en points.
 
-        Le réglage vaut zéro tant qu'on n'y a pas touché — « comme le bureau »
-        — et il faut bien un nombre pour en calculer un autre. GNOME écrit sa
-        police en une chaîne, « Cantarell 11 », dont le corps est le dernier
-        mot ; onze en dernier recours, la valeur par défaut de GNOME.
+        Celui du bureau, sauf si le fichier de réglages en impose un autre.
+        GNOME écrit sa police en une chaîne, « Cantarell 11 », dont le corps
+        est le dernier mot ; onze en dernier recours, sa valeur par défaut.
+
+        **`FontSize` n'a plus de réglage dans les Options** : le zoom a pris
+        sa place, et deux nombres pour une seule chose — voir plus gros —
+        n'avaient pas de sens. La clé reste lue : elle sert au banc de parité,
+        qui doit poser le même corps aux deux applications, et elle laisse
+        leur choix à ceux qui l'avaient déjà réglée.
         """
         if self._settings.font_size > 0:
             return float(self._settings.font_size)
@@ -3920,6 +3926,30 @@ class MainWindow(Gtk.ApplicationWindow):
             return float(dernier)
         except ValueError:
             return 11.0
+
+    def _corps_courant(self) -> float:
+        """Le corps du texte à l'écran : celui de base, multiplié par le zoom."""
+        return self._corps_de_base() * self._settings.zoom
+
+    def _au_zoom(self, feuille: str) -> str:
+        """La feuille de style, toutes ses longueurs multipliées par le zoom.
+
+        **Sans cela, seul le texte grossirait.** Les hauteurs minimales, les
+        remplissages, les rayons et les bordures sont écrits en pixels : à
+        deux cents pour cent, un texte deux fois plus grand se serait retrouvé
+        rogné dans des boutons restés à leur taille. Ludo l'a demandé
+        explicitement — « je veux que le zoom grossisse entièrement les
+        appli ».
+
+        Les nombres sans unité sont laissés tels quels : ce sont des poids et
+        des opacités, qui n'ont pas de taille.
+        """
+        zoom = self._settings.zoom
+        if abs(zoom - 1.0) < 0.01:
+            return feuille
+        return re.sub(r"(\d+)px",
+                      lambda m: f"{max(1, round(int(m.group(1)) * zoom))}px",
+                      feuille)
 
     def _install_motd_css(self) -> None:
         """La palette de l'application, la même que sur le téléphone.
@@ -3962,14 +3992,15 @@ class MainWindow(Gtk.ApplicationWindow):
         # Le corps du texte, s'il a été réglé. En tête de la feuille et sur
         # `*` : GTK le résout comme n'importe quelle autre propriété, et tout
         # ce qui n'en demande pas d'autre en hérite.
-        corps = (f"* {{ font-size: {self._settings.font_size}pt; }}\n"
-                 if self._settings.font_size > 0 else "")
+        # Le corps s'ecrit toujours, et non plus seulement quand un reglage
+        # l'impose : c'est par lui que le zoom agrandit le texte.
+        corps = f"* {{ font-size: {self._corps_courant():.1f}pt; }}\n"
         # La somme en dappers, un point au-dessus du reste. C'est le nombre
         # qu'on vient lire dans cette barre, et au corps courant il s'y
         # perdait. En points et non en `em` : la version Qt ne sait pas lire
         # les unites relatives, et les deux barres doivent s'ecrire pareil.
         corps += f".dappers {{ font-size: {self._corps_courant() + 1:.0f}pt; }}\n"
-        provider.load_from_data((corps + """
+        feuille = (corps + """
             /* Les cinq couleurs d'Android, telles quelles. */
             @define-color zy_fond        #10171a;   /* background */
             @define-color zy_surface     #172226;   /* surface    */
@@ -4176,7 +4207,8 @@ class MainWindow(Gtk.ApplicationWindow):
             .tri-arrivee { color: #4caf50; font-weight: bold; }
             .tri-depart  { color: @zy_erreur; font-weight: bold; }
             .tri-grade   { color: @zy_texte; font-weight: bold; }
-        """).encode("utf-8"))
+        """)
+        provider.load_from_data(self._au_zoom(feuille).encode("utf-8"))
         if premier_passage:
             Gtk.StyleContext.add_provider_for_display(
                 Gdk.Display.get_default(), provider,
@@ -5283,14 +5315,25 @@ class MainWindow(Gtk.ApplicationWindow):
         self._spinner.set_visible(self._attentes > 0)
 
     def _on_zoom_icones(self, _btn, pas: int) -> None:
-        """Agrandit ou réduit les icônes, et redessine ce qui est à l'écran."""
-        taille = max(24, min(128, self._settings.icon_size + pas))
-        if taille == self._settings.icon_size:
+        """Agrandit ou réduit **toute** l'application, et la redessine.
+
+        Images, texte, bordures, hauteurs de rangées : le zoom est le seul
+        réglage d'apparence depuis qu'il a remplacé la taille du texte. Tout
+        prend effet sur-le-champ — la feuille de style est rejouée ici même,
+        et non au prochain lancement : l'ancien réglage de police, lui,
+        demandait de fermer l'application, et l'on croyait qu'il ne marchait
+        pas.
+        """
+        reglages = self._settings
+        taille = max(reglages.ZOOM_NORMAL,
+                     min(reglages.ZOOM_MAXIMUM, reglages.icon_size + pas))
+        if taille == reglages.icon_size:
             return
-        self._settings.icon_size = taille
+        reglages.icon_size = taille
+        self._install_motd_css()
         self._appliquer_taille_boutons()
         self._redisplay_current()
-        self._set_status(_("Icônes : {} pixels").format(taille))
+        self._set_status(_("Zoom : {} %").format(round(reglages.zoom * 100)))
 
     def _appliquer_taille_boutons(self) -> None:
         """Les images des boutons suivent elles aussi les boutons de zoom.

@@ -72,35 +72,12 @@ class FenetreOptions(QDialog):
         grille.addWidget(btn_save, rang, 2)
         rang += 1
 
-        # Le corps du texte, avant les seuils : c'est un reglage de confort,
-        # pas d'alerte, et il se cherche a cote de la langue.
-        grille.addWidget(
-            QLabel(_("Taille du texte (points, 0 = celle du bureau)")),
-            rang, 0)
-        # Un moins et un plus cote a cote, comme le Gtk.SpinButton
-        # d'Adwaita : voir `compteur.py`. Le `PlusMinus` de Qt les empilait.
-        self._police = Compteur()
-        self._police.setRange(0, 30)
-        self._police.setValue(settings.font_size)
-        self._police.setToolTip(_(
-            "Le corps du texte, comme dans un traitement de texte. Le bureau "
-            "tourne autour de 10 ; 12 ou 14 se lisent mieux dans les tableaux. "
-            "Zéro laisse la police du système."))
-        grille.addWidget(self._police, rang, 1)
-        rang += 1
-
-        grille.addWidget(QLabel(_("Taille des icônes (pixels)")), rang, 0)
-        self._icones = Compteur()
-        self._icones.setRange(24, 128)
-        self._icones.setSingleStep(8)
-        self._icones.setValue(settings.icon_size)
-        self._icones.setToolTip(_(
-            "Le côté des icônes de l'inventaire. L'API les rend en 48 ; "
-            "au-delà elles sont agrandies et se ramollissent un peu, mais une "
-            "grille chargée se parcourt mieux. Les boutons + et − de la "
-            "barre de titre la changent aussi, sans passer par ici."))
-        grille.addWidget(self._icones, rang, 1)
-        rang += 1
+        # **Aucun reglage d'apparence ici.** Il y en avait deux -- la taille
+        # du texte et celle des icones -- pour une seule chose qu'on veut
+        # vraiment : voir plus gros. Les boutons + et - de la barre du haut
+        # agrandissent maintenant toute l'application d'un coup, texte
+        # compris ; deux compteurs de plus dans cette fenetre ne servaient
+        # qu'a faire hesiter.
 
         rang = self._ligne_nombre(grille, rang, "Seuil d'alerte de volume (%)",
                                   "_volume", 0, 100, 5,
@@ -213,8 +190,6 @@ class FenetreOptions(QDialog):
         s.proxy_username = self._proxy_utilisateur.text().strip()
         s.proxy_password = self._proxy_motdepasse.text()
         s.language = self._codes_langue[self._dd_langue.currentIndex()]
-        s.font_size = self._police.value()
-        s.icon_size = self._icones.value()
         self.accept()
         if self._apres:
             self._apres()

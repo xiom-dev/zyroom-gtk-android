@@ -796,6 +796,14 @@ def relever(f: MainWindow) -> dict:
     points["journal.trait-de-jour.hauteur"] = (taille(trait)[1]
                                                if trait is not None else 0)
     points["journal.trait-de-jour.rangee"] = 2
+    # Le contrat du zoom : la meme plage, le meme pas, le meme facteur au
+    # maximum. C'est le seul reglage d'apparence qui reste, et les deux
+    # applications doivent l'entendre pareil.
+    from zyroom.config import Settings as _R
+    points["zoom.plage"] = [_R.ZOOM_NORMAL, _R.ZOOM_MAXIMUM]
+    points["zoom.facteur-au-maximum"] = round(
+        _R.ZOOM_MAXIMUM / _R.ZOOM_NORMAL, 2)
+    points["zoom.pas"] = 8
     points["police.corps"] = CORPS_RELEVE
     from gi.repository import Pango
     mise = Pango.Layout(f._status.get_pango_context())
@@ -864,6 +872,10 @@ def main() -> int:
     # bureau » en GTK : sans cela le controle comparerait ses deux reglages.
     from zyroom.config import Settings as _Reglages
     _Reglages.font_size = property(lambda _soi: CORPS_RELEVE)
+    # Et le zoom a un : c'est desormais lui qui commande la taille du texte
+    # comme celle des images, et deux fenetres zoomees differemment ne se
+    # comparent pas.
+    _Reglages.icon_size = property(lambda _soi: _Reglages.ZOOM_NORMAL)
     app = Gtk.Application(application_id="net.ryzom.zyroomgtk.parite")
 
     def demarre(a):

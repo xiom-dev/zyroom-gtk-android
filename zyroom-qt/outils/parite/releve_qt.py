@@ -681,6 +681,14 @@ def relever(f: FenetrePrincipale) -> dict:
     points["journal.icone.cote"] = f._table.iconSize().width()
     points["journal.trait-de-jour.hauteur"] = f._table.rowHeight(2)
     points["journal.trait-de-jour.rangee"] = 2
+    # Le contrat du zoom : la meme plage, le meme pas, le meme facteur au
+    # maximum. C'est le seul reglage d'apparence qui reste, et les deux
+    # applications doivent l'entendre pareil.
+    from zyroom.config import Settings as _R
+    points["zoom.plage"] = [_R.ZOOM_NORMAL, _R.ZOOM_MAXIMUM]
+    points["zoom.facteur-au-maximum"] = round(
+        _R.ZOOM_MAXIMUM / _R.ZOOM_NORMAL, 2)
+    points["zoom.pas"] = 8
     points["police.corps"] = CORPS_RELEVE
     from PySide6.QtGui import QFontMetrics
     # Arrondi a la dizaine, comme du cote GTK : voir `releve_gtk.py`.
@@ -724,6 +732,10 @@ def main() -> int:
     # bureau » en GTK : sans cela le controle comparerait ses deux reglages.
     from zyroom.config import Settings as _Reglages
     _Reglages.font_size = property(lambda _soi: CORPS_RELEVE)
+    # Et le zoom a un : c'est desormais lui qui commande la taille du texte
+    # comme celle des images, et deux fenetres zoomees differemment ne se
+    # comparent pas.
+    _Reglages.icon_size = property(lambda _soi: _Reglages.ZOOM_NORMAL)
     app = QApplication([])
     app.setStyleSheet(theme.feuille(CORPS_RELEVE))
     try:

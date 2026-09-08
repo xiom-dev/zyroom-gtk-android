@@ -330,8 +330,29 @@ class Settings:
     #: quand chacun se reconnait sans se pencher.
     @property
     def icon_size(self) -> int:
-        return max(24, min(128, self._ini.getint("GENERAL", "IconSize",
-                                                 fallback=48)))
+        # Entre la taille normale et le double : c'est le zoom de toute
+        # l'application, texte compris, et le reduire sous quarante-huit
+        # rendrait les lettres illisibles au lieu de rendre service.
+        return max(self.ZOOM_NORMAL,
+                   min(self.ZOOM_MAXIMUM,
+                       self._ini.getint("GENERAL", "IconSize", fallback=48)))
+
+    #: Le zoom : ce que valent les icones rapporte a leur taille normale.
+    #:
+    #: **Un seul reglage pour tout agrandir.** Il y en avait deux -- la taille
+    #: des icones et celle du texte --, pour une seule chose qu'on veut
+    #: vraiment : voir plus gros. La guilde compte quelques joueurs a lunettes,
+    #: et leur demander de regler deux nombres au lieu d'un n'avait pas de
+    #: sens. Les boutons + et - de la barre du haut agrandissent desormais les
+    #: images, le texte, les bordures et les hauteurs de rangees ensemble ; le
+    #: reglage « Taille du texte » a disparu des Options.
+    ZOOM_NORMAL = 48
+    ZOOM_MAXIMUM = 96
+
+    @property
+    def zoom(self) -> float:
+        """Un pour la taille normale, deux pour le double."""
+        return self.icon_size / self.ZOOM_NORMAL
 
     @icon_size.setter
     def icon_size(self, value: int) -> None:

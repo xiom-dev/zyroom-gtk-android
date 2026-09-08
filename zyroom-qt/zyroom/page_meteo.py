@@ -93,7 +93,8 @@ class CourbeMeteo(QWidget):
         peintre = QPainter(self)
         peintre.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         police = QFont()
-        police.setPointSize(8)
+        # Au zoom courant : le texte peint ne passe pas par la feuille.
+        police.setPointSizeF(8 * theme.zoom_courant())
         peintre.setFont(police)
 
         # Tout se repere en heures d'Atys, et non en indices de cycle : c'est

@@ -23,6 +23,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
+from . import theme
 from . import carte
 
 #: Jusqu'ou l'agrandissement va. Au-dela, on n'ajoute plus que du flou.
@@ -55,7 +56,10 @@ def texte_cerne(peintre: QPainter, x: float, y: float, texte: str) -> None:
     if not texte:
         return
     police = QFont()
-    police.setPointSize(10)
+    # Au zoom courant, comme le texte peint de la carte GTK : ce que le
+    # peintre dessine ne passe pas par la feuille de style et ne suivrait
+    # rien sans cela.
+    police.setPointSizeF(10 * theme.zoom_courant())
     peintre.setFont(police)
     peintre.setPen(CERNE)
     for dx in (-1, 0, 1):

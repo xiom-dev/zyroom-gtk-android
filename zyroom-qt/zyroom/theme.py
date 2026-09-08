@@ -141,12 +141,41 @@ def _corps_du_bureau() -> float:
     """
     from PySide6.QtWidgets import QApplication
 
+    return _corps_du_bureau_brut() * echelle_du_bureau()
+
+
+def _corps_du_bureau_brut() -> float:
+    """Le meme, sans l'agrandissement du bureau.
+
+    C'est lui que le zoom multiplie et que `feuille` recoit : elle applique
+    l'agrandissement de son cote, et le compter deux fois donnerait un texte
+    d'un quart trop grand sur un bureau regle a 1,25.
+    """
+    from PySide6.QtWidgets import QApplication
+
     app = QApplication.instance()
     corps = app.font().pointSizeF() if app is not None else -1.0
-    corps = corps if corps > 0 else 11.0
-    # La police que Qt rend est celle du bureau, mais sans son agrandissement :
-    # GNOME le tient a part, dans `text-scaling-factor`.
-    return corps * echelle_du_bureau()
+    return corps if corps > 0 else 11.0
+
+
+def corps_de_base(reglages) -> float:
+    """Le corps du texte avant le zoom, en points.
+
+    Celui du bureau, sauf si le fichier de reglages en impose un autre.
+
+    **`FontSize` n'a plus de reglage dans les Options** : le zoom a pris sa
+    place, et deux nombres pour une seule chose -- voir plus gros -- n'avaient
+    pas de sens. La cle reste lue : elle sert au banc de parite, qui doit
+    poser le meme corps aux deux applications, et elle laisse leur choix a
+    ceux qui l'avaient deja reglee.
+    """
+    return (float(reglages.font_size) if reglages.font_size > 0
+            else _corps_du_bureau_brut())
+
+
+def corps_a_l_ecran(reglages) -> float:
+    """Le corps du texte tel qu'il se voit : celui de base, fois le zoom."""
+    return corps_de_base(reglages) * reglages.zoom
 
 
 #: La coche des cases a cocher. Chemin absolu construit a cote de ce module :
@@ -172,10 +201,19 @@ COCHE = _symbole("coche.png")
 CHEVRON = _symbole("chevron.png")
 
 
-def feuille(taille: int = 0) -> str:
+def feuille(taille: float = 0, zoom: float = 1.0) -> str:
     """Les accents, par-dessus la palette. Prête pour `setStyleSheet`.
 
-    `taille` est le corps du texte en points, zéro pour celui du bureau.
+    `taille` est le corps du texte en points, zéro pour celui du bureau, et
+    `zoom` le facteur d'agrandissement de toute l'application.
+
+    **Toutes les longueurs suivent le zoom, et pas seulement le texte.** Les
+    hauteurs minimales, les remplissages, les rayons et les bordures sont
+    écrits en pixels : à deux cents pour cent, un texte deux fois plus grand
+    se serait retrouvé rogné dans des boutons restés à leur taille. Ludo l'a
+    demandé explicitement — « je veux que le zoom grossisse entièrement les
+    appli ». Les nombres sans unité sont laissés tels quels : ce sont des
+    poids et des opacités, qui n'ont pas de taille.
 
     **Il doit passer par ici, et non par `QApplication.setFont`.** Appliquer
     une feuille de style fait repolir tous les widgets, et Qt leur redonne
@@ -187,7 +225,10 @@ def feuille(taille: int = 0) -> str:
     # L'echelle du bureau s'applique a tout ce qui suit : c'est ce que GTK
     # fait de son cote, et sans quoi le meme reglage donne deux tailles.
     echelle = echelle_du_bureau()
-    taille = taille * echelle if taille > 0 else 0
+    # Et le zoom par-dessus : le corps recu est celui d'avant, pour que la
+    # multiplication se fasse ici seulement -- un appelant qui l'aurait faite
+    # de son cote donnerait un texte deux fois zoome.
+    taille = taille * zoom * echelle if taille > 0 else 0
 
     corps = ""
     if taille > 0:
@@ -214,7 +255,7 @@ def feuille(taille: int = 0) -> str:
     # pas exprimer en pourcentage.
     corps += (f"QLabel#signature, QPushButton#signature "
               f"{{ font-size: {base * 0.9:.2f}pt; }}\n")
-    return corps + """
+    sortie = corps + """
 /* Les bandes qui encadrent la grille : la barre du haut, celle des deux
    selecteurs, et le pied. Un cran sous le fond, pour tenir la grille entre
    elles au lieu de s'y fondre. */
@@ -830,6 +871,41 @@ QPushButton#compteur-bouton:pressed { background-color: %(fond)s; }
 /* Eteint a la borne : le compteur dit ce qu'il peut encore faire. */
 QPushButton#compteur-bouton:disabled { color: #5c6462; }
 """ % dict(COULEURS, coche=COCHE, chevron=CHEVRON)
+    global _ZOOM
+    _ZOOM = zoom
+    return _au_zoom(sortie, zoom)
+
+
+#: Le zoom de la derniere feuille posee.
+#:
+#: **Il faut bien que le code Python le sache, lui aussi.** Tout ce que la
+#: feuille de style porte suit le zoom toute seule ; mais l'application calcule
+#: aussi des largeurs et des hauteurs en pixels -- la place du chevron d'un
+#: selecteur, la hauteur d'une ligne de journal --, et celles-la doivent suivre
+#: le meme facteur. Sans quoi, a deux cents pour cent, « La Lune Eternelle »
+#: s'affichait « La Lu » : le texte avait double, la boite non.
+_ZOOM = 1.0
+
+
+def zoom_courant() -> float:
+    """Le facteur de la derniere feuille posee."""
+    return _ZOOM
+
+
+def px(pixels: float) -> int:
+    """Une longueur en pixels, au zoom courant."""
+    return max(1, round(pixels * _ZOOM))
+
+
+def _au_zoom(feuille: str, zoom: float) -> str:
+    """La feuille, toutes ses longueurs en pixels multipliees par le zoom."""
+    import re
+
+    if abs(zoom - 1.0) < 0.01:
+        return feuille
+    return re.sub(r"(\d+)px",
+                  lambda m: f"{max(1, round(int(m.group(1)) * zoom))}px",
+                  feuille)
 
 
 #: La couleur qu'Adwaita donne au texte -- et donc a l'icone -- d'un bouton.

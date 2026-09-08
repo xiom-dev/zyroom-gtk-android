@@ -82,7 +82,9 @@ def main(argv: list[str] | None = None) -> int:
     app.setPalette(theme.palette())
     # La taille du texte voyage dans la feuille de style : posee sur
     # l'application, elle serait effacee au premier polish. Voir theme.feuille.
-    app.setStyleSheet(theme.feuille(Settings().font_size))
+    reglages = Settings()
+    app.setStyleSheet(theme.feuille(theme.corps_de_base(reglages),
+                                    reglages.zoom))
 
     fenetre = FenetrePrincipale()
     fenetre.show()
