@@ -27,12 +27,33 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#10171a">
 <style>
-  :root { color-scheme: light dark; }
+  /* **La palette des applications, et non celle du navigateur.** La page
+     suivait le reglage clair ou sombre du visiteur : elle s'affichait blanche
+     chez les uns, sombre chez les autres, et ne ressemblait a rien de ce
+     qu'elle propose au telechargement. Ce sont les cinq couleurs d'Android,
+     les memes que portent ZyRoom-GTK et ZyRoom-Qt -- le presque-noir du fond,
+     la surface un cran au-dessus, le sarcelle des boutons et l'or des titres.
+     La page a desormais l'air de ce qu'elle distribue. */
+  :root {
+    color-scheme: dark;
+    --fond: #10171a;
+    --surface: #172226;
+    --texte: #e2e8e6;
+    --texte-faible: #9aa8a5;
+    --sarcelle: #3f7a68;
+    --or: #e8c15a;
+    --trait: rgba(226, 232, 230, .16);
+  }
   /* Soixante rem, et non quarante : les captures tiennent alors a droite du
      texte sans le comprimer. Le texte ne s'etale pas pour autant -- chaque
      bloc garde sa propre largeur, plus bas. */
   body { font-family: system-ui, sans-serif; line-height: 1.65; max-width: 60rem;
-         margin: 3rem auto; padding: 0 1.2rem; }
+         margin: 3rem auto; padding: 0 1.2rem;
+         background: var(--fond); color: var(--texte); }
+  /* Le fond sur `html` aussi : `body` s'arrete a son contenu, et sur un grand
+     ecran la bande sous la page serait restee blanche. */
+  html { background: var(--fond); }
+  a { color: #8fbfae; }
   /* Hors des sections d'application, le texte reste a quarante rem : une ligne
      de soixante rem se lit mal, l'oeil perd le debut de la suivante. */
   body > p, body > ul, body > ol, body > .aparte, body > .avis, footer {
@@ -40,18 +61,19 @@
   /* Le chapeau au centre : le titre et sa phrase coiffent toute la page, et
      non la seule colonne de gauche. Le reste garde son alignement -- un
      paragraphe centre se lit mal, chaque ligne commencant ailleurs. */
-  h1 { font-size: 1.7rem; margin-bottom: .2rem; text-align: center; }
+  h1 { font-size: 1.7rem; margin-bottom: .2rem; text-align: center;
+       color: var(--or); }
   h1 + .sub { text-align: center; }
   h2 { font-size: 1.15rem; margin-top: 2.4rem; }
-  .sub { color: #7a7a7a; margin-top: 0; }
+  .sub { color: var(--texte-faible); margin-top: 0; }
   h2 + .sub { margin: -.15rem 0 .9rem; font-size: .93rem; }
   .bouton { display: inline-block; background: #3f7a68; color: #fff;
             text-decoration: none; padding: .7rem 1.3rem; border-radius: 7px;
             font-weight: 600; margin: .3rem .4rem .3rem 0; }
-  pre { background: rgba(127,127,127,.14); padding: .7rem .9rem; border-radius: 6px;
+  pre { background: var(--surface); padding: .7rem .9rem; border-radius: 6px;
         overflow-x: auto; font-size: .9rem; }
-  .aparte { border-left: 3px solid rgba(127,127,127,.4); padding-left: 1rem;
-            color: #7a7a7a; font-size: .93rem; }
+  .aparte { border-left: 3px solid var(--sarcelle); padding-left: 1rem;
+            color: var(--texte-faible); font-size: .93rem; }
   .avis { border: 1px solid #b4884a; border-left-width: 4px;
           background: rgba(180,136,74,.10); padding: .8rem 1rem;
           border-radius: 5px; margin: .8rem 0; }
@@ -70,10 +92,10 @@
      largeur suit -- les fenetres de bureau s'arretent a la largeur de la
      colonne, le telephone a sa hauteur. */
   .apercus img { max-width: 100%; max-height: 17rem; width: auto; height: auto;
-                 border-radius: 6px; border: 1px solid rgba(127,127,127,.35);
+                 border-radius: 6px; border: 1px solid var(--trait);
                  background: #10171a; }
   .apercus figure { text-align: center; }
-  .apercus figcaption { font-size: .87rem; color: #7a7a7a; margin-top: .35rem; }
+  .apercus figcaption { font-size: .87rem; color: var(--texte-faible); margin-top: .35rem; }
   /* Une application et sa capture, cote a cote. La capture passe dessous des
      que la page n'a plus la largeur -- `wrap` s'en charge, sans media query.
      Le texte garde une largeur lisible : `flex: 1 1 18rem` lui donne dix-huit
@@ -90,12 +112,12 @@
      hauteur commande et la largeur suit -- une capture de telephone est deux
      fois plus haute que large, et a largeur egale elle ecrasait la page. */
   .appli .vue img { max-width: 100%; max-height: 17rem; width: auto; height: auto;
-                    border-radius: 6px; border: 1px solid rgba(127,127,127,.35);
+                    border-radius: 6px; border: 1px solid var(--trait);
                     background: #10171a; }
-  .version { font-size: .8rem; font-weight: 400; color: #7a7a7a;
+  .version { font-size: .8rem; font-weight: 400; color: var(--texte-faible);
              margin-left: .5rem; }
-  footer { margin-top: 3rem; font-size: .87rem; color: #7a7a7a;
-           border-top: 1px solid rgba(127,127,127,.3); padding-top: 1rem; }
+  footer { margin-top: 3rem; font-size: .87rem; color: var(--texte-faible);
+           border-top: 1px solid var(--trait); padding-top: 1rem; }
 </style>
 
 <h1>Les applications de La Lune Éternelle</h1>
