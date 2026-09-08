@@ -26,6 +26,7 @@ from datetime import datetime
 
 from PySide6.QtCore import QEvent, QSize, Qt, QObject, QTimer, Signal
 from PySide6.QtGui import (QAction, QColor, QFont, QGuiApplication, QIcon,
+                           QKeySequence, QShortcut,
                            QPainter, QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QSizePolicy,
@@ -562,7 +563,8 @@ class FenetrePrincipale(QMainWindow):
         colonne.setSpacing(0)
 
         colonne.addWidget(self._entete())
-        colonne.addWidget(self._barre_entite())
+        self._ligne_entite = self._barre_entite()
+        colonne.addWidget(self._ligne_entite)
         colonne.addWidget(self._motd())
 
         self._pile = QStackedWidget()
@@ -847,6 +849,11 @@ class FenetrePrincipale(QMainWindow):
         ligne.addWidget(self._img_motd)
         self._motd_lbl = QLabel()
         self._motd_lbl.setWordWrap(True)
+        # Selectionnable a la souris, comme la `Gtk.Label` de la version GTK :
+        # le message de guilde donne des rendez-vous, des noms de lieux et des
+        # heures qu'on veut recopier ailleurs plutot que de les retaper.
+        self._motd_lbl.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
         ligne.addWidget(self._motd_lbl, 1)
         self._motd_boite.setVisible(False)
         return self._motd_boite
@@ -1105,6 +1112,15 @@ class FenetrePrincipale(QMainWindow):
         self._table.setIconSize(QSize(cote, cote))
         self._table.setVerticalScrollMode(
             QAbstractItemView.ScrollMode.ScrollPerPixel)
+        # **Une ligne se copie.** Le bouton « Copier » prend tout ce qui est
+        # affiche -- des milliers de lignes -- quand on ne veut souvent qu'une
+        # date, un nom d'objet, un montant a recopier ailleurs. Le clic droit
+        # et Ctrl+C prennent la selection, comme dans n'importe quel tableau.
+        self._table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._menu_journal)
+        raccourci = QShortcut(QKeySequence.StandardKey.Copy, self._table)
+        raccourci.activated.connect(self._copier_lignes_journal)
         # Chaque colonne a la largeur de son contenu, et la place qui reste
         # s'ajoute a la derniere. C'est la disposition de la version GTK, ou
         # les six colonnes se serrent a gauche : etirer celle du nom -- ce
@@ -1361,6 +1377,36 @@ class FenetrePrincipale(QMainWindow):
                 cellule.setIcon(icone)
         return arrivee
 
+    def _lignes_journal_choisies(self) -> list:
+        """Le texte des lignes selectionnees, une chaine par ligne."""
+        lignes = []
+        for rang in sorted({c.row() for c in self._table.selectedIndexes()}):
+            cases = [self._table.item(rang, colonne) for colonne in range(6)]
+            mots = [case.text() for case in cases if case is not None
+                    and case.text()]
+            if mots:
+                lignes.append("  ".join(mots))
+        return lignes
+
+    def _copier_lignes_journal(self) -> None:
+        lignes = self._lignes_journal_choisies()
+        if not lignes:
+            return
+        QApplication.clipboard().setText("\n".join(lignes))
+        self._statut(_("{} ligne(s) copiée(s).").format(len(lignes)))
+
+    def _menu_journal(self, point) -> None:
+        """Le clic droit sur une ligne du journal."""
+        if self._table.rowAt(point.y()) < 0:
+            return
+        menu = QMenu(self._table)
+        theme.arrondir_popup(menu)
+        combien = len(self._lignes_journal_choisies())
+        menu.addAction(_("Copier la ligne") if combien <= 1
+                       else _("Copier les {} lignes").format(combien),
+                       self._copier_lignes_journal)
+        menu.exec(self._table.viewport().mapToGlobal(point))
+
     def _on_journal_copier(self) -> None:
         lignes = [movements.describe(mv, self._names.name)
                   for mv in self._journal_filtre()]
@@ -1455,13 +1501,17 @@ class FenetrePrincipale(QMainWindow):
         fermer l'application, et l'on croyait qu'il ne marchait pas.
         """
         reglages = self._settings
-        taille = max(reglages.ZOOM_NORMAL,
-                     min(reglages.ZOOM_MAXIMUM, reglages.icon_size + pas))
-        if taille == reglages.icon_size:
+        voulu = reglages.zoom_voisin(1 if pas > 0 else -1)
+        if voulu == reglages.zoom:
             return
-        reglages.icon_size = taille
+        reglages.zoom = voulu
         self._poser_la_feuille()
         self._appliquer_taille_icones()
+        # **La barre du haut se recentre.** La cale qui centre la navigation a
+        # une largeur fixe, calculee au montage : apres un zoom elle gardait
+        # celle d'avant, la barre debordait de cent quarante pixels et ses
+        # boutons de droite sortaient de la fenetre.
+        self._equilibrer_barre()
         self._statut(_("Zoom : {} %").format(round(reglages.zoom * 100)))
 
     def _appliquer_taille_icones(self) -> None:

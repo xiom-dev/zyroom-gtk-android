@@ -685,10 +685,15 @@ def relever(f: FenetrePrincipale) -> dict:
     # maximum. C'est le seul reglage d'apparence qui reste, et les deux
     # applications doivent l'entendre pareil.
     from zyroom.config import Settings as _R
-    points["zoom.plage"] = [_R.ZOOM_NORMAL, _R.ZOOM_MAXIMUM]
-    points["zoom.facteur-au-maximum"] = round(
-        _R.ZOOM_MAXIMUM / _R.ZOOM_NORMAL, 2)
-    points["zoom.pas"] = 8
+    # Jusqu'ou la fenetre se laisse reduire. Il y avait la, cote GTK, une
+    # barre de defilement horizontale : elle permettait a la fenetre de
+    # retrecir sans fin, et a deux cents pour cent on faisait glisser la
+    # fenetre entiere pour lire la saison. Sans elle, chaque toolkit refuse
+    # de lui-meme de descendre sous la largeur de son contenu -- et c'est
+    # cette largeur-la qu'on compare.
+    points["geo.fenetre.plancher"] = f.minimumSizeHint().width()
+    points["zoom.crans"] = list(_R.PALIERS_ZOOM)
+    points["zoom.icone-normale"] = _R.ICONE_NORMALE
     points["police.corps"] = CORPS_RELEVE
     from PySide6.QtGui import QFontMetrics
     # Arrondi a la dizaine, comme du cote GTK : voir `releve_gtk.py`.
@@ -735,7 +740,7 @@ def main() -> int:
     # Et le zoom a un : c'est desormais lui qui commande la taille du texte
     # comme celle des images, et deux fenetres zoomees differemment ne se
     # comparent pas.
-    _Reglages.icon_size = property(lambda _soi: _Reglages.ZOOM_NORMAL)
+    _Reglages.zoom = property(lambda _soi: 1.0)
     app = QApplication([])
     app.setStyleSheet(theme.feuille(CORPS_RELEVE))
     try:

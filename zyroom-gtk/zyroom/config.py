@@ -328,36 +328,64 @@ class Settings:
     #: Quarante-huit est ce que rend l'API ; au-dela l'image est agrandie et
     #: se ramollit, mais une grille de deux cents objets se parcourt mieux
     #: quand chacun se reconnait sans se pencher.
-    @property
-    def icon_size(self) -> int:
-        # Entre la taille normale et le double : c'est le zoom de toute
-        # l'application, texte compris, et le reduire sous quarante-huit
-        # rendrait les lettres illisibles au lieu de rendre service.
-        return max(self.ZOOM_NORMAL,
-                   min(self.ZOOM_MAXIMUM,
-                       self._ini.getint("GENERAL", "IconSize", fallback=48)))
-
-    #: Le zoom : ce que valent les icones rapporte a leur taille normale.
+    #: Les crans du zoom, en pour cent.
     #:
-    #: **Un seul reglage pour tout agrandir.** Il y en avait deux -- la taille
-    #: des icones et celle du texte --, pour une seule chose qu'on veut
-    #: vraiment : voir plus gros. La guilde compte quelques joueurs a lunettes,
-    #: et leur demander de regler deux nombres au lieu d'un n'avait pas de
-    #: sens. Les boutons + et - de la barre du haut agrandissent desormais les
-    #: images, le texte, les bordures et les hauteurs de rangees ensemble ; le
-    #: reglage « Taille du texte » a disparu des Options.
-    ZOOM_NORMAL = 48
-    ZOOM_MAXIMUM = 96
+    #: **Un cran sous cent, comme demande.** Le zoom ne descendait pas plus
+    #: bas que la taille normale ; quatre-vingts pour cent rendent service sur
+    #: un petit ecran, et plus bas le texte cesserait d'etre lisible -- ce qui
+    #: irait contre le but meme de ce reglage.
+    #:
+    #: Des pour-cent ronds plutot qu'un pas en pixels : c'est le zoom qu'on
+    #: regle, et « 120 % » se dit et s'ecrit, la ou « cinquante-huit pixels
+    #: d'icone » ne veut rien dire pour personne.
+    PALIERS_ZOOM = (80, 100, 120, 140, 160, 180, 200)
+
+    #: Le cote d'une icone d'inventaire a cent pour cent, en pixels.
+    #:
+    #: Quarante-huit est ce que rend l'API ; au-dela l'image est agrandie et
+    #: se ramollit un peu, mais une grille de deux cents objets se parcourt
+    #: mieux quand chacun se reconnait sans se pencher.
+    ICONE_NORMALE = 48
 
     @property
     def zoom(self) -> float:
-        """Un pour la taille normale, deux pour le double."""
-        return self.icon_size / self.ZOOM_NORMAL
+        """Un pour la taille normale, deux pour le double.
 
-    @icon_size.setter
-    def icon_size(self, value: int) -> None:
-        self._ini.set("GENERAL", "IconSize", str(int(value)))
+        **Le seul reglage d'apparence.** Il commande la taille des images, du
+        texte, des bordures et des hauteurs de rangees ensemble : il y en
+        avait deux -- la taille des icones et celle du texte --, pour une
+        seule chose qu'on veut vraiment, voir plus gros.
+
+        L'ancienne cle `IconSize` sert encore de valeur de depart a ceux qui
+        avaient regle leurs icones : leur zoom part du cran le plus proche de
+        ce qu'ils avaient, et n'est plus relu ensuite.
+        """
+        cent = self._ini.getint("GENERAL", "Zoom", fallback=0)
+        if not cent:
+            ancien = self._ini.getint("GENERAL", "IconSize",
+                                      fallback=self.ICONE_NORMALE)
+            cent = round(ancien * 100 / self.ICONE_NORMALE)
+        return self._cran(cent) / 100
+
+    @zoom.setter
+    def zoom(self, valeur: float) -> None:
+        self._ini.set("GENERAL", "Zoom", str(self._cran(round(valeur * 100))))
         self._flush()
+
+    def _cran(self, cent: int) -> int:
+        """Le cran de zoom le plus proche d'un pourcentage quelconque."""
+        return min(self.PALIERS_ZOOM, key=lambda p: abs(p - cent))
+
+    def zoom_voisin(self, sens: int) -> float:
+        """Le cran suivant (sens positif) ou precedent, ou celui-ci au bout."""
+        crans = self.PALIERS_ZOOM
+        rang = crans.index(self._cran(round(self.zoom * 100)))
+        return crans[max(0, min(len(crans) - 1, rang + sens))] / 100
+
+    @property
+    def icon_size(self) -> int:
+        """Le cote des icones de la grille : la taille normale, au zoom."""
+        return round(self.ICONE_NORMALE * self.zoom)
 
     def icone(self, part: float, mini: int = 12) -> int:
         """Une taille d'icône proportionnelle à celle de l'inventaire."""

@@ -45,7 +45,7 @@ for app in zyroom-gtk zyroom-qt; do
 WindowWidth = $LARGEUR
 WindowHeight = $HAUTEUR
 FontSize = $CORPS
-IconSize = 48
+Zoom = 100
 SyncOnStart = 0
 SyncInterval = 0
 Notifications = 0

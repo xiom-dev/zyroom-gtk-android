@@ -285,28 +285,22 @@ class MainWindow(Gtk.ApplicationWindow):
             header.pack_start(bouton)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        # **Tout glisse ensemble, et non les seules pages.** Enfermer la pile
-        # seule laissait la barre des entités, celle du volume et le pied se
-        # faire couper pendant que le tableau, lui, glissait : la fenêtre se
-        # déchirait en deux au lieu de suivre d'un bloc.
-        #
-        # Rien en vertical ici : chaque page a déjà son propre défilement, et
-        # deux ascenseurs empilés se disputeraient la molette.
-        glissiere_fenetre = Gtk.ScrolledWindow()
-        glissiere_fenetre.set_policy(Gtk.PolicyType.AUTOMATIC,
-                                     Gtk.PolicyType.NEVER)
-        glissiere_fenetre.set_child(root)
-        # Sans fond propre : une `Gtk.ScrolledWindow` peint le sien, et la
-        # bande de huit pixels qui sépare la ligne de volume de la grille
-        # disparaissait sous lui — la comparaison par l'image l'a vue tout de
-        # suite, cinq bandes chez GTK contre six chez Qt.
-        glissiere_fenetre.add_css_class("glissiere-fenetre")
-        self.set_child(glissiere_fenetre)
+        # **Pas de barre de defilement horizontale.** Il y en a eu une, pour
+        # que la fenetre reste utilisable une fois reduite. A deux cents pour
+        # cent elle devenait la regle, et l'on faisait glisser la fenetre
+        # entiere pour lire la saison -- qui n'est jamais qu'un mot au bout
+        # d'une ligne. La version Qt, elle, refuse simplement de se reduire
+        # sous la largeur de son contenu, et l'on voit toujours tout. Rien a
+        # ecrire pour cela : c'est ce que GTK fait de lui-meme des qu'on ne
+        # lui offre plus de quoi glisser.
+        self._racine = root
+        self.set_child(root)
 
         # Ligne 1 : portrait, sélecteurs d'entité et d'inventaire, dappers
         bar1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         # Le même gris sombre qu'en bas : les deux bandes encadrent le tableau.
         bar1.add_css_class("barre-etat")
+        self._ligne_entite = bar1
         root.append(bar1)
         bar1.append(Gtk.Label(label=_("Entité :")))
         self._entity_dd = Gtk.DropDown(model=Gtk.StringList())
@@ -383,7 +377,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self._motd_img.set_valign(Gtk.Align.START)
         self._images_boutons.append((self._motd_img, self.PART_ICONE_BOUTON))
         self._motd_box.append(self._motd_img)
-        self._motd_lbl = Gtk.Label(xalign=0.0, wrap=True, hexpand=True)
+        # Selectionnable : le message de guilde donne des rendez-vous, des
+        # noms de lieux et des heures qu'on veut recopier ailleurs plutot
+        # que de les retaper.
+        self._motd_lbl = Gtk.Label(xalign=0.0, wrap=True, hexpand=True,
+                                   selectable=True)
         self._motd_box.append(self._motd_lbl)
         self._motd_box.set_visible(False)
         root.append(self._motd_box)
@@ -667,6 +665,14 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self._log_grid = Gtk.Grid(column_spacing=16, row_spacing=2)
         self._pad(self._log_grid)
+        # **Une ligne se copie.** Le bouton « Copier » prend tout ce qui est
+        # affiche -- des milliers de lignes -- quand on ne veut souvent qu'une
+        # date, un nom d'objet, un montant a recopier ailleurs. Chaque
+        # etiquette se selectionne deja a la souris ; le clic droit prend la
+        # ligne entiere d'un coup.
+        clic = Gtk.GestureClick(button=3)
+        clic.connect("pressed", self._on_journal_clic_droit)
+        self._log_grid.add_controller(clic)
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
@@ -2948,7 +2954,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self._log_grid.attach(when, 0, row, 1, 1)
 
             where = Gtk.Label(label=self._sans_parenthese(mv.inv_label),
-                              xalign=0.0)
+                              xalign=0.0, selectable=True)
             where.add_css_class("dim-label")
             self._log_grid.attach(where, 1, row, 1, 1)
 
@@ -2989,7 +2995,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     self._icone_journal(generation, icone))
 
             quality = Gtk.Label(label=f"Q{mv.quality}" if mv.quality else "",
-                                xalign=0.0)
+                                xalign=0.0, selectable=True)
             quality.add_css_class("dim-label")
             # C'est la derniere colonne qui prend l'espace libre, et non celle
             # des noms : la qualite se pose alors juste apres l'icone, sous le
@@ -3020,6 +3026,49 @@ class MainWindow(Gtk.ApplicationWindow):
         elif page == "plus":
             # C'est la sous-page visible qui décide ce qu'il faut charger.
             self._on_plus_changed()
+
+    def _rang_du_journal(self, y: float):
+        """Le rang de la grille du journal sous cette ordonnée, ou None."""
+        enfant = self._log_grid.get_first_child()
+        while enfant is not None:
+            ok, cadre = enfant.compute_bounds(self._log_grid)
+            if ok and cadre.origin.y <= y < cadre.origin.y + cadre.size.height:
+                return self._log_grid.query_child(enfant)[1]
+            enfant = enfant.get_next_sibling()
+        return None
+
+    def _texte_du_rang(self, rang: int) -> str:
+        """Les mots d'une ligne du journal, dans l'ordre des colonnes."""
+        mots = []
+        for colonne in range(6):
+            case = self._log_grid.get_child_at(colonne, rang)
+            if isinstance(case, Gtk.Label) and case.get_text():
+                mots.append(case.get_text())
+        return "  ".join(mots)
+
+    def _on_journal_clic_droit(self, geste, _n, x, y) -> None:
+        """Propose de copier la ligne sous le pointeur."""
+        rang = self._rang_du_journal(y)
+        if rang is None:
+            return
+        texte = self._texte_du_rang(rang)
+        if not texte:
+            return
+        bouton = Gtk.Button(label=_("Copier la ligne"))
+        bouton.add_css_class("flat")
+        popover = Gtk.Popover()
+        popover.add_css_class("menu")
+        popover.set_child(bouton)
+        popover.set_parent(self._log_grid)
+        popover.set_pointing_to(Gdk.Rectangle(x=int(x), y=int(y),
+                                              width=1, height=1))
+
+        def copier(_b):
+            self.get_clipboard().set(texte)
+            popover.popdown()
+            self._set_status(_("Ligne copiée."))
+        bouton.connect("clicked", copier)
+        popover.popup()
 
     def _on_log_copy(self, _btn) -> None:
         lines = [movements.describe(mv, self._names.name)
@@ -4125,11 +4174,6 @@ class MainWindow(Gtk.ApplicationWindow):
                suffisent : l'image tient, et les lignes se suivent. */
             dropdown > popover listview > row {
                 min-height: 0; padding-top: 2px; padding-bottom: 2px; }
-
-            /* La glissière qui porte toute la fenêtre ne peint rien : ce
-               qu'elle contient a déjà ses fonds, et le sien les recouvrait. */
-            .glissiere-fenetre, .glissiere-fenetre > viewport {
-                background-color: transparent; }
 
             .separation-jour { background-color: alpha(@zy_or, 0.55);
                                min-height: 1px; }
@@ -5325,11 +5369,10 @@ class MainWindow(Gtk.ApplicationWindow):
         pas.
         """
         reglages = self._settings
-        taille = max(reglages.ZOOM_NORMAL,
-                     min(reglages.ZOOM_MAXIMUM, reglages.icon_size + pas))
-        if taille == reglages.icon_size:
+        voulu = reglages.zoom_voisin(1 if pas > 0 else -1)
+        if voulu == reglages.zoom:
             return
-        reglages.icon_size = taille
+        reglages.zoom = voulu
         self._install_motd_css()
         self._appliquer_taille_boutons()
         self._redisplay_current()
