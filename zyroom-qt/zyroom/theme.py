@@ -323,8 +323,14 @@ QPushButton#nav, QToolButton#nav {
        en donnait vingt-neuf : trois de moins, visibles des qu'on pose les deux
        captures l'une sous l'autre. Vingt-sept depuis que les boutons portent
        une image de trente : c'est elle qui commande la hauteur, et la barre
-       de GTK en faisait trois de plus que la notre. */
-    min-height: 27px;
+       de GTK en faisait trois de plus que la notre.
+
+       **Trente depuis que le banc dit vrai.** Les vingt-sept avaient ete
+       cales sur des captures ou Qt recevait l'agrandissement du bureau et GTK
+       non : l'ecart qu'on croyait combler venait de la mesure, pas des
+       fenetres. A egalite de reglages, GTK fait trente-huit pixels de haut,
+       nous en faisions trente-cinq. */
+    min-height: 30px;
 }
 /* Le chevron du menu « Bonus ». Qt pose sa fleche par defaut dans le coin en
    bas a droite, minuscule et sombre ; GTK dessine un chevron clair a hauteur

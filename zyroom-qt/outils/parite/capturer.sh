@@ -21,6 +21,7 @@ set -euo pipefail
 
 racine=$(cd "$(dirname "$0")/../../.." && pwd)
 sortie=${1:-/tmp/parite-images}
+[ "$sortie" = "--comme-le-bureau" ] && sortie=/tmp/parite-images
 foyer=$sortie/home
 ecran=:99
 LARGEUR=1200
@@ -74,7 +75,7 @@ photographier() {   # $1 = nom, $2… = la commande
     shift
     local xpid
     xpid=$(demarrer_ecran | head -1)
-    HOME=$foyer DISPLAY=$ecran "$@" >/dev/null 2>&1 &
+    HOME=$foyer DISPLAY=$ecran $reglages "$@" >/dev/null 2>&1 &
     local app=$!
     # Le temps que la fenêtre se pose et que ses icônes arrivent du cache.
     sleep 14
@@ -83,6 +84,30 @@ photographier() {   # $1 = nom, $2… = la commande
     kill "$xpid" 2>/dev/null || true
     sleep 1
 }
+
+# **Le banc mentait sur les tailles, et voici pourquoi.** Le HOME est bien
+# jetable, mais `gsettings` ne le lit pas : il passe par dconf, donc par le bus
+# de session, et rapportait les reglages reels du bureau. La version Qt les
+# interroge -- l'agrandissement du texte, le theme d'icones -- et les
+# appliquait donc ; la version GTK, elle, les attend d'un demon XSettings, que
+# ce serveur X virtuel n'a pas. Sur un bureau regle a 1,25, les colonnes de Qt
+# paraissaient trente pour cent plus larges que celles de GTK, alors que les
+# deux fenetres sont identiques sur une vraie session.
+#
+# `GSETTINGS_BACKEND=memory` coupe court : les deux applications lisent alors
+# les valeurs par defaut du schema, les memes pour l'une et pour l'autre.
+#
+#   ./capturer.sh --comme-le-bureau   garde au contraire les reglages reels
+#
+# Les deux les recoivent alors ensemble : c'est ce qu'il faut pour reproduire
+# un defaut que le mainteneur voit chez lui, et que le banc neutre ne montre
+# pas. Dans les deux cas, ce qui compte est que les deux fenetres soient
+# logees a la meme enseigne.
+reglages="env GSETTINGS_BACKEND=memory"
+if [ "${1:-}" = "--comme-le-bureau" ] || [ "${2:-}" = "--comme-le-bureau" ]; then
+    reglages="env"
+    echo "Reglages du bureau conserves (agrandissement, theme d'icones)."
+fi
 
 echo "Capture de GTK…"
 photographier gtk env GDK_BACKEND=x11 python3 "$racine/zyroom-gtk/run.py"
