@@ -221,7 +221,11 @@ class PageMeteo(QWidget):
 
         barre = QWidget()
         ligne = QHBoxLayout(barre)
-        ligne.setContentsMargins(8, 8, 8, 0)
+        # Douze en bas : avec les quatre d'ecart de la colonne, cela
+        # fait les seize pixels qui separent la barre de la courbe en
+        # GTK -- huit sous la barre, huit au-dessus de la courbe, que
+        # `_pad` pose sur l'une et sur l'autre.
+        ligne.setContentsMargins(8, 8, 8, 12)
         ligne.setSpacing(8)
         self._entete = QLabel()
         self._entete.setWordWrap(True)

@@ -21,8 +21,12 @@ sys.path.insert(0, RACINE)
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import (QApplication, QLabel,  # noqa: E402
-                               QProgressBar)
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QFont  # noqa: E402
+from PySide6.QtWidgets import (QAbstractButton, QApplication,  # noqa: E402
+                               QCheckBox, QComboBox, QLabel, QLayout,
+                               QLineEdit, QProgressBar, QScrollArea,
+                               QSpinBox, QToolButton, QWidget, QWidgetAction)
 
 from zyroom import ryzom_api, theme  # noqa: E402
 from zyroom.fenetre import AIR_PORTRAIT, FenetrePrincipale  # noqa: E402
@@ -157,6 +161,166 @@ def page_de(fenetre, classe: str):
         if objet is not None and objet.__class__.__name__ == classe:
             return objet
     return None
+
+
+#: Les commandes qu'un panneau peut porter, et ou l'on cesse de descendre.
+#:
+#: Un `QComboBox` porte une liste et un champ, un `QSpinBox` un `QLineEdit`,
+#: un `QLineEdit` son bouton d'effacement. Descendre plus bas ferait compter
+#: trois commandes la ou l'oeil en voit une.
+COMMANDES = (QComboBox, QSpinBox, QLineEdit, QCheckBox, QAbstractButton,
+             QLabel)
+
+
+def sans_balises(mot: str) -> str:
+    """Le texte d'une etiquette, sans son balisage.
+
+    `QLabel.text()` rend ce qu'on lui a donne, gras compris : « <b>Bonus</b> ».
+    GTK, lui, rend « Bonus » -- son `get_text` ne connait que le texte. Les
+    deux disent la meme chose a l'ecran ; on les ramene ici a la meme chaine.
+    """
+    import re as _re
+    return _re.sub(r"<[^>]+>", "", mot or "")
+
+
+def commandes(quoi):
+    """Les commandes d'un panneau, dans l'ordre ou l'oeil les rencontre.
+
+    **On suit la mise en page, et non l'arbre des objets.** `findChildren`
+    rend les widgets dans l'ordre ou ils ont ete crees, qui n'est pas celui ou
+    ils paraissent : la liste des titres n'aurait pas ete comparable a celle
+    de GTK, qui suit ses enfants dans l'ordre d'affichage.
+    """
+    if isinstance(quoi, COMMANDES):
+        yield quoi
+        return
+    if isinstance(quoi, QLayout):
+        for i in range(quoi.count()):
+            element = quoi.itemAt(i)
+            if element.widget() is not None:
+                yield from commandes(element.widget())
+            elif element.layout() is not None:
+                yield from commandes(element.layout())
+        return
+    disposition = quoi.layout() if isinstance(quoi, QWidget) else None
+    if disposition is not None:
+        yield from commandes(disposition)
+        return
+    for enfant in quoi.children():
+        if isinstance(enfant, QWidget):
+            yield from commandes(enfant)
+
+
+def contenu_de_barre(barre) -> dict:
+    """Ce qu'une barre de filtres donne a lire.
+
+    Le pendant exact de la fonction du meme nom dans `releve_gtk.py` : mêmes
+    quatre clés, remplies aux mêmes règles.
+    """
+    lu = {"invite": None, "listes": [], "boutons": [], "etiquettes": []}
+    for w in commandes(barre):
+        if isinstance(w, QComboBox):
+            lu["listes"].append([w.itemText(i) for i in range(w.count())])
+        elif isinstance(w, (QSpinBox, QLineEdit)):
+            if isinstance(w, QLineEdit) and lu["invite"] is None:
+                lu["invite"] = w.placeholderText()
+        elif isinstance(w, QAbstractButton):
+            lu["boutons"].append(w.text())
+        elif isinstance(w, QLabel):
+            mot = sans_balises(w.text()).strip()
+            if mot:
+                lu["etiquettes"].append(mot)
+    return lu
+
+
+def textes_du_panneau(panneau) -> list:
+    """Tout ce qui se lit dans un panneau, dans l'ordre, sans les vides.
+
+    **Une seule liste, et non une par genre de commande.** Le panneau des
+    filtres pose ses quatre bonus differemment des deux cotes -- GTK met le
+    libelle dans la case a cocher, Qt le pose a cote --, si bien que trier par
+    genre opposerait deux listes qui decrivent pourtant le meme ecran.
+    """
+    mots = []
+    for w in commandes(panneau):
+        if isinstance(w, (QComboBox, QSpinBox)):
+            continue
+        mot = sans_balises(w.text() if hasattr(w, "text") else "").strip()
+        if mot:
+            mots.append(mot)
+    return mots
+
+
+def montrer_ecran(f, nom) -> None:
+    """Amene un ecran devant, et laisse Qt le poser.
+
+    Le pendant de la fonction du meme nom dans `releve_gtk.py` : une page
+    jamais affichee n'est pas mise en page, et ses widgets mesurent zero.
+    """
+    if nom == "inventaire":
+        f._montrer_page("inventory")
+    elif nom == "journal":
+        f._montrer_page("log")
+    else:
+        f._montrer_page("plus")
+        f._pile_bonus.setCurrentIndex(f._pages_bonus[nom])
+    QApplication.processEvents()
+
+
+def air_sous(barre, champ) -> int:
+    """Les pixels entre le bas du champ de la barre et ce qui suit la barre.
+
+    Le pendant de la fonction du meme nom dans `releve_gtk.py`, qui dit
+    pourquoi cet air se mesure au lieu de se lire dans les marges.
+    """
+    page = barre.parentWidget()
+    disposition = page.layout() if page is not None else None
+    if disposition is None or champ is None:
+        return -1
+    suivant = None
+    for i in range(disposition.count()):
+        if disposition.itemAt(i).widget() is barre:
+            for j in range(i + 1, disposition.count()):
+                if disposition.itemAt(j).widget() is not None:
+                    suivant = disposition.itemAt(j).widget()
+                    break
+            break
+    if suivant is None:
+        return -1
+    bas_du_champ = champ.mapTo(page, champ.rect().bottomLeft()).y() + 1
+    return suivant.mapTo(page, suivant.rect().topLeft()).y() - bas_du_champ
+
+
+def cote(case) -> str:
+    """De quel cote une cellule du journal cale son contenu."""
+    if case is None:
+        return "vide"
+    if not case.icon().isNull():
+        return "image"
+    drapeaux = case.textAlignment()
+    if drapeaux & Qt.AlignmentFlag.AlignRight:
+        return "droite"
+    if drapeaux & Qt.AlignmentFlag.AlignHCenter:
+        return "milieu"
+    return "gauche"
+
+
+def journal_temoin() -> list:
+    """Trois mouvements fabriques, les memes des deux cotes.
+
+    Le pendant de la fonction du meme nom dans `releve_gtk.py`, qui explique
+    pourquoi le journal ne se mesure ni a vide ni sur les donnees du joueur.
+    """
+    import time as _time
+
+    from zyroom import movements as _mv
+    jour = _time.localtime()
+    midi = _time.mktime((jour.tm_year, jour.tm_mon, jour.tm_mday,
+                         12, 0, 0, 0, 0, -1))
+    return [_mv.Movement(ts=midi - ecart, inv_key=_mv.MONEY_KEY,
+                         inv_label=_mv.MONEY_LABEL, sheet=_mv.MONEY_SHEET,
+                         quality=0, delta=combien)
+            for ecart, combien in ((0, 1750), (60, -320), (86400, -4))]
 
 
 def _geometrie(f: FenetrePrincipale) -> dict:
@@ -369,10 +533,10 @@ def relever(f: FenetrePrincipale) -> dict:
     # et leurs ordonnees : cote a cote, elles different en x et non en y.
     if compteurs:
         boutons = compteurs[0].findChildren(QAbstractButton)
-        cote = (len(boutons) == 2
-                and boutons[0].pos().y() == boutons[1].pos().y()
-                and boutons[0].pos().x() != boutons[1].pos().x())
-        points["options.compteur.boutons"] = ("cote a cote" if cote
+        appaires = (len(boutons) == 2
+                    and boutons[0].pos().y() == boutons[1].pos().y()
+                    and boutons[0].pos().x() != boutons[1].pos().x())
+        points["options.compteur.boutons"] = ("cote a cote" if appaires
                                               else "empiles")
     else:
         points["options.compteur.boutons"] = "aucun compteur"
@@ -397,6 +561,109 @@ def relever(f: FenetrePrincipale) -> dict:
     effectif = page_de(f, "PageEffectif")
     points["registre.vues"] = [b.text() for b in effectif._boutons.values()] \
         if effectif is not None and hasattr(effectif, "_boutons") else []
+
+    # --- Chaque ecran, sa barre de filtres ---------------------------------
+    # Le pendant exact du bloc du meme nom dans `releve_gtk.py`, qui dit
+    # pourquoi il existe.
+    for etat in (f._page_effectif._statut, f._page_avant_postes._statut,
+                 f._page_meteo._entete, f._lbl_journal,
+                 f._page_competences._statut):
+        etat.setText("")
+    f._btn_ordre.setText("↓")
+    # L'arbre des competences a ete deplie plus haut, pour mesurer ses jauges,
+    # et son bouton porte donc « Tout replier ». On le replie.
+    f._page_competences._deplies.clear()
+    f._page_competences.rafraichir()
+    for nom, champ in (("inventaire", f._recherche),
+                       ("journal", f._recherche_journal),
+                       ("skills", f._page_competences._recherche),
+                       ("roster", f._page_effectif._recherche),
+                       ("outposts", f._page_avant_postes._dd_vue),
+                       ("meteo", f._page_meteo._btn_actualiser)):
+        barre = champ.parentWidget()
+        lu = contenu_de_barre(barre)
+        points[f"{nom}.recherche.invite"] = lu["invite"]
+        points[f"{nom}.listes"] = lu["listes"]
+        points[f"{nom}.boutons"] = lu["boutons"]
+        points[f"{nom}.etiquettes"] = lu["etiquettes"]
+        montrer_ecran(f, nom)
+        points[f"geo.{nom}.champ.hauteur"] = champ.height()
+        points[f"geo.{nom}.air-sous-la-barre"] = air_sous(barre, champ)
+        # Hors marges : GTK les pose autour de sa barre, Qt dedans, et c'est
+        # la hauteur des commandes qu'on compare. Voir `releve_gtk.py`.
+        marges = barre.layout().contentsMargins()
+        points[f"geo.{nom}.barre.hauteur"] = (barre.height() - marges.top()
+                                              - marges.bottom())
+
+    # --- Le panneau des filtres, ouvert -------------------------------------
+    porteur = next(a for a in f._btn_filtres.menu().actions()
+                   if isinstance(a, QWidgetAction))
+    defilant = porteur.defaultWidget()
+    contenu_filtres = (defilant.widget() if isinstance(defilant, QScrollArea)
+                       else defilant)
+    points["filtres.panneau.textes"] = textes_du_panneau(contenu_filtres)
+    points["filtres.panneau.hauteur-max"] = defilant.maximumHeight()
+    points["filtres.qualite.bornes"] = [f._qmin.minimum(), f._qmin.maximum()]
+    points["filtres.qualite.pas"] = f._qmin.singleStep()
+    points["filtres.qualite.depart"] = [f._qmin.value(), f._qmax.value()]
+    points["filtres.cases"] = len(f._toutes_cases)
+
+    # --- Les deux menus de la barre du haut, ouverts eux aussi -------------
+    points["menu.bonus.libelles"] = [a.text()
+                                     for a in f._btn_plus.menu().actions()]
+    hamburger = next((b for b in f.findChildren(QToolButton)
+                      if b.text() == "☰" and b.menu() is not None), None)
+    points["menu.principal.libelles"] = (
+        [a.text() for a in hamburger.menu().actions()]
+        if hamburger is not None else [])
+
+    # --- Le journal, sur trois mouvements fabriques ------------------------
+    f._recherche_journal.setText("")
+    f._dd_journal.setCurrentIndex(0)
+    # La page d'abord : en arrivant sur le journal, la fenetre relit le cache
+    # du joueur, et les temoins poses avant seraient balayes.
+    f._montrer_page("log")
+    QApplication.processEvents()
+    f._journal = journal_temoin()
+    f._rafraichir_journal()
+    QApplication.processEvents()
+    points["journal.colonnes"] = f._table.columnCount()
+    points["journal.alignements"] = [cote(f._table.item(0, c))
+                                     for c in range(f._table.columnCount())]
+    for quoi, rang in (("entrant", 0), ("sortant", 1)):
+        montant = f._table.item(rang, 2)
+        points[f"journal.{quoi}.couleur"] = (
+            montant.foreground().color().name() if montant is not None
+            else "sans couleur")
+    horodatage = f._table.item(0, 0)
+    points["journal.horodatage.chasse-fixe"] = (
+        horodatage is not None
+        and horodatage.font().styleHint() == QFont.StyleHint.Monospace)
+    points["journal.icone.cote"] = f._table.iconSize().width()
+    points["journal.trait-de-jour.hauteur"] = f._table.rowHeight(2)
+    points["journal.trait-de-jour.rangee"] = 2
+    # En pixels depuis la premiere colonne : voir `releve_gtk.py`, qui dit
+    # pourquoi ce n'est ni en milliemes ni en absolu.
+    depart = f._table.columnViewportPosition(0)
+    for c in range(f._table.columnCount()):
+        points[f"geo.journal.colonne{c}.depart"] = (
+            f._table.columnViewportPosition(c) - depart)
+    # Qt colle ses rangees : l'air entre deux lignes vient de la cellule, et
+    # non d'un ecart de grille comme chez GTK. C'est le pas qui se compare.
+    points["geo.journal.pas-des-rangees"] = f._table.rowHeight(0)
+    haut_table = f._table.mapTo(f._recherche_journal.parentWidget().parentWidget(),
+                                f._table.rect().topLeft()).y()
+    haut_champ = f._recherche_journal.mapTo(
+        f._recherche_journal.parentWidget().parentWidget(),
+        f._recherche_journal.rect().topLeft()).y()
+    points["geo.journal.premiere-ligne.depart"] = (
+        haut_table - haut_champ + f._table.rowViewportPosition(0)
+        + (f._table.viewport().mapTo(f._table, f._table.viewport().rect()
+                                     .topLeft()).y()))
+    # L'inventaire revient : la geometrie qui suit mesure ses selecteurs, et
+    # un widget qui n'est plus a l'ecran ne se mesure pas.
+    f._montrer_page("inventory")
+    QApplication.processEvents()
 
     # --- Geometrie : ou les choses sont. Voir `releve_gtk.py`, qui porte les
     # memes cles : c'est ce qui permet de confronter deux fenetres sur la place

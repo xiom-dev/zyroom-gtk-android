@@ -121,10 +121,18 @@ def relever(python: str, script: str, nom: str, ecran: str | None = None) -> dic
 
 #: Les points montrés mais qui n'arrêtent pas la livraison.
 #:
-#: La géométrie vient d'entrer dans le relevé : treize écarts s'y sont
-#: révélés d'un coup, dont aucun n'est neuf — ils étaient là depuis toujours,
-#: personne ne les mesurait. Les rendre bloquants aujourd'hui reviendrait à
-#: interdire toute livraison jusqu'à ce qu'ils soient tous traités.
+#: La géométrie est entrée dans le relevé après les couleurs et les titres :
+#: treize écarts s'y sont révélés d'un coup, dont aucun n'était neuf — ils
+#: étaient là depuis toujours, personne ne les mesurait. Les rendre bloquants
+#: reviendrait à interdire toute livraison jusqu'à ce qu'ils soient tous
+#: traités.
+#:
+#: **Ils se traitent, et le compte descend.** L'extension du relevé aux six
+#: écrans en a fait apparaître vingt-cinq d'un coup ; quatorze ont été
+#: corrigés dans la foulée — la hauteur des boutons et des listes, l'air sous
+#: chaque barre de filtres, le pas des lignes du journal et l'écartement de
+#: ses colonnes. Ce qui reste tient en quelques pixels, et passera du côté
+#: bloquant au fur et à mesure.
 INFORMATIF = "geo."
 
 

@@ -70,7 +70,10 @@ class PageCompetences(QWidget):
 
         barre = QWidget()
         ligne = QHBoxLayout(barre)
-        ligne.setContentsMargins(8, 8, 8, 0)
+        # Quatre en bas, et non zero : avec les quatre d'ecart de la
+        # colonne, cela fait les huit pixels d'air que GTK pose sous
+        # chacune de ses barres de filtres.
+        ligne.setContentsMargins(8, 8, 8, 4)
         ligne.setSpacing(8)
 
         self._recherche = QLineEdit()

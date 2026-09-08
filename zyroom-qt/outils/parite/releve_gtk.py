@@ -179,6 +179,173 @@ def _premier_label(widget):
     return None
 
 
+#: Les commandes qu'un panneau peut porter, et ou l'on cesse de descendre.
+#:
+#: Un `Gtk.DropDown` porte un bouton et neuf etiquettes, un `Gtk.SearchEntry`
+#: un `Gtk.Text`, une case du groupe « Bonus » une pastille et un libelle.
+#: Descendre plus bas ferait compter trois commandes la ou l'oeil en voit une.
+COMMANDES = (Gtk.DropDown, Gtk.SearchEntry, Gtk.SpinButton, Gtk.CheckButton,
+             Gtk.MenuButton, Gtk.Entry, Gtk.Button, Gtk.Label)
+
+
+def commandes(panneau):
+    """Les commandes d'un panneau, dans l'ordre ou l'oeil les rencontre."""
+    if isinstance(panneau, COMMANDES):
+        yield panneau
+        return
+    enfant = (panneau.get_first_child()
+              if hasattr(panneau, "get_first_child") else None)
+    while enfant is not None:
+        yield from commandes(enfant)
+        enfant = enfant.get_next_sibling()
+
+
+def contenu_de_barre(barre) -> dict:
+    """Ce qu'une barre de filtres donne a lire.
+
+    **La reponse mecanique a « onglet par onglet, titre par titre ».** Le
+    controle ne regardait qu'un ecran, l'inventaire au repos : le journal et
+    les cinq ecrans de « Bonus » n'etaient mesures par personne, et leurs
+    divergences se decouvraient a l'oeil, apres livraison. Chaque ecran porte
+    une barre en tete, et c'est la que vivent son invite de recherche, ses
+    listes deroulantes, ses boutons et ses etiquettes.
+
+    Les libelles d'etat -- « Lecture de la meteo… », « Effectif · 177 » --
+    n'en font pas partie : ils disent l'instant et les donnees, pas l'aspect.
+    L'appelant les vide avant de mesurer.
+    """
+    lu = {"invite": None, "listes": [], "boutons": [], "etiquettes": []}
+    for w in commandes(barre):
+        if isinstance(w, Gtk.DropDown):
+            modele = w.get_model()
+            lu["listes"].append([modele.get_string(i)
+                                 for i in range(modele.get_n_items())])
+        elif isinstance(w, (Gtk.SearchEntry, Gtk.Entry)):
+            if lu["invite"] is None:
+                lu["invite"] = w.get_placeholder_text()
+        elif isinstance(w, (Gtk.Button, Gtk.MenuButton)):
+            lu["boutons"].append(texte(w) or "")
+        elif isinstance(w, Gtk.Label):
+            mot = (w.get_text() or "").strip()
+            if mot:
+                lu["etiquettes"].append(mot)
+    return lu
+
+
+def textes_du_panneau(panneau) -> list:
+    """Tout ce qui se lit dans un panneau, dans l'ordre, sans les vides.
+
+    **Une seule liste, et non une par genre de commande.** Le panneau des
+    filtres pose ses quatre bonus differemment des deux cotes -- GTK met le
+    libelle dans la case a cocher, Qt le pose a cote --, si bien que trier par
+    genre opposerait deux listes qui decrivent pourtant le meme ecran. Ce
+    qu'on compare, ce sont les mots et l'ordre ou on les rencontre.
+
+    Les compteurs sont ecartes : leur contenu est un nombre, pas un titre, et
+    il se releve a part avec ses bornes.
+    """
+    mots = []
+    for w in commandes(panneau):
+        if isinstance(w, (Gtk.DropDown, Gtk.SpinButton)):
+            continue
+        mot = w.get_text() if isinstance(w, Gtk.Label) else texte(w)
+        mot = (mot or "").strip()
+        if mot:
+            mots.append(mot)
+    return mots
+
+
+def tourner(millisecondes: int) -> None:
+    """Fait tourner la boucle GTK pendant une vraie duree.
+
+    **Et non un nombre de tours.** `iteration(False)` rend la main aussitot
+    quand rien n'attend : deux cents tours a vide ne laissent pas passer une
+    seule trame, et la fenetre reste dans l'etat ou on l'a trouvee.
+    """
+    contexte = GLib.MainContext.default()
+    fini = []
+    GLib.timeout_add(millisecondes, lambda: fini.append(True) and False)
+    while not fini:
+        contexte.iteration(True)
+
+
+def montrer_ecran(f, nom, temoin=None) -> None:
+    """Amene un ecran devant, et attend qu'il soit reellement pose.
+
+    **Une page jamais affichee n'est pas allouee** : ses widgets mesurent
+    zero, et la comparaison porterait sur du vide. La pile n'alloue son
+    nouvel enfant qu'a la trame suivante -- « Avant-postes » rendait encore
+    la hauteur de la page precedente, « Meteo » rendait zero --, d'ou cette
+    attente, qui s'arrete des que le temoin a une hauteur.
+    """
+    if nom == "inventaire":
+        f._stack.set_visible_child_name("inventory")
+    elif nom == "journal":
+        f._stack.set_visible_child_name("log")
+    else:
+        f._stack.set_visible_child_name("plus")
+        f._plus_stack.set_visible_child_name(nom)
+    for _ in range(40):
+        tourner(50)
+        if temoin is None or temoin.get_height() > 0:
+            return
+
+
+def air_sous(barre, champ) -> int:
+    """Les pixels entre le bas du champ de la barre et ce qui suit la barre.
+
+    **Mesure, et non declaree.** Les deux portages ne posent pas leurs marges
+    au meme endroit : GTK les met autour de la barre, Qt dedans. Comparer les
+    deux nombres opposait donc « huit dehors » a « huit dedans » -- deux
+    ecritures du meme ecran -- pendant que l'ecart reel, celui que l'oeil voit
+    entre la derniere commande et le contenu, n'etait mesure par personne.
+    """
+    suivant = barre.get_next_sibling()
+    if suivant is None or champ is None:
+        return -1
+    page = barre.get_parent()
+    ok1, haut = champ.compute_bounds(page)
+    ok2, bas = suivant.compute_bounds(page)
+    if not (ok1 and ok2):
+        return -1
+    return round(bas.origin.y - (haut.origin.y + haut.size.height))
+
+
+def cote(widget) -> str:
+    """De quel cote une cellule du journal cale son contenu."""
+    if not isinstance(widget, Gtk.Label):
+        return "image"
+    x = widget.get_xalign()
+    return "gauche" if x < 0.25 else ("droite" if x > 0.75 else "milieu")
+
+
+def journal_temoin() -> list:
+    """Trois mouvements fabriques, les memes des deux cotes.
+
+    **Le journal ne se mesure ni a vide, ni sur les donnees du joueur.** Les
+    deux applications tiennent leur cache dans deux dossiers separes : celui
+    de GTK avait deux mille lignes la ou celui de Qt en avait zero, et aucune
+    largeur de colonne n'etait comparable. Trois lignes fabriquees ici -- une
+    entree, une sortie, et une la veille pour le trait de separation --
+    donnent aux deux journaux exactement le meme contenu.
+
+    Du tresor uniquement : un objet ferait demander son icone au serveur, et
+    un releve ne doit rien telecharger. Midi plutot que l'instant : a une
+    seconde de minuit, « la veille » et « aujourd'hui » changeraient de sens
+    entre les deux releves.
+    """
+    import time as _time
+
+    from zyroom import movements as _mv
+    jour = _time.localtime()
+    midi = _time.mktime((jour.tm_year, jour.tm_mon, jour.tm_mday,
+                         12, 0, 0, 0, 0, -1))
+    return [_mv.Movement(ts=midi - ecart, inv_key=_mv.MONEY_KEY,
+                         inv_label=_mv.MONEY_LABEL, sheet=_mv.MONEY_SHEET,
+                         quality=0, delta=combien)
+            for ecart, combien in ((0, 1750), (60, -320), (86400, -4))]
+
+
 def _geometrie(f: MainWindow) -> dict:
     """Position et taille des éléments qui structurent la fenêtre.
 
@@ -452,6 +619,149 @@ def relever(f: MainWindow) -> dict:
 
     # --- Registre : les deux bascules --------------------------------------
     points["registre.vues"] = [texte(b) for b in f._roster_boutons.values()]
+
+    # --- Chaque ecran, sa barre de filtres ---------------------------------
+    # Ludo : « je veux que tu fasses une comparaison detaillee TOTALE [...]
+    # fenetre par fenetre, onglet par onglet, titre par titre ». Le controle
+    # ne regardait qu'un seul ecran, l'inventaire au repos ; il les regarde
+    # tous. Les libelles d'etat sont vides d'abord : ils disent les donnees du
+    # moment -- « Effectif · 177 », « Lecture de la meteo… » --, et les deux
+    # applications ne lisent pas le meme cache.
+    for etat in (f._roster_status, f._op_status, f._meteo_entete,
+                 f._log_status, f._skills_status):
+        etat.set_text("")
+    # L'ordre du tri est un reglage sauvegarde, propre a chaque portage : deux
+    # fleches opposees ne diraient rien de l'aspect.
+    f._order_btn.set_label("↓")
+    # L'arbre des competences a ete deplie plus haut, pour mesurer ses jauges,
+    # et son bouton porte donc « Tout replier ». On le replie : c'est l'etat
+    # dans lequel l'ecran s'ouvre, et celui que les deux portages doivent
+    # montrer du meme mot.
+    f._skills_expanded = set()
+    f._refresh_skills()
+    for nom, champ in (("inventaire", f._search),
+                       ("journal", f._log_search),
+                       ("skills", f._skills_search),
+                       ("roster", f._roster_recherche),
+                       ("outposts", f._op_vue),
+                       ("meteo", f._meteo_refresh)):
+        barre = champ.get_parent()
+        lu = contenu_de_barre(barre)
+        points[f"{nom}.recherche.invite"] = lu["invite"]
+        points[f"{nom}.listes"] = lu["listes"]
+        points[f"{nom}.boutons"] = lu["boutons"]
+        points[f"{nom}.etiquettes"] = lu["etiquettes"]
+        montrer_ecran(f, nom, champ)
+        # `compute_bounds` et non `get_height` : c'est la mesure que `situer`
+        # emploie plus bas, et deux facons de mesurer le meme champ rendaient
+        # deux nombres -- trente-deux et trente-quatre -- dont l'un des deux
+        # aurait accuse Qt d'un ecart de trois pixels au lieu d'un.
+        ok, cadre = champ.compute_bounds(champ.get_parent())
+        points[f"geo.{nom}.champ.hauteur"] = (round(cadre.size.height)
+                                              if ok else -1)
+        points[f"geo.{nom}.air-sous-la-barre"] = air_sous(barre, champ)
+        # La hauteur de la barre elle-meme, c'est-a-dire celle de sa plus
+        # haute commande. Le champ ne suffit pas : sur l'effectif, ce sont les
+        # deux bascules qui commandent, et elles peuvent depasser sans que la
+        # mesure du champ y voie rien.
+        points[f"geo.{nom}.barre.hauteur"] = barre.get_height()
+
+    # --- Le panneau des filtres, ouvert -------------------------------------
+    # Un menu ferme ne se compare pas : c'est ouvert qu'on voit ses quatre
+    # groupes, ses titres et ses trente cases.
+    bouton_filtres = next(w for w in commandes(f._search.get_parent())
+                          if isinstance(w, Gtk.MenuButton))
+    defilant = bouton_filtres.get_popover().get_child()
+    points["filtres.panneau.textes"] = textes_du_panneau(defilant)
+    points["filtres.panneau.hauteur-max"] = defilant.get_max_content_height()
+    reglage = f._qmin.get_adjustment()
+    points["filtres.qualite.bornes"] = [int(reglage.get_lower()),
+                                        int(reglage.get_upper())]
+    points["filtres.qualite.pas"] = int(reglage.get_step_increment())
+    points["filtres.qualite.depart"] = [int(f._qmin.get_value()),
+                                        int(f._qmax.get_value())]
+    points["filtres.cases"] = len(f._all_checks)
+
+    # --- Les deux menus de la barre du haut, ouverts eux aussi -------------
+    popover = f._plus_btn.get_popover()
+    points["menu.bonus.libelles"] = [
+        texte(w) for w in commandes(popover.get_child())
+        if isinstance(w, Gtk.Button)]
+    modele = None
+    for w in parcourir(f):
+        if isinstance(w, Gtk.MenuButton) and w.get_menu_model() is not None:
+            modele = w.get_menu_model()
+            break
+    points["menu.principal.libelles"] = [
+        modele.get_item_attribute_value(i, "label", None).get_string()
+        for i in range(modele.get_n_items())] if modele is not None else []
+
+    # --- Le journal, sur trois mouvements fabriques ------------------------
+    # Les colonnes du journal se sont deja resserrees une fois sans que rien
+    # ne le voie : c'est Ludo qui l'a remarque, capture a l'appui. Trois lignes
+    # identiques des deux cotes suffisent a mesurer ce qu'il voyait.
+    f._log_search.set_text("")
+    f._log_filter.set_selected(0)
+    # La page d'abord : en arrivant sur le journal, la fenetre relit le cache
+    # du joueur, et les temoins poses avant seraient balayes.
+    montrer_ecran(f, "journal", f._log_search)
+    f._log_entries = journal_temoin()
+    f._refresh_log()
+    tourner(150)
+    colonnes = 0
+    while f._log_grid.get_child_at(colonnes, 0) is not None:
+        colonnes += 1
+    points["journal.colonnes"] = colonnes
+    points["journal.alignements"] = [cote(f._log_grid.get_child_at(c, 0))
+                                     for c in range(colonnes)]
+    # La couleur du montant vit dans le balisage Pango, que le style ignore :
+    # on la relit dans le balisage lui-meme.
+    for quoi, rang in (("entrant", 0), ("sortant", 1)):
+        montant = f._log_grid.get_child_at(2, rang)
+        teinte = re.search(r'foreground="(#[0-9a-fA-F]{6})"',
+                           montant.get_label() or "")
+        points[f"journal.{quoi}.couleur"] = (teinte.group(1).lower()
+                                             if teinte else "sans couleur")
+    horodatage = f._log_grid.get_child_at(0, 0)
+    points["journal.horodatage.chasse-fixe"] = (
+        "monospace" in horodatage.get_css_classes())
+    image = f._log_grid.get_child_at(4, 0)
+    points["journal.icone.cote"] = (image.get_pixel_size()
+                                    if isinstance(image, Gtk.Image) else 0)
+    # Le trait entre deux journees : un pixel peint, six d'air de chaque cote,
+    # treize en tout. `measure` compte deja les marges -- inutile de les
+    # rajouter, on comptait le double.
+    trait = f._log_grid.get_child_at(0, 2)
+    points["journal.trait-de-jour.hauteur"] = (taille(trait)[1]
+                                               if trait is not None else 0)
+    points["journal.trait-de-jour.rangee"] = 2
+    # La hauteur d'une ligne du journal, allouee : c'est elle qui decide
+    # combien de mouvements tiennent dans un ecran.
+    points["geo.journal.pas-des-rangees"] = (
+        f._log_grid.get_child_at(0, 0).get_height()
+        + f._log_grid.get_row_spacing())
+    # Ou commence la premiere ligne du journal, sous la barre : l'air declare
+    # par les marges ne dit rien -- GTK le pose autour de sa grille, Qt dans
+    # les marges de sa vue --, celui-ci se voit.
+    ok, rect = f._log_grid.get_child_at(0, 0).compute_bounds(f._log_search)
+    points["geo.journal.premiere-ligne.depart"] = (round(rect.origin.y)
+                                                   if ok else -1)
+    # Ou commence chaque colonne, **en pixels depuis la premiere**. Ni en
+    # milliemes de la grille -- sa largeur suit son contenu, et trois lignes
+    # temoins ne l'etirent pas comme deux mille --, ni en absolu : c'est
+    # l'ecartement des colonnes qui se compare, celui-la meme que Ludo avait
+    # vu se resserrer.
+    depart = None
+    for c in range(colonnes):
+        ok, rect = f._log_grid.get_child_at(c, 0).compute_bounds(f._log_grid)
+        if not ok:
+            continue
+        if depart is None:
+            depart = rect.origin.x
+        points[f"geo.journal.colonne{c}.depart"] = round(rect.origin.x - depart)
+    # L'inventaire revient : la geometrie qui suit mesure ses selecteurs, et
+    # un widget qui n'est plus a l'ecran ne se mesure pas.
+    montrer_ecran(f, "inventaire", f._search)
 
     # --- Géométrie : où les choses sont, et non plus seulement de quelle
     # couleur. C'est l'angle mort qui a coûté le plus cher cette semaine : deux

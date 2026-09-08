@@ -68,7 +68,10 @@ class PageEffectif(QWidget):
 
         barre = QWidget()
         ligne = QHBoxLayout(barre)
-        ligne.setContentsMargins(8, 8, 8, 0)
+        # Quatre en bas, et non zero : avec les quatre d'ecart de la
+        # colonne, cela fait les huit pixels d'air que GTK pose sous
+        # chacune de ses barres de filtres.
+        ligne.setContentsMargins(8, 8, 8, 4)
         ligne.setSpacing(8)
 
         # Deux bascules liees plutot qu'un menu deroulant. Le menu cachait la
@@ -80,11 +83,15 @@ class PageEffectif(QWidget):
         ligne_vues.setContentsMargins(0, 0, 0, 0)
         ligne_vues.setSpacing(0)
         self._boutons = {}
-        for nom, etiquette in (("effectif", _("Effectif")),
-                               ("mouvements", _("Arrivées et départs"))):
+        for rang, (nom, etiquette) in enumerate(
+                (("effectif", _("Effectif")),
+                 ("mouvements", _("Arrivées et départs")))):
             bouton = QPushButton(etiquette)
             bouton.setCheckable(True)
-            bouton.setObjectName("nav")
+            # `lie` et non `nav` : ce sont deux bascules collees, pas les
+            # onglets de la barre du haut, et elles n'en ont pas la hauteur.
+            bouton.setObjectName("lie")
+            bouton.setProperty("rang", "premier" if rang == 0 else "dernier")
             bouton.clicked.connect(lambda _c, n=nom: self._changer_vue(n))
             self._boutons[nom] = bouton
             ligne_vues.addWidget(bouton)

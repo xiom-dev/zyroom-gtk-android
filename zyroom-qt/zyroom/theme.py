@@ -251,7 +251,14 @@ QPushButton, QToolButton {
     border-radius: 6px;
     color: #eeeeec;
     padding: 4px 10px;
-    min-height: 21px;
+    /* Vingt-quatre de contenu, quatre de remplissage en haut et en bas, un de
+       bordure de chaque cote : trente-quatre en tout, la boite d'un bouton
+       Adwaita. C'est la mesure que la regle du bouton de signature porte
+       depuis toujours ; les boutons ordinaires, eux, en faisaient trente et
+       un -- trois de moins que ceux de la fenetre GTK, sur toutes les barres
+       de filtres a la fois. Releve par le controle de parite, ecran par
+       ecran. */
+    min-height: 24px;
 }
 QPushButton:hover, QToolButton:hover     { background-color: #454545; }
 QPushButton:pressed, QToolButton:pressed { background-color: #2a2a2a; }
@@ -284,7 +291,10 @@ QToolButton#barre, QPushButton#barre {
     border-radius: 6px;
     color: #eeeeec;
     min-width: 22px;
-    min-height: 21px;
+    /* Trente-quatre, comme les autres boutons : le commentaire ci-dessus
+       annoncait deja « trente-quatre pixels sur trente et un, mesures sur la
+       fenetre GTK », et c'est bien trente et un que cette regle donnait. */
+    min-height: 24px;
     padding: 4px 5px;
 }
 QToolButton#barre:hover, QPushButton#barre:hover {
@@ -348,6 +358,27 @@ QToolButton#nav::menu-indicator {
     height: 14px;
     right: 2px;
 }
+/* Le meme chevron pour les autres boutons a menu -- « Filtres », dans la
+   rangee des filtres de l'inventaire. Adwaita dessine un chevron clair a
+   droite du libelle de toute `Gtk.MenuButton` ; Qt, lui, posait sa fleche par
+   defaut : un minuscule triangle sombre dans le coin en bas a droite, qu'on
+   ne reconnait pas comme « ce bouton ouvre quelque chose ». Vu sur la
+   comparaison par l'image, les deux captures cote a cote. */
+QToolButton#deroulant {
+    /* Seize, comme la navigation : le chevron et son air. Vingt-deux
+       elargissaient le bouton de six pixels, et la ligne des filtres --
+       mesuree par le controle -- s'en trouvait raccourcie d'autant. */
+    padding-right: 16px;
+}
+QToolButton#deroulant::menu-indicator {
+    image: url("%(chevron)s");
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 14px;
+    height: 14px;
+    right: 2px;
+}
+
 /* La bordure gauche de tous sauf le premier : sans cela deux bordures d'un
    pixel se touchent et la separation en fait deux, la ou GTK n'en montre
    qu'une seule -- mesure sur les deux captures. */
@@ -378,6 +409,37 @@ QPushButton#nav:checked {
     background-color: %(sarcelle_sombre)s;
     color: %(texte)s;
 }
+/* **Deux bascules liees, et non deux onglets de navigation.** L'ecran de
+   l'effectif choisit sa vue avec deux boutons colles -- la classe « linked »
+   de GTK. Ils portaient ici le nom `nav`, celui de la barre du haut, et donc
+   sa hauteur : trente-huit pixels, la ou GTK leur en donne trente-quatre
+   comme a n'importe quel bouton. Le controle ecran par ecran l'a mesure sur
+   la barre de l'effectif, six pixels trop haute.
+
+   On garde donc la boite du bouton ordinaire, et de « linked » on ne reprend
+   que ce qui se voit : une seule bordure entre deux voisins, et les coins
+   arrondis a l'exterieur du bloc seulement. L'enfonce prend la sarcelle
+   sombre, comme `togglebutton:checked` chez GTK. */
+QPushButton#lie {
+    border-radius: 0;
+}
+QPushButton#lie[rang="suite"], QPushButton#lie[rang="dernier"] {
+    border-left: none;
+}
+QPushButton#lie[rang="premier"] {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+}
+QPushButton#lie[rang="dernier"] {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+QPushButton#lie:checked {
+    background-color: %(sarcelle_sombre)s;
+    color: %(texte)s;
+}
+QPushButton#lie:hover { background-color: %(sarcelle_sombre)s; }
+
 /* Le bouton « Bonus » enfonce ne se peint pas comme les deux autres : GTK lui
    pose la classe `suggested-action`, qui est plus claire et porte un texte
    presque noir, la ou un onglet choisi prend la sarcelle sombre. Deux verts
@@ -656,6 +718,24 @@ QLineEdit {
     min-height: 25px;
 }
 QLineEdit:focus { border-color: %(sarcelle)s; }
+/* Les champs de recherche, un pixel plus courts : voir `poser_loupe`, qui
+   pose cette marque et dit pourquoi. */
+QLineEdit[recherche="true"] { min-height: 24px; }
+
+/* Le journal : huit pixels de chaque cote d'une cellule.
+   La version GTK pose ses six colonnes dans un `Gtk.Grid` de seize pixels
+   d'ecartement, et huit de marge tout autour. Une `QTableWidget` n'a ni l'un
+   ni l'autre : ses colonnes se touchaient a quatre pixels pres, et les six
+   colonnes du journal se serraient sur les deux tiers de la largeur qu'elles
+   occupent en GTK. Huit de chaque cote font seize entre deux colonnes -- et,
+   sur la premiere, les huit de marge de la grille. */
+QTableView#journal::item { padding-left: 8px; padding-right: 8px; }
+/* Et six pixels au-dessus de la premiere ligne, pour le meme `_pad` : sans
+   eux, le journal commence colle sous la barre de recherche, six pixels plus
+   haut que celui de GTK. C'est la feuille qui les pose et non
+   `setViewportMargins` : une `QTableView` recalcule ses marges de vue a
+   chaque mise en page, et ecrasait celles qu'on lui donnait. */
+QTableView#journal { padding-top: 6px; }
 
 /* Une liste deroulante n'est pas un champ : GTK en fait un **bouton**, et
    Adwaita lui donne le meme gris qu'a l'ajout ou a la corbeille de la barre du
@@ -683,7 +763,14 @@ QComboBox {
        n'est pas `min-height` qui commande ici mais l'image de trente pixels
        qu'ils portent, et c'est donc le remplissage qu'il faut reprendre. */
     padding: 3px 8px;
-    min-height: 23px;
+    /* Vingt-six, soit trente-quatre en tout : la hauteur d'un `Gtk.DropDown`
+       sous Adwaita. Cette valeur ne commande que les listes sans image -- le
+       filtre du journal, celui des competences, la vue des avant-postes --,
+       les selecteurs d'entite et d'inventaire etant tenus par les trente
+       pixels de l'image qu'ils portent. Ces trois-la faisaient trente et un
+       la ou GTK en fait trente-quatre ; le controle ecran par ecran les a
+       trouves. */
+    min-height: 26px;
 }
 QComboBox:hover { background-color: #454545; }
 QComboBox:focus { border-color: %(sarcelle)s; }
@@ -927,6 +1014,13 @@ def poser_loupe(champ) -> None:
     `system-search-symbolic` : releve au pixel sur la capture, et c'est elle
     qui fait foi.
     """
+    # **Un champ de recherche n'est pas un champ de saisie.** GTK emploie ici
+    # une `Gtk.SearchEntry`, qu'Adwaita dessine sur trente-quatre pixels, la
+    # ou sa `Gtk.Entry` en fait trente-cinq. Qt n'a qu'un `QLineEdit` pour les
+    # deux : cette marque permet a la feuille de rendre le pixel de difference
+    # aux seuls champs de recherche. C'est peu -- et c'est justement ce qu'un
+    # oeil ne trouve jamais et qu'une mesure trouve tout de suite.
+    champ.setProperty("recherche", True)
     loupe = icone_symbolique("system-search-symbolic")
     if loupe.isNull():
         loupe = icone_symbolique("edit-find-symbolic")

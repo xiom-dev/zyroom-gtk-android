@@ -895,6 +895,10 @@ class FenetrePrincipale(QMainWindow):
 
         self._btn_filtres = QToolButton()
         self._btn_filtres.setText(_("Filtres"))
+        # Pour le chevron d'Adwaita a droite du libelle : toute
+        # `Gtk.MenuButton` en porte un, et Qt posait a la place son minuscule
+        # triangle de coin.
+        self._btn_filtres.setObjectName("deroulant")
         self._btn_filtres.setPopupMode(
             QToolButton.ToolButtonPopupMode.InstantPopup)
         self._btn_filtres.setMenu(self._menu_filtres())
@@ -1037,7 +1041,10 @@ class FenetrePrincipale(QMainWindow):
 
         barre = QWidget()
         ligne = QHBoxLayout(barre)
-        ligne.setContentsMargins(8, 8, 8, 0)
+        # Quatre en bas, et non zero : avec les quatre d'ecart de la colonne,
+        # cela fait les huit pixels d'air que GTK pose sous chacune de ses
+        # barres de filtres -- `_pad`, qui marge les quatre bords.
+        ligne.setContentsMargins(8, 8, 8, 4)
         ligne.setSpacing(8)
 
         self._recherche_journal = QLineEdit()
@@ -1074,6 +1081,12 @@ class FenetrePrincipale(QMainWindow):
         # une hauteur minimale calculee sur la police -- et le trait qui separe
         # deux journees, treize pixels chez GTK, en aurait fait dix-huit.
         self._table.verticalHeader().setMinimumSectionSize(1)
+        # Vingt-six : la hauteur d'une ligne de journal en GTK, ecart de
+        # grille compris -- vingt-quatre de contenu et deux entre les
+        # rangees. Qt en donnait trente, soit quatre lignes de moins par
+        # ecran, et un journal qu'on parcourait plus lentement pour la meme
+        # fenetre.
+        self._table.verticalHeader().setDefaultSectionSize(26)
         self._table.setShowGrid(False)
         self._table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers)
