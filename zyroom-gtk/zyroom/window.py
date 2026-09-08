@@ -66,7 +66,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.06" if _DEV else "0.78"
+VERSION = "1.07" if _DEV else "0.79"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2881,10 +2881,15 @@ class MainWindow(Gtk.ApplicationWindow):
     #: leur propre mesure, et ce sont des objets, pas des repères.
     PART_ICONE_BOUTON = 0.63
 
-    #: La bourse et les écrans agrandis ont rejoint les autres : une seule
-    #: part vaut pour tous les logos. Les deux noms restent, le code les cite
-    #: en plusieurs endroits, mais ils ne disent plus qu'une chose.
-    PART_BOURSE = PART_ICONE_BOUTON
+    #: La bourse, quinze pour cent au-dessus des autres logos.
+    #:
+    #: Non par caprice, mais parce qu'elle est étroite : le sac est plus haut
+    #: que large — vingt-quatre sur trente —, là où les autres remplissent un
+    #: carré. À hauteur égale il peignait quatre cent soixante-trois pixels
+    #: contre six cents en moyenne, et paraissait donc plus petit. Le facteur
+    #: est la racine de ce rapport : c'est la surface qu'on égalise, pas la
+    #: hauteur.
+    PART_BOURSE = PART_ICONE_BOUTON * 1.15
 
     #: L'image d'un contenant, par le début de sa clé technique.
     #:

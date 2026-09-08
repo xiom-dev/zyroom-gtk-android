@@ -154,10 +154,14 @@ PART_ICONE_BOUTON = 0.63
 #: boutons portent un objet sur fond vide : a taille egale, elle paraissait la
 #: plus petite des neuf. Le zoom l'emporte comme les autres, ce facteur se
 #: gardant d'un bout a l'autre de l'echelle.
-#: La bourse et les ecrans agrandis ont rejoint les autres : une seule part
-#: vaut pour tous les logos. Les deux noms restent, le code les cite en
-#: plusieurs endroits, mais ils ne disent plus qu'une chose.
-PART_BOURSE = PART_ICONE_BOUTON
+#: La bourse, quinze pour cent au-dessus des autres logos.
+#:
+#: Non par caprice, mais parce qu'elle est etroite : le sac est plus haut que
+#: large -- vingt-quatre sur trente --, la ou les autres remplissent un carre.
+#: A hauteur egale il peignait quatre cent soixante-trois pixels contre six
+#: cents en moyenne, et paraissait donc plus petit. Le facteur est la racine
+#: de ce rapport : c'est la surface qu'on egalise, pas la hauteur.
+PART_BOURSE = PART_ICONE_BOUTON * 1.15
 PAGES_AGRANDIES = ()
 
 #: La memoire du journal, en jours. Tout ce qui est plus recent s'affiche,
