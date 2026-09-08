@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
 
 from . import outposts, ryzom_api
 from . import theme
+from .deroulante import Choix
 from .config import noter_erreur
 from .i18n import _
 from .ryzom_api import KIND_GUILD
@@ -66,7 +67,7 @@ class PageAvantPostes(QWidget):
         ligne.setContentsMargins(8, 8, 8, 4)
         ligne.setSpacing(8)
 
-        self._dd_vue = QComboBox()
+        self._dd_vue = Choix()
         self._dd_vue.addItems([_("Qui tient quoi"), _("Journal des prises")])
         self._dd_vue.currentIndexChanged.connect(self._rafraichir)
         ligne.addWidget(self._dd_vue)

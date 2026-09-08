@@ -43,7 +43,7 @@ from . import (alerts, apropos, backup, chatlog, cles, detail, enchantements,
                roster, ryzom_api, sorting, specialites, theme, updater)
 from .attente import BarreAttente
 from .categorydb import CategoryDb
-from .deroulante import Deroulante
+from .deroulante import Choix, Deroulante
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      data_dir, detect_pack, detect_save_folder,
                      entity_xml_path, format_api_created, format_last_sync,
@@ -579,6 +579,14 @@ class FenetrePrincipale(QMainWindow):
         # cela elles restaient aux seize pixels par defaut de Qt jusqu'au
         # premier coup de zoom.
         self._appliquer_taille_boutons()
+        # **La largeur du bouton d'ordre se pose ici, et non a sa
+        # construction.** Elle se calcule sur la police du bouton, et celle-ci
+        # ne vaut la bonne qu'une fois la feuille de style appliquee : mesuree
+        # trop tot, elle donnait vingt-cinq pixels la ou GTK en dessine
+        # cinquante. La fleche seule est etroite, et il faut bien lui donner
+        # une largeur fixe -- sans quoi le bouton changerait de taille entre
+        # le haut et le bas, poussant ses voisins a chaque clic.
+        self._btn_ordre.setFixedWidth(theme.largeur(self._btn_ordre, 2.6))
         self._equilibrer_barre()
         self._montrer_page("inventory")
 
@@ -905,7 +913,7 @@ class FenetrePrincipale(QMainWindow):
         ligne2.addWidget(self._btn_filtres)
 
         ligne2.addWidget(QLabel(_("Trier :")))
-        self._dd_tri = QComboBox()
+        self._dd_tri = Choix()
         self._dd_tri.addItems([_(t) for t in TRI_LIBELLES])
         # Regle avant de brancher le signal : le branchement d'abord ferait
         # reafficher la grille sur une fenetre a moitie construite.
@@ -915,7 +923,6 @@ class FenetrePrincipale(QMainWindow):
 
         self._btn_ordre = QPushButton("↑" if self._tri_desc else "↓")
         self._btn_ordre.setToolTip(_("Ordre croissant/décroissant"))
-        self._btn_ordre.setFixedWidth(theme.largeur(self._btn_ordre, 1.8))
         self._btn_ordre.clicked.connect(self._on_ordre_bascule)
         ligne2.addWidget(self._btn_ordre)
 
@@ -1055,7 +1062,7 @@ class FenetrePrincipale(QMainWindow):
         self._recherche_journal.textChanged.connect(self._rafraichir_journal)
         ligne.addWidget(self._recherche_journal, 1)
 
-        self._dd_journal = QComboBox()
+        self._dd_journal = Choix()
         self._dd_journal.addItems([_("Tout"), _("Entrées"), _("Sorties")])
         self._dd_journal.currentIndexChanged.connect(self._rafraichir_journal)
         ligne.addWidget(self._dd_journal)
@@ -1203,6 +1210,13 @@ class FenetrePrincipale(QMainWindow):
 
         mono = QFont("monospace")
         mono.setStyleHint(QFont.StyleHint.Monospace)
+        # **Le corps de la table, et non celui de l'application.** Une `QFont`
+        # construite ici nait a la taille par defaut de Qt -- neuf points --,
+        # que la regle `* { font-size }` de la feuille n'atteint pas : elle ne
+        # touche que les widgets. L'horodatage et les montants du journal se
+        # peignaient donc deux points plus petits que le reste de la fenetre,
+        # et leurs deux colonnes s'en trouvaient etroites.
+        mono.setPointSizeF(self._table.font().pointSizeF())
         faible = QColor(self.palette().placeholderText().color())
 
         jour_precedent = None

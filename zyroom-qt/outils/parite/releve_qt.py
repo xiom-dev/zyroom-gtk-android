@@ -20,6 +20,12 @@ RACINE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 sys.path.insert(0, RACINE)
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# Quatre-vingt-seize points par pouce, comme le serveur X du releve GTK et
+# comme le banc d'images. Un point de police ne vaut un nombre de pixels
+# qu'a travers une resolution : sans celle-ci, Qt prenait celle que la
+# plateforme hors ecran voulait bien annoncer, et les memes onze points
+# donnaient un texte plus large que celui de GTK.
+os.environ.setdefault("QT_FONT_DPI", "96")
 
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtGui import QFont  # noqa: E402
@@ -356,6 +362,35 @@ def _geometrie(f: FenetrePrincipale) -> dict:
     return mesures
 
 
+#: Le texte dont on mesure la largeur, des deux cotes.
+#:
+#: **Le point de controle des points de controle.** Deux toolkits n'expriment
+#: pas leur police pareil -- Pango rend des unites de peripherique, Qt des
+#: points -- et comparer les deux nombres n'apprend rien. La largeur d'une
+#: meme chaine, elle, se compare : si elle differe, tout ce qui derive du
+#: texte differe avec elle, et aucune autre mesure ne veut plus rien dire.
+#: C'est exactement ce qui s'est passe deux fois -- l'agrandissement du bureau
+#: d'abord, le corps de base ensuite --, et deux fois on a accuse les fenetres
+#: d'un ecart qui venait de la mesure.
+TEXTE_TEMOIN = "Actualiser 0123456789"
+
+
+#: Le corps du texte des releves, le meme des deux cotes.
+#:
+#: **Sans lui, le banc mentait une seconde fois.** L'echelle du bureau avait
+#: ete neutralisee, mais pas le corps de base : GTK, prive de demon XSettings,
+#: retombe sur son defaut « Sans 10 », tandis que Qt gardait les neuf points
+#: de Fusion. Un dixieme de moins sur chaque lettre, et toutes les mesures
+#: tirees du texte suivaient -- « Entite : » faisait quarante-huit pixels d'un
+#: cote et quarante-trois de l'autre, la barre de navigation quatre milliemes
+#: de moins, les six colonnes du journal jusqu'a sept pixels. On accusait les
+#: fenetres d'un ecart qui venait de la mesure.
+#:
+#: Onze points, comme le banc d'images, pour que les deux outils parlent de la
+#: meme fenetre.
+CORPS_RELEVE = 11
+
+
 #: La taille de fenetre des releves, la meme des deux côtes.
 #:
 #: **Sans elle, aucune mesure de geometrie ne vaut.** Chaque releve ouvrait sa
@@ -594,6 +629,10 @@ def relever(f: FenetrePrincipale) -> dict:
         marges = barre.layout().contentsMargins()
         points[f"geo.{nom}.barre.hauteur"] = (barre.height() - marges.top()
                                               - marges.bottom())
+        # Voir `releve_gtk.py` : la largeur de chaque commande, dans l'ordre.
+        points[f"geo.{nom}.commandes.largeurs"] = [
+            w.width() for w in commandes(barre)
+            if not isinstance(w, QLabel) and w.width() > 1]
 
     # --- Le panneau des filtres, ouvert -------------------------------------
     porteur = next(a for a in f._btn_filtres.menu().actions()
@@ -642,6 +681,11 @@ def relever(f: FenetrePrincipale) -> dict:
     points["journal.icone.cote"] = f._table.iconSize().width()
     points["journal.trait-de-jour.hauteur"] = f._table.rowHeight(2)
     points["journal.trait-de-jour.rangee"] = 2
+    points["police.corps"] = CORPS_RELEVE
+    from PySide6.QtGui import QFontMetrics
+    # Arrondi a la dizaine, comme du cote GTK : voir `releve_gtk.py`.
+    points["police.largeur-temoin"] = round(QFontMetrics(
+        f._lbl_statut.font()).horizontalAdvance(TEXTE_TEMOIN) / 10) * 10
     # En pixels depuis la premiere colonne : voir `releve_gtk.py`, qui dit
     # pourquoi ce n'est ni en milliemes ni en absolu.
     depart = f._table.columnViewportPosition(0)
@@ -674,8 +718,14 @@ def relever(f: FenetrePrincipale) -> dict:
 
 def main() -> int:
     resultat: dict = {}
+    # Le meme corps des deux cotes, impose par le reglage : c'est par lui que
+    # les deux portages posent leur regle `* { font-size }`, et non par la
+    # police du bureau. Ludo a d'ailleurs onze points en Qt et « comme le
+    # bureau » en GTK : sans cela le controle comparerait ses deux reglages.
+    from zyroom.config import Settings as _Reglages
+    _Reglages.font_size = property(lambda _soi: CORPS_RELEVE)
     app = QApplication([])
-    app.setStyleSheet(theme.feuille())
+    app.setStyleSheet(theme.feuille(CORPS_RELEVE))
     try:
         fenetre = FenetrePrincipale()
         fenetre.resize(LARGEUR_RELEVE, HAUTEUR_RELEVE)

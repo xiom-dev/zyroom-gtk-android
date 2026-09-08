@@ -19,6 +19,12 @@ from PySide6.QtWidgets import QComboBox
 class Deroulante(QComboBox):
     """Une liste déroulante large de son seul texte courant."""
 
+    #: L'air que GTK laisse autour du texte, chevron et remplissage compris.
+    #:
+    #: Cinquante-huit pour les selecteurs de la barre, qui portent une
+    #: image ; quarante-trois pour les listes simples -- voir `Choix`.
+    AIR = 58
+
     def __init__(self, *arguments, **nommes) -> None:
         super().__init__(*arguments, **nommes)
         # **Le signal, et non la seule methode surchargee.** Un choix fait a
@@ -62,7 +68,8 @@ class Deroulante(QComboBox):
         largeur demandée — les prendre sur le remplissage rognerait le texte,
         puisque Qt réserve la zone du chevron en plus, et non dedans.
         """
-        large = self.fontMetrics().horizontalAdvance(self.currentText()) + 58
+        large = (self.fontMetrics().horizontalAdvance(self.currentText())
+                 + self.AIR)
         # Et l'image, quand la ligne en porte une : l'emblème de la guilde ou
         # le portrait du personnage. Sans la compter, la place lui était prise
         # sur le nom — « Koii » s'affichait « K » le jour où le portrait est
@@ -93,3 +100,23 @@ class Deroulante(QComboBox):
         super().setItemText(index, texte)
         if index == self.currentIndex():
             self.updateGeometry()
+
+
+class Choix(Deroulante):
+    """La même chose, pour une liste qui ne porte pas d'image.
+
+    Le filtre du journal, celui des compétences, la vue des avant-postes et le
+    menu de tri de l'inventaire. Ils étaient de simples `QComboBox`, donc
+    taillés sur leur plus long élément : celui du tri s'étalait sur cent
+    cinquante-cinq pixels pour montrer « Type », parce qu'« Ordre d'origine »
+    dort plus bas dans la liste, quand celui de GTK en fait soixante-seize.
+    Quatre-vingts pixels pris au champ de recherche, sur la même rangée.
+
+    Quarante-trois pixels d'air et non cinquante-huit : ces quinze-là étaient
+    la place de l'image que les sélecteurs de la barre portent et que
+    celles-ci n'ont pas. Mesuré sur les quatre listes à la fois — le filtre du
+    journal fait soixante-treize pixels en GTK, la vue des avant-postes cent
+    quarante-deux.
+    """
+
+    AIR = 43

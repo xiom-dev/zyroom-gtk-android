@@ -115,7 +115,11 @@ class PageEffectif(QWidget):
         self._recherche.setClearButtonEnabled(True)
         self._recherche.textChanged.connect(self.rafraichir)
         self._recherche.setMinimumWidth(240)
-        ligne.addWidget(self._recherche)
+        # **Il prend toute la place qui reste**, comme le `hexpand` de son
+        # jumeau GTK : il faisait deux cent quarante pixels quand celui de GTK
+        # en fait six cent quatre-vingt-quinze, et l'on cherchait un nom dans
+        # une fente.
+        ligne.addWidget(self._recherche, 1)
 
         self._statut = QLabel()
         self._statut.setObjectName("discret")
@@ -124,7 +128,10 @@ class PageEffectif(QWidget):
         # quand on passe aux mouvements -- il ne filtrerait rien -- et la
         # place qu'il libere allait aux deux bascules, qui s'elargissaient
         # d'un coup sous le pointeur. Ce ressort la prend a leur place.
-        ligne.addStretch(1)
+        #
+        # Sans poids : il ne prend rien tant que le champ est la -- celui-ci a
+        # le sien --, et ne retient la place que lorsque le champ s'efface.
+        ligne.addStretch(0)
         colonne.addWidget(barre)
 
         self._contenu = QWidget()

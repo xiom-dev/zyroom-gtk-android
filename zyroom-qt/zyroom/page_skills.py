@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QLineEdit,
 
 from . import skills as skills_mod
 from . import theme
+from .deroulante import Choix
 from .i18n import _
 from .ryzom_api import KIND_CHARACTER
 
@@ -83,7 +84,7 @@ class PageCompetences(QWidget):
         self._recherche.textChanged.connect(self.rafraichir)
         ligne.addWidget(self._recherche, 1)
 
-        self._dd_filtre = QComboBox()
+        self._dd_filtre = Choix()
         self._dd_filtre.addItems([_("Tout"), _("En cours")])
         self._dd_filtre.setToolTip(
             _("« En cours » ne garde que les niveaux entamés"))

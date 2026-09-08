@@ -250,7 +250,12 @@ QPushButton, QToolButton {
     border: 1px solid #1b1b1b;
     border-radius: 6px;
     color: #eeeeec;
-    padding: 4px 10px;
+    /* Quinze de chaque cote, et non dix : mesure sur les deux fenetres, a
+       corps de texte egal. « Copier » occupe quatre-vingt-deux pixels en GTK
+       et n'en faisait que soixante-douze ici, « Actualiser » cent sept contre
+       quatre-vingt-dix-huit -- dix pixels de moins sur chaque bouton de
+       chaque barre. */
+    padding: 4px 15px;
     /* Vingt-quatre de contenu, quatre de remplissage en haut et en bas, un de
        bordure de chaque cote : trente-quatre en tout, la boite d'un bouton
        Adwaita. C'est la mesure que la regle du bouton de signature porte
@@ -328,7 +333,10 @@ QPushButton#nav, QToolButton#nav {
     color: #eeeeec;
     border: 1px solid %(bande)s;
     border-radius: 0;
-    padding: 4px 14px;
+    /* Onze de chaque cote, et non quatorze : le bloc des trois onglets faisait
+       trois cent dix-sept milliemes de la fenetre contre trois cent trois en
+       GTK -- dix-sept pixels, six par bouton. Mesure sur les deux fenetres. */
+    padding: 4px 11px;
     /* Trente-deux pixels de haut, mesures sur la fenetre GTK. Le contenu seul
        en donnait vingt-neuf : trois de moins, visibles des qu'on pose les deux
        captures l'une sous l'autre. Vingt-sept depuis que les boutons portent
@@ -727,9 +735,13 @@ QLineEdit[recherche="true"] { min-height: 24px; }
    d'ecartement, et huit de marge tout autour. Une `QTableWidget` n'a ni l'un
    ni l'autre : ses colonnes se touchaient a quatre pixels pres, et les six
    colonnes du journal se serraient sur les deux tiers de la largeur qu'elles
-   occupent en GTK. Huit de chaque cote font seize entre deux colonnes -- et,
-   sur la premiere, les huit de marge de la grille. */
-QTableView#journal::item { padding-left: 8px; padding-right: 8px; }
+   occupent en GTK.
+
+   Quatre de chaque cote, et non huit : le style ajoute deja quatre pixels de
+   marge de son cru a chaque cellule, si bien que huit en donnaient
+   vingt-quatre entre deux colonnes au lieu de seize. Mesure sur les deux
+   fenetres, a corps de texte egal. */
+QTableView#journal::item { padding-left: 4px; padding-right: 4px; }
 /* Et six pixels au-dessus de la premiere ligne, pour le meme `_pad` : sans
    eux, le journal commence colle sous la barre de recherche, six pixels plus
    haut que celui de GTK. C'est la feuille qui les pose et non

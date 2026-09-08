@@ -285,10 +285,25 @@ def montrer_ecran(f, nom, temoin=None) -> None:
     else:
         f._stack.set_visible_child_name("plus")
         f._plus_stack.set_visible_child_name(nom)
+    # **Deux attentes, et non une.** La premiere jusqu'a ce que la page
+    # existe -- une page jamais affichee mesure zero. La seconde jusqu'a ce
+    # que sa mise en page se soit tue : GTK alloue d'abord aux enfants leur
+    # largeur minimale, puis leur donne la naturelle a la trame suivante, et
+    # une mesure prise entre les deux donnait un bouton « Copier » large de
+    # quarante-huit pixels quand il en fait quatre-vingt-deux a l'ecran. La
+    # capture l'a dementie ; sans elle, on corrigeait Qt sur du vent.
     for _ in range(40):
         tourner(50)
         if temoin is None or temoin.get_height() > 0:
+            break
+    if temoin is None:
+        return
+    precedente = -1
+    for _ in range(20):
+        tourner(60)
+        if temoin.get_width() == precedente:
             return
+        precedente = temoin.get_width()
 
 
 def air_sous(barre, champ) -> int:
@@ -383,6 +398,35 @@ def _geometrie(f: MainWindow) -> dict:
     situer("geo.inventaire", f._inv_dd)
     situer("geo.recherche", f._search)
     return mesures
+
+
+#: Le texte dont on mesure la largeur, des deux cotes.
+#:
+#: **Le point de controle des points de controle.** Deux toolkits n'expriment
+#: pas leur police pareil -- Pango rend des unites de peripherique, Qt des
+#: points -- et comparer les deux nombres n'apprend rien. La largeur d'une
+#: meme chaine, elle, se compare : si elle differe, tout ce qui derive du
+#: texte differe avec elle, et aucune autre mesure ne veut plus rien dire.
+#: C'est exactement ce qui s'est passe deux fois -- l'agrandissement du bureau
+#: d'abord, le corps de base ensuite --, et deux fois on a accuse les fenetres
+#: d'un ecart qui venait de la mesure.
+TEXTE_TEMOIN = "Actualiser 0123456789"
+
+
+#: Le corps du texte des releves, le meme des deux cotes.
+#:
+#: **Sans lui, le banc mentait une seconde fois.** L'echelle du bureau avait
+#: ete neutralisee, mais pas le corps de base : GTK, prive de demon XSettings,
+#: retombe sur son defaut « Sans 10 », tandis que Qt gardait les neuf points
+#: de Fusion. Un dixieme de moins sur chaque lettre, et toutes les mesures
+#: tirees du texte suivaient -- « Entite : » faisait quarante-huit pixels d'un
+#: cote et quarante-trois de l'autre, la barre de navigation quatre milliemes
+#: de moins, les six colonnes du journal jusqu'a sept pixels. On accusait les
+#: fenetres d'un ecart qui venait de la mesure.
+#:
+#: Onze points, comme le banc d'images, pour que les deux outils parlent de la
+#: meme fenetre.
+CORPS_RELEVE = 11
 
 
 #: La taille de fenêtre des relevés, la même des deux côtés.
@@ -665,6 +709,23 @@ def relever(f: MainWindow) -> dict:
         # deux bascules qui commandent, et elles peuvent depasser sans que la
         # mesure du champ y voie rien.
         points[f"geo.{nom}.barre.hauteur"] = barre.get_height()
+        # La largeur de chaque commande de la barre, dans l'ordre. Le champ
+        # de recherche prend ce qui reste : dire qu'il est quarante pixels
+        # trop court n'apprend rien tant qu'on ignore laquelle de ses voisines
+        # les lui a pris.
+        # `compute_bounds` et non `get_width` : sur un `Gtk.Button`, celui-ci
+        # rend la largeur du contenu sans le remplissage de la feuille --
+        # quarante-huit pixels pour un « Copier » qui en occupe
+        # quatre-vingt-deux a l'ecran. La capture d'ecran a dementi la mesure,
+        # et c'est la mesure qui avait tort.
+        largeurs = []
+        for w in commandes(barre):
+            if isinstance(w, Gtk.Label):
+                continue
+            ok, cadre = w.compute_bounds(barre)
+            if ok and cadre.size.width > 1:
+                largeurs.append(round(cadre.size.width))
+        points[f"geo.{nom}.commandes.largeurs"] = largeurs
 
     # --- Le panneau des filtres, ouvert -------------------------------------
     # Un menu ferme ne se compare pas : c'est ouvert qu'on voit ses quatre
@@ -735,6 +796,17 @@ def relever(f: MainWindow) -> dict:
     points["journal.trait-de-jour.hauteur"] = (taille(trait)[1]
                                                if trait is not None else 0)
     points["journal.trait-de-jour.rangee"] = 2
+    points["police.corps"] = CORPS_RELEVE
+    from gi.repository import Pango
+    mise = Pango.Layout(f._status.get_pango_context())
+    mise.set_text(TEXTE_TEMOIN)
+    # Arrondi a la dizaine : deux moteurs de rendu ne tombent pas
+    # d'accord au pixel sur la meme police -- cent soixante et onze
+    # contre cent soixante-quatorze --, et ce point ne cherche pas
+    # cette finesse-la. Ce qu'il doit voir, c'est un corps de texte
+    # qui differe d'un dixieme : la, tout le reste ment.
+    points["police.largeur-temoin"] = round(
+        mise.get_pixel_size().width / 10) * 10
     # La hauteur d'une ligne du journal, allouee : c'est elle qui decide
     # combien de mouvements tiennent dans un ecran.
     points["geo.journal.pas-des-rangees"] = (
@@ -786,6 +858,12 @@ def parcourir(widget):
 
 def main() -> int:
     resultat: dict = {}
+    # Le meme corps des deux cotes, impose par le reglage : c'est par lui que
+    # les deux portages posent leur regle `* { font-size }`, et non par la
+    # police du bureau. Ludo a d'ailleurs onze points en Qt et « comme le
+    # bureau » en GTK : sans cela le controle comparerait ses deux reglages.
+    from zyroom.config import Settings as _Reglages
+    _Reglages.font_size = property(lambda _soi: CORPS_RELEVE)
     app = Gtk.Application(application_id="net.ryzom.zyroomgtk.parite")
 
     def demarre(a):
