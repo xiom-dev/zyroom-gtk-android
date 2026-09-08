@@ -55,6 +55,44 @@ def absolu(page: str) -> str:
     return re.sub(r'\b(href|src)="([^"]+)"', refaire, page)
 
 
+#: Le durcissement minimal du site, depose a cote de la page.
+#:
+#: **Le HTTP en clair est le seul vrai trou.** Le reste est bon par defaut chez
+#: Infomaniak : les repertoires ne se listent pas, le serveur n'annonce pas sa
+#: version, et le HSTS est deja pose. Mais `http://xiom.be` repondait, et une
+#: page servie en clair peut etre reecrite en chemin -- y compris ses liens de
+#: telechargement, qui menent a des executables. La redirection ferme cela.
+#:
+#: Pas de `Content-Security-Policy` : la page porte un script en ligne -- celui
+#: qui va lire les numeros de version -- et l'autoriser demanderait
+#: `unsafe-inline`, ce qui vide la regle de sa substance. Mieux vaut pas de
+#: politique qu'une politique qui ne protege de rien.
+HTACCESS = """\
+# Tout passe en HTTPS. Le certificat est la ; repondre en clair, c'est offrir
+# a un intermediaire la possibilite de reecrire la page -- et ses liens de
+# telechargement menent a des executables.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Le navigateur ne redevine pas le type d'un fichier : un .jpg reste une
+  # image, quoi que son contenu evoque.
+  Header always set X-Content-Type-Options "nosniff"
+  # La page ne s'ouvre pas dans le cadre d'un autre site.
+  Header always set X-Frame-Options "SAMEORIGIN"
+  # On ne raconte pas d'ou vient le visiteur aux sites que l'on cite.
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Pas de liste des fichiers d'un dossier. Deja le cas chez Infomaniak ; ecrit
+# ici pour que cela reste vrai si l'hebergement change un jour.
+Options -Indexes
+"""
+
+
 def main() -> int:
     sortie = (sys.argv[1] if len(sys.argv) > 1
               else os.path.join(RACINE, "site-domaine"))
@@ -73,6 +111,8 @@ def main() -> int:
     apercus = os.path.join(sortie, "apercus")
     shutil.rmtree(apercus, ignore_errors=True)
     shutil.copytree(os.path.join(PAGES, "apercus"), apercus)
+    open(os.path.join(sortie, ".htaccess"), "w",
+         encoding="utf-8").write(HTACCESS)
 
     poids = sum(os.path.getsize(os.path.join(racine, f))
                 for racine, _, fichiers in os.walk(sortie) for f in fichiers)
