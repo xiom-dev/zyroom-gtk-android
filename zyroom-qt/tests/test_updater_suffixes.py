@@ -72,3 +72,81 @@ class ChezSoi(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class InstallationUnix(unittest.TestCase):
+    """Une vraie installation, mise a jour cinq fois de suite.
+
+    Le defaut de Windows -- un dossier de plus a chaque mise a jour -- n'existe
+    pas ici : Unix laisse renommer le dossier d'ou l'on tourne, la permutation
+    se fait tout de suite, et rien ne s'accumule. Ce controle le verifie plutot
+    que de le supposer.
+    """
+
+    NOM = "ZyRoom-Qt"
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self.bac = tempfile.mkdtemp(prefix="essai-maj-")
+        self.addCleanup(shutil.rmtree, self.bac, ignore_errors=True)
+        self.maison = os.path.join(self.bac, self.NOM)
+        self._vrai_frozen = getattr(sys, "frozen", None)
+        self._vrai_exe = sys.executable
+        self.addCleanup(self._rendre_sys)
+
+    def _rendre_sys(self):
+        sys.executable = self._vrai_exe
+        if self._vrai_frozen is None:
+            if hasattr(sys, "frozen"):
+                del sys.frozen
+        else:
+            sys.frozen = self._vrai_frozen
+
+    def _poser(self, dossier, version):
+        os.makedirs(dossier, exist_ok=True)
+        chemin = os.path.join(dossier, self.NOM)
+        with open(chemin, "w") as f:
+            f.write(f"version {version}\n")
+        os.chmod(chemin, 0o755)
+
+    def _archive(self, version):
+        import shutil
+        import tempfile
+        import zipfile
+        lieu = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, lieu, ignore_errors=True)
+        dedans = os.path.join(lieu, self.NOM)
+        self._poser(dedans, version)
+        archive = os.path.join(self.bac, f"maj-{version}.zip")
+        with zipfile.ZipFile(archive, "w") as z:
+            z.write(os.path.join(dedans, self.NOM), f"{self.NOM}/{self.NOM}")
+        return archive
+
+    def _dossiers(self):
+        return sorted(d for d in os.listdir(self.bac)
+                      if os.path.isdir(os.path.join(self.bac, d)))
+
+    def test_rien_ne_s_accumule(self):
+        self._poser(self.maison, "1.0")
+        sys.frozen = True
+        sys.executable = os.path.join(self.maison, self.NOM)
+        for n in range(1, 6):
+            reussi, message = updater.installer(self._archive(f"1.{n}"))
+            self.assertTrue(reussi, message)
+            updater.nettoyer_ancienne()
+            self.assertEqual(self._dossiers(), [self.NOM],
+                             f"un dossier de trop apres la maj {n}")
+        with open(os.path.join(self.maison, self.NOM)) as f:
+            self.assertEqual(f.read().strip(), "version 1.5")
+
+    def test_on_ne_s_efface_pas_sous_les_pieds(self):
+        """Lancee depuis la mise de cote, l'application survit au menage."""
+        self._poser(self.maison, "1.0")
+        ancienne = self.maison + updater.SUFFIXE_ANCIEN
+        self._poser(ancienne, "0.9")
+        sys.frozen = True
+        sys.executable = os.path.join(ancienne, self.NOM)
+        updater.nettoyer_ancienne()
+        self.assertTrue(os.path.isdir(ancienne),
+                        "le menage a efface le dossier d'ou l'on tourne")

@@ -131,7 +131,12 @@ def nettoyer_ancienne() -> None:
     if not dossier:
         return
     ancienne = dossier + SUFFIXE_ANCIEN
-    if os.path.isdir(ancienne):
+    # **Jamais le dossier d'ou l'on tourne.** Quelqu'un qui aurait lance
+    # l'application depuis la mise de cote se serait vu effacer sous les
+    # pieds : sous Unix les fichiers ouverts survivent, la fenetre reste la,
+    # mais l'application a disparu du disque et le lancement suivant ne
+    # trouve plus rien. Mesure sur une installation simulee.
+    if os.path.isdir(ancienne) and ancienne != dossier_installe():
         shutil.rmtree(ancienne, ignore_errors=True)
 
 
@@ -358,7 +363,14 @@ def installer(archive: str) -> tuple[bool, str]:
     # le suffixe s'ajoute au suffixe : c'est ainsi qu'un joueur s'est retrouve
     # avec un `ZyRoom-Qt.nouveau.nouveau`. Il y a une mise en place a
     # terminer, et c'est elle qu'il faut proposer.
-    if hors_de_chez_soi():
+    #
+    # **Windows seulement.** La-bas le redemarrage repare, puisque le relais
+    # remet le dossier a sa place. Unix n'a pas de relais -- il n'en a pas
+    # besoin, la permutation s'y fait tout de suite --, et refuser la mise a
+    # jour y enfermerait le joueur dans un cul-de-sac : plus de mise a jour
+    # possible, et rien pour le ramener chez lui. Mesure sur une installation
+    # simulee : trois refus d'affilee, sans issue.
+    if os.name == "nt" and hors_de_chez_soi():
         return False, ("Une mise à jour précédente n'a pas été mise en "
                        "place. Redémarrez l'application pour la terminer.")
 
