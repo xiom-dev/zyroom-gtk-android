@@ -585,18 +585,9 @@ class FenetrePrincipale(QMainWindow):
         # cela elles restaient aux seize pixels par defaut de Qt jusqu'au
         # premier coup de zoom.
         self._appliquer_taille_boutons()
-        # **La largeur du bouton d'ordre se pose ici, et non a sa
-        # construction.** Elle se calcule sur la police du bouton, et celle-ci
-        # ne vaut la bonne qu'une fois la feuille de style appliquee : mesuree
-        # trop tot, elle donnait vingt-cinq pixels la ou GTK en dessine
-        # cinquante. La fleche seule est etroite, et il faut bien lui donner
-        # une largeur fixe -- sans quoi le bouton changerait de taille entre
-        # le haut et le bas, poussant ses voisins a chaque clic.
-        self._btn_ordre.setFixedWidth(theme.largeur(self._btn_ordre, 2.6))
-        # Et la reservation des deux bascules de l'effectif, pour la meme
-        # raison : elle se mesure sur la police, qui n'est la bonne qu'une
-        # fois la feuille appliquee.
-        self._page_effectif._reserver_largeur()
+        # Les largeurs qui se mesurent sur la police attendent que celle-ci
+        # soit connue : voir `_recaler_largeurs`.
+        QTimer.singleShot(0, self._recaler_largeurs)
         self._equilibrer_barre()
         self._montrer_page("inventory")
 
@@ -1488,6 +1479,29 @@ class FenetrePrincipale(QMainWindow):
             return True
         return super().eventFilter(objet, evenement)
 
+    def _recaler_largeurs(self) -> None:
+        """Les largeurs qui se calculent sur la police, celle-ci enfin connue.
+
+        **Trois fois le meme piege, et voici l'endroit ou il ne se tend
+        plus.** Une `QFontMetrics` prise pendant la construction mesure la
+        police par defaut de Qt -- neuf points -- et non celle que la feuille
+        de style pose : la feuille n'atteint un widget qu'au premier polissage,
+        c'est-a-dire a l'affichage. Y ont laisse des plumes la largeur du
+        bouton d'ordre, la chasse fixe du journal, et la reservation des deux
+        bascules de l'effectif -- qui tombait un cinquieme trop courte et
+        laissait donc les boutons s'elargir quand meme.
+
+        Differe d'un tour de boucle, et rappele a chaque zoom : ces largeurs
+        suivent le corps du texte, qui suit le zoom.
+
+        La fleche du tri, elle, n'a plus besoin de personne : on lui imposait
+        une largeur pour qu'elle ne change pas de taille entre le haut et le
+        bas, mais les deux fleches mesurent exactement pareil -- treize
+        pixels -- et sa largeur naturelle est donc deja stable. Une contrainte
+        de moins, et une qui ne suivait pas le zoom.
+        """
+        self._page_effectif._reserver_largeur()
+
     def _poser_la_feuille(self) -> None:
         """Rejoue la feuille de style au zoom courant.
 
@@ -1520,6 +1534,10 @@ class FenetrePrincipale(QMainWindow):
         # celle d'avant, la barre debordait de cent quarante pixels et ses
         # boutons de droite sortaient de la fenetre.
         self._equilibrer_barre()
+        # Les largeurs mesurees sur la police suivent le zoom, elles aussi :
+        # sans ce rappel, la fleche du tri restait a sa taille de cent pour
+        # cent pendant que ses voisins doublaient.
+        self._recaler_largeurs()
         self._statut(_("Zoom : {} %").format(round(reglages.zoom * 100)))
 
     def _appliquer_taille_icones(self) -> None:
