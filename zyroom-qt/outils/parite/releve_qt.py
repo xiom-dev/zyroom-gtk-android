@@ -35,6 +35,10 @@ from PySide6.QtWidgets import (QAbstractButton, QApplication,  # noqa: E402
                                QSpinBox, QToolButton, QWidget, QWidgetAction)
 
 from zyroom import ryzom_api, theme  # noqa: E402
+# `traduire` et non `_` : le tiret bas sert de variable
+# jetable dans ce fichier, et l'importer sous ce nom-la
+# le remplacait par un entier au premier `for _ in ...`.
+from zyroom.i18n import _ as traduire  # noqa: E402
 from zyroom.fenetre import AIR_PORTRAIT, FenetrePrincipale  # noqa: E402
 
 
@@ -600,10 +604,10 @@ def relever(f: FenetrePrincipale) -> dict:
     # --- Chaque ecran, sa barre de filtres ---------------------------------
     # Le pendant exact du bloc du meme nom dans `releve_gtk.py`, qui dit
     # pourquoi il existe.
-    for etat in (f._page_effectif._statut, f._page_avant_postes._statut,
-                 f._page_meteo._entete, f._lbl_journal,
-                 f._page_competences._statut):
-        etat.setText("")
+    libelles_d_etat = (f._page_effectif._statut,
+                       f._page_avant_postes._statut,
+                       f._page_meteo._entete, f._lbl_journal,
+                       f._page_competences._statut)
     f._btn_ordre.setText("↓")
     # L'arbre des competences a ete deplie plus haut, pour mesurer ses jauges,
     # et son bouton porte donc « Tout replier ». On le replie.
@@ -616,12 +620,24 @@ def relever(f: FenetrePrincipale) -> dict:
                        ("outposts", f._page_avant_postes._dd_vue),
                        ("meteo", f._page_meteo._btn_actualiser)):
         barre = champ.parentWidget()
+        # Apres l'affichage, comme du cote GTK : voir `releve_gtk.py`, qui dit
+        # pourquoi vider ces libelles avant ne suffisait pas.
+        montrer_ecran(f, nom)
+        for etat in libelles_d_etat:
+            etat.setText("")
+        # Voir `releve_gtk.py` : le compte vient du cache, pas de l'aspect.
+        for nom_vue, nu in (("effectif", traduire("Effectif")),
+                            ("mouvements",
+                             traduire("Arrivées et départs"))):
+            bascule = f._page_effectif._boutons.get(nom_vue)
+            if bascule is not None:
+                bascule.setText(nu)
+        QApplication.processEvents()
         lu = contenu_de_barre(barre)
         points[f"{nom}.recherche.invite"] = lu["invite"]
         points[f"{nom}.listes"] = lu["listes"]
         points[f"{nom}.boutons"] = lu["boutons"]
         points[f"{nom}.etiquettes"] = lu["etiquettes"]
-        montrer_ecran(f, nom)
         points[f"geo.{nom}.champ.hauteur"] = champ.height()
         points[f"geo.{nom}.air-sous-la-barre"] = air_sous(barre, champ)
         # Hors marges : GTK les pose autour de sa barre, Qt dedans, et c'est
@@ -720,6 +736,17 @@ def relever(f: FenetrePrincipale) -> dict:
     # L'inventaire revient : la geometrie qui suit mesure ses selecteurs, et
     # un widget qui n'est plus a l'ecran ne se mesure pas.
     f._montrer_page("inventory")
+    QApplication.processEvents()
+
+    # **La barre remise d'aplomb avant de la mesurer.** Le releve montre et
+    # cache le bouton de mise a jour, change de page, pose des temoins : autant
+    # de gestes que l'application accompagne d'un `_equilibrer_barre` quand
+    # c'est elle qui les fait, et que nous faisons ici dans son dos. Sans ce
+    # rattrapage, la navigation paraissait decalee de sept pixels -- cinq cent
+    # six milliemes au lieu de cinq cents -- alors qu'elle tombe pile dans
+    # l'application. Quatrieme mensonge du banc, et le meme remede : mesurer
+    # une fenetre au repos.
+    f._equilibrer_barre()
     QApplication.processEvents()
 
     # --- Geometrie : ou les choses sont. Voir `releve_gtk.py`, qui porte les

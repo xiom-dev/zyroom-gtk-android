@@ -879,6 +879,14 @@ class MainWindow(Gtk.ApplicationWindow):
             self._roster_boutons[nom] = bouton
             vues.append(bouton)
         self._roster_boutons["effectif"].set_active(True)
+        # **La place du compte est reservee des le depart.** Les deux libelles
+        # gagnent un « · 178 » des que le registre est lu, et les boutons
+        # s'elargissaient alors d'un coup sous le pointeur, poussant leur
+        # voisin. On leur donne tout de suite la largeur qu'ils auront une
+        # fois remplis. Repousse a la boucle d'inactivite : la mesure se fait
+        # sur la police, et celle-ci n'est la bonne qu'une fois la fenetre
+        # posee -- la version Qt s'est fait prendre au meme piege.
+        GLib.idle_add(self._reserver_largeur_roster)
         bar.append(vues)
 
         # Cent soixante-douze noms sur six colonnes se cherchent encore à l'œil.
@@ -904,6 +912,21 @@ class MainWindow(Gtk.ApplicationWindow):
         scrolled.set_child(self._roster_box)
         page.append(scrolled)
         return page
+
+    def _reserver_largeur_roster(self) -> bool:
+        """Fige la largeur des deux bascules sur leur libelle le plus long."""
+        from gi.repository import Pango
+        for nom, gabarit in (("effectif", _("Effectif · %d") % 9999),
+                             ("mouvements",
+                              _("Arrivées et départs · %d") % 9999)):
+            bouton = self._roster_boutons.get(nom)
+            if bouton is None:
+                continue
+            mise = Pango.Layout(bouton.get_pango_context())
+            mise.set_text(gabarit)
+            # La marge du theme par-dessus le texte, comme du cote Qt.
+            bouton.set_size_request(mise.get_pixel_size().width + 36, -1)
+        return False
 
     def _on_roster_vue(self, bouton, nom: str) -> None:
         """Deux bascules qui se conduisent comme un choix unique.

@@ -147,7 +147,16 @@ class PageEffectif(QWidget):
         colonne.addWidget(defilant, 1)
 
     def _reserver_largeur(self) -> None:
-        """Fige la largeur des deux bascules sur leur libellé le plus long."""
+        """Fige la largeur des deux bascules sur leur libellé le plus long.
+
+        **A rappeler une fois la feuille de style posee.** Une `QFontMetrics`
+        prise au montage mesure la police par defaut de Qt -- neuf points --
+        et non les onze de la feuille : la reservation tombait un cinquieme
+        trop courte, et les boutons s'elargissaient quand meme a l'arrivee du
+        registre. Le meme piege que la largeur du bouton d'ordre et que la
+        chasse fixe du journal ; c'est `fenetre.py` qui rappelle celle-ci au
+        bon moment.
+        """
         from PySide6.QtGui import QFontMetrics
         for nom, gabarit in (("effectif", _("Effectif · %d") % 9999),
                              ("mouvements",

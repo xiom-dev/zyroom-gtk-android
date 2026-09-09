@@ -36,6 +36,10 @@ RACINE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 sys.path.insert(0, os.path.join(os.path.dirname(RACINE), "zyroom-gtk"))
 
 from zyroom import ryzom_api  # noqa: E402
+# `traduire` et non `_` : le tiret bas sert de variable
+# jetable dans ce fichier, et l'importer sous ce nom-la
+# le remplacait par un entier au premier `for _ in ...`.
+from zyroom.i18n import _ as traduire  # noqa: E402
 from zyroom.window import MainWindow  # noqa: E402
 
 
@@ -671,9 +675,8 @@ def relever(f: MainWindow) -> dict:
     # tous. Les libelles d'etat sont vides d'abord : ils disent les donnees du
     # moment -- « Effectif · 177 », « Lecture de la meteo… » --, et les deux
     # applications ne lisent pas le meme cache.
-    for etat in (f._roster_status, f._op_status, f._meteo_entete,
-                 f._log_status, f._skills_status):
-        etat.set_text("")
+    libelles_d_etat = (f._roster_status, f._op_status, f._meteo_entete,
+                       f._log_status, f._skills_status)
     # L'ordre du tri est un reglage sauvegarde, propre a chaque portage : deux
     # fleches opposees ne diraient rien de l'aspect.
     f._order_btn.set_label("↓")
@@ -690,12 +693,30 @@ def relever(f: MainWindow) -> dict:
                        ("outposts", f._op_vue),
                        ("meteo", f._meteo_refresh)):
         barre = champ.get_parent()
+        # **Vider les libelles d'etat apres l'affichage, et non avant.**
+        # Arriver sur un ecran le recharge, et le libelle se repeuplait :
+        # celui de l'effectif reprenait « La Lune Eternelle », cent
+        # vingt-huit pixels, qu'il prenait au champ de recherche. On accusait
+        # Qt d'un champ trop large de cent cinquante pixels quand les deux
+        # fenetres sont identiques -- seule la mesure ne l'etait pas.
+        montrer_ecran(f, nom, champ)
+        for etat in libelles_d_etat:
+            etat.set_text("")
+        # Et les deux bascules de l'effectif reviennent a leur libelle nu :
+        # elles gagnent un « · 177 » a l'affichage, et ce nombre-la vient du
+        # cache de chaque application, pas de son aspect.
+        for nom_vue, nu in (("effectif", traduire("Effectif")),
+                            ("mouvements",
+                             traduire("Arrivées et départs"))):
+            bascule = f._roster_boutons.get(nom_vue)
+            if bascule is not None:
+                bascule.set_label(nu)
+        tourner(120)
         lu = contenu_de_barre(barre)
         points[f"{nom}.recherche.invite"] = lu["invite"]
         points[f"{nom}.listes"] = lu["listes"]
         points[f"{nom}.boutons"] = lu["boutons"]
         points[f"{nom}.etiquettes"] = lu["etiquettes"]
-        montrer_ecran(f, nom, champ)
         # `compute_bounds` et non `get_height` : c'est la mesure que `situer`
         # emploie plus bas, et deux facons de mesurer le meme champ rendaient
         # deux nombres -- trente-deux et trente-quatre -- dont l'un des deux

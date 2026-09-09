@@ -593,6 +593,10 @@ class FenetrePrincipale(QMainWindow):
         # une largeur fixe -- sans quoi le bouton changerait de taille entre
         # le haut et le bas, poussant ses voisins a chaque clic.
         self._btn_ordre.setFixedWidth(theme.largeur(self._btn_ordre, 2.6))
+        # Et la reservation des deux bascules de l'effectif, pour la meme
+        # raison : elle se mesure sur la police, qui n'est la bonne qu'une
+        # fois la feuille appliquee.
+        self._page_effectif._reserver_largeur()
         self._equilibrer_barre()
         self._montrer_page("inventory")
 
