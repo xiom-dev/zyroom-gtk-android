@@ -479,7 +479,11 @@ class FenetrePrincipale(QMainWindow):
         #: tard >>. Sans ce rappel elle attendrait indefiniment, et le
         #: veilleur ne reproposerait rien : de son point de vue la nouvelle
         #: version est deja installee.
-        self._maj_en_attente = updater.maj_en_attente()
+        #: Et le cas ou l'application tourne depuis le dossier depose a cote,
+        #: la mise en place n'ayant jamais eu lieu : il n'y a rien a
+        #: telecharger, il y a une permutation a terminer.
+        self._maj_en_attente = (updater.maj_en_attente()
+                                or updater.hors_de_chez_soi())
         self._veilleur = updater.Veilleur()
         self._minuteur_maj = QTimer(self)
         self._minuteur_maj.timeout.connect(self._verifier_maj)

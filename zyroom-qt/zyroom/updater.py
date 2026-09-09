@@ -61,6 +61,10 @@ SUFFIXE_ANCIEN = ".ancien"
 #: se ferme. Voir `installer`.
 SUFFIXE_NOUVEAU = ".nouveau"
 
+#: Les suffixes que nous ajoutons au dossier d'installation, et qu'il faut
+#: donc savoir lui retirer.
+SUFFIXES = (SUFFIXE_NOUVEAU, SUFFIXE_ANCIEN)
+
 _USER_AGENT = "zyroom-qt (+https://github.com/xiom-dev/zyroom-gtk-android)"
 
 
@@ -80,6 +84,42 @@ def dossier_installe() -> str:
     return os.path.dirname(os.path.abspath(sys.executable))
 
 
+def dossier_canonique(dossier: str = "") -> str:
+    """Le dossier d'installation debarrasse de nos suffixes.
+
+    **Sans lui, les suffixes s'empilent.** Un joueur s'est retrouve avec
+    `ZyRoom-Qt`, `ZyRoom-Qt.nouveau` et `ZyRoom-Qt.nouveau.nouveau` : la mise
+    en place ne s'etait pas faite, il avait lance l'application depuis le
+    dossier depose a cote -- ce qui est la chose la plus naturelle du monde
+    quand on voit apparaitre un dossier tout frais --, et la mise a jour
+    suivante a colle un second suffixe au premier. Un dossier de plus a chaque
+    fois, quarante megaoctets a chaque fois, et une application qui ne
+    revenait jamais chez elle.
+
+    On retire donc les suffixes en boucle : `.nouveau.nouveau` rend le meme
+    dossier de base que `.nouveau`.
+    """
+    dossier = dossier or dossier_installe()
+    encore = True
+    while encore and dossier:
+        encore = False
+        for suffixe in SUFFIXES:
+            if dossier.endswith(suffixe):
+                dossier = dossier[: -len(suffixe)]
+                encore = True
+    return dossier
+
+
+def hors_de_chez_soi() -> bool:
+    """Vrai si l'on tourne depuis un dossier depose a cote, jamais mis en place.
+
+    C'est l'etat du joueur dont la mise a jour n'avait pas abouti. Il n'y a
+    rien a telecharger dans ce cas : il y a une mise en place a terminer.
+    """
+    dossier = dossier_installe()
+    return bool(dossier) and dossier != dossier_canonique(dossier)
+
+
 def nettoyer_ancienne() -> None:
     """Efface l'installation précédente, s'il en reste une.
 
@@ -87,7 +127,7 @@ def nettoyer_ancienne() -> None:
     ne peut plus gêner personne. Un échec est sans conséquence — on réessaiera
     au prochain lancement.
     """
-    dossier = dossier_installe()
+    dossier = dossier_canonique()
     if not dossier:
         return
     ancienne = dossier + SUFFIXE_ANCIEN
@@ -314,6 +354,13 @@ def installer(archive: str) -> tuple[bool, str]:
     cible = dossier_installe()
     if not cible:
         return False, "Aucune installation à remplacer."
+    # **On ne met pas a jour depuis un dossier qui n'est pas le sien.** Sinon
+    # le suffixe s'ajoute au suffixe : c'est ainsi qu'un joueur s'est retrouve
+    # avec un `ZyRoom-Qt.nouveau.nouveau`. Il y a une mise en place a
+    # terminer, et c'est elle qu'il faut proposer.
+    if hors_de_chez_soi():
+        return False, ("Une mise à jour précédente n'a pas été mise en "
+                       "place. Redémarrez l'application pour la terminer.")
 
     extraction = tempfile.mkdtemp(prefix="zyroom-qt-maj-")
     ancienne = cible + SUFFIXE_ANCIEN
@@ -340,7 +387,7 @@ def installer(archive: str) -> tuple[bool, str]:
             # Windows tient l'executable en cours : on ne touche a rien, on
             # depose. `relancer` fera le remplacement quand plus personne
             # n'aura le dossier en main.
-            attente = cible + SUFFIXE_NOUVEAU
+            attente = dossier_canonique(cible) + SUFFIXE_NOUVEAU
             if os.path.isdir(attente):
                 shutil.rmtree(attente, ignore_errors=True)
             shutil.move(neuve, attente)
@@ -372,11 +419,11 @@ def installer(archive: str) -> tuple[bool, str]:
 
 def maj_en_attente() -> bool:
     """Vrai si une nouvelle version attend d'être mise en place (Windows)."""
-    dossier = dossier_installe()
+    dossier = dossier_canonique()
     return bool(dossier) and os.path.isdir(dossier + SUFFIXE_NOUVEAU)
 
 
-def _relais_windows(cible: str) -> bool:
+def _relais_windows() -> bool:
     """Confie le remplacement à un script qui nous survivra.
 
     Windows ne laisse pas un programme remplacer le dossier d'où il tourne.
@@ -389,9 +436,18 @@ def _relais_windows(cible: str) -> bool:
     l'installation soit accessible en écriture.
     """
     import subprocess
+    # **Le meme relais sert a poser une mise a jour et a rentrer chez soi.**
+    # Dans les deux cas il s'agit de mettre un dossier a la place d'un autre
+    # une fois l'application fermee : ou bien celui qui attend a cote, ou bien
+    # celui d'ou nous tournons quand la mise en place precedente a echoue.
+    cible = dossier_canonique()
+    attente = (dossier_installe() if hors_de_chez_soi()
+               else cible + SUFFIXE_NOUVEAU)
     ancienne = cible + SUFFIXE_ANCIEN
-    attente = cible + SUFFIXE_NOUVEAU
-    exe = os.path.abspath(sys.executable)
+    # L'executable de destination, et non le notre : apres la permutation nous
+    # ne serons plus la ou nous sommes, et relancer notre propre chemin
+    # rouvrait le dossier qu'on vient de mettre de cote.
+    exe = os.path.join(cible, os.path.basename(sys.executable))
 
     script = os.path.join(tempfile.gettempdir(), "zyroom-qt-maj.bat")
     # **Les chemins passent par l'environnement, jamais par le script.**
@@ -436,6 +492,11 @@ if errorlevel 1 (
     move "%ZY_ANCIENNE%" "%ZY_CIBLE%" >nul 2>&1
     goto :echec
 )
+rem Plus aucun dossier suffixe n'a de raison d'etre : celui qui comptait
+rem vient de prendre la place. Sans ce menage, un `.nouveau` oublie serait
+rem repris pour une mise a jour en attente au lancement suivant -- et
+rem remettrait en place une version plus ancienne.
+for /d %%d in ("%ZY_CIBLE%.nouveau*") do rmdir /s /q "%%d"
 start "" "%ZY_EXE%"
 goto :fin
 :echec
@@ -469,8 +530,8 @@ def relancer() -> bool:
     # Sous Windows, la nouvelle version attend a cote : c'est le relais qui la
     # met en place, puisque nous ne pouvons pas remplacer le dossier d'ou nous
     # tournons. Il relance l'application lui-meme.
-    if os.name == "nt" and maj_en_attente():
-        return _relais_windows(dossier_installe())
+    if os.name == "nt" and (maj_en_attente() or hors_de_chez_soi()):
+        return _relais_windows()
 
     try:
         import subprocess
