@@ -264,3 +264,36 @@ class PoserEnPartant(unittest.TestCase):
         if os.name == "nt":
             self.skipTest("essai propre aux systemes sans relais")
         self.assertFalse(updater.poser_a_la_fermeture())
+
+
+class DrapeauxDeCreation(unittest.TestCase):
+    """Le relais doit pouvoir demarrer, et Windows est tatillon la-dessus.
+
+    `DETACHED_PROCESS`, `CREATE_NO_WINDOW` et `CREATE_NEW_CONSOLE` s'excluent
+    mutuellement : les combiner fait rendre ERROR_INVALID_PARAMETER a
+    `CreateProcess`, qui ne lance rien. Les deux premiers y etaient, et le
+    relais ne partait donc jamais -- sur aucune machine. L'exception etait
+    avalee, et le bouton << Relancer >> restait muet.
+
+    Ce controle ne peut pas lancer de processus Windows ; il verrouille la
+    valeur, qui est la chose qui avait lache.
+    """
+
+    CREATE_NEW_CONSOLE = 0x00000010
+    CREATE_NO_WINDOW = 0x08000000
+
+    def test_le_drapeau_est_detached_process_seul(self):
+        self.assertEqual(0x00000008, updater.DETACHED_PROCESS)
+
+    def test_aucun_drapeau_incompatible_n_est_melange(self):
+        for nom, valeur in (("CREATE_NO_WINDOW", self.CREATE_NO_WINDOW),
+                            ("CREATE_NEW_CONSOLE", self.CREATE_NEW_CONSOLE)):
+            with self.subTest(drapeau=nom):
+                self.assertFalse(
+                    updater.DETACHED_PROCESS & valeur,
+                    f"{nom} ne peut pas accompagner DETACHED_PROCESS")
+
+    def test_l_echec_laisse_sa_raison(self):
+        # Sans cela, le joueur n'a qu'un bouton qui ne fait rien, et l'on
+        # cherche pendant des jours du cote des noms de dossiers.
+        self.assertTrue(hasattr(updater, "derniere_erreur"))

@@ -3056,9 +3056,13 @@ class FenetrePrincipale(QMainWindow):
             self._relais_parti = True
             self.close()
         else:
+            # La raison, quand il y en a une : un bouton qui ne fait rien sans
+            # rien dire est ce qui a le plus retarde le diagnostic.
+            raison = updater.derniere_erreur
             self._statut(
                 _("Impossible de relancer automatiquement : fermez et rouvrez "
-                  "l'application pour utiliser la nouvelle version."))
+                  "l'application pour utiliser la nouvelle version.")
+                + (f" ({raison})" if raison else ""))
 
     # ------------------------------------ Resynchronisation periodique
     def _programmer_releve(self) -> None:

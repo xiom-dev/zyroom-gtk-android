@@ -67,6 +67,24 @@ SUFFIXES = (SUFFIXE_NOUVEAU, SUFFIXE_ANCIEN)
 
 _USER_AGENT = "zyroom-qt (+https://github.com/xiom-dev/zyroom-gtk-android)"
 
+#: Le drapeau de creation du relais, sous Windows : un processus sans console,
+#: qui nous survit.
+#:
+#: **Seul, et non combine a `CREATE_NO_WINDOW`.** Les deux y etaient, et
+#: Windows refuse ce melange : `DETACHED_PROCESS`, `CREATE_NO_WINDOW` et
+#: `CREATE_NEW_CONSOLE` s'excluent mutuellement, et `CreateProcess` rend
+#: ERROR_INVALID_PARAMETER sans rien faire. Le relais ne partait donc jamais
+#: -- sur aucune machine, depuis le premier jour --, l'exception etait avalee
+#: plus bas, et le bouton << Relancer >> ne relancait rien. C'est la cause du
+#: dossier `.nouveau` qui restait, puis s'empilait.
+#:
+#: Un processus detache n'a de toute facon pas de console : le second drapeau
+#: n'ajoutait rien, et interdisait tout.
+DETACHED_PROCESS = 0x00000008
+
+#: La raison du dernier echec du relais, pour que l'ecran puisse la dire.
+derniere_erreur = ""
+
 
 def empaquete() -> bool:
     """Vrai si l'on tourne depuis un paquet et non depuis les sources."""
@@ -548,9 +566,14 @@ del "%~f0"
             f.write(contenu)
         subprocess.Popen(["cmd", "/c", script], close_fds=True,
                          env=environnement,
-                         creationflags=0x00000008 | 0x08000000)
+                         creationflags=DETACHED_PROCESS)
         return True
-    except Exception:                                   # noqa: BLE001
+    except Exception as exc:                            # noqa: BLE001
+        # **Ne plus avaler la raison.** Elle etait perdue ici, et le joueur
+        # n'avait qu'un bouton qui ne faisait rien : c'est ce silence qui a
+        # coute le plus cher: le relais ne partait pas, et rien ne le disait.
+        global derniere_erreur
+        derniere_erreur = str(exc)
         return False
 
 
