@@ -526,9 +526,11 @@ rem reste aucune trace, et l'on en est reduit a deviner. `ZY_JOURNAL` dit ou
 rem ecrire ; sans elle, rien n'est ecrit.
 if defined ZY_JOURNAL echo [debut] cible=%ZY_CIBLE% attente=%ZY_ATTENTE% pid=%ZY_PID%>>"%ZY_JOURNAL%"
 for /l %%i in (1,1,30) do (
+    if defined ZY_JOURNAL echo [attente] tour %%i>>"%ZY_JOURNAL%"
     tasklist /fi "PID eq %ZY_PID%" 2>nul | find "%ZY_PID%" >nul || goto :libre
     ping -n 2 127.0.0.1 >nul
 )
+if defined ZY_JOURNAL echo [attente] les trente tours sont passes>>"%ZY_JOURNAL%"
 :libre
 if defined ZY_JOURNAL echo [libre] le processus est parti>>"%ZY_JOURNAL%"
 if exist "%ZY_ANCIENNE%" rmdir /s /q "%ZY_ANCIENNE%"

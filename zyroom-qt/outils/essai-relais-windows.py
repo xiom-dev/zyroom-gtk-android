@@ -119,9 +119,10 @@ def essai_de_permutation() -> bool:
     if fils.returncode != 0:
         return dire(False, f"le relais n'est pas parti : {fils.stderr[-400:]}")
 
-    # Le relais attend la mort du fils, puis permute. Trente secondes de
-    # patience : la machine de GitHub n'est pas la plus rapide du monde.
-    for _ in range(60):
+    # Le relais attend la mort du fils, puis permute. Deux minutes de
+    # patience : sa boucle d'attente peut a elle seule durer une minute, et
+    # trente secondes ne suffisaient pas -- on concluait avant lui.
+    for _ in range(240):
         if _lu(maison) == "neuve" and not os.path.isdir(attente):
             break
         time.sleep(0.5)
