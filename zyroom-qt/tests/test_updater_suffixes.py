@@ -269,14 +269,15 @@ class PoserEnPartant(unittest.TestCase):
 class DrapeauxDeCreation(unittest.TestCase):
     """Le relais doit pouvoir demarrer, et Windows est tatillon la-dessus.
 
-    `DETACHED_PROCESS`, `CREATE_NO_WINDOW` et `CREATE_NEW_CONSOLE` s'excluent
-    mutuellement : les combiner fait rendre ERROR_INVALID_PARAMETER a
-    `CreateProcess`, qui ne lance rien. Les deux premiers y etaient, et le
-    relais ne partait donc jamais -- sur aucune machine. L'exception etait
-    avalee, et le bouton << Relancer >> restait muet.
+    La documentation de Microsoft presente `DETACHED_PROCESS`,
+    `CREATE_NO_WINDOW` et `CREATE_NEW_CONSOLE` comme incompatibles. En
+    pratique, l'essai lance sur un vrai Windows montre que le melange passe :
+    ce n'etait donc pas la cause de la panne. On garde le drapeau seul par
+    hygiene -- un processus detache n'a pas de console --, et ce controle
+    verrouille cette valeur, sans pretendre expliquer quoi que ce soit.
 
-    Ce controle ne peut pas lancer de processus Windows ; il verrouille la
-    valeur, qui est la chose qui avait lache.
+    Ce qui mesure vraiment le relais, c'est `outils/essai-relais-windows.py`,
+    sur la machine Windows que GitHub prete.
     """
 
     CREATE_NEW_CONSOLE = 0x00000010

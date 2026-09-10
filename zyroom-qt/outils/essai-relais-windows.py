@@ -57,15 +57,18 @@ def essai_des_drapeaux() -> bool:
     except OSError as exc:
         ensemble &= dire(False, f"DETACHED_PROCESS seul a echoue : {exc}")
 
+    # **Mesure, et non verdict.** On a cru un temps que le melange avec
+    # CREATE_NO_WINDOW etait refuse par Windows et expliquait tout. Cet essai,
+    # lance sur la machine de GitHub, a montre que non : il passe. La ligne
+    # reste parce qu'elle documente le fait, mais elle ne decide de rien.
     try:
         p = subprocess.Popen(
             ["cmd", "/c", "exit"],
             creationflags=updater.DETACHED_PROCESS | CREATE_NO_WINDOW)
         p.wait(timeout=30)
-        ensemble &= dire(False, "le melange a ete accepte : Windows a change,"
-                                " le diagnostic est a refaire")
+        print("  note  le melange avec CREATE_NO_WINDOW est accepte ici")
     except OSError as exc:
-        ensemble &= dire(True, f"le melange est bien refuse ({exc.errno})")
+        print(f"  note  le melange est refuse ici ({exc.errno})")
 
     return ensemble
 
@@ -93,7 +96,8 @@ def joue_l_application(bac: str) -> int:
     sys.frozen = True
     sys.executable = os.path.join(bac, NOM + updater.SUFFIXE_NOUVEAU,
                                   NOM + ".exe")
-    parti = updater._relais_windows(relancer_apres=False)
+    parti = updater._relais_windows(
+        relancer_apres=False, journal=os.path.join(bac, "journal.txt"))
     print(f"    (relais parti : {parti}; raison : "
           f"{updater.derniere_erreur or 'aucune'})")
     return 0 if parti else 1
@@ -121,6 +125,16 @@ def essai_de_permutation() -> bool:
         if _lu(maison) == "neuve" and not os.path.isdir(attente):
             break
         time.sleep(0.5)
+
+    journal = os.path.join(bac, "journal.txt")
+    print("    journal du relais :")
+    if os.path.isfile(journal):
+        with open(journal) as f:
+            for ligne in f:
+                print("      " + ligne.rstrip())
+    else:
+        print("      (aucun : le script n'a pas demarre du tout)")
+    print(f"    ce qui reste dans le bac : {sorted(os.listdir(bac))}")
 
     ensemble = dire(_lu(maison) == "neuve",
                     "la nouvelle version a pris la place de l'ancienne")

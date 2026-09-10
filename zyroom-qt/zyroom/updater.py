@@ -70,16 +70,15 @@ _USER_AGENT = "zyroom-qt (+https://github.com/xiom-dev/zyroom-gtk-android)"
 #: Le drapeau de creation du relais, sous Windows : un processus sans console,
 #: qui nous survit.
 #:
-#: **Seul, et non combine a `CREATE_NO_WINDOW`.** Les deux y etaient, et
-#: Windows refuse ce melange : `DETACHED_PROCESS`, `CREATE_NO_WINDOW` et
-#: `CREATE_NEW_CONSOLE` s'excluent mutuellement, et `CreateProcess` rend
-#: ERROR_INVALID_PARAMETER sans rien faire. Le relais ne partait donc jamais
-#: -- sur aucune machine, depuis le premier jour --, l'exception etait avalee
-#: plus bas, et le bouton << Relancer >> ne relancait rien. C'est la cause du
-#: dossier `.nouveau` qui restait, puis s'empilait.
+#: **Seul, et non combine a `CREATE_NO_WINDOW`.** La documentation de Microsoft
+#: presente les deux comme incompatibles, et l'on a cru un temps que c'etait la
+#: cause du relais qui ne partait pas. L'essai lance sur un vrai Windows a
+#: montre que non : le melange y passe sans broncher, et le relais demarre.
 #:
-#: Un processus detache n'a de toute facon pas de console : le second drapeau
-#: n'ajoutait rien, et interdisait tout.
+#: Le drapeau reste seul quand meme -- un processus detache n'a de toute facon
+#: pas de console, le second n'ajoutait rien --, mais qu'on ne cherche pas ici
+#: l'explication d'une panne : voir `outils/essai-relais-windows.py`, qui
+#: mesure ce qui se passe reellement.
 DETACHED_PROCESS = 0x00000008
 
 #: La raison du dernier echec du relais, pour que l'ecran puisse la dire.
@@ -453,7 +452,7 @@ def maj_en_attente() -> bool:
     return bool(dossier) and os.path.isdir(dossier + SUFFIXE_NOUVEAU)
 
 
-def _relais_windows(relancer_apres: bool = True) -> bool:
+def _relais_windows(relancer_apres: bool = True, journal: str = "") -> bool:
     """Confie le remplacement à un script qui nous survivra.
 
     `relancer_apres` faux permute et s'arrête là. C'est ce qu'il faut quand
@@ -511,6 +510,8 @@ def _relais_windows(relancer_apres: bool = True) -> bool:
     environnement["ZY_SECOURS"] = os.path.abspath(sys.executable)
     environnement["ZY_PID"] = str(os.getpid())
     environnement["ZY_RELANCER"] = "1" if relancer_apres else "0"
+    if journal:
+        environnement["ZY_JOURNAL"] = journal
 
     # `tasklist` plutot qu'une attente fixe : la duree de fermeture depend de
     # la machine, et une seconde de trop ou de moins deciderait du succes.
@@ -519,20 +520,28 @@ def _relais_windows(relancer_apres: bool = True) -> bool:
     # version reste, ce qui est le cas sur lequel on sait revenir.
     contenu = """@echo off
 setlocal
+rem **Un journal, quand on le demande.** Ce script est le seul morceau de
+rem l'application qui tourne apres sa mort : quand il ne fait rien, il ne
+rem reste aucune trace, et l'on en est reduit a deviner. `ZY_JOURNAL` dit ou
+rem ecrire ; sans elle, rien n'est ecrit.
+if defined ZY_JOURNAL echo [debut] cible=%ZY_CIBLE% attente=%ZY_ATTENTE% pid=%ZY_PID%>>"%ZY_JOURNAL%"
 for /l %%i in (1,1,30) do (
     tasklist /fi "PID eq %ZY_PID%" 2>nul | find "%ZY_PID%" >nul || goto :libre
     ping -n 2 127.0.0.1 >nul
 )
 :libre
+if defined ZY_JOURNAL echo [libre] le processus est parti>>"%ZY_JOURNAL%"
 if exist "%ZY_ANCIENNE%" rmdir /s /q "%ZY_ANCIENNE%"
 rem La cible peut manquer, et ce n'est pas une panne : un joueur qui decouvre
 rem trois dossiers presque identiques en supprime, et parfois le bon. Il n'y
 rem a alors rien a mettre de cote -- on pose directement.
 if not exist "%ZY_CIBLE%" goto :poser
 move "%ZY_CIBLE%" "%ZY_ANCIENNE%" >nul 2>&1
+if defined ZY_JOURNAL echo [mise de cote] errorlevel=%errorlevel%>>"%ZY_JOURNAL%"
 if errorlevel 1 goto :echec
 :poser
 move "%ZY_ATTENTE%" "%ZY_CIBLE%" >nul 2>&1
+if defined ZY_JOURNAL echo [pose] errorlevel=%errorlevel%>>"%ZY_JOURNAL%"
 if errorlevel 1 (
     rem Le remplacement a echoue a mi-chemin : l'application doit exister.
     if exist "%ZY_ANCIENNE%" move "%ZY_ANCIENNE%" "%ZY_CIBLE%" >nul 2>&1
@@ -543,10 +552,12 @@ rem vient de prendre la place. Sans ce menage, un `.nouveau` oublie serait
 rem repris pour une mise a jour en attente au lancement suivant -- et
 rem remettrait en place une version plus ancienne.
 for /d %%d in ("%ZY_CIBLE%.nouveau*") do rmdir /s /q "%%d"
+if defined ZY_JOURNAL echo [fini] la permutation a eu lieu>>"%ZY_JOURNAL%"
 if not "%ZY_RELANCER%"=="1" goto :fin
 start "" "%ZY_EXE%"
 goto :fin
 :echec
+if defined ZY_JOURNAL echo [echec] rien n'a pu etre deplace>>"%ZY_JOURNAL%"
 if not "%ZY_RELANCER%"=="1" goto :fin
 rem Relancer ce qui existe, et non ce qui devrait exister : apres un echec la
 rem cible peut n'avoir jamais ete la, et son executable non plus. Le dossier
