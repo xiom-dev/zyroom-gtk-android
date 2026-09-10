@@ -52,6 +52,19 @@ jobs:
         shell: bash
         run: outils/sync-noyau.sh --verifie
 
+      - name: Essai du relais de mise a jour
+        shell: cmd
+        # **Le seul essai qui demandait un vrai Windows.** Le relais n'a
+        # jamais demarre pendant une semaine : ses deux drapeaux de creation
+        # s'excluent mutuellement, CreateProcess refusait, et l'exception
+        # etait avalee. Ni les essais -- qui ne lisaient que le texte du
+        # script --, ni Wine -- qui accepte ce que Windows refuse --, ni la
+        # relecture n'ont pu le voir. Cette machine, elle, le voit.
+        #
+        # Avant la construction : inutile de fabriquer cent cinquante
+        # megaoctets si la mise a jour ne peut pas se poser.
+        run: .venv\Scripts\python outils\essai-relais-windows.py
+
       - name: Traductions
         shell: cmd
         run: .venv\Scripts\python build_i18n.py
