@@ -435,8 +435,12 @@ def maj_en_attente() -> bool:
     return bool(dossier) and os.path.isdir(dossier + SUFFIXE_NOUVEAU)
 
 
-def _relais_windows() -> bool:
+def _relais_windows(relancer_apres: bool = True) -> bool:
     """Confie le remplacement à un script qui nous survivra.
+
+    `relancer_apres` faux permute et s'arrête là. C'est ce qu'il faut quand
+    l'application se ferme pour de bon : rouvrir une fenêtre sous les doigts
+    de quelqu'un qui vient de cliquer sur la croix serait pris pour une panne.
 
     Windows ne laisse pas un programme remplacer le dossier d'où il tourne.
     Le seul moment sûr est donc après notre mort, et il faut quelqu'un pour
@@ -488,6 +492,7 @@ def _relais_windows() -> bool:
     # sans rien -- l'application n'etait plus nulle part.
     environnement["ZY_SECOURS"] = os.path.abspath(sys.executable)
     environnement["ZY_PID"] = str(os.getpid())
+    environnement["ZY_RELANCER"] = "1" if relancer_apres else "0"
 
     # `tasklist` plutot qu'une attente fixe : la duree de fermeture depend de
     # la machine, et une seconde de trop ou de moins deciderait du succes.
@@ -520,9 +525,11 @@ rem vient de prendre la place. Sans ce menage, un `.nouveau` oublie serait
 rem repris pour une mise a jour en attente au lancement suivant -- et
 rem remettrait en place une version plus ancienne.
 for /d %%d in ("%ZY_CIBLE%.nouveau*") do rmdir /s /q "%%d"
+if not "%ZY_RELANCER%"=="1" goto :fin
 start "" "%ZY_EXE%"
 goto :fin
 :echec
+if not "%ZY_RELANCER%"=="1" goto :fin
 rem Relancer ce qui existe, et non ce qui devrait exister : apres un echec la
 rem cible peut n'avoir jamais ete la, et son executable non plus. Le dossier
 rem d'ou nous venons, lui, est encore la.
@@ -545,6 +552,33 @@ del "%~f0"
         return True
     except Exception:                                   # noqa: BLE001
         return False
+
+
+def poser_a_la_fermeture() -> bool:
+    """Met en place la mise à jour qui attend, sans rouvrir de fenêtre.
+
+    **Le défaut que ceci corrige, et il est la cause de tout le reste.** La
+    permutation ne se faisait qu'en cliquant « Relancer » dans la boîte qui la
+    propose. Répondre « Plus tard », ou fermer par la croix, laissait la
+    nouvelle version attendre à côté indéfiniment — et l'application relancée
+    plus tard était l'ancienne, qui reproposait la mise à jour, qui en
+    déposait une deuxième, puis une troisième. C'est ainsi qu'un joueur se
+    retrouve avec `ZyRoom-Qt.nouveau.nouveau.nouveau` : non parce que le
+    calcul des noms était faux, mais parce que rien ne finissait jamais le
+    travail.
+
+    Fermer l'application est justement le moment où le remplacement devient
+    possible : plus personne ne tient le dossier. On le fait donc là, sans
+    rien demander et sans rien rouvrir — c'est ce que fait n'importe quel
+    logiciel qui se met à jour sous Windows.
+
+    Rend vrai si le relais est parti ; faux s'il n'y avait rien à poser.
+    """
+    if os.name != "nt" or not empaquete():
+        return False
+    if not (maj_en_attente() or hors_de_chez_soi()):
+        return False
+    return _relais_windows(relancer_apres=False)
 
 
 def relancer() -> bool:

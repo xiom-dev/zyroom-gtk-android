@@ -161,6 +161,7 @@ class RelaisWindows(unittest.TestCase):
     """
 
     NOM = "ZyRoom-Qt"
+    RELANCER = True
 
     def setUp(self):
         import shutil
@@ -178,7 +179,7 @@ class RelaisWindows(unittest.TestCase):
         self.addCleanup(self._rendre)
         # `cmd` n'existe pas ici : l'appel echoue, mais le script est ecrit
         # avant, et c'est lui qu'on vient lire.
-        updater._relais_windows()
+        updater._relais_windows(relancer_apres=self.RELANCER)
         import tempfile as _t
         self.script = os.path.join(_t.gettempdir(), "zyroom-qt-maj.bat")
         self.addCleanup(lambda: os.path.exists(self.script)
@@ -222,3 +223,44 @@ class RelaisWindows(unittest.TestCase):
         # jour en attente au lancement suivant, et remettrait en place une
         # version plus ancienne.
         self.assertIn('for /d %%d in ("%ZY_CIBLE%.nouveau*")', self._texte())
+
+
+class RelaisSilencieux(RelaisWindows):
+    """Le meme relais, quand l'application se ferme pour de bon.
+
+    Il permute et s'arrete la : rouvrir une fenetre sous les doigts de
+    quelqu'un qui vient de cliquer sur la croix serait pris pour une panne.
+    """
+
+    RELANCER = False
+
+    def test_rien_ne_se_relance(self):
+        texte = self._texte()
+        self.assertIn('if not "%ZY_RELANCER%"=="1" goto :fin', texte)
+
+    def test_la_permutation_a_quand_meme_lieu(self):
+        # C'est tout l'interet : le remplacement se fait, seul le demarrage
+        # est omis.
+        texte = self._texte()
+        self.assertIn('move "%ZY_ATTENTE%" "%ZY_CIBLE%"', texte)
+
+
+class PoserEnPartant(unittest.TestCase):
+    """`poser_a_la_fermeture` ne se declenche que la ou elle a un sens."""
+
+    def test_hors_paquet_il_n_y_a_rien_a_poser(self):
+        vrai = getattr(sys, "frozen", None)
+        if hasattr(sys, "frozen"):
+            del sys.frozen
+        try:
+            self.assertFalse(updater.poser_a_la_fermeture())
+        finally:
+            if vrai is not None:
+                sys.frozen = vrai
+
+    def test_sous_unix_la_permutation_s_est_deja_faite(self):
+        # Pas de relais ici : `installer` a permute sur-le-champ. Appeler
+        # ceci en partant ne doit rien tenter.
+        if os.name == "nt":
+            self.skipTest("essai propre aux systemes sans relais")
+        self.assertFalse(updater.poser_a_la_fermeture())

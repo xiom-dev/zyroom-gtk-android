@@ -485,6 +485,8 @@ class FenetrePrincipale(QMainWindow):
         #: telecharger, il y a une permutation a terminer.
         self._maj_en_attente = (updater.maj_en_attente()
                                 or updater.hors_de_chez_soi())
+        #: Vrai des que le relais Windows a ete lance : il n'en faut qu'un.
+        self._relais_parti = False
         self._veilleur = updater.Veilleur()
         self._minuteur_maj = QTimer(self)
         self._minuteur_maj.timeout.connect(self._verifier_maj)
@@ -3048,6 +3050,10 @@ class FenetrePrincipale(QMainWindow):
         if boite.clickedButton() is not relancer:
             return
         if updater.relancer():
+            # Le relais est parti, et il relancera lui-meme. `closeEvent` ne
+            # doit pas en lancer un second : deux scripts qui permutent les
+            # memes dossiers en meme temps, c'est l'installation perdue.
+            self._relais_parti = True
             self.close()
         else:
             self._statut(
@@ -3145,4 +3151,10 @@ class FenetrePrincipale(QMainWindow):
         self._minuteur_saison.stop()
         notifications.arreter()
         self._icones.arreter()
+        # **La mise a jour se pose en partant.** Fermer est le seul moment ou
+        # plus personne ne tient le dossier d'installation ; attendre un clic
+        # sur « Relancer » laissait la nouvelle version a cote pour toujours,
+        # et la suivante s'empilait par-dessus. Rien ne se rouvre : on part.
+        if not self._relais_parti:
+            updater.poser_a_la_fermeture()
         super().closeEvent(event)
