@@ -267,32 +267,26 @@ class PoserEnPartant(unittest.TestCase):
 
 
 class DrapeauxDeCreation(unittest.TestCase):
-    """Le relais doit pouvoir demarrer, et Windows est tatillon la-dessus.
+    """Le relais a besoin d'une console, meme sans fenetre.
 
-    La documentation de Microsoft presente `DETACHED_PROCESS`,
-    `CREATE_NO_WINDOW` et `CREATE_NEW_CONSOLE` comme incompatibles. En
-    pratique, l'essai lance sur un vrai Windows montre que le melange passe :
-    ce n'etait donc pas la cause de la panne. On garde le drapeau seul par
-    hygiene -- un processus detache n'a pas de console --, et ce controle
-    verrouille cette valeur, sans pretendre expliquer quoi que ce soit.
+    `DETACHED_PROCESS` n'en donne aucune : sans poignees standard, le tube de
+    la boucle d'attente -- `tasklist | find` -- ne se monte pas, et `cmd`
+    abandonne au premier tour sans un mot. C'est ce qui a tenu la mise a jour
+    Windows en panne depuis le premier jour. `CREATE_NO_WINDOW` cache la
+    fenetre sans rien couper.
 
-    Ce qui mesure vraiment le relais, c'est `outils/essai-relais-windows.py`,
-    sur la machine Windows que GitHub prete.
+    Ce qui le mesure vraiment, c'est `outils/essai-relais-windows.py`, sur la
+    machine Windows que GitHub prete ; ici on verrouille la valeur.
     """
 
-    CREATE_NEW_CONSOLE = 0x00000010
-    CREATE_NO_WINDOW = 0x08000000
+    DETACHED_PROCESS = 0x00000008
 
-    def test_le_drapeau_est_detached_process_seul(self):
-        self.assertEqual(0x00000008, updater.DETACHED_PROCESS)
+    def test_le_drapeau_est_create_no_window(self):
+        self.assertEqual(0x08000000, updater.CREATE_NO_WINDOW)
 
-    def test_aucun_drapeau_incompatible_n_est_melange(self):
-        for nom, valeur in (("CREATE_NO_WINDOW", self.CREATE_NO_WINDOW),
-                            ("CREATE_NEW_CONSOLE", self.CREATE_NEW_CONSOLE)):
-            with self.subTest(drapeau=nom):
-                self.assertFalse(
-                    updater.DETACHED_PROCESS & valeur,
-                    f"{nom} ne peut pas accompagner DETACHED_PROCESS")
+    def test_detached_process_n_est_plus_la(self):
+        self.assertFalse(updater.CREATE_NO_WINDOW & self.DETACHED_PROCESS,
+                         "DETACHED_PROCESS coupe la console, et le tube avec")
 
     def test_l_echec_laisse_sa_raison(self):
         # Sans cela, le joueur n'a qu'un bouton qui ne fait rien, et l'on

@@ -31,8 +31,8 @@ sys.path.insert(0, RACINE)
 from zyroom import updater                                       # noqa: E402
 
 NOM = "ZyRoom-Qt"
-#: Le drapeau que Windows refuse en compagnie de DETACHED_PROCESS.
-CREATE_NO_WINDOW = 0x08000000
+#: Celui qu'on employait, et qui coupait la console du relais.
+DETACHED_PROCESS = 0x00000008
 
 
 def dire(bon: bool, texte: str) -> bool:
@@ -49,26 +49,27 @@ def essai_des_drapeaux() -> bool:
     print("Drapeaux de creation")
     ensemble = True
 
+    # Ce qui compte n'est pas que le processus demarre -- il demarrait --
+    # mais qu'un tube y fonctionne : c'est ce que la boucle d'attente demande.
+    tube = ['cmd', '/c', 'tasklist /fi "PID eq 1" | find "1" >nul & exit 0']
     try:
-        p = subprocess.Popen(["cmd", "/c", "exit"],
-                             creationflags=updater.DETACHED_PROCESS)
-        p.wait(timeout=30)
-        ensemble &= dire(True, "DETACHED_PROCESS seul : le processus demarre")
+        p = subprocess.Popen(tube, creationflags=updater.CREATE_NO_WINDOW,
+                             stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        ensemble &= dire(p.wait(timeout=60) == 0,
+                         "CREATE_NO_WINDOW : un tube s'y monte")
     except OSError as exc:
-        ensemble &= dire(False, f"DETACHED_PROCESS seul a echoue : {exc}")
+        ensemble &= dire(False, f"CREATE_NO_WINDOW a echoue : {exc}")
 
-    # **Mesure, et non verdict.** On a cru un temps que le melange avec
-    # CREATE_NO_WINDOW etait refuse par Windows et expliquait tout. Cet essai,
-    # lance sur la machine de GitHub, a montre que non : il passe. La ligne
-    # reste parce qu'elle documente le fait, mais elle ne decide de rien.
+    # **Mesure, et non verdict.** Le meme tube sous DETACHED_PROCESS : c'est
+    # la panne d'origine, gardee ici pour qu'on puisse la revoir a volonte.
     try:
-        p = subprocess.Popen(
-            ["cmd", "/c", "exit"],
-            creationflags=updater.DETACHED_PROCESS | CREATE_NO_WINDOW)
-        p.wait(timeout=30)
-        print("  note  le melange avec CREATE_NO_WINDOW est accepte ici")
+        p = subprocess.Popen(tube, creationflags=DETACHED_PROCESS)
+        code = p.wait(timeout=60)
+        print(f"  note  DETACHED_PROCESS : le meme tube rend {code}")
     except OSError as exc:
-        print(f"  note  le melange est refuse ici ({exc.errno})")
+        print(f"  note  DETACHED_PROCESS a echoue ({exc})")
 
     return ensemble
 

@@ -67,19 +67,31 @@ SUFFIXES = (SUFFIXE_NOUVEAU, SUFFIXE_ANCIEN)
 
 _USER_AGENT = "zyroom-qt (+https://github.com/xiom-dev/zyroom-gtk-android)"
 
-#: Le drapeau de creation du relais, sous Windows : un processus sans console,
-#: qui nous survit.
+#: Le drapeau de creation du relais, sous Windows : pas de fenetre, mais une
+#: console valide.
 #:
-#: **Seul, et non combine a `CREATE_NO_WINDOW`.** La documentation de Microsoft
-#: presente les deux comme incompatibles, et l'on a cru un temps que c'etait la
-#: cause du relais qui ne partait pas. L'essai lance sur un vrai Windows a
-#: montre que non : le melange y passe sans broncher, et le relais demarre.
+#: **Et surtout pas `DETACHED_PROCESS`.** Il y etait, et c'est lui qui a tenu
+#: la mise a jour en panne depuis le premier jour. Un processus detache n'a
+#: pas de console du tout, donc pas de poignees standard : la premiere ligne
+#: de la boucle d'attente,
 #:
-#: Le drapeau reste seul quand meme -- un processus detache n'a de toute facon
-#: pas de console, le second n'ajoutait rien --, mais qu'on ne cherche pas ici
-#: l'explication d'une panne : voir `outils/essai-relais-windows.py`, qui
-#: mesure ce qui se passe reellement.
-DETACHED_PROCESS = 0x00000008
+#:     tasklist /fi "PID eq %ZY_PID%" | find "%ZY_PID%" || goto :libre
+#:
+#: est un tube, et un tube sans poignees valides ne se monte pas. `cmd`
+#: abandonnait la, au premier tour, sans un mot. Les redirections vers un
+#: fichier passaient -- c'est pourquoi le journal ecrivait sa premiere ligne
+#: avant de se taire, ce qui a permis de le voir.
+#:
+#: Mesure sur la machine Windows de GitHub, journal a l'appui :
+#:
+#:     [debut] cible=... attente=... pid=6940
+#:     [attente] tour 1
+#:     (plus rien)
+#:
+#: `CREATE_NO_WINDOW` donne ce qu'on voulait vraiment -- aucune fenetre noire
+#: qui clignote -- sans rien couper. Le relais survit de toute facon a notre
+#: mort : sous Windows un enfant n'appartient pas a son parent.
+CREATE_NO_WINDOW = 0x08000000
 
 #: La raison du dernier echec du relais, pour que l'ecran puisse la dire.
 derniere_erreur = ""
@@ -577,9 +589,15 @@ del "%~f0"
     try:
         with open(script, "w", encoding="ascii", newline="\r\n") as f:
             f.write(contenu)
+        # Les trois poignees vers le neant, et non celles que nous laissons
+        # derriere nous : nous allons mourir, et un tube branche sur les
+        # poignees d'un mort ne vaut pas mieux que pas de poignees du tout.
         subprocess.Popen(["cmd", "/c", script], close_fds=True,
                          env=environnement,
-                         creationflags=DETACHED_PROCESS)
+                         stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL,
+                         creationflags=CREATE_NO_WINDOW)
         return True
     except Exception as exc:                            # noqa: BLE001
         # **Ne plus avaler la raison.** Elle etait perdue ici, et le joueur
