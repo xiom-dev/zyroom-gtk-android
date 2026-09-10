@@ -229,6 +229,10 @@ class Courbe(unittest.TestCase):
             cycles_des_primes=lambda: cycles)
         faux = types.SimpleNamespace(
             _meteo_affiche=releve, _meteo_releve=None,
+            # La courbe ecrit ses heures au corps du zoom courant. Un seul
+            # reglage l'interesse, et ce qu'on mesure ici -- la pente des
+            # segments -- n'en depend pas : la taille normale suffit.
+            _settings=types.SimpleNamespace(zoom=1.0),
             ANCRE=MainWindow.ANCRE, FENETRE_HEURES=MainWindow.FENETRE_HEURES,
             TRANSITION_HEURES=MainWindow.TRANSITION_HEURES,
             MINUTES_ENTRE_REPERES=MainWindow.MINUTES_ENTRE_REPERES,

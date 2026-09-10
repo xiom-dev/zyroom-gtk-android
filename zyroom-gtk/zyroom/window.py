@@ -2845,12 +2845,23 @@ class MainWindow(Gtk.ApplicationWindow):
             out.append(mv)
         return out
 
-    #: Taille des icônes du journal, en pixels.
+    #: La part de l'icone d'inventaire que prend celle du journal.
     #:
-    #: Vingt-quatre : la hauteur d'une ligne de texte. Plus grand, chaque
-    #: mouvement occupait deux lignes et on en voyait deux fois moins d'un
-    #: coup d'œil — or le journal se parcourt.
-    TAILLE_ICONE_JOURNAL = 24
+    #: La moitie : a la taille normale cela fait vingt-quatre pixels, la
+    #: hauteur d'une ligne de texte. Plus grand, chaque mouvement occupait
+    #: deux lignes et on en voyait deux fois moins d'un coup d'oeil -- or le
+    #: journal se parcourt.
+    #:
+    #: **Une part, et non un nombre de pixels.** Vingt-quatre etaient ecrits
+    #: en dur : les lignes grandissaient avec le zoom, l'icone restait, et
+    #: elle paraissait retrecir a mesure qu'on grossissait le reste. La meme
+    #: part que dans la version Qt.
+    PART_ICONE_JOURNAL = 0.5
+
+    @property
+    def _cote_icone_journal(self) -> int:
+        """Le côté d'une icône du journal, au zoom courant."""
+        return self._settings.icone(self.PART_ICONE_JOURNAL)
 
     #: L'icône du sort gravé dans un objet, posée sur la sienne.
     #:
@@ -2868,7 +2879,7 @@ class MainWindow(Gtk.ApplicationWindow):
         def arrivee(chemin):
             if generation == self._log_generation and chemin:
                 image.set_from_file(chemin)
-                image.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
+                image.set_pixel_size(self._cote_icone_journal)
             return False
         return arrivee
 
@@ -2907,8 +2918,8 @@ class MainWindow(Gtk.ApplicationWindow):
     #: d'une ligne de texte s'étant révélée trop chiche pour des dessins
     #: pleins. La même part que dans la version Qt.
     #:
-    #: Les icônes d'items, elles, ne bougent pas : la grille et le journal ont
-    #: leur propre mesure, et ce sont des objets, pas des repères.
+    #: Les icones d'items suivent le zoom elles aussi, mais par leur propre
+    #: part : la grille prend l'icone entiere, le journal la moitie.
     PART_ICONE_BOUTON = 0.63
 
     #: La bourse, quinze pour cent au-dessus des autres logos.
@@ -3007,11 +3018,11 @@ class MainWindow(Gtk.ApplicationWindow):
             # pour que la colonne ne se décale pas à l'arrivée.
             if argent:
                 icone = Gtk.Image.new_from_file(self.BOURSE)
-                icone.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
+                icone.set_pixel_size(self._cote_icone_journal)
                 self._log_grid.attach(icone, 4, row, 1, 1)
             else:
                 icone = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
-                icone.set_pixel_size(self.TAILLE_ICONE_JOURNAL)
+                icone.set_pixel_size(self._cote_icone_journal)
                 self._log_grid.attach(icone, 4, row, 1, 1)
                 self._icons.request(
                     ItemInfo(sheet=mv.sheet, quality=mv.quality),

@@ -1235,6 +1235,14 @@ class FenetrePrincipale(QMainWindow):
         # et leurs deux colonnes s'en trouvaient etroites.
         mono.setPointSizeF(self._table.font().pointSizeF())
         faible = QColor(self.palette().placeholderText().color())
+        # La bourse du tresor, a la taille des icones d'objets. Elle est peinte
+        # une fois ici et non a chaque ligne d'argent : le fichier fait
+        # vingt-quatre sur trente, et une QIcon batie dessus telle quelle
+        # cessait de grandir des le premier cran de zoom.
+        cote_icone = self._settings.icone(PART_ICONE_JOURNAL)
+        bourse = QIcon(QPixmap(BOURSE).scaled(
+            cote_icone, cote_icone, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
 
         jour_precedent = None
         rang = 0
@@ -1290,7 +1298,7 @@ class FenetrePrincipale(QMainWindow):
             # reconnait en parcourant le journal, bien avant de lire un nom.
             icone = QTableWidgetItem()
             if argent:
-                icone.setIcon(QIcon(BOURSE))
+                icone.setIcon(bourse)
             self._table.setItem(rang, 4, icone)
             if not argent:
                 # L'icone n'est pas demandee ici : deux mille lignes, ce sont
@@ -1368,10 +1376,23 @@ class FenetrePrincipale(QMainWindow):
                 return
             image = QPixmap(chemin)
             if not image.isNull():
+                # **Mise a l'echelle explicite, comme pour la grille.** L'API
+                # rend ses icones en quarante pixels, et une QIcon ne fait que
+                # reduire : au-dela de la taille native elle sert l'image
+                # telle quelle. Les icones du journal cessaient donc de
+                # grandir des cent quatre-vingts pour cent -- justement les
+                # crans ou l'on veut voir plus gros.
+                cote = self._settings.icone(PART_ICONE_JOURNAL)
+                if image.width() != cote:
+                    image = image.scaled(
+                        cote, cote, Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation)
                 icone = QIcon(image)
                 if cle is not None:
                     # Le meme objet revient des dizaines de fois dans un
                     # journal : on le garde plutot que de le relire du disque.
+                    # Le cache ne porte pas la taille dans sa cle : c'est
+                    # _appliquer_zoom qui le vide, lui seul la fait changer.
                     self._cache_icones[cle] = icone
                 cellule.setIcon(icone)
         return arrivee
