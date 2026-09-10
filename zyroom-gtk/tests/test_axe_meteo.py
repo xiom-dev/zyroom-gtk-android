@@ -1,0 +1,122 @@
+"""L'axe du temps sous la courbe météo : un tiret toutes les cinq minutes.
+
+Ce que ces essais gardent. L'axe ne portait qu'un repère par quart d'heure —
+cinq heures d'Atys entre deux traits. Pour viser un creux de prévision, il
+fallait interpoler à l'œil sur soixante pixels, et les joueurs ont demandé
+mieux. Les tirets tombent désormais toutes les cinq minutes réelles ; les
+heures, elles, restent écrites au quart d'heure, faute de quoi quinze nombres
+se chevaucheraient sur une largeur qui en tient cinq.
+
+Le tracé se vérifie sans écran : on donne à la fonction de dessin un contexte
+qui ne peint rien et retient ce qu'on lui demande.
+"""
+
+import os
+import re
+import sys
+import types
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from zyroom import meteo                                         # noqa: E402
+from zyroom.window import MainWindow                             # noqa: E402
+
+
+class FauxCr:
+    """Un contexte Cairo qui retient les tirets de l'axe et les heures.
+
+    Un tiret est un trait vertical de quelques points vers le bas : même
+    abscisse, ordonnée qui croît de deux ou trois. La courbe, elle, va de
+    travers et sur de bien plus grandes hauteurs.
+    """
+
+    #: L'ordonnee ou se posent les heures : `hauteur - 6` du cote du dessin.
+    PIED = 294.0
+
+    def __init__(self):
+        self.dernier = None
+        self.tirets = []          #: longueur de chaque tiret, dans l'ordre
+        self.textes = []
+
+    def move_to(self, x, y):
+        self.dernier = (x, y)
+
+    def line_to(self, x, y):
+        if self.dernier is not None:
+            largeur = abs(x - self.dernier[0])
+            hauteur = y - self.dernier[1]
+            if largeur < 0.001 and 0 < hauteur <= 4:
+                self.tirets.append(round(hauteur))
+        self.dernier = (x, y)
+
+    def show_text(self, texte):
+        # La courbe ecrit aussi ses graduations d'humidite -- « 30 », « 83 »
+        # -- dans la marge de gauche. Seules comptent ici les heures, posees
+        # sous l'axe : on les reconnait a leur ordonnee.
+        if self.dernier is not None and abs(self.dernier[1] - self.PIED) < 0.5:
+            self.textes.append(texte)
+
+    def __getattr__(self, nom):
+        return lambda *a, **k: None
+
+
+def dessiner():
+    """Trace la courbe sur un contexte de papier, et rend ce qu'il a retenu."""
+    cycles = [meteo.Meteo(cycle=1000 + i, condition="good", value=v,
+                          text="uiFair")
+              for i, v in enumerate((0.2, 0.5, 0.8, 0.4, 0.6))]
+    releve = types.SimpleNamespace(
+        heure_atys=1000 * meteo.HEURES_PAR_CYCLE + 1.0,
+        cycles_des_primes=lambda: cycles)
+    faux = types.SimpleNamespace(
+        _meteo_affiche=releve, _meteo_releve=None,
+        _settings=types.SimpleNamespace(zoom=1.0),
+        ANCRE=MainWindow.ANCRE, FENETRE_HEURES=MainWindow.FENETRE_HEURES,
+        TRANSITION_HEURES=MainWindow.TRANSITION_HEURES,
+        MINUTES_ENTRE_REPERES=MainWindow.MINUTES_ENTRE_REPERES,
+        MINUTES_ENTRE_TIRETS=MainWindow.MINUTES_ENTRE_TIRETS,
+        PAS_DE_TEMPS=MainWindow.PAS_DE_TEMPS)
+    cr = FauxCr()
+    MainWindow._dessiner_courbe(faux, None, cr, 800.0, 300.0)
+    return cr
+
+
+class AxeDuTemps(unittest.TestCase):
+
+    def setUp(self):
+        self.cr = dessiner()
+
+    def test_les_heures_ecrites_tombent_au_quart_d_heure(self):
+        # « 14h », « 14h15 » : jamais « 14h05 ». C'est la seule chose qui
+        # rendrait l'axe illisible si les tirets emportaient le texte avec eux.
+        for texte in self.cr.textes:
+            with self.subTest(texte=texte):
+                trouve = re.fullmatch(r"(\d{2})h(\d{2})?", texte)
+                self.assertIsNotNone(trouve, f"heure mal formée : {texte}")
+                minute = int(trouve.group(2) or 0)
+                self.assertIn(minute, (0, 15, 30, 45))
+
+    def test_il_y_a_plus_de_tirets_que_d_heures_ecrites(self):
+        # Le defaut d'origine : autant de tirets que d'heures, un par quart
+        # d'heure. Il en faut trois fois plus.
+        self.assertGreater(len(self.cr.tirets), len(self.cr.textes))
+
+    def test_deux_tirets_muets_entre_deux_heures(self):
+        # Quinze minutes divisees par cinq : trois tirets, dont un porte
+        # l'heure. Les bords de la fenetre peuvent en trancher un, d'ou la
+        # comparaison sur le rapport plutot que sur un compte exact.
+        longs = [t for t in self.cr.tirets if t == 3]
+        courts = [t for t in self.cr.tirets if t == 2]
+        self.assertEqual(len(longs), len(self.cr.textes))
+        self.assertAlmostEqual(2.0, len(courts) / len(longs), delta=0.5)
+
+    def test_le_tiret_muet_est_plus_court_que_celui_qui_porte_l_heure(self):
+        # Sans cette difference, l'axe deviendrait un peigne ou l'on ne
+        # distinguerait plus le quart d'heure du reste.
+        self.assertIn(2, self.cr.tirets)
+        self.assertIn(3, self.cr.tirets)
+
+
+if __name__ == "__main__":
+    unittest.main()

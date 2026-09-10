@@ -40,8 +40,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QVBoxLayout, QWidget, QWidgetAction)
 
 from . import (alerts, apropos, backup, chatlog, cles, detail, enchantements,
-               i18n, movements, notifications, outposts, partage, polices,
-               roster, ryzom_api, sorting, specialites, theme, updater)
+               i18n, meteo, movements, notifications, outposts, partage,
+               polices, roster, ryzom_api, sorting, specialites, theme,
+               updater)
 from .attente import BarreAttente
 from .categorydb import CategoryDb
 from .deroulante import Choix, Deroulante
@@ -2339,10 +2340,14 @@ class FenetrePrincipale(QMainWindow):
         self._passerelle.lancer(travail, apres)
 
     def _maj_saison(self, saison: dict) -> None:
-        heures = saison["minutes_to_next"] // 60
+        # Voir `window.py` du cote GTK : la minute et la date plutot que
+        # l'heure seule, a la demande des joueurs de la guilde.
+        minutes = int(round(saison["minutes_to_next"]))
         self._lbl_saison.setText(
             f"{saison['season_name']} · "
-            + _("{} dans {} h").format(saison["next_season_name"], heures))
+            + _("{} dans {} — {}").format(saison["next_season_name"],
+                                          meteo.duree(minutes, unite=True),
+                                          meteo.moment_du_changement(minutes)))
 
     # --------------------------------------------------------- Contenants
     def _remplir_contenants(self) -> None:

@@ -675,11 +675,35 @@ def fetch_time_xml() -> bytes:
     return _http_get(f"{API_BASE_URL}/time.php?format={_FORMAT_XML}")
 
 
+#: Battements du serveur dans une heure d'Atys.
+#:
+#: Le serveur bat dix fois par seconde, et une heure d'Atys dure trois minutes
+#: reelles : mille huit cents battements. La verification tient en une ligne --
+#: `server_tick // 1800 % 24` redonne le `time_of_day` du meme flux, a toute
+#: heure.
+#:
+#: **C'est la seule precision fine que l'API donne sur le temps d'Atys.**
+#: `time_of_day` est un entier : il dit « onze heures » pendant trois minutes
+#: entieres. Le battement, lui, dit ou l'on en est dans l'heure.
+TICKS_PAR_HEURE_ATYS = 1800
+
+
 def parse_time(xml_bytes: bytes) -> dict:
     """Analyse le flux time.php : saison courante et temps avant changement.
 
     minutes avant la prochaine saison = ((89 - jour) * 24 + (23 - heure)) * 3
-    (une saison = 90 jours de 24 h, 1 h de jeu = 3 min réelles)."""
+    (une saison = 90 jours de 24 h, 1 h de jeu = 3 min réelles).
+
+    **Plus l'heure entamée, que le battement du serveur mesure.** Le compte se
+    faisait en heures d'Atys entières : il ignorait l'heure en cours, et se
+    trompait donc de zéro à trois minutes réelles, toujours dans le même sens
+    — il annonçait le changement trop tôt. Les joueurs de la guilde ont
+    demandé la minute ; elle est là.
+
+    Une réserve, dite ici plutôt que découverte à l'usage : l'API garde son
+    flux une minute en cache, si bien que le battement lu peut dater d'une
+    minute. La minute affichée est donc juste à une minute près, non à la
+    seconde — ce qui reste trois fois mieux que l'heure d'Atys entière."""
     root = fromstring(xml_bytes)
 
     def _int(path, default=0):
@@ -692,7 +716,14 @@ def parse_time(xml_bytes: bytes) -> dict:
     season = _int("season", -1)
     day = _int("day_of_season")
     hour = _int("time_of_day")
-    minutes_to_next = ((89 - day) * 24 + (23 - hour)) * 3
+    # Ce qui reste de l'heure d'Atys en cours, entre zero et un. Sans
+    # battement -- un flux tronque, une version d'API plus avare --, on
+    # retombe sur l'ancien compte en heures entieres plutot que d'inventer
+    # une demi-heure qui ferait osciller l'affichage.
+    tick = _int("server_tick", -1)
+    reste = 0.0 if tick < 0 else \
+        1.0 - (tick % TICKS_PAR_HEURE_ATYS) / TICKS_PAR_HEURE_ATYS
+    minutes_to_next = ((89 - day) * 24 + (23 - hour) + reste) * 3
     return {
         "season_index": season,
         "season_name": _SEASONS[season] if 0 <= season < 4 else "-",

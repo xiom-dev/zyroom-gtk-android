@@ -38,8 +38,15 @@ ANCRE = 0.15
 TRANSITION_HEURES = 1.0
 
 #: Les reperes d'heure reelle sous l'axe.
+#:
+#: `MINUTES_ENTRE_REPERES` est le pas des heures ecrites ; les tirets, eux,
+#: tombent cinq fois plus souvent. Le quart d'heure suffit a ecrire une heure,
+#: mais pas a lire une prevision : entre deux reperes passent cinq heures
+#: d'Atys, et viser un creux demandait d'interpoler a l'oeil sur soixante
+#: pixels. Voir `window.py` du cote GTK, qui porte la meme decision.
 MINUTES_ENTRE_REPERES = 15
-PAS_DE_TEMPS = 16
+MINUTES_ENTRE_TIRETS = 5
+PAS_DE_TEMPS = 48
 
 #: Taille des symboles de familles de matieres, en pixels.
 #:
@@ -184,22 +191,30 @@ class CourbeMeteo(QWidget):
         peintre.setPen(QPen(QColor(255, 255, 255, 90), 1.0))
         peintre.drawLine(QPointF(marge_g, haut), QPointF(largeur, haut))
 
-        # L'heure reelle, tous les quarts d'heure. Une heure d'Atys valant
-        # trois minutes, la fenetre ne couvre que soixante-douze minutes
-        # reelles : a l'heure ronde, il n'y aurait qu'un repere, parfois zero.
+        # L'heure reelle, tous les quarts d'heure -- et un tiret toutes les
+        # cinq minutes entre elles. Une heure d'Atys valant trois minutes, la
+        # fenetre ne couvre que soixante-douze minutes reelles : a l'heure
+        # ronde, il n'y aurait qu'un repere, parfois zero.
         maintenant = datetime.now()
         repere = maintenant.replace(minute=0, second=0,
                                     microsecond=0) - timedelta(hours=1)
         for _pas in range(PAS_DE_TEMPS):
-            repere += timedelta(minutes=MINUTES_ENTRE_REPERES)
+            repere += timedelta(minutes=MINUTES_ENTRE_TIRETS)
             minutes = (repere - maintenant).total_seconds() / 60.0
             atys = releve.heure_atys + minutes / meteo.MINUTES_PAR_HEURE_ATYS
             if not gauche <= atys <= gauche + FENETRE_HEURES:
                 continue
-            # Un trait court sous l'axe, puis l'heure : sans lui, on lit bien
-            # l'heure mais on ne sait pas au pixel pres ou elle tombe.
-            peintre.setPen(QPen(QColor(255, 255, 255, 90), 1.0))
-            peintre.drawLine(QPointF(x(atys), haut), QPointF(x(atys), haut + 3))
+            # Deux longueurs de tiret, une seule ecriture : voir `window.py`
+            # du cote GTK. Le tiret dit ou tombe l'instant, l'heure ecrite dit
+            # lequel c'est -- quinze nombres sur une largeur qui en tient cinq
+            # ne se liraient plus.
+            ecrite = repere.minute % MINUTES_ENTRE_REPERES == 0
+            peintre.setPen(QPen(QColor(255, 255, 255, 90 if ecrite else 56),
+                                1.0))
+            peintre.drawLine(QPointF(x(atys), haut),
+                             QPointF(x(atys), haut + (3 if ecrite else 2)))
+            if not ecrite:
+                continue
             peintre.setPen(QColor(255, 255, 255, 140))
             texte = (repere.strftime("%Hh") if repere.minute == 0
                      else repere.strftime("%Hh%M"))

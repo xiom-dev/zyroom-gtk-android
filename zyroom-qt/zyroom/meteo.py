@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
 from . import armory, pop as _pop
@@ -215,15 +216,48 @@ def texte_condition(condition: str) -> str:
             "bad": "Mauvaise", "worst": "Exécrable"}.get(condition.lower(), condition)
 
 
-def duree(minutes: int) -> str:
-    """« 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule."""
+def duree(minutes: int, unite: bool = False) -> str:
+    """« 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule.
+
+    `unite` écrit « 1 h 12 min » plutôt que « 1 h 12 ». La forme courte va bien
+    aux petites attentes de l'écran météo, où l'heure est rare et le contexte
+    proche ; passé la journée, « 83 h 23 » se lit comme une heure de la
+    journée, et il faut le mot pour lever le doute.
+    """
     if minutes <= 0:
         # À cheval sur la bascule, l'arrondi rendait « dans 0 min », qui se lit
         # comme une panne plutôt que comme une imminence.
         return "moins d'une minute"
     if minutes < 60:
         return f"{minutes} min"
-    return f"{minutes // 60} h {minutes % 60:02d}"
+    fin = " min" if unite else ""
+    return f"{minutes // 60} h {minutes % 60:02d}{fin}"
+
+
+def moment_du_changement(minutes: float, maintenant=None) -> str:
+    """Quand tombe une échéance : « demain à 09:12 », « le 15/09 à 09:12 ».
+
+    **Un compte à rebours ne se planifie pas.** « dans 21 h 47 » dit bien
+    l'attente, mais pour savoir si l'on sera devant son écran il faut poser
+    l'addition — et une saison peut changer jusqu'à quatre jours et demi plus
+    tard. L'heure du calendrier répond sans calcul ; le compte à rebours reste
+    à côté, pour l'imminence.
+
+    Le jour se dit en mots tant qu'il en existe un : « aujourd'hui » et
+    « demain » se lisent plus vite qu'une date, et ce sont les deux cas qui
+    intéressent vraiment.
+    """
+    maintenant = maintenant or datetime.now()
+    quand = maintenant + timedelta(minutes=max(0.0, minutes))
+    heure = quand.strftime("%H:%M")
+    # Des dates civiles, et non un nombre d'heures divise par vingt-quatre :
+    # a 23 h 50, « dans 20 min » tombe demain, ce qu'un quotient ne voit pas.
+    jours = (quand.date() - maintenant.date()).days
+    if jours <= 0:
+        return f"aujourd'hui à {heure}"
+    if jours == 1:
+        return f"demain à {heure}"
+    return quand.strftime("le %d/%m à ") + heure
 
 
 def nom_saison(index: int) -> str:
