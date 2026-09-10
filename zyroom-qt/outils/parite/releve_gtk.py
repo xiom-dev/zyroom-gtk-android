@@ -204,7 +204,7 @@ def commandes(panneau):
         enfant = enfant.get_next_sibling()
 
 
-def contenu_de_barre(barre) -> dict:
+def contenu_de_barre(barre, etats=()) -> dict:
     """Ce qu'une barre de filtres donne a lire.
 
     **La reponse mecanique a « onglet par onglet, titre par titre ».** Le
@@ -216,7 +216,16 @@ def contenu_de_barre(barre) -> dict:
 
     Les libelles d'etat -- « Lecture de la meteo… », « Effectif · 177 » --
     n'en font pas partie : ils disent l'instant et les donnees, pas l'aspect.
-    L'appelant les vide avant de mesurer.
+    L'appelant les vide, et les passe ici pour qu'on les saute.
+
+    **Les vider ne suffit pas : il faut aussi les reconnaitre.** Un ecran qui
+    charge en arriere-plan repeuple son libelle apres le vidage -- celui des
+    avant-postes reprenait « 29 avant-postes tenus sur Atys, dont 10 a La Lune
+    Eternelle. » entre le vidage et la mesure. Les deux portages ne chargent
+    pas a la meme vitesse, si bien que le controle accusait Qt d'un ecart
+    tantot present, tantot absent, et bloquait une livraison une fois sur
+    deux. On les saute donc par identite, et non sur ce qu'ils affichent :
+    ainsi peu importe qu'ils se soient remplis a nouveau.
     """
     lu = {"invite": None, "listes": [], "boutons": [], "etiquettes": []}
     for w in commandes(barre):
@@ -230,6 +239,8 @@ def contenu_de_barre(barre) -> dict:
         elif isinstance(w, (Gtk.Button, Gtk.MenuButton)):
             lu["boutons"].append(texte(w) or "")
         elif isinstance(w, Gtk.Label):
+            if any(w is etat for etat in etats):
+                continue
             mot = (w.get_text() or "").strip()
             if mot:
                 lu["etiquettes"].append(mot)
@@ -712,7 +723,7 @@ def relever(f: MainWindow) -> dict:
             if bascule is not None:
                 bascule.set_label(nu)
         tourner(120)
-        lu = contenu_de_barre(barre)
+        lu = contenu_de_barre(barre, libelles_d_etat)
         points[f"{nom}.recherche.invite"] = lu["invite"]
         points[f"{nom}.listes"] = lu["listes"]
         points[f"{nom}.boutons"] = lu["boutons"]

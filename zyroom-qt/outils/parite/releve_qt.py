@@ -221,11 +221,13 @@ def commandes(quoi):
             yield from commandes(enfant)
 
 
-def contenu_de_barre(barre) -> dict:
+def contenu_de_barre(barre, etats=()) -> dict:
     """Ce qu'une barre de filtres donne a lire.
 
     Le pendant exact de la fonction du meme nom dans `releve_gtk.py` : mêmes
-    quatre clés, remplies aux mêmes règles.
+    quatre clés, remplies aux mêmes règles — y compris celle des libellés
+    d'état, sautés par identité et non sur ce qu'ils affichent. C'est là-bas
+    qu'est dit pourquoi les vider ne suffisait pas.
     """
     lu = {"invite": None, "listes": [], "boutons": [], "etiquettes": []}
     for w in commandes(barre):
@@ -237,6 +239,8 @@ def contenu_de_barre(barre) -> dict:
         elif isinstance(w, QAbstractButton):
             lu["boutons"].append(w.text())
         elif isinstance(w, QLabel):
+            if any(w is etat for etat in etats):
+                continue
             mot = sans_balises(w.text()).strip()
             if mot:
                 lu["etiquettes"].append(mot)
@@ -633,7 +637,7 @@ def relever(f: FenetrePrincipale) -> dict:
             if bascule is not None:
                 bascule.setText(nu)
         QApplication.processEvents()
-        lu = contenu_de_barre(barre)
+        lu = contenu_de_barre(barre, libelles_d_etat)
         points[f"{nom}.recherche.invite"] = lu["invite"]
         points[f"{nom}.listes"] = lu["listes"]
         points[f"{nom}.boutons"] = lu["boutons"]
