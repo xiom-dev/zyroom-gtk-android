@@ -824,6 +824,11 @@ class FenetrePrincipale(QMainWindow):
         ligne.addStretch(1)
         self._lbl_saison = QLabel()
         self._lbl_saison.setObjectName("valeur")
+        # Selectionnable a la souris, comme la `Gtk.Label` de la version GTK :
+        # la ligne porte une date et une heure de changement de saison, qu'on
+        # colle dans le canal de guilde plutot que de la retaper.
+        self._lbl_saison.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
         ligne.addWidget(self._lbl_saison)
         return barre
 

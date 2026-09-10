@@ -352,6 +352,11 @@ class MainWindow(Gtk.ApplicationWindow):
         spacer = Gtk.Label(hexpand=True)
         bar1.append(spacer)
         self._season_lbl = Gtk.Label(label="")
+        # Sélectionnable à la souris, comme la MOTD. La ligne porte désormais
+        # une date et une heure de changement de saison : c'est ce qu'on colle
+        # dans le canal de guilde pour donner rendez-vous, et le retaper à la
+        # main était le plus sûr moyen de se tromper d'un chiffre.
+        self._season_lbl.set_selectable(True)
         bar1.append(self._season_lbl)
 
         # MOTD (guilde) — masquée si vide. Encadrée comme sur Android : une

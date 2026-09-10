@@ -150,3 +150,75 @@ class InstallationUnix(unittest.TestCase):
         updater.nettoyer_ancienne()
         self.assertTrue(os.path.isdir(ancienne),
                         "le menage a efface le dossier d'ou l'on tourne")
+
+
+class RelaisWindows(unittest.TestCase):
+    """Le script de permutation, tel qu'il est ecrit sur le disque.
+
+    Il ne peut pas s'executer ici -- `cmd` n'existe pas sous Linux --, mais
+    son texte, lui, se relit. Ce sont ses gardes qu'on verifie : elles ont ete
+    ajoutees apres coup, et rien n'empechait qu'une reecriture les emporte.
+    """
+
+    NOM = "ZyRoom-Qt"
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        self.bac = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.bac, ignore_errors=True)
+        self.maison = os.path.join(self.bac, self.NOM)
+        os.makedirs(self.maison + updater.SUFFIXE_NOUVEAU, exist_ok=True)
+        self._vrai_exe = sys.executable
+        self._vrai_frozen = getattr(sys, "frozen", None)
+        sys.frozen = True
+        # On tourne depuis le dossier depose a cote : le cas du joueur.
+        sys.executable = os.path.join(self.maison + updater.SUFFIXE_NOUVEAU,
+                                      self.NOM)
+        self.addCleanup(self._rendre)
+        # `cmd` n'existe pas ici : l'appel echoue, mais le script est ecrit
+        # avant, et c'est lui qu'on vient lire.
+        updater._relais_windows()
+        import tempfile as _t
+        self.script = os.path.join(_t.gettempdir(), "zyroom-qt-maj.bat")
+        self.addCleanup(lambda: os.path.exists(self.script)
+                        and os.unlink(self.script))
+
+    def _rendre(self):
+        sys.executable = self._vrai_exe
+        if self._vrai_frozen is None:
+            if hasattr(sys, "frozen"):
+                del sys.frozen
+        else:
+            sys.frozen = self._vrai_frozen
+
+    def _texte(self):
+        with open(self.script, encoding="ascii") as f:
+            return f.read()
+
+    def test_le_script_est_en_ascii_pur(self):
+        # Un prenom accentue dans le chemin faisait lever UnicodeEncodeError,
+        # et le bouton ne relancait rien : les chemins passent par
+        # l'environnement, jamais par le texte du script.
+        self._texte()          # leve si un octet n'est pas de l'ASCII
+        self.assertNotIn(self.bac, self._texte())
+
+    def test_la_cible_absente_ne_bloque_pas_la_permutation(self):
+        # Un joueur qui decouvre trois dossiers presque identiques en
+        # supprime, et parfois le bon. Sans cette garde, le `move` echouait
+        # et l'on partait a l'echec alors qu'il n'y avait qu'a poser.
+        self.assertIn('if not exist "%ZY_CIBLE%" goto :poser', self._texte())
+
+    def test_l_echec_relance_ce_qui_existe(self):
+        # L'executable de destination n'existe que si la cible existe. Sans
+        # recours, le relais lancait un chemin vide : plus d'application du
+        # tout.
+        texte = self._texte()
+        self.assertIn("%ZY_SECOURS%", texte)
+        self.assertIn('if exist "%ZY_EXE%"', texte)
+
+    def test_les_dossiers_suffixes_sont_balayes(self):
+        # Sans ce menage, un `.nouveau` oublie serait repris pour une mise a
+        # jour en attente au lancement suivant, et remettrait en place une
+        # version plus ancienne.
+        self.assertIn('for /d %%d in ("%ZY_CIBLE%.nouveau*")', self._texte())

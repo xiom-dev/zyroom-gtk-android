@@ -481,6 +481,12 @@ def _relais_windows() -> bool:
     environnement["ZY_ANCIENNE"] = ancienne
     environnement["ZY_ATTENTE"] = attente
     environnement["ZY_EXE"] = exe
+    # **De quoi relancer quelque chose meme si la permutation echoue.** L'exe
+    # de destination n'existe que si la cible existe ; un joueur qui voit
+    # quatre dossiers en fait le menage, et supprime parfois le bon. Sans ce
+    # recours, le relais lancait un chemin vide et le joueur se retrouvait
+    # sans rien -- l'application n'etait plus nulle part.
+    environnement["ZY_SECOURS"] = os.path.abspath(sys.executable)
     environnement["ZY_PID"] = str(os.getpid())
 
     # `tasklist` plutot qu'une attente fixe : la duree de fermeture depend de
@@ -496,12 +502,17 @@ for /l %%i in (1,1,30) do (
 )
 :libre
 if exist "%ZY_ANCIENNE%" rmdir /s /q "%ZY_ANCIENNE%"
+rem La cible peut manquer, et ce n'est pas une panne : un joueur qui decouvre
+rem trois dossiers presque identiques en supprime, et parfois le bon. Il n'y
+rem a alors rien a mettre de cote -- on pose directement.
+if not exist "%ZY_CIBLE%" goto :poser
 move "%ZY_CIBLE%" "%ZY_ANCIENNE%" >nul 2>&1
 if errorlevel 1 goto :echec
+:poser
 move "%ZY_ATTENTE%" "%ZY_CIBLE%" >nul 2>&1
 if errorlevel 1 (
     rem Le remplacement a echoue a mi-chemin : l'application doit exister.
-    move "%ZY_ANCIENNE%" "%ZY_CIBLE%" >nul 2>&1
+    if exist "%ZY_ANCIENNE%" move "%ZY_ANCIENNE%" "%ZY_CIBLE%" >nul 2>&1
     goto :echec
 )
 rem Plus aucun dossier suffixe n'a de raison d'etre : celui qui comptait
@@ -512,7 +523,14 @@ for /d %%d in ("%ZY_CIBLE%.nouveau*") do rmdir /s /q "%%d"
 start "" "%ZY_EXE%"
 goto :fin
 :echec
-start "" "%ZY_EXE%"
+rem Relancer ce qui existe, et non ce qui devrait exister : apres un echec la
+rem cible peut n'avoir jamais ete la, et son executable non plus. Le dossier
+rem d'ou nous venons, lui, est encore la.
+if exist "%ZY_EXE%" (
+    start "" "%ZY_EXE%"
+) else (
+    if exist "%ZY_SECOURS%" start "" "%ZY_SECOURS%"
+)
 :fin
 rem Le script s'efface lui-meme : `del` sur le fichier en cours fonctionne
 rem sous cmd, la derniere ligne ayant deja ete lue.
