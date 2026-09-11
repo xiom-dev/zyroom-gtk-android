@@ -247,6 +247,19 @@ class PageEffectif(QWidget):
             else _("Arrivées et départs"))
 
     @staticmethod
+    def _copiable(lbl: QLabel) -> QLabel:
+        """Rend un libellé sélectionnable à la souris, et le rend.
+
+        **Un nom de joueur se recopie.** Il part dans le canal de guilde ou
+        dans un message, et le retaper de mémoire est le plus sûr moyen
+        d'écorcher un pseudo. Comme la ligne de saison et le message de guilde,
+        qui le sont déjà des deux côtés.
+        """
+        lbl.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        return lbl
+
+    @staticmethod
     def _ligne_simple(texte: str, discret: bool = False) -> QWidget:
         lbl = QLabel(texte)
         lbl.setWordWrap(True)
@@ -281,7 +294,8 @@ class PageEffectif(QWidget):
         for rang_groupe, (grade, noms) in enumerate(par_grade.items()):
             teinte = rang_groupe % 2 == 0
 
-            entete = QLabel(f"{roster.nom_grade(grade)} · {len(noms)}")
+            entete = self._copiable(
+                QLabel(f"{roster.nom_grade(grade)} · {len(noms)}"))
             entete.setObjectName("peuple")
             entete.setContentsMargins(8, 10, 8, 2)
             if teinte:
@@ -306,7 +320,7 @@ class PageEffectif(QWidget):
                 # s'aligner sur celles du dessus.
                 for colonne in range(COLONNES):
                     nom = tranche[colonne] if colonne < len(tranche) else ""
-                    lbl = QLabel(nom)
+                    lbl = self._copiable(QLabel(nom))
                     lbl.setObjectName("compact")
                     grille.addWidget(lbl, 0, colonne)
                     grille.setColumnStretch(colonne, 1)
@@ -333,8 +347,9 @@ class PageEffectif(QWidget):
             ligne.setContentsMargins(8, 2, 8, 2)
             ligne.setSpacing(8)
 
-            quand = QLabel(datetime.fromtimestamp(changement.at)
-                           .strftime("%d/%m %H:%M"))
+            quand = self._copiable(
+                QLabel(datetime.fromtimestamp(changement.at)
+                       .strftime("%d/%m %H:%M")))
             quand.setObjectName("discret")
             ligne.addWidget(quand)
 
@@ -343,7 +358,8 @@ class PageEffectif(QWidget):
             triangle.setObjectName(style)
             ligne.addWidget(triangle)
 
-            ligne.addWidget(QLabel(roster.decrire(changement)), 1)
+            ligne.addWidget(
+                self._copiable(QLabel(roster.decrire(changement))), 1)
             self._liste.addWidget(rangee)
 
     def _legende(self) -> QWidget:

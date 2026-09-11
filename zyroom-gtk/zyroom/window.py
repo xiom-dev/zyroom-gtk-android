@@ -1046,7 +1046,7 @@ class MainWindow(Gtk.ApplicationWindow):
             if teinte:
                 entete.add_css_class("zebre")
             titre = Gtk.Label(label=f"{roster.nom_grade(grade)} · {len(noms)}",
-                              xalign=0.0)
+                              xalign=0.0, selectable=True)
             titre.add_css_class("title-4")
             titre.add_css_class("peuple")
             titre.props.margin_top = 10
@@ -1075,7 +1075,10 @@ class MainWindow(Gtk.ApplicationWindow):
                 # du dessus.
                 for colonne in range(self.ROSTER_COLONNES):
                     nom = tranche[colonne] if colonne < len(tranche) else ""
-                    label = Gtk.Label(label=nom, xalign=0.0)
+                    # **Copiable a la souris.** Un nom de joueur se recopie
+                    # dans le canal de guilde ou dans un message ; le retaper
+                    # de memoire est le plus sur moyen d'ecorcher un pseudo.
+                    label = Gtk.Label(label=nom, xalign=0.0, selectable=True)
                     label.add_css_class("compact")
                     label.set_ellipsize(Pango.EllipsizeMode.END)
                     grille.attach(label, colonne, 0, 1, 1)
@@ -1118,7 +1121,8 @@ class MainWindow(Gtk.ApplicationWindow):
             line.props.margin_bottom = 2
 
             quand = Gtk.Label(label=datetime.fromtimestamp(c.at)
-                              .strftime("%d/%m %H:%M"), xalign=0.0)
+                              .strftime("%d/%m %H:%M"), xalign=0.0,
+                              selectable=True)
             quand.add_css_class("dim-label")
             quand.add_css_class("compact")
             line.append(quand)
@@ -1128,7 +1132,8 @@ class MainWindow(Gtk.ApplicationWindow):
             triangle.add_css_class(classe)
             line.append(triangle)
 
-            line.append(Gtk.Label(label=roster.decrire(c), xalign=0.0))
+            line.append(Gtk.Label(label=roster.decrire(c), xalign=0.0,
+                                  selectable=True))
             row.set_child(line)
             self._roster_box.append(row)
 
