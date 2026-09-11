@@ -195,6 +195,15 @@ class PageAvantPostes(QWidget):
             entete += _(", dont %d à %s") % (miens, ma_guilde)
         self._statut.setText(entete + ".")
 
+        # **La colonne des niveaux prend la largeur du plus large.** Elle
+        # valait 1,25 hauteur de ligne, soit dix-huit pixels : « 250 » en
+        # mesure vingt-trois, et le libelle etant aligne a droite, c'est son
+        # debut qui se faisait rogner -- le deux tronque passait pour un
+        # deux-points, et la ligne paraissait chevaucher la suivante. La
+        # version GTK n'a jamais eu ce defaut : elle met ses niveaux dans un
+        # `Gtk.SizeGroup`, qui donne a tous la largeur du plus grand. On fait
+        # ici le meme calcul, a la main.
+        largeur_niveau = self._largeur_des_niveaux(carte)
         noms = self._fenetre.noms
         connus = {code for code, _n in PEUPLES}
         for pile, peuples in ((self._gauche, PEUPLES[:2]),
@@ -220,7 +229,7 @@ class PageAvantPostes(QWidget):
                     try:
                         rangee = self._ligne(avant_poste,
                                              avant_poste.guild == ma_guilde,
-                                             rang % 2 == 0)
+                                             rang % 2 == 0, largeur_niveau)
                     except Exception as souci:           # noqa: BLE001
                         noter_erreur(
                             f"avant-poste {getattr(avant_poste, 'code', '?')}",
@@ -272,7 +281,23 @@ class PageAvantPostes(QWidget):
         lbl.setMinimumWidth(LARGEUR_BLOC)
         return lbl
 
-    def _ligne(self, avant_poste, mien: bool, zebre: bool) -> QWidget:
+    def _largeur_des_niveaux(self, carte) -> int:
+        """De quoi loger le plus grand niveau de la carte, sans le rogner.
+
+        Le pendant du `Gtk.SizeGroup` de la version GTK. Le tiret des
+        avant-postes sans niveau est compte lui aussi : il est plus large que
+        deux chiffres dans certaines polices.
+        """
+        sonde = QLabel()
+        sonde.setObjectName("discret")
+        metriques = QFontMetrics(sonde.font())
+        textes = [str(o.level) if o.level else "—" for o in carte] or ["—"]
+        # Deux pixels d'air : sans eux, le dernier chiffre touche la colonne
+        # voisine des que la police s'arrondit.
+        return max(metriques.horizontalAdvance(t) for t in textes) + 2
+
+    def _ligne(self, avant_poste, mien: bool, zebre: bool,
+               largeur_niveau: int) -> QWidget:
         rangee = QWidget()
         # Sans cet attribut, Qt ne peint pas le fond que la feuille
         # de style donne a un QWidget nu.
@@ -312,7 +337,7 @@ class PageAvantPostes(QWidget):
 
         niveau = QLabel(str(avant_poste.level) if avant_poste.level else "—")
         niveau.setObjectName("discret")
-        niveau.setFixedWidth(theme.largeur(niveau, 1.25))
+        niveau.setFixedWidth(largeur_niveau)
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight
                             | Qt.AlignmentFlag.AlignVCenter)
         ligne.addWidget(niveau)
