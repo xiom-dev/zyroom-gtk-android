@@ -238,6 +238,9 @@ def poser_temoin(f) -> None:
         # La largeur d'une `Deroulante` se recalcule au changement d'index ;
         # les signaux etant coupes, on la redemande a la main.
         liste.updateGeometry()
+    # La ligne de saison aussi : voir `releve_gtk.py`. Son texte change chaque
+    # minute, et sa largeur entrait dans le plancher de la fenetre.
+    f._lbl_saison.setText("")
     _QA.processEvents()
 
 
@@ -393,6 +396,12 @@ def _geometrie(f: FenetrePrincipale) -> dict:
     for nom, liste in (("entite", f._dd_entite), ("inventaire", f._dd_inv)):
         mesures[f"{nom}.choix"] = liste.currentText()
     situer("geo.recherche", f._recherche)
+    # Le pendant du bloc du meme nom dans `releve_gtk.py`.
+    for nom, widget in (("entite", f._dd_entite), ("inventaire", f._dd_inv)):
+        mesures[f"geo.{nom}.plancher"] = widget.minimumSizeHint().width()
+    barre = f._dd_entite.parentWidget()
+    mesures["geo.barre-selecteurs.plancher"] = (
+        barre.minimumSizeHint().width() if barre is not None else 0)
     return mesures
 
 
@@ -637,7 +646,7 @@ def relever(f: FenetrePrincipale) -> dict:
     libelles_d_etat = (f._page_effectif._statut,
                        f._page_avant_postes._statut,
                        f._page_meteo._entete, f._lbl_journal,
-                       f._page_competences._statut)
+                       f._page_competences._statut, f._lbl_saison)
     f._btn_ordre.setText("↓")
     # L'arbre des competences a ete deplie plus haut, pour mesurer ses jauges,
     # et son bouton porte donc « Tout replier ». On le replie.
@@ -737,6 +746,9 @@ def relever(f: FenetrePrincipale) -> dict:
     # fenetre entiere pour lire la saison. Sans elle, chaque toolkit refuse
     # de lui-meme de descendre sous la largeur de son contenu -- et c'est
     # cette largeur-la qu'on compare.
+    # Videe ici encore : voir `releve_gtk.py`. La saison se recharge seule.
+    f._lbl_saison.setText("")
+    QApplication.processEvents()
     points["geo.fenetre.plancher"] = f.minimumSizeHint().width()
     points["zoom.crans"] = list(_R.PALIERS_ZOOM)
     points["zoom.icone-normale"] = _R.ICONE_NORMALE

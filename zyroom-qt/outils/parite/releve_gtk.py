@@ -225,6 +225,12 @@ def poser_temoin(f) -> None:
         liste.set_model(_Gtk.StringList.new([TEMOIN_SELECTEUR]))
         liste.set_selected(0)
         liste.handler_unblock_by_func(rappel)
+    # **Et la ligne de saison, qui est le plus variable des libelles d'etat.**
+    # Elle dit « Hiver · Printemps dans 61 h 54 min — le 14/09 a 07:20 », et ce
+    # texte change a chaque minute : sa largeur entrait dans le plancher de la
+    # fenetre, si bien que deux relevés pris a un quart d'heure d'intervalle ne
+    # donnaient pas le meme nombre. On a cru un moment a une regression.
+    f._season_lbl.set_text("")
     tourner(120)
 
 
@@ -452,6 +458,17 @@ def _geometrie(f: MainWindow) -> dict:
         mesures[f"{nom}.choix"] = (choisi.get_string()
                                    if choisi is not None else "")
     situer("geo.recherche", f._search)
+    # Ce que chaque selecteur refuse de descendre. La fenetre entiere ne se
+    # reduit pas plus bas que la somme de ces minimums-la : quand le plancher
+    # de l'une des deux fenetres bouge, c'est ici qu'il faut regarder.
+    for nom, widget in (("entite", f._entity_dd),
+                        ("inventaire", f._inv_dd)):
+        mesures[f"geo.{nom}.plancher"] = widget.measure(
+            Gtk.Orientation.HORIZONTAL, -1)[0]
+    # Et celui de la barre qui les porte : c'est elle qui dit si le plancher
+    # de la fenetre vient d'ici ou d'ailleurs.
+    mesures["geo.barre-selecteurs.plancher"] = f._ligne_entite.measure(
+        Gtk.Orientation.HORIZONTAL, -1)[0]
     return mesures
 
 
@@ -727,7 +744,7 @@ def relever(f: MainWindow) -> dict:
     # moment -- « Effectif · 177 », « Lecture de la meteo… » --, et les deux
     # applications ne lisent pas le meme cache.
     libelles_d_etat = (f._roster_status, f._op_status, f._meteo_entete,
-                       f._log_status, f._skills_status)
+                       f._log_status, f._skills_status, f._season_lbl)
     # L'ordre du tri est un reglage sauvegarde, propre a chaque portage : deux
     # fleches opposees ne diraient rien de l'aspect.
     f._order_btn.set_label("↓")
@@ -878,6 +895,12 @@ def relever(f: MainWindow) -> dict:
     # fenetre entiere pour lire la saison. Sans elle, chaque toolkit refuse
     # de lui-meme de descendre sous la largeur de son contenu -- et c'est
     # cette largeur-la qu'on compare.
+    # **Videe ici encore, et non seulement au debut.** La saison se recharge
+    # toute seule, et son libelle se repeuplait entre le vidage et cette
+    # mesure-ci : le plancher sautait alors de trente pixels, une fois sur
+    # trois, sans que rien n'ait change dans les applications.
+    f._season_lbl.set_text("")
+    tourner(60)
     points["geo.fenetre.plancher"] = f.measure(
         Gtk.Orientation.HORIZONTAL, -1)[0]
     points["zoom.crans"] = list(_R.PALIERS_ZOOM)
