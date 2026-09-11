@@ -188,6 +188,7 @@ class Courbe(unittest.TestCase):
     def _segments(self, valeurs):
         import types
         from zyroom.window import MainWindow
+        from test_axe_meteo import constantes_de_fenetre
 
         class FauxCr:
             """Un contexte Cairo qui ne dessine rien mais retient la courbe.
@@ -233,11 +234,11 @@ class Courbe(unittest.TestCase):
             # reglage l'interesse, et ce qu'on mesure ici -- la pente des
             # segments -- n'en depend pas : la taille normale suffit.
             _settings=types.SimpleNamespace(zoom=1.0),
-            ANCRE=MainWindow.ANCRE, FENETRE_HEURES=MainWindow.FENETRE_HEURES,
-            TRANSITION_HEURES=MainWindow.TRANSITION_HEURES,
-            MINUTES_ENTRE_REPERES=MainWindow.MINUTES_ENTRE_REPERES,
-            MINUTES_ENTRE_TIRETS=MainWindow.MINUTES_ENTRE_TIRETS,
-            PAS_DE_TEMPS=MainWindow.PAS_DE_TEMPS)
+            # **Toutes les constantes de la fenetre, et non une liste tenue
+            # a la main.** Elle se perimait a chaque reglage ajoute au trace :
+            # l'essai tombait alors sur un AttributeError qui ne disait rien
+            # du defaut qu'il est cense garder.
+            **constantes_de_fenetre())
         cr = FauxCr()
         MainWindow._dessiner_courbe(faux, None, cr, 800.0, 300.0)
         # Le premier segment relève du chemin précédent — l'aire — que ce faux

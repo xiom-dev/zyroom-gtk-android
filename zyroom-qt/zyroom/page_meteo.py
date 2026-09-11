@@ -48,6 +48,19 @@ MINUTES_ENTRE_REPERES = 15
 MINUTES_ENTRE_TIRETS = 5
 PAS_DE_TEMPS = 48
 
+#: Longueur des tirets sous l'axe, en pixels : celui qui porte une heure, puis
+#: le muet. Deux et trois ne se voyaient pas -- un tiret muet n'a que sa propre
+#: encre pour exister, la ou un repere d'heure se trouve en lisant l'heure.
+LONGUEUR_TIRET_ECRIT = 6
+LONGUEUR_TIRET_MUET = 4
+
+#: Leur opacite, de zero a 255 -- les memes valeurs que GTK, qui les ecrit de
+#: zero a un : 0,62 et 0,42. Le muet reste en retrait, c'est ce qui laisse
+#: lire le quart d'heure sans compter les tirets. L'heure ecrite, elle, ne
+#: bouge pas.
+OPACITE_TIRET_ECRIT = 158
+OPACITE_TIRET_MUET = 107
+
 #: Taille des symboles de familles de matieres, en pixels.
 #:
 #: Vingt-six : sur un ecran de bureau, a cote d'un nom de famille et d'une
@@ -209,10 +222,13 @@ class CourbeMeteo(QWidget):
             # lequel c'est -- quinze nombres sur une largeur qui en tient cinq
             # ne se liraient plus.
             ecrite = repere.minute % MINUTES_ENTRE_REPERES == 0
-            peintre.setPen(QPen(QColor(255, 255, 255, 90 if ecrite else 56),
-                                1.0))
-            peintre.drawLine(QPointF(x(atys), haut),
-                             QPointF(x(atys), haut + (3 if ecrite else 2)))
+            peintre.setPen(QPen(QColor(255, 255, 255,
+                                       OPACITE_TIRET_ECRIT if ecrite
+                                       else OPACITE_TIRET_MUET), 1.0))
+            peintre.drawLine(
+                QPointF(x(atys), haut),
+                QPointF(x(atys), haut + (LONGUEUR_TIRET_ECRIT if ecrite
+                                         else LONGUEUR_TIRET_MUET)))
             if not ecrite:
                 continue
             peintre.setPen(QColor(255, 255, 255, 140))

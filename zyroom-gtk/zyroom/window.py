@@ -2417,6 +2417,25 @@ class MainWindow(Gtk.ApplicationWindow):
     #: encombrer.
     MINUTES_ENTRE_TIRETS = 5
 
+    #: Longueur des tirets sous l'axe, en pixels : celui qui porte une heure,
+    #: puis le muet.
+    #:
+    #: **Deux et trois pixels ne se voyaient pas.** Ils suffisaient tant que
+    #: l'axe ne portait qu'un repère par quart d'heure, qu'on trouvait de
+    #: toute façon en lisant l'heure écrite dessous ; un tiret muet, lui, n'a
+    #: que sa propre encre pour exister. Doublés, et blanchis avec.
+    LONGUEUR_TIRET_ECRIT = 6
+    LONGUEUR_TIRET_MUET = 4
+
+    #: Leur opacité, sur le fond bleu-nuit.
+    #:
+    #: Le muet reste en retrait de celui qui porte une heure : c'est ce qui
+    #: laisse lire le quart d'heure d'un coup d'œil, sans compter les tirets.
+    #: L'heure écrite, elle, ne bouge pas — « visible, discrète et sobre,
+    #: c'est parfait », et l'on n'y touche donc pas.
+    OPACITE_TIRET_ECRIT = 0.62
+    OPACITE_TIRET_MUET = 0.42
+
     #: Combien de tirets on essaie de poser, de part et d'autre.
     #:
     #: On part d'une heure en arrière pour attraper le passé qui reste visible,
@@ -2598,10 +2617,12 @@ class MainWindow(Gtk.ApplicationWindow):
             # largeur qui en tient cinq. Le tiret nu se lit par sa position
             # entre deux heures — la moitié, puis les deux tiers.
             ecrite = repere.minute % self.MINUTES_ENTRE_REPERES == 0
-            cr.set_source_rgba(1, 1, 1, 0.35 if ecrite else 0.22)
+            cr.set_source_rgba(1, 1, 1, self.OPACITE_TIRET_ECRIT if ecrite
+                               else self.OPACITE_TIRET_MUET)
             cr.set_line_width(1.0)
             cr.move_to(x(atys), haut)
-            cr.line_to(x(atys), haut + (3 if ecrite else 2))
+            cr.line_to(x(atys), haut + (self.LONGUEUR_TIRET_ECRIT if ecrite
+                                        else self.LONGUEUR_TIRET_MUET))
             cr.stroke()
             if not ecrite:
                 continue

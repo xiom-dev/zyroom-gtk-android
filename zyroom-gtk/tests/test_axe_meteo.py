@@ -23,6 +23,18 @@ from zyroom import meteo                                         # noqa: E402
 from zyroom.window import MainWindow                             # noqa: E402
 
 
+def constantes_de_fenetre() -> dict:
+    """Les constantes que `MainWindow` definit, telles quelles.
+
+    Le trace en lit une dizaine, et la liste s'allonge des qu'on regle quelque
+    chose : les recopier a la main condamnait les essais a tomber sur un
+    AttributeError au premier ajout. `vars` ne rend que ce que la classe
+    definit elle-meme, sans l'heritage de GTK.
+    """
+    return {nom: valeur for nom, valeur in vars(MainWindow).items()
+            if nom.isupper()}
+
+
 class FauxCr:
     """Un contexte Cairo qui retient les tirets de l'axe et les heures.
 
@@ -46,7 +58,7 @@ class FauxCr:
         if self.dernier is not None:
             largeur = abs(x - self.dernier[0])
             hauteur = y - self.dernier[1]
-            if largeur < 0.001 and 0 < hauteur <= 4:
+            if largeur < 0.001 and 0 < hauteur <= MainWindow.LONGUEUR_TIRET_ECRIT:
                 self.tirets.append(round(hauteur))
         self.dernier = (x, y)
 
@@ -72,11 +84,7 @@ def dessiner():
     faux = types.SimpleNamespace(
         _meteo_affiche=releve, _meteo_releve=None,
         _settings=types.SimpleNamespace(zoom=1.0),
-        ANCRE=MainWindow.ANCRE, FENETRE_HEURES=MainWindow.FENETRE_HEURES,
-        TRANSITION_HEURES=MainWindow.TRANSITION_HEURES,
-        MINUTES_ENTRE_REPERES=MainWindow.MINUTES_ENTRE_REPERES,
-        MINUTES_ENTRE_TIRETS=MainWindow.MINUTES_ENTRE_TIRETS,
-        PAS_DE_TEMPS=MainWindow.PAS_DE_TEMPS)
+        **constantes_de_fenetre())
     cr = FauxCr()
     MainWindow._dessiner_courbe(faux, None, cr, 800.0, 300.0)
     return cr
@@ -106,16 +114,22 @@ class AxeDuTemps(unittest.TestCase):
         # Quinze minutes divisees par cinq : trois tirets, dont un porte
         # l'heure. Les bords de la fenetre peuvent en trancher un, d'ou la
         # comparaison sur le rapport plutot que sur un compte exact.
-        longs = [t for t in self.cr.tirets if t == 3]
-        courts = [t for t in self.cr.tirets if t == 2]
+        longs = [t for t in self.cr.tirets
+                 if t == MainWindow.LONGUEUR_TIRET_ECRIT]
+        courts = [t for t in self.cr.tirets
+                  if t == MainWindow.LONGUEUR_TIRET_MUET]
         self.assertEqual(len(longs), len(self.cr.textes))
         self.assertAlmostEqual(2.0, len(courts) / len(longs), delta=0.5)
 
     def test_le_tiret_muet_est_plus_court_que_celui_qui_porte_l_heure(self):
         # Sans cette difference, l'axe deviendrait un peigne ou l'on ne
         # distinguerait plus le quart d'heure du reste.
-        self.assertIn(2, self.cr.tirets)
-        self.assertIn(3, self.cr.tirets)
+        self.assertIn(MainWindow.LONGUEUR_TIRET_MUET, self.cr.tirets)
+        self.assertIn(MainWindow.LONGUEUR_TIRET_ECRIT, self.cr.tirets)
+        self.assertLess(MainWindow.LONGUEUR_TIRET_MUET,
+                        MainWindow.LONGUEUR_TIRET_ECRIT)
+        self.assertLess(MainWindow.OPACITE_TIRET_MUET,
+                        MainWindow.OPACITE_TIRET_ECRIT)
 
 
 if __name__ == "__main__":
