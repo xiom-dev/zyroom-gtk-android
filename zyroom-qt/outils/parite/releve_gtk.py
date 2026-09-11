@@ -451,6 +451,20 @@ def _geometrie(f: MainWindow) -> dict:
     # Le texte est pose ici, identique des deux cotes, et la mesure porte
     # alors sur l'aspect : ce que chaque toolkit ajoute autour d'un meme mot.
     poser_temoin(f)
+    # **L'ecart entre les deux signes du zoom.** Le releve ecarte la largeur
+    # et la place de ces boutons-la, et ne comparait que leur hauteur : Qt a
+    # donc pu les tenir a soixante pixels l'un de l'autre quand GTK les tient
+    # a trente-six, pendant des mois, sans que rien ne le signale. C'est Ludo
+    # qui l'a vu. Ce qu'on mesure ici, c'est la distance d'un milieu a
+    # l'autre, la seule chose qui saute aux yeux.
+    if getattr(f, "_boutons_zoom", None):
+        milieux = []
+        for bouton in f._boutons_zoom:
+            ok, cadre = bouton.compute_bounds(f)
+            if ok:
+                milieux.append(cadre.origin.x + cadre.size.width / 2)
+        if len(milieux) == 2:
+            mesures["geo.zoom.ecart"] = round(abs(milieux[1] - milieux[0]))
     situer("geo.entite", f._entity_dd)
     situer("geo.inventaire", f._inv_dd)
     for nom, liste in (("entite", f._entity_dd), ("inventaire", f._inv_dd)):

@@ -255,6 +255,25 @@ def feuille(taille: float = 0, zoom: float = 1.0) -> str:
     # pas exprimer en pourcentage.
     corps += (f"QLabel#signature, QPushButton#signature "
               f"{{ font-size: {base * 0.9:.2f}pt; }}\n")
+    # **Les deux signes du zoom, ici et non par `setFont`.** Une police posee
+    # en Python sur le bouton est ecrasee par la feuille des qu'elle fixe un
+    # corps : l'agrandissement ne prenait pas, et les signes restaient maigres
+    # quel que soit le facteur.
+    #
+    # **Un virgule trois, quand GTK ecrit 130 % : les deux ne partent pas du
+    # meme corps.** GTK applique son pourcentage a celui que le theme donne
+    # deja au bouton de sa barre de titre ; ici, `base` est le corps de la
+    # feuille. Le nombre est donc cale sur la mesure et non recopie :
+    # `geo.zoom.ecart` vaut quarante et un chez GTK, quarante-trois ici.
+    #
+    # **Et pas plus gros, quoi qu'on en pense.** Au-dela de 130 %, le signe
+    # depasse la hauteur d'un bouton de barre de titre et pousse toute la
+    # barre de GTK : mesure, elle passait de cent a cent sept pixels a 160 %,
+    # cent vingt-cinq a 190 %, cent soixante-dix-neuf a 260 %. La graisse,
+    # elle, ne coute aucune hauteur -- c'est elle qui fait voir ces deux
+    # traits, et non la taille.
+    corps += (f"QPushButton#zoom, QToolButton#zoom "
+              f"{{ font-size: {base * 1.3:.2f}pt; font-weight: bold; }}\n")
     sortie = corps + """
 /* Les bandes qui encadrent la grille : la barre du haut, celle des deux
    selecteurs, et le pied. Un cran sous le fond, pour tenir la grille entre
@@ -315,6 +334,23 @@ QPushButton:disabled, QToolButton:disabled {
 QPushButton#plat, QToolButton#plat {
     background: transparent;
     border: none;
+}
+/* Les deux boutons de zoom. Plats comme ci-dessus -- GTK leur pose la classe
+   `flat` --, mais avec le remplissage etroit de la regle `button.zoom-icones`
+   de la feuille GTK : six pixels de chaque cote et non quinze. Au remplissage
+   commun, les deux signes s'ecartaient de soixante pixels la ou GTK les tient
+   a trente-six, et Ludo l'a vu tout de suite. */
+QPushButton#zoom, QToolButton#zoom {
+    background: transparent;
+    border: none;
+    /* Trois et non six : le remplissage n'est pas le seul a jouer, le
+       glyphe lui-meme n'a pas la meme chasse d'un moteur a l'autre. Mesure
+       sur `geo.zoom.ecart`, qui vaut trente-six chez GTK. */
+    padding: 0 3px;
+    min-width: 0;
+}
+QPushButton#zoom:hover, QToolButton#zoom:hover {
+    background-color: #303030;
 }
 QPushButton#plat:hover, QToolButton#plat:hover {
     background-color: #303030;

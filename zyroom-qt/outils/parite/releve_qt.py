@@ -391,6 +391,11 @@ def _geometrie(f: FenetrePrincipale) -> dict:
     # qu'est dit pourquoi comparer leurs largeurs n'avait pas de sens tant que
     # chacun affichait ce que son propre cache lui donnait.
     poser_temoin(f)
+    # Le pendant du bloc du meme nom dans `releve_gtk.py`.
+    if getattr(f, "_boutons_zoom", None):
+        milieux = [b.mapTo(f, b.rect().center()).x() for b in f._boutons_zoom]
+        if len(milieux) == 2:
+            mesures["geo.zoom.ecart"] = round(abs(milieux[1] - milieux[0]))
     situer("geo.entite", f._dd_entite)
     situer("geo.inventaire", f._dd_inv)
     for nom, liste in (("entite", f._dd_entite), ("inventaire", f._dd_inv)):

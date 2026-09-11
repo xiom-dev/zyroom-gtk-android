@@ -131,15 +131,6 @@ PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
 TRI_LIBELLES = ("Ordre d'origine", "Type", "Écosystème", "Classe", "Qualité",
                 "Volume", "Quantité", "Prix", "Nom")
 
-#: Ce que la police des deux boutons de zoom prend de plus que les autres.
-#:
-#: Le moins et le plus sont deux traits maigres au milieu d'une barre pleine
-#: d'images : a un virgule six, on les cherchait encore. Deux, comme les deux
-#: cents pour cent que la feuille GTK donne a `button.zoom-icones` -- c'est
-#: l'un des rares endroits ou les deux portages disent la meme chose de deux
-#: facons, et l'un ne doit pas bouger sans l'autre.
-AGRANDISSEMENT_ZOOM = 2.0
-
 #: La part de la taille des icones d'inventaire qu'occupe celle du journal.
 #:
 #: La moitie : a quarante-huit pixels dans la grille, vingt-quatre au journal
@@ -651,6 +642,9 @@ class FenetrePrincipale(QMainWindow):
         # l'ajout et le retrait agissent sur l'entite. C'est la place qu'ils
         # ont dans la version GTK, dont celle-ci est la copie. La molette
         # avec Ctrl le fait aussi, mais elle n'atteint pas tous les pointeurs.
+        #: Les deux boutons de zoom, retenus pour que le controle de parite
+        #: puisse mesurer ce qui les separe.
+        self._boutons_zoom = []
         for signe, pas, mot in (("−", -8, _("Réduire les icônes")),
                                 ("+", 8, _("Agrandir les icônes"))):
             bouton = QToolButton()
@@ -659,14 +653,21 @@ class FenetrePrincipale(QMainWindow):
             # Sans cadre : la version GTK pose la classe `flat` sur ces deux
             # boutons-la, et sur eux seuls. Tous les autres portent le fond
             # gris d'Adwaita.
-            bouton.setObjectName("plat")
+            # **Leur propre nom, et non « plat ».** Ils partageaient le style
+            # des boutons plats, donc le remplissage de quinze pixels de tous
+            # les boutons : les deux signes s'en trouvaient ecartes de soixante
+            # pixels quand GTK les tient a trente-six. Voir `QToolButton#zoom`
+            # dans la feuille.
+            bouton.setObjectName("zoom")
             bouton.setAutoRaise(True)
-            police = bouton.font()
-            police.setPointSizeF(police.pointSizeF() * AGRANDISSEMENT_ZOOM)
-            bouton.setFont(police)
+            # Le corps et la graisse viennent de la feuille -- voir la regle
+            # `QToolButton#zoom` dans `theme.py` : une police posee ici etait
+            # ecrasee des que la feuille fixait un corps, et l'agrandissement
+            # ne prenait pas.
             bouton.clicked.connect(
                 lambda _c=False, p=pas: self._zoomer_icones(p))
             ligne.addWidget(bouton)
+            self._boutons_zoom.append(bouton)
 
         # **Centree sur la fenetre, et non entre les deux groupes de boutons.**
         # Deux ressorts egaux centrent ce qu'il y a entre eux dans la place qui

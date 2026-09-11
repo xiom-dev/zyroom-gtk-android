@@ -276,6 +276,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # comme l'ajout et le retrait agissent sur l'entite. A droite se
         # tient ce qui parle de l'application : synchro, fichier de
         # noms, menu.
+        #: Les deux boutons de zoom, retenus pour que le controle de parite
+        #: puisse mesurer ce qui les separe.
+        self._boutons_zoom = []
         for signe, pas, mot in (("\u2212", -8, _("Réduire les icônes")),
                                 ("+", 8, _("Agrandir les icônes"))):
             bouton = Gtk.Button(label=signe)
@@ -288,6 +291,7 @@ class MainWindow(Gtk.ApplicationWindow):
             bouton.add_css_class("zoom-icones")
             bouton.connect("clicked", self._on_zoom_icones, pas)
             header.pack_start(bouton)
+            self._boutons_zoom.append(bouton)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         # **Pas de barre de defilement horizontale.** Il y en a eu une, pour
@@ -4237,13 +4241,29 @@ class MainWindow(Gtk.ApplicationWindow):
                 background-color: @zy_sarcelle_sombre; color: @zy_texte; }
             /* Les deux boutons de zoom, « − » et « + ». Deux traits maigres
                au milieu d'une barre pleine d'images : au corps ordinaire on
-               les cherchait, et Ludo a demande qu'ils se voient. Deux cents
-               pour cent, la meme valeur que le facteur applique a la police
-               de ces boutons dans la version Qt -- c'est l'un des rares
+               les cherchait, et Ludo a demande qu'ils se voient.
+
+               **Cent trente pour cent, et pas un de plus.** Au-dela, le signe
+               depasse la hauteur d'un bouton de barre de titre et pousse la
+               barre entiere : mesure a la capture, elle passait de cent a
+               cent sept pixels a 160 %, cent vingt-cinq a 190 %, cent
+               soixante-dix-neuf a 260 %. C'est la graisse qui fait voir ces
+               deux traits maigres, et elle ne coute aucune hauteur.
+
+               Le facteur de la version Qt vaut 1,3 et non 130 % du meme
+               corps : les deux ne partent pas du meme point, et le nombre y
+               est cale sur la mesure -- c'est l'un des rares
                endroits ou les deux feuilles disent la meme chose de deux
                facons. Un pourcentage et non des pixels : le corps suit celui
                du theme, et le zoom de l'application par-dessus. */
-            button.zoom-icones { font-size: 200%; padding: 0 6px; }
+            /* Le remplissage sur le bouton seul : pose aussi sur le
+               label, il s'ajoutait a celui du bouton et les deux signes se
+               retrouvaient a cent seize pixels l'un de l'autre au lieu de
+               trente-six. Le corps et la graisse, eux, doivent atteindre le
+               label -- un `button` ne les transmet pas au sien. */
+            button.zoom-icones { padding: 0 6px; }
+            button.zoom-icones, button.zoom-icones > label {
+                font-size: 130%; font-weight: bold; }
             button.suggested-action {
                 background-image: none; background-color: @zy_sarcelle;
                 color: #06120e; }
