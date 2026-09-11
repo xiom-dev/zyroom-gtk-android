@@ -135,6 +135,43 @@ def relever(python: str, script: str, nom: str, ecran: str | None = None) -> dic
 #: bloquant au fur et à mesure.
 INFORMATIF = "geo."
 
+#: L'écart toléré sur une mesure de géométrie, avant de la signaler.
+#:
+#: **Deux moteurs de rendu ne tombent pas d'accord au pixel.** Le relevé le
+#: savait déjà pour le texte, dont il arrondit la largeur à la dizaine ; la
+#: comparaison par l'image l'admet aussi, à deux pixels près. Les mesures de
+#: géométrie n'avaient, elles, aucune marge : « Filtres » fait quatre-vingt-six
+#: pixels chez GTK et quatre-vingt-onze ici, « ↓ » cinquante contre
+#: quarante-cinq — les deux toolkits ne mesurent pas le même texte pareil, et
+#: n'imposent pas la même largeur minimale à un bouton court. Les aligner
+#: exigerait de figer des largeurs en dur, qui casseraient au zoom et sous une
+#: autre police : on satisferait la mesure en abîmant l'application.
+#:
+#: Deux unités, et non trois : au-delà, l'écart se voit à l'œil sur une barre
+#: de filtres, et c'est précisément ce que ce contrôle existe pour trouver.
+#:
+#: L'unité suit la mesure — des pixels pour les hauteurs et les départs de
+#: colonne, des millièmes de la largeur de fenêtre pour les places et les
+#: largeurs, soit deux virgule quatre pixels à la largeur du relevé. Les deux
+#: se valent à ce degré de finesse.
+TOLERANCE_GEOMETRIE = 2
+
+
+def assez_proche(a, b) -> bool:
+    """Vrai si deux mesures ne diffèrent que de l'épaisseur du trait.
+
+    Les listes se comparent terme à terme, et seulement si elles ont la même
+    longueur : deux barres qui n'ont pas le même nombre de commandes ne se
+    départagent pas au pixel, elles ne montrent pas la même chose.
+    """
+    if isinstance(a, bool) or isinstance(b, bool):
+        return False
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        return abs(a - b) <= TOLERANCE_GEOMETRIE
+    if isinstance(a, list) and isinstance(b, list) and len(a) == len(b):
+        return all(assez_proche(x, y) for x, y in zip(a, b))
+    return False
+
 
 def main() -> int:
     details = "--details" in sys.argv[1:]
@@ -145,7 +182,7 @@ def main() -> int:
     if gtk is None or qt is None:
         return 1
 
-    ecarts, signales, accords = [], [], []
+    ecarts, signales, accords, tolerees = [], [], [], []
     for cle in sorted(set(gtk) | set(qt)):
         if cle not in gtk:
             trouve = (cle, "— (rien de tel en GTK)", qt[cle])
@@ -160,12 +197,26 @@ def main() -> int:
         # viennent d'arriver, aucune n'a encore été traitée, et faire échouer
         # le contrôle dessus arrêterait toutes les livraisons pour des écarts
         # connus. Elles passeront du côté bloquant à mesure qu'on les corrige.
+        # Une géométrie qui ne diffère que de l'épaisseur du trait concorde :
+        # voir `TOLERANCE_GEOMETRIE`, qui dit pourquoi l'exiger au pixel
+        # reviendrait à figer des largeurs en dur.
+        if cle.startswith(INFORMATIF) and assez_proche(gtk[cle], qt[cle]):
+            tolerees.append(trouve)
+            accords.append((cle, gtk[cle]))
+            continue
         (signales if cle.startswith(INFORMATIF) else ecarts).append(trouve)
 
     if details:
         print(f"Ce qui concorde ({len(accords)} points) :")
         for cle, valeur in accords:
             print(f"  {cle:38} {valeur}")
+        print()
+
+    if tolerees:
+        print(f"{len(tolerees)} mesure(s) de géométrie concordent à "
+              f"{TOLERANCE_GEOMETRIE} près :")
+        for cle, cote_gtk, cote_qt in tolerees:
+            print(f"  {cle:34} GTK {cote_gtk}   Qt {cote_qt}")
         print()
 
     if signales:
