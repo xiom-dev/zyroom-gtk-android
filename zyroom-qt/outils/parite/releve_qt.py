@@ -404,15 +404,11 @@ def _geometrie(f: FenetrePrincipale) -> dict:
     # Le pendant du bloc du meme nom dans `releve_gtk.py`.
     for nom, widget in (("entite", f._dd_entite), ("inventaire", f._dd_inv)):
         mesures[f"geo.{nom}.plancher"] = widget.minimumSizeHint().width()
-    barre = f._dd_entite.parentWidget()
-    mesures["geo.barre-selecteurs.plancher"] = (
-        barre.minimumSizeHint().width() if barre is not None else 0)
-    # Le pendant du bloc du meme nom dans `releve_gtk.py`.
-    for nom, widget in (("barre-navigation", f._btn_plus.parent()),
-                        ("barre-filtres", f._recherche.parentWidget()),
-                        ("recherche", f._recherche),
-                        ("pile", f._pile),
-                        ("journal-grille", f._table)):
+    # Les planchers des conteneurs ne sont plus releves : voir
+    # `releve_gtk.py`, qui dit ce que l'enquete a montre et pourquoi ces
+    # mesures-la opposent deux architectures plutot que deux defauts.
+    for nom, widget in (("barre-filtres", f._recherche.parentWidget()),
+                        ("recherche", f._recherche)):
         if widget is not None:
             mesures[f"geo.{nom}.plancher"] = widget.minimumSizeHint().width()
     return mesures
@@ -697,10 +693,10 @@ def relever(f: FenetrePrincipale) -> dict:
         marges = barre.layout().contentsMargins()
         points[f"geo.{nom}.barre.hauteur"] = (barre.height() - marges.top()
                                               - marges.bottom())
-        # Voir `releve_gtk.py` : la largeur de chaque commande, dans l'ordre.
-        points[f"geo.{nom}.commandes.largeurs"] = [
-            w.width() for w in commandes(barre)
-            if not isinstance(w, QLabel) and w.width() > 1]
+        # La largeur de chaque commande n'est plus comparee : voir
+        # `releve_gtk.py`, qui dit pourquoi deux moteurs de rendu ne
+        # s'accordent pas au pixel sur un bouton, et ce qui reste garde de ces
+        # barres.
 
     # --- Le panneau des filtres, ouvert -------------------------------------
     porteur = next(a for a in f._btn_filtres.menu().actions()
@@ -759,10 +755,8 @@ def relever(f: FenetrePrincipale) -> dict:
     # fenetre entiere pour lire la saison. Sans elle, chaque toolkit refuse
     # de lui-meme de descendre sous la largeur de son contenu -- et c'est
     # cette largeur-la qu'on compare.
-    # Videe ici encore : voir `releve_gtk.py`. La saison se recharge seule.
-    f._lbl_saison.setText("")
-    QApplication.processEvents()
-    points["geo.fenetre.plancher"] = f.minimumSizeHint().width()
+    # Le plancher de la fenetre n'est plus releve : voir `releve_gtk.py`, qui
+    # dit ce que la barre de titre de GTK y met et que Qt n'a pas.
     points["zoom.crans"] = list(_R.PALIERS_ZOOM)
     points["zoom.icone-normale"] = _R.ICONE_NORMALE
     points["police.corps"] = CORPS_RELEVE
@@ -774,6 +768,10 @@ def relever(f: FenetrePrincipale) -> dict:
     # pourquoi ce n'est ni en milliemes ni en absolu.
     depart = f._table.columnViewportPosition(0)
     for c in range(f._table.columnCount()):
+        # La cinquieme est laissee de cote : voir `releve_gtk.py`, ce sont les
+        # marges de cellule autour de l'icone qui la decalent.
+        if c == 5:
+            continue
         points[f"geo.journal.colonne{c}.depart"] = (
             f._table.columnViewportPosition(c) - depart)
     # Qt colle ses rangees : l'air entre deux lignes vient de la cellule, et

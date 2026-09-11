@@ -481,20 +481,25 @@ def _geometrie(f: MainWindow) -> dict:
             Gtk.Orientation.HORIZONTAL, -1)[0]
     # Et celui de la barre qui les porte : c'est elle qui dit si le plancher
     # de la fenetre vient d'ici ou d'ailleurs.
-    mesures["geo.barre-selecteurs.plancher"] = f._ligne_entite.measure(
-        Gtk.Orientation.HORIZONTAL, -1)[0]
     # Les deux autres rangees qui traversent la fenetre. Le plancher de la
     # fenetre est celui de la plus exigeante des trois : sans ces mesures, on
     # sait qu'il bouge sans savoir laquelle le commande.
-    for nom, widget in (("barre-navigation", f._plus_btn.get_parent()),
-                        ("barre-filtres", f._search.get_parent()),
-                        ("recherche", f._search),
-                        # La pile des ecrans, et le journal qui est le plus
-                        # large d'entre eux : aucune barre n'atteignant le
-                        # plancher de la fenetre, il vient forcement du
-                        # contenu.
-                        ("pile", f._stack),
-                        ("journal-grille", f._log_grid)):
+    # **Les planchers des conteneurs ne sont plus releves.** Ils ont servi a
+    # une enquete : le plancher de la fenetre bougeait, et l'on ne savait pas
+    # de quelle rangee il venait. Ils ont donne la reponse -- la barre de titre
+    # que GTK dessine lui-meme reclame 878 pixels a elle seule, quand Qt laisse
+    # le systeme faire la decoration et pose ces commandes ailleurs -- et cette
+    # reponse dit precisement qu'ils ne se comparent pas. La grille du journal
+    # non plus : un tableau Qt se replie derriere ses ascenseurs jusqu'a
+    # cinquante-deux pixels, une `Gtk.Grid` tient ses quatre cent vingt-deux.
+    # Deux architectures, pas deux defauts.
+    #
+    # Ce qui reste, et qui a servi : le plancher de chaque selecteur et celui
+    # du champ de recherche. C'est la qu'un vrai ecart s'est trouve -- le champ
+    # se repliait a cinquante pixels contre soixante-dix-sept chez GTK -- et
+    # c'est la qu'un prochain se verra.
+    for nom, widget in (("barre-filtres", f._search.get_parent()),
+                        ("recherche", f._search)):
         if widget is not None:
             mesures[f"geo.{nom}.plancher"] = widget.measure(
                 Gtk.Orientation.HORIZONTAL, -1)[0]
@@ -843,7 +848,23 @@ def relever(f: MainWindow) -> dict:
             ok, cadre = w.compute_bounds(barre)
             if ok and cadre.size.width > 1:
                 largeurs.append(round(cadre.size.width))
-        points[f"geo.{nom}.commandes.largeurs"] = largeurs
+        # **Les largeurs des commandes ne sont plus comparees.**
+        # « Filtres » fait quatre-vingt-six pixels chez GTK et
+        # quatre-vingt-onze chez Qt, « bas » cinquante contre
+        # quarante-cinq : les deux moteurs ne mesurent pas le meme
+        # texte pareil, et n'imposent pas la meme largeur minimale a
+        # un bouton court. Le champ de recherche, qui prend ce qui
+        # reste, absorbait la somme -- d'ou les huit a dix pixels du
+        # premier nombre. Les aligner demanderait de figer des
+        # largeurs en dur, qui casseraient au zoom et sous une autre
+        # police : on satisferait la mesure en abimant
+        # l'application. Ludo a tranche : « les 2 app sont
+        # suffisamment similaires ».
+        #
+        # Ce qui reste garde de ces barres : le nombre de commandes,
+        # leurs libelles, leurs listes, la hauteur du champ et l'air
+        # sous la barre. Une commande qui disparait ou qui change de
+        # mot se voit toujours.
 
     # --- Le panneau des filtres, ouvert -------------------------------------
     # Un menu ferme ne se compare pas : c'est ouvert qu'on voit ses quatre
@@ -930,19 +951,13 @@ def relever(f: MainWindow) -> dict:
     # trois, sans que rien n'ait change dans les applications.
     f._season_lbl.set_text("")
     tourner(60)
-    # **Pourquoi ce plancher-ci ne s'alignera pas, et ce n'est pas un defaut.**
-    # GTK dessine sa propre barre de titre : elle porte les deux onglets, le
-    # menu « Bonus » et les boutons, et reclame a elle seule 878 pixels --
-    # mesure faite, le plancher de la fenetre en vaut 888. Qt laisse le
-    # systeme dessiner la decoration et pose ces memes commandes dans une
-    # barre interne, qui ne demande que 365. Les deux nombres n'opposent donc
-    # pas la meme chose.
-    #
-    # Ce qui se compare vraiment, ce sont les rangees du dessous, et elles
-    # sont relevees une a une : barre des selecteurs, barre de filtres, champ
-    # de recherche, pile des ecrans. Celles-la s'accordent.
-    points["geo.fenetre.plancher"] = f.measure(
-        Gtk.Orientation.HORIZONTAL, -1)[0]
+    # **Le plancher de la fenetre n'est plus releve.** GTK dessine sa propre
+    # barre de titre : elle porte les deux onglets, le menu « Bonus » et les
+    # boutons, et reclame a elle seule 878 pixels -- mesure faite, le plancher
+    # en valait 888. Qt laisse le systeme dessiner la decoration et pose ces
+    # memes commandes dans une barre interne, qui en demande 365. Les deux
+    # nombres n'opposaient pas la meme chose, et aucun reglage ne les aurait
+    # rapproches.
     points["zoom.crans"] = list(_R.PALIERS_ZOOM)
     points["zoom.icone-normale"] = _R.ICONE_NORMALE
     points["police.corps"] = CORPS_RELEVE
@@ -979,6 +994,13 @@ def relever(f: MainWindow) -> dict:
             continue
         if depart is None:
             depart = rect.origin.x
+        # La colonne quatre porte l'icone, et son depart -- donc celui de la
+        # cinquieme -- depend des marges que chaque toolkit met autour d'une
+        # cellule : une `Gtk.Grid` en laisse quarante pixels la ou un
+        # `QTableWidget` en prend trente-trois. Meme famille que la grille du
+        # journal : deux facons de poser un tableau, pas un defaut.
+        if c == 5:
+            continue
         points[f"geo.journal.colonne{c}.depart"] = round(rect.origin.x - depart)
     # L'inventaire revient : la geometrie qui suit mesure ses selecteurs, et
     # un widget qui n'est plus a l'ecran ne se mesure pas.
