@@ -23,7 +23,17 @@ class Deroulante(QComboBox):
     #:
     #: Cinquante-huit pour les selecteurs de la barre, qui portent une
     #: image ; quarante-trois pour les listes simples -- voir `Choix`.
-    AIR = 58
+    AIR = 45
+
+    #: Vrai si la liste porte une image sur chaque ligne.
+    #:
+    #: **La place se reserve meme quand l'image manque.** C'est ce que fait la
+    #: version GTK : « les montures n'en ont pas, et gardent une case vide de
+    #: la meme largeur pour que les libelles restent alignes ». Qt, lui, ne
+    #: comptait l'image que si la ligne courante en portait une -- le selecteur
+    #: changeait donc de largeur en passant d'un coffre a une monture, la ou
+    #: celui de GTK ne bouge pas.
+    PORTE_UNE_IMAGE = True
 
     def __init__(self, *arguments, **nommes) -> None:
         super().__init__(*arguments, **nommes)
@@ -79,7 +89,7 @@ class Deroulante(QComboBox):
         # sur le nom — « Koii » s'affichait « K » le jour où le portrait est
         # arrivé. Quatre pixels d'écart entre l'image et le texte, comme Qt en
         # laisse.
-        if not self.itemIcon(self.currentIndex()).isNull():
+        if self.PORTE_UNE_IMAGE:
             large += self.iconSize().width() + 4
         return large
 
@@ -109,6 +119,8 @@ class Deroulante(QComboBox):
 class Choix(Deroulante):
     """La même chose, pour une liste qui ne porte pas d'image.
 
+    Pas d'image, donc pas de place à lui réserver : voir `PORTE_UNE_IMAGE`.
+
     Le filtre du journal, celui des compétences, la vue des avant-postes et le
     menu de tri de l'inventaire. Ils étaient de simples `QComboBox`, donc
     taillés sur leur plus long élément : celui du tri s'étalait sur cent
@@ -124,3 +136,5 @@ class Choix(Deroulante):
     """
 
     AIR = 43
+    #: Aucune image sur ces lignes-la : rien a lui reserver.
+    PORTE_UNE_IMAGE = False

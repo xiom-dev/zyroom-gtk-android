@@ -204,6 +204,30 @@ def commandes(panneau):
         enfant = enfant.get_next_sibling()
 
 
+#: Le libelle pose dans les deux selecteurs avant de les mesurer.
+#:
+#: Un mot de longueur banale, sans parenthese ni chiffre : ce qu'on mesure,
+#: c'est l'air que chaque toolkit laisse autour du texte, pas la largeur du
+#: texte lui-meme.
+TEMOIN_SELECTEUR = "Temoin"
+
+
+def poser_temoin(f) -> None:
+    """Met le meme libelle dans les deux selecteurs de la barre.
+
+    Les signaux sont coupes : changer d'entite recharge l'inventaire entier,
+    et l'on mesurerait une fenetre en train de se repeupler.
+    """
+    from gi.repository import Gtk as _Gtk
+    for liste, rappel in ((f._entity_dd, f._on_entity_selected),
+                          (f._inv_dd, f._on_inventory_selected)):
+        liste.handler_block_by_func(rappel)
+        liste.set_model(_Gtk.StringList.new([TEMOIN_SELECTEUR]))
+        liste.set_selected(0)
+        liste.handler_unblock_by_func(rappel)
+    tourner(120)
+
+
 def contenu_de_barre(barre, etats=()) -> dict:
     """Ce qu'une barre de filtres donne a lire.
 
@@ -409,8 +433,24 @@ def _geometrie(f: MainWindow) -> dict:
     situer("geo.bouton", f._plus_btn)
     mesures.pop("geo.bouton.milieu", None)
     mesures.pop("geo.bouton.largeur", None)
+    # **Un temoin dans les deux selecteurs, comme le journal en a un.**
+    #
+    # Les deux se taillent sur leur ligne visible, et cette ligne venait du
+    # cache de chaque application : GTK montrait « Xiom » et « Sac (77%) », Qt
+    # « Koii » et « Sac (64%) ». On opposait donc deux largeurs qui n'avaient
+    # pas le meme objet, et l'on accusait Qt d'un ecart de quatorze pixels
+    # dont les applications n'etaient pour rien. Le meme defaut que pour le
+    # journal, que trois mouvements fabriques ont regle.
+    #
+    # Le texte est pose ici, identique des deux cotes, et la mesure porte
+    # alors sur l'aspect : ce que chaque toolkit ajoute autour d'un meme mot.
+    poser_temoin(f)
     situer("geo.entite", f._entity_dd)
     situer("geo.inventaire", f._inv_dd)
+    for nom, liste in (("entite", f._entity_dd), ("inventaire", f._inv_dd)):
+        choisi = liste.get_selected_item()
+        mesures[f"{nom}.choix"] = (choisi.get_string()
+                                   if choisi is not None else "")
     situer("geo.recherche", f._search)
     return mesures
 

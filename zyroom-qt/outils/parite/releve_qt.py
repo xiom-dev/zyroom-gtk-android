@@ -221,6 +221,26 @@ def commandes(quoi):
             yield from commandes(enfant)
 
 
+#: Le libelle pose dans les deux selecteurs avant de les mesurer. Le meme mot
+#: que du cote GTK, sans quoi tout ceci n'aurait servi a rien.
+TEMOIN_SELECTEUR = "Temoin"
+
+
+def poser_temoin(f) -> None:
+    """Met le meme libelle dans les deux selecteurs de la barre."""
+    from PySide6.QtWidgets import QApplication as _QA
+    for liste in (f._dd_entite, f._dd_inv):
+        liste.blockSignals(True)
+        liste.clear()
+        liste.addItem(TEMOIN_SELECTEUR)
+        liste.setCurrentIndex(0)
+        liste.blockSignals(False)
+        # La largeur d'une `Deroulante` se recalcule au changement d'index ;
+        # les signaux etant coupes, on la redemande a la main.
+        liste.updateGeometry()
+    _QA.processEvents()
+
+
 def contenu_de_barre(barre, etats=()) -> dict:
     """Ce qu'une barre de filtres donne a lire.
 
@@ -364,8 +384,14 @@ def _geometrie(f: FenetrePrincipale) -> dict:
     situer("geo.bouton", f._btn_plus)
     mesures.pop("geo.bouton.milieu", None)
     mesures.pop("geo.bouton.largeur", None)
+    # Le temoin dans les deux selecteurs, comme du cote GTK : c'est la-bas
+    # qu'est dit pourquoi comparer leurs largeurs n'avait pas de sens tant que
+    # chacun affichait ce que son propre cache lui donnait.
+    poser_temoin(f)
     situer("geo.entite", f._dd_entite)
     situer("geo.inventaire", f._dd_inv)
+    for nom, liste in (("entite", f._dd_entite), ("inventaire", f._dd_inv)):
+        mesures[f"{nom}.choix"] = liste.currentText()
     situer("geo.recherche", f._recherche)
     return mesures
 
