@@ -2436,6 +2436,18 @@ class MainWindow(Gtk.ApplicationWindow):
     OPACITE_TIRET_ECRIT = 0.62
     OPACITE_TIRET_MUET = 0.42
 
+    #: Hauteur de la ligne des heures au-dessus du bas du graphique, en pixels.
+    #:
+    #: **Quatre, et non six.** L'axe se tient à vingt pixels du bas et le tiret
+    #: qui porte une heure en descend six : il finissait à un pixel du haut des
+    #: chiffres, et venait mordre dessus. Deux pixels plus bas, le tiret pose
+    #: l'heure sans la toucher.
+    #:
+    #: On descend le texte plutôt que de raccourcir le tiret : c'est le tiret
+    #: qui a été allongé pour se voir, et le reprendre reviendrait à défaire ce
+    #: qu'on vient de faire.
+    PIED_DES_HEURES = 4
+
     #: Combien de tirets on essaie de poser, de part et d'autre.
     #:
     #: On part d'une heure en arrière pour attraper le passé qui reste visible,
@@ -2629,7 +2641,8 @@ class MainWindow(Gtk.ApplicationWindow):
             cr.set_source_rgba(1, 1, 1, 0.55)
             texte = repere.strftime("%Hh") if repere.minute == 0 \
                 else repere.strftime("%Hh%M")
-            cr.move_to(min(largeur - 30, max(0.0, x(atys) - 14)), hauteur - 6)
+            cr.move_to(min(largeur - 30, max(0.0, x(atys) - 14)),
+                       hauteur - self.PIED_DES_HEURES)
             cr.show_text(texte)
 
     def _build_skills_page(self) -> Gtk.Widget:

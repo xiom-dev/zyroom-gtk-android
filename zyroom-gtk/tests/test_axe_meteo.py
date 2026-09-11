@@ -43,8 +43,13 @@ class FauxCr:
     travers et sur de bien plus grandes hauteurs.
     """
 
-    #: L'ordonnee ou se posent les heures : `hauteur - 6` du cote du dessin.
-    PIED = 294.0
+    #: La hauteur du dessin, telle que `dessiner` la demande plus bas.
+    HAUTEUR = 300.0
+    #: L'ordonnee ou se posent les heures. Lue dans la classe, et non ecrite
+    #: ici : elle a bouge le jour ou le tiret allonge est venu mordre sur les
+    #: chiffres, et l'essai cessait alors de voir la moindre heure -- sans
+    #: rien dire d'utile.
+    PIED = HAUTEUR - MainWindow.PIED_DES_HEURES
 
     def __init__(self):
         self.dernier = None
@@ -86,7 +91,7 @@ def dessiner():
         _settings=types.SimpleNamespace(zoom=1.0),
         **constantes_de_fenetre())
     cr = FauxCr()
-    MainWindow._dessiner_courbe(faux, None, cr, 800.0, 300.0)
+    MainWindow._dessiner_courbe(faux, None, cr, 800.0, FauxCr.HAUTEUR)
     return cr
 
 

@@ -61,6 +61,13 @@ LONGUEUR_TIRET_MUET = 4
 OPACITE_TIRET_ECRIT = 158
 OPACITE_TIRET_MUET = 107
 
+#: Hauteur de la ligne des heures au-dessus du bas du graphique, en pixels.
+#:
+#: Quatre, et non six : l'axe se tient a vingt pixels du bas et le tiret qui
+#: porte une heure en descend six, si bien qu'il finissait a un pixel du haut
+#: des chiffres et venait mordre dessus. Voir `window.py` du cote GTK.
+PIED_DES_HEURES = 4
+
 #: Taille des symboles de familles de matieres, en pixels.
 #:
 #: Vingt-six : sur un ecran de bureau, a cote d'un nom de famille et d'une
@@ -235,7 +242,7 @@ class CourbeMeteo(QWidget):
             texte = (repere.strftime("%Hh") if repere.minute == 0
                      else repere.strftime("%Hh%M"))
             peintre.drawText(QPointF(min(largeur - 30, max(0.0, x(atys) - 14)),
-                                     hauteur - 6), texte)
+                                     hauteur - PIED_DES_HEURES), texte)
 
 
 class PageMeteo(QWidget):
