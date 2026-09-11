@@ -281,6 +281,11 @@ class MainWindow(Gtk.ApplicationWindow):
             bouton = Gtk.Button(label=signe)
             bouton.set_tooltip_text(mot)
             bouton.add_css_class("flat")
+            # **Un signe plus gros que le texte des autres boutons.** Le moins
+            # et le plus sont deux traits maigres au milieu d'une barre pleine
+            # d'images : au corps ordinaire, on les cherchait. Voir la regle
+            # `button.zoom-icones` de la feuille, ou le facteur est ecrit.
+            bouton.add_css_class("zoom-icones")
             bouton.connect("clicked", self._on_zoom_icones, pas)
             header.pack_start(bouton)
 
@@ -4230,6 +4235,15 @@ class MainWindow(Gtk.ApplicationWindow):
             switch:checked > slider { background-color: @zy_texte; }
             :selected, row:selected, .view:selected {
                 background-color: @zy_sarcelle_sombre; color: @zy_texte; }
+            /* Les deux boutons de zoom, « − » et « + ». Deux traits maigres
+               au milieu d'une barre pleine d'images : au corps ordinaire on
+               les cherchait, et Ludo a demande qu'ils se voient. Deux cents
+               pour cent, la meme valeur que le facteur applique a la police
+               de ces boutons dans la version Qt -- c'est l'un des rares
+               endroits ou les deux feuilles disent la meme chose de deux
+               facons. Un pourcentage et non des pixels : le corps suit celui
+               du theme, et le zoom de l'application par-dessus. */
+            button.zoom-icones { font-size: 200%; padding: 0 6px; }
             button.suggested-action {
                 background-image: none; background-color: @zy_sarcelle;
                 color: #06120e; }

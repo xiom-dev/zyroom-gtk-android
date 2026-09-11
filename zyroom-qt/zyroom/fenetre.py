@@ -131,6 +131,15 @@ PLUS_PAGES = (("skills", "Compétences"), ("roster", "Effectif"),
 TRI_LIBELLES = ("Ordre d'origine", "Type", "Écosystème", "Classe", "Qualité",
                 "Volume", "Quantité", "Prix", "Nom")
 
+#: Ce que la police des deux boutons de zoom prend de plus que les autres.
+#:
+#: Le moins et le plus sont deux traits maigres au milieu d'une barre pleine
+#: d'images : a un virgule six, on les cherchait encore. Deux, comme les deux
+#: cents pour cent que la feuille GTK donne a `button.zoom-icones` -- c'est
+#: l'un des rares endroits ou les deux portages disent la meme chose de deux
+#: facons, et l'un ne doit pas bouger sans l'autre.
+AGRANDISSEMENT_ZOOM = 2.0
+
 #: La part de la taille des icones d'inventaire qu'occupe celle du journal.
 #:
 #: La moitie : a quarante-huit pixels dans la grille, vingt-quatre au journal
@@ -653,7 +662,7 @@ class FenetrePrincipale(QMainWindow):
             bouton.setObjectName("plat")
             bouton.setAutoRaise(True)
             police = bouton.font()
-            police.setPointSizeF(police.pointSizeF() * 1.6)
+            police.setPointSizeF(police.pointSizeF() * AGRANDISSEMENT_ZOOM)
             bouton.setFont(police)
             bouton.clicked.connect(
                 lambda _c=False, p=pas: self._zoomer_icones(p))
