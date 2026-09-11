@@ -469,6 +469,21 @@ def _geometrie(f: MainWindow) -> dict:
     # de la fenetre vient d'ici ou d'ailleurs.
     mesures["geo.barre-selecteurs.plancher"] = f._ligne_entite.measure(
         Gtk.Orientation.HORIZONTAL, -1)[0]
+    # Les deux autres rangees qui traversent la fenetre. Le plancher de la
+    # fenetre est celui de la plus exigeante des trois : sans ces mesures, on
+    # sait qu'il bouge sans savoir laquelle le commande.
+    for nom, widget in (("barre-navigation", f._plus_btn.get_parent()),
+                        ("barre-filtres", f._search.get_parent()),
+                        ("recherche", f._search),
+                        # La pile des ecrans, et le journal qui est le plus
+                        # large d'entre eux : aucune barre n'atteignant le
+                        # plancher de la fenetre, il vient forcement du
+                        # contenu.
+                        ("pile", f._stack),
+                        ("journal-grille", f._log_grid)):
+        if widget is not None:
+            mesures[f"geo.{nom}.plancher"] = widget.measure(
+                Gtk.Orientation.HORIZONTAL, -1)[0]
     return mesures
 
 
@@ -901,6 +916,17 @@ def relever(f: MainWindow) -> dict:
     # trois, sans que rien n'ait change dans les applications.
     f._season_lbl.set_text("")
     tourner(60)
+    # **Pourquoi ce plancher-ci ne s'alignera pas, et ce n'est pas un defaut.**
+    # GTK dessine sa propre barre de titre : elle porte les deux onglets, le
+    # menu « Bonus » et les boutons, et reclame a elle seule 878 pixels --
+    # mesure faite, le plancher de la fenetre en vaut 888. Qt laisse le
+    # systeme dessiner la decoration et pose ces memes commandes dans une
+    # barre interne, qui ne demande que 365. Les deux nombres n'opposent donc
+    # pas la meme chose.
+    #
+    # Ce qui se compare vraiment, ce sont les rangees du dessous, et elles
+    # sont relevees une a une : barre des selecteurs, barre de filtres, champ
+    # de recherche, pile des ecrans. Celles-la s'accordent.
     points["geo.fenetre.plancher"] = f.measure(
         Gtk.Orientation.HORIZONTAL, -1)[0]
     points["zoom.crans"] = list(_R.PALIERS_ZOOM)

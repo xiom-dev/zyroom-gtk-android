@@ -769,7 +769,7 @@ QLineEdit {
 QLineEdit:focus { border-color: %(sarcelle)s; }
 /* Les champs de recherche, un pixel plus courts : voir `poser_loupe`, qui
    pose cette marque et dit pourquoi. */
-QLineEdit[recherche="true"] { min-height: 24px; }
+QLineEdit[recherche="true"] { min-height: 24px; min-width: 59px; }
 
 /* Le journal : huit pixels de chaque cote d'une cellule.
    La version GTK pose ses six colonnes dans un `Gtk.Grid` de seize pixels

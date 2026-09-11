@@ -402,6 +402,14 @@ def _geometrie(f: FenetrePrincipale) -> dict:
     barre = f._dd_entite.parentWidget()
     mesures["geo.barre-selecteurs.plancher"] = (
         barre.minimumSizeHint().width() if barre is not None else 0)
+    # Le pendant du bloc du meme nom dans `releve_gtk.py`.
+    for nom, widget in (("barre-navigation", f._btn_plus.parent()),
+                        ("barre-filtres", f._recherche.parentWidget()),
+                        ("recherche", f._recherche),
+                        ("pile", f._pile),
+                        ("journal-grille", f._table)):
+        if widget is not None:
+            mesures[f"geo.{nom}.plancher"] = widget.minimumSizeHint().width()
     return mesures
 
 

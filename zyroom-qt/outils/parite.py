@@ -200,7 +200,11 @@ def main() -> int:
         # Une géométrie qui ne diffère que de l'épaisseur du trait concorde :
         # voir `TOLERANCE_GEOMETRIE`, qui dit pourquoi l'exiger au pixel
         # reviendrait à figer des largeurs en dur.
-        if cle.startswith(INFORMATIF) and assez_proche(gtk[cle], qt[cle]):
+        # `cle in gtk and cle in qt` d'abord : un point releve d'un seul cote
+        # n'a pas deux valeurs a rapprocher, et le lire ici faisait lever une
+        # KeyError qui arretait tout le controle.
+        if (cle.startswith(INFORMATIF) and cle in gtk and cle in qt
+                and assez_proche(gtk[cle], qt[cle])):
             tolerees.append(trouve)
             accords.append((cle, gtk[cle]))
             continue
