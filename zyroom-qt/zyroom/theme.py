@@ -28,11 +28,11 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import (QColor, QFont, QFontDatabase, QFontMetrics,
                            QIcon, QPainter,
                            QPalette, QPixmap)
-from PySide6.QtWidgets import QLineEdit
+from PySide6.QtWidgets import QLabel, QLineEdit
 
 #: Les cinq couleurs d'Android, telles quelles.
 COULEURS = {
@@ -989,6 +989,34 @@ def _au_zoom(feuille: str, zoom: float) -> str:
 ENCRE_BOUTON = "#eeeeec"
 
 
+#: Les dessins que GTK porte lui-meme, recopies dans `symboles/`.
+#:
+#: **GTK ne retombe pas sur l'Adwaita du disque.** Quand le theme du bureau
+#: n'a pas l'icone demandee -- et « gnome », celui de Ludo, n'a aucune icone
+#: symbolique --, GTK4 sert son propre jeu, compile dans la bibliotheque :
+#: verifie, `system-search-symbolic` vient de
+#: `resource:///org/gtk/libgtk/icons/16x16/actions/`. Qt, lui, prenait le SVG
+#: d'Adwaita installe sur la machine : meme nom, autre dessin -- un cercle
+#: plus maigre et un manche plus long, que l'oeil voit tout de suite a cote de
+#: l'autre fenetre. Le dessin de GTK est donc recopie ici, et sert au meme
+#: moment de la cascade que chez lui.
+#: Le PNG de seize et non le vectoriel du meme nom : GTK sert l'un pour un
+#: bouton de seize pixels et l'autre au-dela, et les deux dessins ne sont pas
+#: le meme trait -- le petit est epaissi pour rester lisible. C'est le PNG que
+#: la barre de recherche de GTK affiche, releve sur son lookup.
+SYMBOLES_DE_GTK = {"system-search-symbolic": "loupe-symbolic.png"}
+
+
+def _symbole_de_gtk(nom: str):
+    """Le dessin que GTK sert pour ce nom, ou None s'il n'est pas recopie."""
+    fichier = SYMBOLES_DE_GTK.get(nom)
+    if not fichier:
+        return None
+    chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "symboles", fichier)
+    return QIcon(chemin) if os.path.exists(chemin) else None
+
+
 def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON,
                      cote: int = 24) -> QIcon:
     """Une icône du thème du bureau, **recolorée** comme GTK le ferait.
@@ -1015,7 +1043,7 @@ def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON,
         colore = _fichier_du_bureau(nom[: -len("-symbolic")], cote)
         if colore is not None:
             return QIcon(colore)
-    source = QIcon.fromTheme(nom)
+    source = _symbole_de_gtk(nom) or QIcon.fromTheme(nom)
     if source.isNull():
         return QIcon()
     # **A la taille ou elle sera vue, et non a soixante-quatre.** Un theme
@@ -1185,6 +1213,53 @@ def icone_emoji(caractere: str, cote: int = 32) -> QIcon:
     return QIcon(pixmap)
 
 
+#: Le cote de la loupe d'un champ de recherche, et son retrait depuis le bord
+#: gauche du champ. Mesures sur la fenetre GTK : quinze pixels de dessin dans
+#: une icone de seize, posee a huit du bord.
+COTE_LOUPE = 16
+RETRAIT_LOUPE = 8
+
+
+class _LoupeDuChamp(QLabel):
+    """La loupe d'un champ de recherche, tenue a sa place.
+
+    **Pourquoi ce widget plutot que `addAction`.** Qt sait poser une icone
+    dans un `QLineEdit` -- mais il la place dans le rectangle de contenu du
+    style, et une feuille de style le prend en defaut : mesure faite, le
+    bouton d'icone se retrouvait a huit pixels du haut avec la hauteur
+    entiere du champ, si bien que son centre tombait huit pixels sous celui
+    du champ. La loupe pendait donc sous la ligne, la ou GTK la centre. Ni le
+    remplissage, ni les marges, ni `subcontrol-position` n'y changeaient quoi
+    que ce soit : le placement ne vient pas de la feuille.
+
+    Un enfant pose a la main, lui, obeit -- et le texte lui cede la place par
+    `setTextMargins`, comme le faisait l'action.
+    """
+
+    def __init__(self, champ, dessin) -> None:
+        super().__init__(champ)
+        self.setPixmap(dessin)
+        # Transparente au clic : cliquer la loupe doit poser le curseur dans
+        # le champ, comme sur n'importe quel autre point de celui-ci.
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.resize(dessin.size())
+        champ.installEventFilter(self)
+        self._caler()
+
+    def eventFilter(self, objet, evenement):      # noqa: N802 -- nom Qt
+        if evenement.type() in (QEvent.Type.Resize, QEvent.Type.Show,
+                                QEvent.Type.StyleChange):
+            self._caler()
+        return False
+
+    def _caler(self) -> None:
+        champ = self.parentWidget()
+        if champ is None:
+            return
+        self.move(RETRAIT_LOUPE, max(0, (champ.height() - self.height()) // 2))
+        self.raise_()
+
+
 def poser_loupe(champ) -> None:
     """La loupe a gauche d'un champ de recherche, comme GTK la pose partout.
 
@@ -1207,11 +1282,18 @@ def poser_loupe(champ) -> None:
     # aux seuls champs de recherche. C'est peu -- et c'est justement ce qu'un
     # oeil ne trouve jamais et qu'une mesure trouve tout de suite.
     champ.setProperty("recherche", True)
-    loupe = icone_symbolique("system-search-symbolic")
+    cote = COTE_LOUPE
+    loupe = icone_symbolique("system-search-symbolic", cote=cote)
     if loupe.isNull():
-        loupe = icone_symbolique("edit-find-symbolic")
-    if not loupe.isNull():
-        champ.addAction(loupe, QLineEdit.ActionPosition.LeadingPosition)
+        loupe = icone_symbolique("edit-find-symbolic", cote=cote)
+    if loupe.isNull():
+        return
+    _LoupeDuChamp(champ, loupe.pixmap(cote, cote))
+    # La place du texte, qu'`addAction` reservait de lui-meme : le retrait, la
+    # loupe, et l'air qui la separe du premier mot -- neuf pixels, mesures
+    # entre la loupe de GTK et son « Rechercher ». Le remplissage que la
+    # feuille donne deja au champ est deduit : les deux s'ajoutent.
+    champ.setTextMargins(RETRAIT_LOUPE + cote + 9 - 8, 0, 0, 0)
 
 
 def largeur(widget, facteur: float) -> int:

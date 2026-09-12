@@ -977,8 +977,9 @@ class FenetrePrincipale(QMainWindow):
         self._grille.setViewMode(QListWidget.ViewMode.IconMode)
         taille = self._settings.icon_size
         self._grille.setIconSize(QSize(taille, taille))
-        self._grille.setGridSize(QSize(taille + theme.px(8),
-                                       taille + theme.px(8)))
+        # Le pas est repose a chaque changement de largeur, par `_caler_grille`.
+        self._grille.setGridSize(QSize(taille + theme.px(11),
+                                       taille + theme.px(11)))
         self._grille.setResizeMode(QListWidget.ResizeMode.Adjust)
         self._grille.setMovement(QListWidget.Movement.Static)
         self._grille.setUniformItemSizes(True)
@@ -999,12 +1000,24 @@ class FenetrePrincipale(QMainWindow):
         self._grille.customContextMenuRequested.connect(self._menu_objet)
         self._grille.itemDoubleClicked.connect(
             lambda case: self._afficher_details(self._objet_de(case)))
-        # Huit pixels autour de la grille, comme le `_pad` que GTK pose sur son
-        # FlowBox : sans eux, les icones se collaient a la rangee des filtres.
-        # Mesure sur les captures : quarante-cinq pixels entre la recherche et
-        # la premiere icone en GTK, trente-six ici.
-        self._grille.setViewportMargins(
-            theme.px(8), theme.px(8), theme.px(8), theme.px(8))
+        # Huit pixels au-dessus et au-dessous, comme le `_pad` que GTK pose sur
+        # son FlowBox : sans eux, les icones se collaient a la rangee des
+        # filtres. Mesure sur les captures : quarante-cinq pixels entre la
+        # recherche et la premiere icone en GTK, trente-six ici.
+        #
+        # Onze sur les cotes et non huit : Qt centre l'objet dans sa cellule,
+        # GTK non, et la premiere vignette tombait trois pixels plus a gauche
+        # qu'en face -- quatorze contre dix-sept, mesures sur les deux
+        # fenetres photographiees.
+        #
+        # **Et la marge de droite laisse passer l'ascenseur par-dessus.** GTK4
+        # le pose en surimpression : ses vingt objets vont donc d'un bord a
+        # l'autre. Qt, lui, lui reserve sa largeur dans le viewport, et la
+        # vingtieme colonne n'avait plus de quoi tenir -- dix-neuf objets, et
+        # soixante-dix-sept pixels de vide a droite. Une marge negative rend
+        # cette largeur a la grille ; la derniere vignette, centree dans sa
+        # cellule, s'arrete avant l'ascenseur sans passer dessous.
+        self._grille.setViewportMargins(*self._marges_grille())
         colonne.addWidget(self._grille, 1)
         return page
 
@@ -1519,6 +1532,56 @@ class FenetrePrincipale(QMainWindow):
         alerts.save_snapshot(chemin, nouveau)
 
     # ------------------------------------------------------ Zoom des icones
+    def _marges_grille(self) -> tuple:
+        """Les quatre marges du viewport de la grille.
+
+        La droite vaut la gauche moins deux fois l'ascenseur : Qt en retranche
+        une fois la largeur du viewport, et la marge negative la lui rend une
+        seconde fois -- de quoi poser la derniere colonne sous lui, comme GTK
+        qui le dessine par-dessus sa grille.
+        """
+        cote = theme.px(11)
+        ascenseur = self._grille.verticalScrollBar().sizeHint().width()
+        return (cote, theme.px(8), cote - 2 * ascenseur, theme.px(8))
+
+    def _caler_grille(self) -> None:
+        """Répartit la largeur offerte entre les colonnes, comme le fait GTK.
+
+        **Un `Gtk.FlowBox` remplit sa largeur ; une `QListWidget` non.** GTK
+        pose autant de cellules qu'il peut et distribue ce qui reste entre
+        elles : ses vingt objets tenaient d'un bord à l'autre, dix-sept pixels
+        de marge de chaque côté. Qt, lui, garde son pas fixe et laisse le reste
+        en bloc à droite — mesuré sur les deux fenêtres photographiées : dix-
+        neuf objets, dix-sept pixels à gauche et soixante-dix-sept à droite,
+        de quoi loger un vingtième objet qui n'y était pas.
+
+        Le pas au plus serré est celui d'une cellule de GTK : l'icône, plus la
+        décoration de la vignette et l'air entre deux colonnes. Ce qui dépasse
+        revient aux colonnes, à parts égales.
+
+        La barre de défilement compte dans le calcul : Qt lui réserve sa
+        largeur dans le viewport, là où GTK la pose par-dessus. Sans quoi la
+        dernière colonne se posait sous la barre.
+        """
+        taille = self._settings.icon_size
+        pas_mini = taille + theme.px(11)
+        large = self._grille.viewport().width()
+        if large <= 0:
+            return
+        # **L'ascenseur compte meme quand il ne se voit pas encore.** La
+        # grille est plus haute que l'ecran neuf fois sur dix : il parait une
+        # fois les objets poses, et reprend alors les dix pixels sur lesquels
+        # la derniere colonne comptait -- elle passait a la ligne suivante, et
+        # la marge de droite reprenait les soixante-dix pixels qu'on venait de
+        # lui oter. Le meme piege que dans la carte des avant-postes.
+        barre = self._grille.verticalScrollBar()
+        if not barre.isVisible():
+            large -= barre.sizeHint().width()
+        colonnes = max(1, large // pas_mini)
+        pas = max(pas_mini, large // colonnes)
+        if self._grille.gridSize() != QSize(pas, pas_mini):
+            self._grille.setGridSize(QSize(pas, pas_mini))
+
     def eventFilter(self, objet, evenement):     # noqa: N802 -- nom impose
         """Ctrl + molette sur la grille : les icônes grossissent ou rapetissent.
 
@@ -1532,6 +1595,12 @@ class FenetrePrincipale(QMainWindow):
             if cran:
                 self._zoomer_icones(8 if cran > 0 else -8)
             return True
+        # La fenetre change de largeur : les colonnes se repartagent la place.
+        # Le `Gtk.FlowBox` de la version GTK le fait de lui-meme a chaque
+        # allocation ; ici c'est a nous de le redemander.
+        if (evenement.type() == QEvent.Type.Resize
+                and objet is self._grille.viewport()):
+            self._caler_grille()
         return super().eventFilter(objet, evenement)
 
     def _recaler_largeurs(self) -> None:
@@ -1604,10 +1673,8 @@ class FenetrePrincipale(QMainWindow):
         """
         taille = self._settings.icon_size
         self._grille.setIconSize(QSize(taille, taille))
-        self._grille.setGridSize(QSize(taille + theme.px(8),
-                                       taille + theme.px(8)))
-        self._grille.setViewportMargins(
-            theme.px(8), theme.px(8), theme.px(8), theme.px(8))
+        self._grille.setViewportMargins(*self._marges_grille())
+        self._caler_grille()
         # Le journal et les ecrans de "Bonus" suivent : les boutons de zoom
         # valent pour toutes les icones, pas seulement pour l'inventaire.
         cote = self._settings.icone(PART_ICONE_JOURNAL)
