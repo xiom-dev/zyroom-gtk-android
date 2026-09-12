@@ -207,17 +207,23 @@ class MainWindow(Gtk.ApplicationWindow):
         #: monte avant elle, et y ajoutait son mégaphone dans une liste qui
         #: n'existait pas encore.
         self._images_boutons = []
+        #: Les images des boutons d'action de la barre du haut -- l'ajout, le
+        #: retrait, la relecture du pack, la resynchronisation. Retenues pour
+        #: que `_appliquer_taille_icones_barre` les retaille ensemble.
+        self._icones_barre = []
 
         header = Gtk.HeaderBar()
         self.set_titlebar(header)
 
         add_btn = Gtk.Button.new_from_icon_name("list-add-symbolic")
+        self._icones_barre.append(add_btn.get_child())
         add_btn.set_tooltip_text(_("Clés API : en ajouter une, relire ou "
                                    "remplacer celles qu'on a"))
         add_btn.connect("clicked", self._on_add_clicked)
         header.pack_start(add_btn)
 
         self._remove_btn = Gtk.Button.new_from_icon_name("user-trash-symbolic")
+        self._icones_barre.append(self._remove_btn.get_child())
         self._remove_btn.set_tooltip_text(_("Retirer l'entité sélectionnée"))
         self._remove_btn.connect("clicked", self._on_remove_clicked)
         self._remove_btn.set_sensitive(False)
@@ -244,12 +250,14 @@ class MainWindow(Gtk.ApplicationWindow):
             self.add_action(act)
 
         self._refresh_btn = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
+        self._icones_barre.append(self._refresh_btn.get_child())
         self._refresh_btn.set_tooltip_text(_("Resynchroniser depuis l'API"))
         self._refresh_btn.connect("clicked", self._on_refresh_clicked)
         self._refresh_btn.set_sensitive(False)
         header.pack_end(self._refresh_btn)
 
         pack_btn = Gtk.Button.new_from_icon_name("document-open-symbolic")
+        self._icones_barre.append(pack_btn.get_child())
         pack_btn.set_tooltip_text(_("Charger string_client.pack (noms d'items lisibles)"))
         pack_btn.connect("clicked", self._on_pack_clicked)
         header.pack_end(pack_btn)
@@ -267,6 +275,14 @@ class MainWindow(Gtk.ApplicationWindow):
         # entre le menu et la mise à jour, deux choses qui parlent de
         # l'application, et sa pastille jaune y attirait l'œil de travers.
         self._bell = Gtk.Button(label="🔔")
+        # **Le remplissage d'un bouton d'icone, et non celui d'un bouton de
+        # texte.** La cloche est un emoji pose comme un libelle : Adwaita lui
+        # donnait donc les larges marges qu'il reserve aux mots, et le bouton
+        # faisait cinquante et un pixels de large quand celui de la version Qt
+        # en fait trente-huit -- mesure sur les deux fenetres photographiees
+        # cote a cote. Elle n'a pourtant rien d'un mot : c'est un pictogramme,
+        # comme l'ajout et le retrait a sa gauche.
+        self._bell.add_css_class("cloche")
         self._bell.set_tooltip_text(_("Alertes"))
         self._bell.set_sensitive(False)
         self._bell.connect("clicked", self._on_bell_clicked)
@@ -400,6 +416,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._motd_box.set_visible(False)
         root.append(self._motd_box)
         self._install_motd_css()
+        # Apres la feuille, et non avant : la taille se mesure sur un libelle,
+        # dont le corps vient justement d'elle.
+        self._appliquer_taille_icones_barre()
 
         # Deux vues : la grille d'inventaire et le journal des mouvements.
         # Le sélecteur d'entité reste au-dessus, il vaut pour les deux.
@@ -4283,6 +4302,12 @@ class MainWindow(Gtk.ApplicationWindow):
                trente-six. Le corps et la graisse, eux, doivent atteindre le
                label -- un `button` ne les transmet pas au sien. */
             button.zoom-icones { padding: 0 6px; }
+            /* La cloche : un pictogramme, pas un mot. Sans cela Adwaita lui
+               donne les marges d'un bouton de texte, et elle s'etalait treize
+               pixels de plus que celle de Qt -- cinquante et un contre
+               trente-huit. Dix et non six comme les boutons de zoom : a six
+               elle tombait a trente et un, et passait d'un exces a l'autre. */
+            button.cloche { padding: 0 10px; }
             button.zoom-icones, button.zoom-icones > label {
                 font-size: 130%; font-weight: bold; }
             button.suggested-action {
@@ -5545,6 +5570,31 @@ class MainWindow(Gtk.ApplicationWindow):
         self._refresh_meteo()
         self._set_status(_("Zoom : {} %").format(round(reglages.zoom * 100)))
 
+    def _cote_icone_barre(self) -> int:
+        """Le cote des icones de la barre du haut, en pixels.
+
+        **Une fois et demie rien : la meme formule que la version Qt**, qui
+        prend `1,1 fois la hauteur d'une ligne de texte`. Les boutons de la
+        barre GTK s'en tenaient aux seize pixels que `Gtk.Button` donne par
+        defaut, quel que soit le corps : le plus de l'ajout et la corbeille y
+        paraissaient plus petits qu'en face, et ne bougeaient pas d'un cheveu
+        quand tout le reste doublait.
+
+        La hauteur se mesure sur un libelle plutot que sur la police du
+        contexte : c'est la feuille de style qui pose le corps, et le contexte
+        Pango, lui, rend encore celui du theme.
+        """
+        temoin = Gtk.Label(label="Hg")
+        _mini, naturel, _a, _b = temoin.measure(Gtk.Orientation.VERTICAL, -1)
+        return max(1, round(naturel * 1.1))
+
+    def _appliquer_taille_icones_barre(self) -> None:
+        """Pose cette taille sur les images des boutons d'action."""
+        cote = self._cote_icone_barre()
+        for image in getattr(self, "_icones_barre", ()):
+            if image is not None:
+                image.set_pixel_size(cote)
+
     def _appliquer_taille_boutons(self) -> None:
         """Les images des boutons suivent elles aussi les boutons de zoom.
 
@@ -5553,6 +5603,9 @@ class MainWindow(Gtk.ApplicationWindow):
         """
         for image, part in getattr(self, "_images_boutons", ()):
             image.set_pixel_size(self._settings.icone(part))
+        # Les icones de la barre du haut suivent le corps du texte, et non la
+        # part des icones : c'est ainsi que la version Qt les mesure.
+        self._appliquer_taille_icones_barre()
         if hasattr(self, "_bourse_img"):
             self._bourse_img.set_pixel_size(
                 self._settings.icone(self.PART_BOURSE))
