@@ -255,6 +255,17 @@ def feuille(taille: float = 0, zoom: float = 1.0) -> str:
     # pas exprimer en pourcentage.
     corps += (f"QLabel#signature, QPushButton#signature "
               f"{{ font-size: {base * 0.9:.2f}pt; }}\n")
+    # Le `0.92em` que GTK pose sur `.compact` -- un cran sous le corps
+    # courant, pour que trois colonnes tiennent dans une moitie de fenetre.
+    #
+    # **En points, et non en pourcentage.** Une feuille Qt ne sait lire un
+    # corps ni en `%` ni en `em` : la regle est ignoree sans un mot, et le
+    # texte reste a cent pour cent. Mesure sur la capture : les noms des
+    # avant-postes s'affichaient huit pour cent plus larges que chez GTK
+    # -- 227 pixels contre 211 pour « Forteresse des Bois Calcifies » --,
+    # et le nom de guilde le plus long finissait en points de suspension la
+    # ou GTK l'ecrivait en entier.
+    corps += f"#compact {{ font-size: {base * 0.92:.2f}pt; }}\n"
     # **Les deux signes du zoom, ici et non par `setFont`.** Une police posee
     # en Python sur le bouton est ecrasee par la feuille des qu'elle fixe un
     # corps : l'agrandissement ne prenait pas, et les signes restaient maigres
@@ -562,15 +573,33 @@ QWidget[zebre="true"] { background-color: %(zebre)s; }
    maximum. */
 #fini { color: %(fini)s; }
 
+/* **Une couleur par-dessus `#compact`, et non a la place.** GTK cumule les
+   classes -- le nom d'un avant-poste porte `.compact` pour le corps et
+   `.fini` pour le vert ; Qt n'a qu'un identifiant par widget, et prendre
+   `#fini` faisait perdre le corps reduit. La couleur passe donc par une
+   propriete, comme le zebrage juste au-dessus. */
+QLabel#compact[fini="true"] { color: %(fini)s; }
+
+/* Le `dim-label` d'Adwaita, que GTK pose sur le niveau d'un avant-poste :
+   une opacite de 0,55 et non une couleur, si bien que le gris obtenu depend
+   du fond -- #899494 sur une ligne zebree, #878f90 sur les autres. Le
+   #bcc8c6 de `#discret` etait nettement plus clair que ce que GTK montre :
+   la mesure sur la capture donnait vingt points d'ecart. */
+QLabel#compact[discret="true"] { color: rgba(226, 232, 230, 0.55); }
+
+/* Les colonnes des avant-postes : le fond d'une vue, et non celui de la
+   fenetre. GTK y met une `Gtk.ListBox`, qu'Adwaita pose sur `view_bg_color`
+   -- le meme #172226 que les cartes. Sans cette regle, une ligne sur deux se
+   detachait sur du #10171a, et le zebrage tranchait deux fois plus que chez
+   GTK. */
+#liste { background-color: %(surface)s; }
+
 /* Les triangles du registre : la couleur porte le sens, la direction le
    confirme -- pour qui distingue mal les deux teintes. */
 #tri-arrivee { color: %(vert)s; font-weight: bold; }
 #tri-depart  { color: %(erreur)s; font-weight: bold; }
 #tri-grade   { color: %(texte)s; font-weight: bold; }
 
-/* Un cran sous le corps courant : trois colonnes doivent tenir dans une
-   moitie de fenetre, et un nom d'avant-poste va jusqu'a quarante signes. */
-#compact { font-size: 92%%; }
 
 /* Les tetes de branche de l'arbre des competences. */
 #titre { font-weight: bold; }

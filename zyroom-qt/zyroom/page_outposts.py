@@ -11,10 +11,11 @@ c'est `outposts.py`, dans le noyau partagé, qui tient ce journal.
 from __future__ import annotations
 
 from datetime import datetime
+from math import ceil
 from typing import NamedTuple
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QFontMetrics, QPixmap
+from PySide6.QtGui import QFont, QFontMetrics, QFontMetricsF, QPixmap
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
                                QScrollArea, QStackedWidget, QVBoxLayout,
                                QWidget)
@@ -58,6 +59,20 @@ CARACTERES_GUILDE = 24
 #: Pas un pixel : l'ascenseur vertical qui apparait en vaut dix a lui seul, et
 #: reconstruire a chaque pixel ferait osciller l'affichage sans fin.
 SEUIL_REDIMENSION = 24
+
+
+def _entier(avance: float) -> int:
+    """Une largeur de texte arrondie **vers le haut**, plus un pixel d'air.
+
+    `horizontalAdvance` d'un `QFontMetrics` rend un entier tronque, alors que
+    `elidedText` compare a la largeur reelle : « Grave of The Fireflies »
+    mesure 169,23 pixels, la colonne taillee pour lui en faisait 169, et le
+    nom de guilde le plus long de chaque colonne partait en points de
+    suspension -- tous les autres tenant, le defaut passait pour une fatalite
+    de la place disponible. GTK, lui, demande sa largeur naturelle en flottant
+    et n'y perd rien.
+    """
+    return ceil(avance) + 1
 
 
 class Mesures(NamedTuple):
@@ -134,11 +149,21 @@ class PageAvantPostes(QWidget):
     @staticmethod
     def _colonne_defilante() -> tuple[QVBoxLayout, QScrollArea]:
         contenu = QWidget()
+        # **Le fond d'une vue, et non celui de la fenetre.** GTK met ici une
+        # `Gtk.ListBox`, qu'Adwaita pose sur `view_bg_color` -- le #172226 des
+        # cartes. Qt laissait paraitre le #10171a de la fenetre : une ligne
+        # sur deux tranchait deux fois plus que chez GTK, alors que la couleur
+        # du zebrage, elle, etait deja la bonne. C'est le fond d'en dessous
+        # qui differait, pas la bande. Le viewport aussi, sans quoi le bas de
+        # la colonne -- sous la derniere ligne -- reste noir.
+        contenu.setObjectName("liste")
+        contenu.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         pile = QVBoxLayout(contenu)
         pile.setContentsMargins(0, 0, 0, 0)
         pile.setSpacing(0)
         defilant = QScrollArea()
         defilant.setWidget(contenu)
+        defilant.viewport().setObjectName("liste")
         defilant.setWidgetResizable(True)
         defilant.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -243,7 +268,8 @@ class PageAvantPostes(QWidget):
                                key=lambda o: (-o.level, noms.name(o.name_key)))
                 if not siens:
                     continue
-                pile.addWidget(self._entete_peuple(nom, mesures.bloc))
+                pile.addWidget(self._entete_peuple(
+                    nom, min(LARGEUR_BLOC, mesures.bloc)))
                 for avant_poste in siens:
                     # **Une ligne qui casse ne doit pas emporter l'ecran.**
                     # Un joueur sous Windows n'avait plus qu'un titre de peuple
@@ -299,14 +325,27 @@ class PageAvantPostes(QWidget):
 
     @staticmethod
     def _entete_peuple(nom: str, largeur: int) -> QWidget:
+        """Le nom du peuple, pose comme GTK le pose.
+
+        **Un bloc centre dont le texte tient a gauche**, et non un texte
+        centre. GTK donne au libelle une largeur de 456 -- le plancher du bloc
+        des lignes --, le centre dans la colonne et laisse son `xalign` a
+        zero : le nom du peuple tombe donc au debut de ce bloc, pas au milieu
+        de la colonne. Qt le centrait, et les quatre titres flottaient au
+        milieu du vide au lieu de coiffer leurs lignes.
+        """
+        rangee = QWidget()
+        exterieur = QHBoxLayout(rangee)
+        exterieur.setContentsMargins(0, 10, 0, 2)
+        exterieur.addStretch(1)
         lbl = QLabel(nom)
         lbl.setObjectName("peuple")
-        lbl.setContentsMargins(0, 10, 0, 2)
-        # Aligne sur le bloc des lignes, qui est centre : un titre reste
-        # contre le bord gauche n'aurait plus rien coiffe.
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setMinimumWidth(largeur)
-        return lbl
+        lbl.setFixedWidth(largeur)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft
+                         | Qt.AlignmentFlag.AlignVCenter)
+        exterieur.addWidget(lbl)
+        exterieur.addStretch(1)
+        return rangee
 
     @staticmethod
     def _police(objet: str) -> QFont:
@@ -341,25 +380,28 @@ class PageAvantPostes(QWidget):
         dus : ce qui reste de la place offerte revient au nom, sans depasser
         ce que reclame le plus long ni descendre sous `LARGEUR_NOM_MINI`.
         """
-        m_texte = QFontMetrics(self._police("fini"))
-        m_niveau = QFontMetrics(self._police("discret"))
+        # **Une seule police pour les trois colonnes**, celle du rendu : les
+        # trois libelles d'une ligne portent `#compact`, le niveau comme les
+        # deux autres. Mesurer le niveau dans `#discret`, qui ne reduit pas
+        # le corps, le donnait plus large qu'il ne se peint.
+        m_texte = QFontMetricsF(self._police("compact"))
 
         niveaux = [str(o.level) if o.level else "—" for o in siens] or ["—"]
         # Deux pixels d'air : sans eux, le dernier chiffre touche la colonne
         # voisine des que la police s'arrondit.
-        largeur_niveau = max(m_niveau.horizontalAdvance(t)
-                             for t in niveaux) + 2
+        largeur_niveau = ceil(max(m_texte.horizontalAdvance(t)
+                                  for t in niveaux)) + 2
 
         noms = self._fenetre.noms
         textes = [noms.name(o.name_key) for o in siens] or [""]
-        nom_ideal = max(m_texte.horizontalAdvance(t) for t in textes)
+        nom_ideal = _entier(max(m_texte.horizontalAdvance(t) for t in textes))
 
         # Comme le `set_max_width_chars(24)` de GTK : au-dela, un nom de
         # guilde bavard mangerait la colonne du nom.
         guildes = [o.guild for o in siens] or [""]
         largeur_guilde = min(
-            max(m_texte.horizontalAdvance(g) for g in guildes),
-            m_texte.averageCharWidth() * CARACTERES_GUILDE)
+            _entier(max(m_texte.horizontalAdvance(g) for g in guildes)),
+            ceil(m_texte.averageCharWidth() * CARACTERES_GUILDE))
 
         cote = self._fenetre.reglages.icone(PART_EMBLEME)
         du = cote + INTERVALLES * ESPACEMENT + largeur_niveau + largeur_guilde
@@ -426,22 +468,33 @@ class PageAvantPostes(QWidget):
             avant_poste.icon, self._rappel_embleme(embleme, cote))
         ligne.addWidget(embleme)
 
+        # **`#compact` pour les trois, la couleur par-dessus.** GTK cumule
+        # ses classes : le nom porte `.compact` pour le corps et `.fini` pour
+        # le vert, le niveau `.compact` et `.dim-label`. Qt n'a qu'un
+        # identifiant par widget -- prendre `#fini` ou `#discret` faisait
+        # perdre le corps reduit, et une ligne qui nous appartient s'ecrivait
+        # plus gros que ses voisines.
         nom = QLabel()
-        nom.setObjectName("fini" if mien else "compact")
+        nom.setObjectName("compact")
+        if mien:
+            nom.setProperty("fini", True)
         nom.setFixedWidth(mesures.nom)
         nom.setText(self._abreger(
             nom, self._fenetre.noms.name(avant_poste.name_key), mesures.nom))
         ligne.addWidget(nom)
 
         niveau = QLabel(str(avant_poste.level) if avant_poste.level else "—")
-        niveau.setObjectName("discret")
+        niveau.setObjectName("compact")
+        niveau.setProperty("discret", True)
         niveau.setFixedWidth(mesures.niveau)
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight
                             | Qt.AlignmentFlag.AlignVCenter)
         ligne.addWidget(niveau)
 
         guilde = QLabel()
-        guilde.setObjectName("fini" if mien else "compact")
+        guilde.setObjectName("compact")
+        if mien:
+            guilde.setProperty("fini", True)
         guilde.setText(self._abreger(guilde, avant_poste.guild,
                                      mesures.guilde))
         # Le dernier prend ce qui reste : les trois largeurs font le bloc, il
