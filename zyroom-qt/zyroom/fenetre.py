@@ -361,18 +361,25 @@ def _bouton_icone(nom_theme: str, repli: str, infobulle: str) -> QToolButton:
     # tout ce qui s'appelle « barre ». Seuls les deux boutons de zoom y
     # echappent, la version GTK leur posant la classe `flat`.
     bouton.setObjectName("barre")
+    # **La taille d'abord, l'icone ensuite.** Un theme ne porte pas un dessin
+    # unique : il en porte un par taille, et c'est la taille demandee qui
+    # decide lequel. Il faut donc la connaitre avant d'aller chercher l'icone
+    # -- `ensurePolished` applique la feuille au bouton, sans quoi sa police
+    # serait celle de Qt par defaut et la mesure fausse d'un bon tiers.
+    #
+    # Sans cette taille, l'icone resterait aux seize pixels par defaut de Qt
+    # quelle que soit la taille du texte : la fleche de synchro et la
+    # corbeille restaient minuscules a cote de libelles grossis.
+    bouton.ensurePolished()
+    cote = theme.largeur(bouton, 1.1)
     # Recoloree : une icone symbolique prend la couleur du texte chez GTK, et
     # restait gris foncé chez nous. Voir `theme.icone_symbolique`.
-    icone = (theme.icone_symbolique(nom_theme) if nom_theme
+    icone = (theme.icone_symbolique(nom_theme, cote=cote) if nom_theme
              else theme.icone_emoji(repli))
     if icone.isNull():
         bouton.setText(repli)
     else:
         bouton.setIcon(icone)
-        # Sans cela l'icone reste au seize pixels par defaut de Qt, quelle que
-        # soit la taille du texte : la fleche de synchro et la corbeille
-        # restaient minuscules a cote de libelles grossis.
-        cote = theme.largeur(bouton, 1.1)
         bouton.setIconSize(QSize(cote, cote))
     bouton.setToolTip(infobulle)
     bouton.setAutoRaise(True)
@@ -855,7 +862,16 @@ class FenetrePrincipale(QMainWindow):
         self._motd_boite = QWidget()
         self._motd_boite.setObjectName("motd")
         ligne = QHBoxLayout(self._motd_boite)
-        ligne.setContentsMargins(10, 8, 10, 8)
+        # **La marge de la feuille s'ajoute a celle du layout, elle ne la
+        # remplace pas.** `#motd` porte un `margin: 2px 8px` : Qt s'en sert
+        # pour peindre le cadre huit pixels en dedans, mais **ne deplace pas
+        # les enfants** -- c'est le layout qui les pose, et il compte depuis le
+        # bord du widget, pas depuis le cadre. Le megaphone se retrouvait donc
+        # a deux pixels du bord peint la ou GTK lui en laisse dix : mesure sur
+        # le rendu, cadre a x=8 et megaphone a x=10. Les huit et les deux de la
+        # feuille sont donc repris ici, puis les dix et les huit du `padding:
+        # 8px 10px` que GTK pose par-dessus.
+        ligne.setContentsMargins(8 + 10, 2 + 8, 8 + 10, 2 + 8)
         ligne.setSpacing(8)
         # Le megaphone en image, et non en emoji : pose comme du texte, il
         # suivait le corps de la police et non les boutons de zoom -- il

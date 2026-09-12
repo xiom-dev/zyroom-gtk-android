@@ -230,12 +230,24 @@ def feuille(taille: float = 0, zoom: float = 1.0) -> str:
     # de son cote donnerait un texte deux fois zoome.
     taille = taille * zoom * echelle if taille > 0 else 0
 
-    corps = ""
+    # **La graisse du bureau ne se transmet pas.** GNOME se regle ici sur
+    # « Cantarell Bold 11 » ; Qt prend cette police telle quelle, GTK non.
+    # Verifie : donne « Cantarell Bold 11 », le contexte Pango d'un libelle
+    # GTK4 rend `Cantarell 18,3px, weight = NORMAL` -- GTK ne garde de ce
+    # reglage que la famille et le corps, et repose la graisse normale. Sans
+    # cette regle, toute l'application etait en gras quand celle de reference
+    # ne l'etait pas : la ligne de saison en devenait pateuse, ce que Ludo
+    # decrivait comme « flou ».
+    #
+    # `*` a la specificite la plus faible : les gras voulus -- les tetes de
+    # branche, les triangles du registre, les deux signes du zoom -- gardent
+    # le leur, leur selecteur l'emportant.
+    corps = "* { font-weight: normal; }\n"
     if taille > 0:
         # `*` atteint tout, y compris les deux libelles du nom grave, dont le
         # corps est calcule a part -- il les rapetissait a la taille courante.
         # On le leur rend ici, dans les memes proportions que fenetre.py.
-        corps = (f"* {{ font-size: {taille}pt; }}\n"
+        corps += (f"* {{ font-size: {taille}pt; }}\n"
                  f"#nom-grave {{ font-size: {taille * 2.4:.2f}pt; }}\n"
                  f"#nom-mouture {{ font-size: {taille * 2.2:.2f}pt; }}\n")
     # La somme en dappers, un point au-dessus du reste -- comme la version
@@ -977,7 +989,8 @@ def _au_zoom(feuille: str, zoom: float) -> str:
 ENCRE_BOUTON = "#eeeeec"
 
 
-def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON) -> QIcon:
+def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON,
+                     cote: int = 24) -> QIcon:
     """Une icône du thème du bureau, **recolorée** comme GTK le ferait.
 
     Les icônes dites « symboliques » sont des silhouettes destinées à prendre
@@ -998,15 +1011,21 @@ def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON) -> QIcon:
     # d'Adwaita, silhouette blanche qu'on repeint. C'est ce qui fait qu'une
     # machine reglee sur « gnome » montre le plus bleu et le dossier beige,
     # mais garde le menu blanc d'Adwaita, que « gnome » ne porte pas.
-    if nom.endswith("-symbolic") and _fichier_du_bureau(nom) is None:
-        colore = _fichier_du_bureau(nom[: -len("-symbolic")])
+    if nom.endswith("-symbolic") and _fichier_du_bureau(nom, cote) is None:
+        colore = _fichier_du_bureau(nom[: -len("-symbolic")], cote)
         if colore is not None:
             return QIcon(colore)
     source = QIcon.fromTheme(nom)
     if source.isNull():
         return QIcon()
-    # Assez grand pour que la réduction reste nette sur un écran fin.
-    pixmap = source.pixmap(64, 64)
+    # **A la taille ou elle sera vue, et non a soixante-quatre.** Un theme
+    # d'icones ne porte pas un dessin agrandi a toutes les tailles : il en
+    # porte plusieurs, et le trait s'epaissit a mesure que la vignette se
+    # simplifie. Demander soixante-quatre faisait servir la variante 256 du
+    # theme « gnome » -- une corbeille en perspective, la ou GTK, qui demande
+    # la taille du bouton, montre la vignette a claire-voie. Deux dessins
+    # differents pour le meme nom, releves sur la fenetre de Ludo.
+    pixmap = source.pixmap(cote, cote)
     if pixmap.isNull():
         return QIcon()
     teinte = QPixmap(pixmap.size())
@@ -1020,14 +1039,20 @@ def icone_symbolique(nom: str, couleur: str = ENCRE_BOUTON) -> QIcon:
     return QIcon(teinte)
 
 
-def _fichier_du_bureau(nom: str):
+def _fichier_du_bureau(nom: str, cote: int = 24):
     """Le fichier de cette icone dans le theme du bureau, ou None.
 
     On regarde le disque plutot que d'interroger `QIcon.fromTheme` : celui-ci
     a deja un repli sur Adwaita, et rendrait la silhouette blanche au moment
     meme ou l'on cherche a savoir si le theme du bureau, lui, a quelque chose.
-    Les tailles sont parcourues de la plus grande a la plus petite -- une
-    icone reduite reste nette, agrandie non.
+
+    **La variante de la taille demandee, et non la plus grande.** Un theme
+    porte le meme nom en 16, 22, 24, 48, 256 -- et ce ne sont pas des
+    agrandissements l'un de l'autre : la grande est dessinee en detail, la
+    petite reduite a une silhouette. Prendre la plus grande donnait donc un
+    autre dessin que celui de GTK, qui demande la taille de son bouton. On
+    range comme le ferait un theme : le vectoriel d'abord, puis la taille
+    exacte, puis la premiere au-dessus, puis la plus grande en dessous.
     """
     import glob
     theme = _theme_du_bureau()
@@ -1043,8 +1068,16 @@ def _fichier_du_bureau(nom: str):
                 for morceau in chemin.split(os.sep):
                     if "x" in morceau and morceau.split("x")[0].isdigit():
                         return int(morceau.split("x")[0])
-                return 1024          # « scalable » passe devant les tailles fixes
-            return max(trouves, key=taille)
+                return 0             # « scalable » : aucune taille propre
+
+            def rang(chemin: str) -> tuple:
+                t = taille(chemin)
+                if t == 0:
+                    return (0, 0)            # le vectoriel passe devant
+                if t >= cote:
+                    return (1, t - cote)     # la premiere au-dessus
+                return (2, cote - t)         # sinon la plus grande en dessous
+            return min(trouves, key=rang)
     return None
 
 
