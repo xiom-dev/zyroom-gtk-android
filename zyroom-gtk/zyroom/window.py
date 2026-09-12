@@ -1185,6 +1185,17 @@ class MainWindow(Gtk.ApplicationWindow):
     PEUPLES = (("fyros", "Fyros"), ("matis", "Matis"),
                ("tryker", "Tryker"), ("zorai", "Zoraï"))
 
+    #: La part de la taille des icones d'inventaire qu'occupe un embleme de
+    #: guilde, au debut d'une ligne d'avant-poste.
+    #:
+    #: **Une part, et non vingt pixels en dur.** Le zoom est le seul reglage
+    #: d'apparence qui reste, et il doit grossir la page entiere -- texte et
+    #: images ensemble. Fige a vingt, l'embleme restait seul a sa taille
+    #: pendant que ses trois colonnes doublaient : a deux cents pour cent, une
+    #: vignette qu'on devinait plus qu'on ne la reconnaissait. Zero virgule
+    #: quarante-deux rend bien vingt a cent pour cent, la valeur d'avant.
+    PART_EMBLEME = 0.42
+
     def _build_outposts_page(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
@@ -1413,7 +1424,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # L'emblème de la guilde, chargé en tâche de fond et mis en cache.
         image = Gtk.Image()
-        image.set_pixel_size(20)
+        image.set_pixel_size(self._settings.icone(self.PART_EMBLEME))
         self._icons.request_emblem(
             avant_poste.icon,
             lambda chemin, img=image: img.set_from_file(chemin) if chemin else None)
@@ -1473,17 +1484,21 @@ class MainWindow(Gtk.ApplicationWindow):
     # quarante cycles à l'avance — et un relevé de Ryzom Armory figé dans
     # `armory.py`, qui ne changera qu'avec le jeu.
 
-    #: Taille des symboles de familles de matières, en points.
+    #: Taille des symboles de familles de matières, en part des icônes.
     #:
-    #: Fixée, et non demandée : une taille demandée n'est qu'un plancher, et les
+    #: Posée, et non demandée : une taille demandée n'est qu'un plancher, et les
     #: symboles grossissaient au gré de la place laissée par le nom de leur
     #: famille.
     #:
-    #: Vingt-six et non vingt : sur un écran de bureau, à côté d'un nom de
-    #: famille et d'une ligne de matières, vingt points faisaient une vignette
-    #: qu'on devinait plus qu'on ne la reconnaissait. Au-delà, le symbole
-    #: prendrait le pas sur le texte qu'il accompagne.
-    TAILLE_SYMBOLE = 26
+    #: Vingt-six et non vingt, à cent pour cent : sur un écran de bureau, à côté
+    #: d'un nom de famille et d'une ligne de matières, vingt points faisaient une
+    #: vignette qu'on devinait plus qu'on ne la reconnaissait. Au-delà, le
+    #: symbole prendrait le pas sur le texte qu'il accompagne.
+    #:
+    #: Exprimée en part, comme `PART_EMBLEME`, pour que le zoom grossisse la
+    #: page entière — texte et images ensemble. Zéro virgule cinquante-quatre
+    #: rend bien vingt-six à cent pour cent, la valeur d'avant.
+    PART_SYMBOLE = 0.54
 
     #: Colonnes du bloc « ce qui sort » — une par zone des Primes, pour les
     #: avoir toutes les quatre sous les yeux à la fois. Sur deux colonnes, il
@@ -2129,7 +2144,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 # colonne à l'autre, selon la place laissée par le nom de la
                 # famille. `set_pixel_size` fixe la taille pour de bon.
                 image = Gtk.Image.new_from_file(chemin)
-                image.set_pixel_size(self.TAILLE_SYMBOLE)
+                image.set_pixel_size(
+                    self._settings.icone(self.PART_SYMBOLE))
                 image.set_halign(Gtk.Align.START)
                 cellule.append(image)
             grille.attach(cellule, 0, ligne, 1, 1)
@@ -5517,6 +5533,16 @@ class MainWindow(Gtk.ApplicationWindow):
         self._install_motd_css()
         self._appliquer_taille_boutons()
         self._redisplay_current()
+        # **Et les écrans de « Bonus », que `_redisplay_current` ne voit pas :
+        # il ne refait que la grille de l'inventaire.** Leurs images ne sont
+        # pas des boutons — l'emblème d'un avant-poste, le symbole d'une
+        # famille de matières sont posés à la construction de la ligne, et
+        # rien ne les retaille ensuite. Sans ce rappel, ils restaient seuls à
+        # leur taille pendant que tout le reste grossissait, jusqu'au prochain
+        # « Actualiser ». C'est ce que fait la version Qt au même endroit.
+        # Les deux sortent d'elles-mêmes tant que rien n'a été chargé.
+        self._refresh_outposts()
+        self._refresh_meteo()
         self._set_status(_("Zoom : {} %").format(round(reglages.zoom * 100)))
 
     def _appliquer_taille_boutons(self) -> None:
