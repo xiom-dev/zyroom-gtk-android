@@ -25,7 +25,8 @@ from .watch import KIND_DURABILITY, watch_kind
 #: Une figure par sorte d'alerte : la liste se lit d'un coup d'oeil, et l'on
 #: voit tout de suite laquelle des surveillances a parle.
 FIGURES = {"quantity": "📉", "durability": "🛡", "unfound": "❓",
-           "volume": "📦", "sales": "💰", "season": "🍂", "money": "🪙"}
+           "volume": "📦", "sales": "💰", "season": "🍂", "money": "🪙",
+           "outpost": "🚩"}
 
 
 class FenetreAlertes(QDialog):

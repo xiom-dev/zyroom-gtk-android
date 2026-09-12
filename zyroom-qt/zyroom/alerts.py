@@ -10,6 +10,7 @@ de guetter**. Cinq surveillances, toutes réglées par le joueur :
   - **Vente** : une mise en vente expire bientôt.
   - **Saison** : elle tourne dans moins de tant d'heures.
   - **Trésor** : il a bougé, et l'on a demandé à le savoir.
+  - **Avant-poste** : l'un des nôtres a changé de main.
 
 Les **mouvements** d'objets, eux, ne sont pas des alertes : personne ne les a
 demandés, et ranger douze matières faisait sonner douze fois. Ils vont au
@@ -20,6 +21,12 @@ Le trésor fait exception, et c'est la même règle qui l'y autorise : un relev�
 rapporte au plus **un** mouvement d'argent, jamais douze. La cloche ne risque
 pas d'être noyée, et personne ne surveille son coffre de guilde sans vouloir
 savoir qu'on y a puisé.
+
+Les avant-postes tiennent le même raisonnement, et c'est pourquoi ils n'ont
+pas de réglage non plus : une guilde en tient une dizaine, un relevé n'en
+rapporte jamais douze changements, et personne ne tient un avant-poste sans
+vouloir savoir qu'il lui échappe. C'est même le contraire qui s'est produit —
+un des nôtres a été pris, et nul ne l'a vu.
 """
 from __future__ import annotations
 
@@ -30,13 +37,14 @@ from dataclasses import dataclass
 
 from .models import item_sig
 from .movements import MONEY_KEY, MONEY_SIG, montant, sans_parenthese
+from .ryzom_api import KIND_GUILD
 from .watch import KIND_DURABILITY, KIND_MONEY
 
 
 @dataclass
 class Alert:
     kind: str          # 'quantity' | 'durability' | 'unfound' | 'volume'
-                       # | 'sales' | 'season' | 'money'
+                       # | 'sales' | 'season' | 'money' | 'outpost'
     title: str
     detail: str
 
@@ -159,6 +167,48 @@ def money_alerts(mouvements, surveille: bool) -> list[Alert]:
             f"Trésor : {montant(abs(mv.delta))} dappers {sens}",
             f"{montant(mv.old)} → {montant(mv.new)}",
         ))
+    return out
+
+
+# ---------------------------------------------------------- Avant-postes
+def outpost_alerts(entity, chemin: str, name_fn) -> list[Alert]:
+    """Un de nos avant-postes a-t-il changé de main depuis le dernier relevé ?
+
+    **L'API ne raconte aucune histoire** : ni `guilds.php` ni `guild.php` ne
+    disent quand un avant-poste a été pris, ni par qui, ni qu'une attaque se
+    prépare. Ils donnent un état, et rien d'autre. Le changement se déduit donc
+    d'un relevé à l'autre, comme pour les mouvements d'objets.
+
+    **Depuis la fiche de guilde, et non depuis l'annuaire.** La carte de
+    `Bonus > Avant-postes` pèse un demi-mégaoctet et n'est demandée qu'à
+    l'ouverture de l'onglet : ce qui changeait entre deux visites ne se voyait
+    pas. Le bloc `<outposts>` de la fiche, lui, arrive à chaque
+    synchronisation et ne coûte rien.
+
+    Rien n'est dit au premier relevé : sans état précédent, les dix
+    avant-postes d'une guilde passeraient pour dix prises le jour de
+    l'installation.
+    """
+    if entity is None or entity.kind != KIND_GUILD:
+        return []
+    apres = sorted({c for c in entity.outposts if c})
+    avant = load_snapshot(chemin).get("outposts")
+    save_snapshot(chemin, {"outposts": apres})
+    if avant is None:
+        return []
+    avant = set(avant)
+    out = []
+    # Le nom lisible vient du pack du jeu, sous la clé `<code>.outpost` — la
+    # même que la carte emploie ; `namedb` retombe sur la table française
+    # quand le pack manque.
+    for code in sorted(set(apres) - avant):
+        out.append(Alert("outpost",
+                         f"Avant-poste pris : {name_fn(code + '.outpost')}",
+                         "Il est à nous depuis le dernier relevé."))
+    for code in sorted(avant - set(apres)):
+        out.append(Alert("outpost",
+                         f"Avant-poste perdu : {name_fn(code + '.outpost')}",
+                         "Il a changé de main depuis le dernier relevé."))
     return out
 
 

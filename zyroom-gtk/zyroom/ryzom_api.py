@@ -143,6 +143,16 @@ class Entity:
     skills: list = field(default_factory=list)          # arbre des compétences
     skill_points: dict = field(default_factory=dict)    # points par branche
     members: list = field(default_factory=list)         # [(nom, grade, joined)] d'une guilde
+    #: Les avant-postes que la guilde tient, par leur code — « fyros_outpost_14 ».
+    #:
+    #: **La fiche de guilde les porte, et personne ne les lisait.** La carte de
+    #: `Bonus > Avant-postes` vient de l'annuaire public, un demi-mégaoctet
+    #: qu'on ne demande qu'en ouvrant l'onglet : un avant-poste perdu entre
+    #: deux visites ne se voyait donc jamais. Ceux-ci arrivent avec le reste de
+    #: la fiche, à chaque synchronisation, sans un octet de plus.
+    #:
+    #: Vide pour un personnage : `character.php` ne porte pas ce bloc.
+    outposts: list = field(default_factory=list)
     #: Dernières connexion et déconnexion du personnage, en temps Unix. 0 quand
     #: l'API se tait — une guilde, ou une clé sans le module qui les porte.
     lastlogin: int = 0
@@ -612,6 +622,15 @@ def parse_guild(xml_bytes: bytes, resolve_sheet=None) -> Entity:
                     joined = 0
                 ent.members.append((nom, (m.findtext("grade") or "").strip(),
                                     joined))
+
+    # Les avant-postes de la guilde, tels que la fiche les donne : une liste
+    # de codes, sans date ni état de siège — l'API n'en sait pas plus. Ils
+    # servent à voir qu'un avant-poste a changé de main sans avoir à
+    # rapatrier l'annuaire de tout le serveur.
+    postes = node.find("outposts")
+    if postes is not None:
+        ent.outposts = [(o.text or "").strip()
+                        for o in postes.findall("outpost") if (o.text or "").strip()]
 
     ent.icon = node.findtext("icon", default="")
     if ent.icon:

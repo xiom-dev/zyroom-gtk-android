@@ -420,6 +420,18 @@ def snapshot_path(kind: str, entity_id: str) -> str:
     return os.path.join(path, f"{kind}-{entity_id}.json")
 
 
+def outposts_path(kind: str, entity_id: str) -> str:
+    """Emplacement du dernier état connu de nos avant-postes.
+
+    En cache et non en données : ce n'est qu'un point de comparaison d'un
+    relevé au suivant. L'histoire, elle, vit dans le journal des prises, que
+    `outposts.py` tient à part.
+    """
+    path = os.path.join(cache_dir(), "watch")
+    os.makedirs(path, exist_ok=True)
+    return os.path.join(path, f"{kind}-{entity_id}-outposts.json")
+
+
 def movements_path(kind: str, entity_id: str) -> str:
     """Emplacement du journal des mouvements d'une entité.
 

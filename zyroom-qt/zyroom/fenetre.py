@@ -50,7 +50,8 @@ from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      data_dir, detect_pack, detect_save_folder,
                      entity_xml_path, format_api_created, format_last_sync,
                      guard_path, last_sync, movements_path, names_cache_path,
-                     portrait_en_cache, portrait_path, snapshot_path)
+                     outposts_path, portrait_en_cache, portrait_path,
+                     snapshot_path)
 from .i18n import _
 from .icones import ChargeurIcones
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
@@ -697,8 +698,30 @@ class FenetrePrincipale(QMainWindow):
         ligne.addStretch(1)
 
         # A droite : ce qui parle de l'application.
-        self._btn_maj = QPushButton("⬆ " + _("Mettre à jour"))
+        # **La fleche en icone, et non dans le libelle.** Les deux portages
+        # tombent sur le meme dessin, mais pas a la meme echelle : a corps
+        # onze, GTK la rend sur treize pixels de haut, Qt sur seize, la police
+        # de secours n'etant pas la meme. En icone, la taille obeit -- et le
+        # libelle garde la police du texte, comme en face. Voir
+        # `theme.fleche_maj`. Sa taille est posee par `_recaler_largeurs`,
+        # la police n'etant pas encore celle du rendu a la construction.
+        self._btn_maj = QPushButton(_("Mettre à jour"))
         self._btn_maj.setObjectName("principal")
+        # Deja a sa taille : une icone reduite apres coup par `setIconSize`
+        # voit son lissage delaver le coeur du trait, et la couleur relevee
+        # tombait a #05110d au lieu du #06120e de GTK. `_recaler_largeurs` la
+        # refera si la police n'etait pas encore celle du rendu.
+        self._btn_maj.ensurePolished()
+        fleche = theme.fleche_maj(
+            cote=theme.largeur(self._btn_maj, theme.PART_FLECHE))
+        if fleche.isNull():
+            self._btn_maj.setText("⬆ " + _("Mettre à jour"))
+        else:
+            self._btn_maj.setIcon(fleche)
+            # L'espace qui separait la fleche du mot dans le libelle de GTK :
+            # Qt colle son icone au texte, et « Mettre » commencait contre la
+            # hampe. Le meme signe, a la meme place.
+            self._btn_maj.setText(" " + self._btn_maj.text())
         self._btn_maj.setVisible(False)
         self._btn_maj.clicked.connect(self._on_maj_clic)
         ligne.addWidget(self._btn_maj)
@@ -1625,6 +1648,16 @@ class FenetrePrincipale(QMainWindow):
         de moins, et une qui ne suivait pas le zoom.
         """
         self._page_effectif._reserver_largeur()
+        # La fleche du bouton de mise a jour : treize pixels de haut pour une
+        # ligne de vingt-deux, la mesure prise sur la fenetre GTK.
+        if not self._btn_maj.icon().isNull():
+            haut = theme.largeur(self._btn_maj, theme.PART_FLECHE)
+            # Refaite a cette taille, et non simplement redimensionnee : la
+            # teinte se pose apres la reduction, sinon le lissage delave le
+            # coeur du trait. Voir `theme.fleche_maj`.
+            self._btn_maj.setIcon(theme.fleche_maj(cote=haut))
+            self._btn_maj.setIconSize(
+                QSize(max(1, round(haut * theme.RATIO_FLECHE)), haut))
 
     def _poser_la_feuille(self) -> None:
         """Rejoue la feuille de style au zoom courant.
@@ -2697,6 +2730,16 @@ class FenetrePrincipale(QMainWindow):
         if self._watch is not None:
             resultat += alerts.money_alerts(self._mouvements_argent,
                                             self._watch.money_watched())
+        # Nos avant-postes, tels que la fiche de guilde les donne. Pas de
+        # reglage : comme le tresor, un releve n'en rapporte jamais douze, et
+        # personne ne tient un avant-poste sans vouloir savoir qu'il lui
+        # echappe. Seulement au retour d'une synchronisation : hors de la,
+        # l'entite en memoire est celle du dernier releve, et comparer un etat
+        # avec lui-meme ne dirait rien.
+        if depuis_synchro:
+            resultat += alerts.outpost_alerts(
+                ent, outposts_path(entree["kind"], entree["id"]),
+                self.noms.name)
         if depuis_synchro and saison:
             tournante = alerts.season_alert(saison,
                                             self._settings.season_count)

@@ -13,6 +13,7 @@ Il tourne dans l'environnement virtuel de ZyRoom-Qt, hors écran
 from __future__ import annotations
 
 import json
+import re
 import os
 import sys
 
@@ -255,7 +256,8 @@ def contenu_de_barre(barre, etats=()) -> dict:
     lu = {"invite": None, "listes": [], "boutons": [], "etiquettes": []}
     for w in commandes(barre):
         if isinstance(w, QComboBox):
-            lu["listes"].append([w.itemText(i) for i in range(w.count())])
+            lu["listes"].append([sans_compteur(w.itemText(i))
+                                 for i in range(w.count())])
         elif isinstance(w, (QSpinBox, QLineEdit)):
             if isinstance(w, QLineEdit) and lu["invite"] is None:
                 lu["invite"] = w.placeholderText()
@@ -268,6 +270,21 @@ def contenu_de_barre(barre, etats=()) -> dict:
             if mot:
                 lu["etiquettes"].append(mot)
     return lu
+
+
+def sans_compteur(mot: str) -> str:
+    """Un libelle sans le nombre entre parentheses qui le termine.
+
+    **Un compteur n'est pas un titre.** L'entree « Journal des prises » porte
+    le nombre de prises qui nous concernent et qu'on n'a pas encore lues :
+    c'est une donnee locale, tiree du journal de chaque portage, et les deux
+    n'ont pas le meme historique sur la machine de Ludo. Comparer le nombre
+    ferait echouer le controle sur un ecart qui n'est pas dans le code.
+
+    Le pourcentage d'un coffre -- « Coffre 1 (86%) » -- n'est pas touche : le
+    motif ne prend que des chiffres nus.
+    """
+    return re.sub(r"\s*\(\d+\)$", "", mot or "")
 
 
 def textes_du_panneau(panneau) -> list:

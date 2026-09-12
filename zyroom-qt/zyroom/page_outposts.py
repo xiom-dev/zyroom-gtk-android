@@ -214,17 +214,50 @@ class PageAvantPostes(QWidget):
     def _rafraichir(self) -> None:
         for pile in (self._gauche, self._droite, self._journal):
             self._vider(pile)
+        # Avant le retour anticipe : le compte se lit dans le journal, qui
+        # existe meme quand la carte n'est pas encore chargee.
+        self._maj_compteur_prises()
         if not self._carte:
             return
         if self._dd_vue.currentIndex() == 1:
             self._pile.setCurrentIndex(1)
             self._remplir_journal()
             self._journal.addStretch(1)
+            # Lu : le compte tombe a zero, et l'entree reprend son nom nu.
+            magasin = self._fenetre.magasin_avant_postes
+            if magasin is not None:
+                magasin.marquer_lu()
+            self._maj_compteur_prises()
         else:
             self._pile.setCurrentIndex(0)
             self._remplir_carte()
             self._gauche.addStretch(1)
             self._droite.addStretch(1)
+
+    def _ma_guilde(self) -> str:
+        """Le nom de la guilde qu'on regarde — la sienne, ou celle du perso."""
+        ent = self._fenetre.entite
+        if ent is None:
+            return ""
+        return (ent.name if ent.kind == KIND_GUILD else ent.guild) or ""
+
+    def _maj_compteur_prises(self) -> None:
+        """Le nombre de prises qui nous concernent, sur l'entree du journal.
+
+        **Un nombre dans la deroulante, et pas une colonne de plus.** Le
+        journal des prises existait deja et ne se voyait pas : il fallait
+        penser a l'ouvrir. Le compte s'efface des qu'on l'a lu -- c'est un
+        rappel, pas un decompte.
+        """
+        magasin = self._fenetre.magasin_avant_postes
+        if magasin is None:
+            return
+        titre = _("Journal des prises")
+        n = magasin.non_lus(self._ma_guilde())
+        if n:
+            titre += f" ({n})"
+        if self._dd_vue.itemText(1) != titre:
+            self._dd_vue.setItemText(1, titre)
 
     def _remplir_carte(self) -> None:
         carte = self._carte
@@ -232,11 +265,7 @@ class PageAvantPostes(QWidget):
         # guilde. Sans cela, ouvrir la carte depuis son personnage ne mettait
         # rien en vert, alors que c'est justement la qu'on se demande
         # "et nous ?".
-        ent = self._fenetre.entite
-        ma_guilde = ""
-        if ent is not None:
-            ma_guilde = (ent.name if ent.kind == KIND_GUILD
-                         else ent.guild) or ""
+        ma_guilde = self._ma_guilde()
         miens = sum(1 for o in carte if o.guild == ma_guilde)
         entete = _("%d avant-postes tenus sur Atys") % len(carte)
         # Des qu'on sait de quelle guilde on parle, on le dit -- meme quand la

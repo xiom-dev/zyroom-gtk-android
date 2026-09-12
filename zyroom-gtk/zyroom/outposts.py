@@ -221,6 +221,44 @@ class OutpostStore:
         except OSError:
             pass
 
+    # ------------------------------------------------ Ce qu'on n'a pas encore lu
+    def _marque(self) -> str:
+        return os.path.join(self._dir, "outposts-vu.json")
+
+    def non_lus(self, guilde: str) -> int:
+        """Combien de prises **nous** concernant depuis le dernier coup d'œil.
+
+        **Les nôtres seulement.** Le journal recense tout Atys : vingt-neuf
+        avant-postes qui changent de main au gré des guerres de guildes, et un
+        compteur qui les compterait tous serait un nombre de plus dans la
+        barre, jamais à zéro et jamais regardé. Ce qu'on veut savoir, c'est ce
+        qui nous a échappé — ou ce qu'on vient de prendre.
+
+        Rend zéro tant qu'on ne sait pas de quelle guilde on parle : sur un
+        personnage sans guilde, il n'y a rien à compter.
+        """
+        if not guilde:
+            return 0
+        depuis = self._lire_marque()
+        return sum(1 for c in self.history()
+                   if c.at > depuis and guilde in (c.frm, c.to))
+
+    def marquer_lu(self) -> None:
+        """Le journal vient d'être ouvert : ce qui y est devient vu."""
+        try:
+            os.makedirs(self._dir, exist_ok=True)
+            with open(self._marque(), "w", encoding="utf-8") as fh:
+                json.dump({"vu": int(time.time())}, fh)
+        except OSError:
+            pass
+
+    def _lire_marque(self) -> int:
+        try:
+            with open(self._marque(), encoding="utf-8") as fh:
+                return int(json.load(fh).get("vu", 0))
+        except (OSError, ValueError, TypeError):
+            return 0
+
     def _lire_etat(self) -> dict[str, str] | None:
         try:
             with open(self._etat(), encoding="utf-8") as fh:

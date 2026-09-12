@@ -261,7 +261,7 @@ def contenu_de_barre(barre, etats=()) -> dict:
     for w in commandes(barre):
         if isinstance(w, Gtk.DropDown):
             modele = w.get_model()
-            lu["listes"].append([modele.get_string(i)
+            lu["listes"].append([sans_compteur(modele.get_string(i))
                                  for i in range(modele.get_n_items())])
         elif isinstance(w, (Gtk.SearchEntry, Gtk.Entry)):
             if lu["invite"] is None:
@@ -275,6 +275,21 @@ def contenu_de_barre(barre, etats=()) -> dict:
             if mot:
                 lu["etiquettes"].append(mot)
     return lu
+
+
+def sans_compteur(mot: str) -> str:
+    """Un libelle sans le nombre entre parentheses qui le termine.
+
+    **Un compteur n'est pas un titre.** L'entree « Journal des prises » porte
+    le nombre de prises qui nous concernent et qu'on n'a pas encore lues :
+    c'est une donnee locale, tiree du journal de chaque portage, et les deux
+    n'ont pas le meme historique sur la machine de Ludo. Comparer le nombre
+    ferait echouer le controle sur un ecart qui n'est pas dans le code.
+
+    Le pourcentage d'un coffre -- « Coffre 1 (86%) » -- n'est pas touche : le
+    motif ne prend que des chiffres nus.
+    """
+    return re.sub(r"\s*\(\d+\)$", "", mot or "")
 
 
 def textes_du_panneau(panneau) -> list:

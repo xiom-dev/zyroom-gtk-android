@@ -27,8 +27,8 @@ from .i18n import _
 from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, data_dir, Settings, detect_pack,
                      detect_save_folder, entity_xml_path, format_api_created,
                      format_last_sync, guard_path, last_sync, movements_path,
-                     names_cache_path, noter_erreur, portrait_en_cache,
-                     portrait_path, snapshot_path)
+                     names_cache_path, noter_erreur, outposts_path,
+                     portrait_en_cache, portrait_path, snapshot_path)
 from .attente import BarreAttente
 from .icons import IconLoader
 from .options import OptionsWindow
@@ -1310,28 +1310,56 @@ class MainWindow(Gtk.ApplicationWindow):
 
         run_async(work, done)
 
+    def _ma_guilde(self) -> str:
+        """Le nom de la guilde qu'on regarde — la sienne, ou celle du perso."""
+        ent = self._entity
+        if ent is None:
+            return ""
+        return (ent.name if ent.kind == KIND_GUILD else ent.guild) or ""
+
+    def _maj_compteur_prises(self) -> None:
+        """Le nombre de prises qui nous concernent, sur l'entrée du journal.
+
+        **Un nombre dans la liste déroulante, et pas une colonne de plus.** Le
+        journal des prises existait déjà et ne se voyait pas : il fallait
+        penser à l'ouvrir. Le compte s'efface dès qu'on l'a lu — c'est un
+        rappel, pas un décompte.
+        """
+        modele = self._op_vue.get_model()
+        if modele is None:
+            return
+        n = self._op_store.non_lus(self._ma_guilde())
+        titre = _("Journal des prises")
+        if n:
+            titre += f" ({n})"
+        if modele.get_string(1) != titre:
+            modele.splice(1, 1, [titre])
+
     def _refresh_outposts(self) -> None:
         for boite in (self._op_gauche, self._op_droite, self._op_box):
             while (child := boite.get_first_child()) is not None:
                 boite.remove(child)
+        # Avant le retour anticipé : le compte se lit dans le journal, qui
+        # existe même quand la carte n'est pas encore chargée.
+        self._maj_compteur_prises()
         if not self._op_carte:
             return
         if self._op_vue.get_selected() == 1:
             self._op_pile.set_visible_child_name("journal")
             self._remplir_journal_outposts()
+            # Lu : le compte tombe à zéro, et l'entrée reprend son nom nu.
+            self._op_store.marquer_lu()
         else:
             self._op_pile.set_visible_child_name("carte")
             self._remplir_carte_outposts()
+        self._maj_compteur_prises()   # après lecture : le compte est retombé
 
     def _remplir_carte_outposts(self) -> None:
         carte = self._op_carte
         # Sur une guilde, c'est son nom ; sur un personnage, celui de sa guilde.
         # Sans cela, ouvrir la carte depuis son personnage ne mettait rien en
         # vert, alors que c'est justement là qu'on se demande « et nous ? ».
-        ent = self._entity
-        ma_guilde = ""
-        if ent is not None:
-            ma_guilde = (ent.name if ent.kind == KIND_GUILD else ent.guild) or ""
+        ma_guilde = self._ma_guilde()
         miens = sum(1 for o in carte if o.guild == ma_guilde)
         entete = _("%d avant-postes tenus sur Atys") % len(carte)
         # Des qu'on sait de quelle guilde on parle, on le dit -- meme quand la
@@ -4054,6 +4082,16 @@ class MainWindow(Gtk.ApplicationWindow):
         if self._watch is not None:
             result += alerts.money_alerts(self._mouvements_argent,
                                           self._watch.money_watched())
+        # Nos avant-postes, tels que la fiche de guilde les donne. Pas de
+        # réglage : comme le trésor, un relevé n'en rapporte jamais douze, et
+        # personne ne tient un avant-poste sans vouloir savoir qu'il lui
+        # échappe. Seulement au retour d'une synchronisation : hors de là,
+        # l'entité en mémoire est celle du dernier relevé, et comparer un état
+        # avec lui-même ne dirait rien.
+        if from_sync:
+            result += alerts.outpost_alerts(
+                ent, outposts_path(entry["kind"], entry["id"]),
+                self._names.name)
         if from_sync:
             path = snapshot_path(entry["kind"], entry["id"])
             old = alerts.load_snapshot(path)
@@ -4845,7 +4883,8 @@ class MainWindow(Gtk.ApplicationWindow):
         # Une figure par sorte d'alerte : la liste se lit d'un coup d'œil, et
         # l'on voit tout de suite laquelle des quatre surveillances a parlé.
         figures = {"quantity": "📉", "durability": "🛡", "unfound": "❓",
-                   "volume": "📦", "sales": "💰", "season": "🍂", "money": "🪙"}
+                   "volume": "📦", "sales": "💰", "season": "🍂", "money": "🪙",
+                   "outpost": "🚩"}
         for al in self._alerts:
             icon = figures.get(al.kind, "🔔")
             title = Gtk.Label(xalign=0.0)
