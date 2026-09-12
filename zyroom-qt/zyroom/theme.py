@@ -1006,6 +1006,16 @@ ENCRE_BOUTON = "#eeeeec"
 #: la barre de recherche de GTK affiche, releve sur son lookup.
 SYMBOLES_DE_GTK = {"system-search-symbolic": "loupe-symbolic.png"}
 
+#: Le dossier des images que ce portage est seul a porter.
+#:
+#: **Et non `symboles/`**, que `outils/sync-noyau.sh` refait a neuf depuis
+#: GTK a chaque synchronisation : deux images posees la ont disparu sans un
+#: mot, et l'appli serait repartie chercher ses icones dans le theme du
+#: bureau. Ce sont des bequilles de portage -- un dessin que GTK obtient de
+#: sa bibliotheque et que Qt doit se procurer autrement --, pas des
+#: ressources communes.
+SYMBOLES_QT = "symboles-qt"
+
 
 def _symbole_de_gtk(nom: str):
     """Le dessin que GTK sert pour ce nom, ou None s'il n'est pas recopie."""
@@ -1013,7 +1023,7 @@ def _symbole_de_gtk(nom: str):
     if not fichier:
         return None
     chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "symboles", fichier)
+                          SYMBOLES_QT, fichier)
     return QIcon(chemin) if os.path.exists(chemin) else None
 
 
@@ -1258,6 +1268,53 @@ class _LoupeDuChamp(QLabel):
             return
         self.move(RETRAIT_LOUPE, max(0, (champ.height() - self.height()) // 2))
         self.raise_()
+
+
+#: La part de la hauteur d'une ligne qu'occupe la fleche du bouton de mise a
+#: jour. Mesuree sur la fenetre GTK : treize pixels pour une ligne de vingt-
+#: deux, a corps onze.
+PART_FLECHE = 0.59
+
+#: Le rapport largeur/hauteur du dessin, pour ne pas l'ecraser.
+RATIO_FLECHE = 0.662
+
+
+def fleche_maj(couleur: str = "#06120e", cote: int = 0):
+    """La fleche du bouton de mise a jour, a la taille ou GTK la dessine.
+
+    **Une image et non le caractere.** GTK et Qt tombent sur le meme dessin --
+    verifie en agrandissant les deux boutons, meme tete large et meme hampe --
+    mais pas a la meme echelle : a corps onze, GTK rend la fleche sur treize
+    pixels de haut, Qt sur seize. Le caractere ne se regle pas : c'est la
+    police de secours qui decide, et elle n'est pas la meme des deux cotes.
+    Pose en icone, le dessin obeit -- et l'on garde le libelle dans la police
+    du texte, comme GTK.
+
+    Le dessin vient du rendu de GTK lui-meme, recopie dans `symboles/`.
+    """
+    chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          SYMBOLES_QT, "fleche-maj.png")
+    if not os.path.exists(chemin):
+        return QIcon()
+    source = QPixmap(chemin)
+    if source.isNull():
+        return QIcon()
+    # **Reduite d'abord, teintee ensuite.** L'inverse laissait le lissage de
+    # la reduction melanger la couleur au vide : le coeur du trait tombait a
+    # #05110d la ou GTK ecrit #06120e, et le controle de parite le voyait.
+    # Teinter apres coup ne touche que l'opacite, deja posee.
+    if cote > 0:
+        source = source.scaledToHeight(
+            cote, Qt.TransformationMode.SmoothTransformation)
+    teinte = QPixmap(source.size())
+    teinte.fill(Qt.GlobalColor.transparent)
+    peintre = QPainter(teinte)
+    peintre.drawPixmap(0, 0, source)
+    peintre.setCompositionMode(
+        QPainter.CompositionMode.CompositionMode_SourceIn)
+    peintre.fillRect(teinte.rect(), QColor(couleur))
+    peintre.end()
+    return QIcon(teinte)
 
 
 def poser_loupe(champ) -> None:

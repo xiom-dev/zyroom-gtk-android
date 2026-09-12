@@ -53,6 +53,13 @@ NOYAU=(
 # Les traductions n'y sont plus : ce portage a son propre catalogue, bati par
 # `build_i18n.py`, qui reprend celui de GTK et le complete de ses chaines a
 # lui. Les recopier d'ici effacerait ce travail a chaque synchronisation.
+#
+# **`symboles-qt/` n'y est pas non plus, et ne doit jamais y entrer.** Ces
+# dossiers sont refaits a neuf (voir plus bas) : une image propre a Qt posee
+# dans `symboles/` y disparait sans un mot -- c'est arrive a la loupe du champ
+# de recherche et a la fleche du bouton de mise a jour, deux dessins que GTK
+# tire de sa bibliotheque et que Qt doit embarquer. Elles vivent donc a cote,
+# dans un dossier que ce script ignore.
 RESSOURCES=(data cartes symboles)
 
 VERIFIE=0

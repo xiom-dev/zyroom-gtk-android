@@ -31,6 +31,9 @@ donnees = [
     (os.path.join(RACINE, "zyroom", "locale"), "zyroom/locale"),
     (os.path.join(RACINE, "zyroom", "cartes"), "zyroom/cartes"),
     (os.path.join(RACINE, "zyroom", "symboles"), "zyroom/symboles"),
+    # Les images que ce portage est seul a porter, et que `sync-noyau.sh` ne
+    # touche pas : la loupe et la fleche que GTK tire de sa bibliotheque.
+    (os.path.join(RACINE, "zyroom", "symboles-qt"), "zyroom/symboles-qt"),
     # Les images que Qt dessine lui-meme la ou GTK s'en remet a Adwaita : la
     # coche des cases a cocher et le chevron des listes deroulantes. A part de
     # `symboles/`, que la synchronisation du noyau refait a neuf.
