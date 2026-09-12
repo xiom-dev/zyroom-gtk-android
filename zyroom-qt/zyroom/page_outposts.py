@@ -11,9 +11,10 @@ c'est `outposts.py`, dans le noyau partagé, qui tient ce journal.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import NamedTuple
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFontMetrics, QPixmap
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QFontMetrics, QPixmap
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
                                QScrollArea, QStackedWidget, QVBoxLayout,
                                QWidget)
@@ -32,18 +33,39 @@ PEUPLES = (("fyros", "Fyros"), ("matis", "Matis"),
 #: La part de la taille des icones d'inventaire qu'occupe un embleme.
 PART_EMBLEME = 0.42
 
-#: Largeur du bloc des trois colonnes. Le nom tenait autrefois toute la
-#: largeur disponible, ce qui repoussait le niveau et la guilde contre le bord
-#: droit : sur un ecran large, l'oeil devait traverser vingt centimetres de
-#: vide pour relier un avant-poste a son proprietaire.
+#: Largeur minimale du bloc des trois colonnes. Le nom tenait autrefois toute
+#: la largeur disponible, ce qui repoussait le niveau et la guilde contre le
+#: bord droit : sur un ecran large, l'oeil devait traverser vingt centimetres
+#: de vide pour relier un avant-poste a son proprietaire. Au-dela de ce
+#: plancher, c'est le contenu qui commande -- voir `_mesures`.
 LARGEUR_BLOC = 456
 
-#: Les trois colonnes du bloc. Des largeurs fixes plutot que le `SizeGroup` de
-#: GTK, qui n'a pas d'equivalent en Qt : sans elles, un nom long repousserait
-#: le niveau et la guilde, et aucune colonne ne serait alignee d'une ligne a
-#: l'autre.
-LARGEUR_NOM = 240
-LARGEUR_GUILDE = 150
+#: L'air entre deux colonnes du bloc, et le nombre d'intervalles : l'embleme,
+#: le nom, le niveau, la guilde.
+ESPACEMENT = 8
+INTERVALLES = 3
+
+#: Ce que la colonne du nom garde toujours, meme dans une fenetre etroite :
+#: sous cela, tous les noms s'abregent au meme moignon et la colonne ne dit
+#: plus rien.
+LARGEUR_NOM_MINI = 120
+
+#: Le nom de guilde s'abrege au-dela de cette longueur, comme le
+#: `set_max_width_chars(24)` de la version GTK.
+CARACTERES_GUILDE = 24
+
+#: De combien la fenetre doit changer de largeur pour qu'on refasse la carte.
+#: Pas un pixel : l'ascenseur vertical qui apparait en vaut dix a lui seul, et
+#: reconstruire a chaque pixel ferait osciller l'affichage sans fin.
+SEUIL_REDIMENSION = 24
+
+
+class Mesures(NamedTuple):
+    """La largeur des trois colonnes d'une carte, et celle de leur bloc."""
+    nom: int
+    niveau: int
+    guilde: int
+    bloc: int
 
 
 class PageAvantPostes(QWidget):
@@ -54,6 +76,10 @@ class PageAvantPostes(QWidget):
         self._changements: list = []
         self._premier = False
         self._charge = False
+        #: La largeur qu'avait la page au dernier remplissage de la carte.
+        #: Les colonnes sont taillees pour cette largeur-la ; si elle change
+        #: beaucoup, il faut les retailler. Voir `resizeEvent`.
+        self._largeur_remplie = 0
 
         colonne = QVBoxLayout(self)
         colonne.setContentsMargins(0, 0, 0, 0)
@@ -91,10 +117,10 @@ class PageAvantPostes(QWidget):
         duo = QHBoxLayout(colonnes)
         duo.setContentsMargins(0, 0, 0, 0)
         duo.setSpacing(12)
-        self._gauche, defil_g = self._colonne_defilante()
-        self._droite, defil_d = self._colonne_defilante()
-        duo.addWidget(defil_g, 1)
-        duo.addWidget(defil_d, 1)
+        self._gauche, self._defil_gauche = self._colonne_defilante()
+        self._droite, self._defil_droite = self._colonne_defilante()
+        duo.addWidget(self._defil_gauche, 1)
+        duo.addWidget(self._defil_droite, 1)
 
         # Le journal, lui, se lit sur toute la largeur : ses lignes sont des
         # phrases, pas un tableau.
@@ -195,19 +221,20 @@ class PageAvantPostes(QWidget):
             entete += _(", dont %d à %s") % (miens, ma_guilde)
         self._statut.setText(entete + ".")
 
-        # **La colonne des niveaux prend la largeur du plus large.** Elle
-        # valait 1,25 hauteur de ligne, soit dix-huit pixels : « 250 » en
-        # mesure vingt-trois, et le libelle etant aligne a droite, c'est son
-        # debut qui se faisait rogner -- le deux tronque passait pour un
-        # deux-points, et la ligne paraissait chevaucher la suivante. La
-        # version GTK n'a jamais eu ce defaut : elle met ses niveaux dans un
-        # `Gtk.SizeGroup`, qui donne a tous la largeur du plus grand. On fait
-        # ici le meme calcul, a la main.
-        largeur_niveau = self._largeur_des_niveaux(carte)
         noms = self._fenetre.noms
         connus = {code for code, _n in PEUPLES}
-        for pile, peuples in ((self._gauche, PEUPLES[:2]),
-                              (self._droite, PEUPLES[2:])):
+        self._largeur_remplie = self.width()
+        for pile, peuples, defilant in (
+                (self._gauche, PEUPLES[:2], self._defil_gauche),
+                (self._droite, PEUPLES[2:], self._defil_droite)):
+            # **Un jeu de mesures par colonne d'ecran**, et non un seul pour
+            # les quatre peuples : c'est ce que fait GTK, un jeu de
+            # `SizeGroup` par cote. Les deux colonnes n'ont pas les memes
+            # noms, et leur imposer une largeur commune gacherait la place de
+            # l'une.
+            codes = {code for code, _n in peuples}
+            mesures = self._mesures([o for o in carte if o.people in codes],
+                                    defilant)
             rang = 0
             for code, nom in peuples:
                 # Du plus haut niveau au plus bas, comme on lit une carte de
@@ -216,7 +243,7 @@ class PageAvantPostes(QWidget):
                                key=lambda o: (-o.level, noms.name(o.name_key)))
                 if not siens:
                     continue
-                pile.addWidget(self._entete_peuple(nom))
+                pile.addWidget(self._entete_peuple(nom, mesures.bloc))
                 for avant_poste in siens:
                     # **Une ligne qui casse ne doit pas emporter l'ecran.**
                     # Un joueur sous Windows n'avait plus qu'un titre de peuple
@@ -229,7 +256,7 @@ class PageAvantPostes(QWidget):
                     try:
                         rangee = self._ligne(avant_poste,
                                              avant_poste.guild == ma_guilde,
-                                             rang % 2 == 0, largeur_niveau)
+                                             rang % 2 == 0, mesures)
                     except Exception as souci:           # noqa: BLE001
                         noter_erreur(
                             f"avant-poste {getattr(avant_poste, 'code', '?')}",
@@ -271,33 +298,109 @@ class PageAvantPostes(QWidget):
                 self._ligne_simple(f"{quand}   {texte}", zebre=rang % 2 == 0))
 
     @staticmethod
-    def _entete_peuple(nom: str) -> QWidget:
+    def _entete_peuple(nom: str, largeur: int) -> QWidget:
         lbl = QLabel(nom)
         lbl.setObjectName("peuple")
         lbl.setContentsMargins(0, 10, 0, 2)
         # Aligne sur le bloc des lignes, qui est centre : un titre reste
         # contre le bord gauche n'aurait plus rien coiffe.
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setMinimumWidth(LARGEUR_BLOC)
+        lbl.setMinimumWidth(largeur)
         return lbl
 
-    def _largeur_des_niveaux(self, carte) -> int:
-        """De quoi loger le plus grand niveau de la carte, sans le rogner.
+    @staticmethod
+    def _police(objet: str) -> QFont:
+        """La police dont un libelle de ce nom d'objet sera vraiment peint.
 
-        Le pendant du `Gtk.SizeGroup` de la version GTK. Le tiret des
-        avant-postes sans niveau est compte lui aussi : il est plus large que
-        deux chiffres dans certaines polices.
+        **Pourquoi ce detour.** La taille du texte ne vient pas de
+        `QApplication.setFont` mais de la feuille de style -- `theme.feuille`
+        dit pourquoi. Un `QLabel` tout juste construit rend donc la police par
+        defaut de Qt, neuf points, quand l'ecran en affiche treize : mesurer
+        un texte avec elle, c'est le croire d'un bon tiers plus court qu'il
+        n'est. C'est ce qui faisait rogner « 250 » dans la colonne des
+        niveaux, et ce qui laissait un nom abrege pour deux cent quarante
+        pixels en occuper deux cent cinquante-sept -- de quoi passer par
+        dessus la colonne voisine.
+
+        `ensurePolished` applique la feuille au libelle : sa police devient
+        celle du rendu.
         """
         sonde = QLabel()
-        sonde.setObjectName("discret")
-        metriques = QFontMetrics(sonde.font())
-        textes = [str(o.level) if o.level else "—" for o in carte] or ["—"]
+        sonde.setObjectName(objet)
+        sonde.ensurePolished()
+        return sonde.font()
+
+    def _mesures(self, siens: list, defilant: QScrollArea) -> Mesures:
+        """La largeur des trois colonnes : chacune celle de son plus large.
+
+        Le pendant des `Gtk.SizeGroup` de la version GTK, qui imposent a tous
+        leurs membres la largeur du plus grand -- Qt n'en a pas d'equivalent,
+        le calcul se fait donc ici.
+
+        **Le nom est l'elastique.** L'embleme, le niveau et la guilde sont
+        dus : ce qui reste de la place offerte revient au nom, sans depasser
+        ce que reclame le plus long ni descendre sous `LARGEUR_NOM_MINI`.
+        """
+        m_texte = QFontMetrics(self._police("fini"))
+        m_niveau = QFontMetrics(self._police("discret"))
+
+        niveaux = [str(o.level) if o.level else "—" for o in siens] or ["—"]
         # Deux pixels d'air : sans eux, le dernier chiffre touche la colonne
         # voisine des que la police s'arrondit.
-        return max(metriques.horizontalAdvance(t) for t in textes) + 2
+        largeur_niveau = max(m_niveau.horizontalAdvance(t)
+                             for t in niveaux) + 2
+
+        noms = self._fenetre.noms
+        textes = [noms.name(o.name_key) for o in siens] or [""]
+        nom_ideal = max(m_texte.horizontalAdvance(t) for t in textes)
+
+        # Comme le `set_max_width_chars(24)` de GTK : au-dela, un nom de
+        # guilde bavard mangerait la colonne du nom.
+        guildes = [o.guild for o in siens] or [""]
+        largeur_guilde = min(
+            max(m_texte.horizontalAdvance(g) for g in guildes),
+            m_texte.averageCharWidth() * CARACTERES_GUILDE)
+
+        cote = self._fenetre.reglages.icone(PART_EMBLEME)
+        du = cote + INTERVALLES * ESPACEMENT + largeur_niveau + largeur_guilde
+        # La place offerte est celle de la zone defilante. Elle vaut zero
+        # tant que la fenetre n'est pas posee : on s'en tient alors au
+        # plancher, et `resizeEvent` retaillera.
+        offert = defilant.viewport().width() or LARGEUR_BLOC
+        # **L'ascenseur est compte meme quand il ne se voit pas encore.** La
+        # carte est plus haute que l'ecran neuf fois sur dix : il parait donc
+        # une fois les lignes posees, et vole apres coup les dix pixels sur
+        # lesquels le dernier nom de guilde comptait -- il s'en trouvait
+        # rogne d'une lettre, sans meme les points de suspension qui
+        # l'auraient dit.
+        barre = defilant.verticalScrollBar()
+        if not barre.isVisible():
+            offert -= barre.sizeHint().width()
+        largeur_nom = min(nom_ideal, max(offert - du, LARGEUR_NOM_MINI))
+        bloc = du + largeur_nom
+        if bloc < LARGEUR_BLOC <= offert:
+            # Le plancher laisse du rab : il revient au nom, seul a savoir
+            # quoi en faire -- un nom de plus s'affiche en entier.
+            bloc = LARGEUR_BLOC
+            largeur_nom = bloc - du
+        return Mesures(largeur_nom, largeur_niveau, largeur_guilde, bloc)
+
+    @staticmethod
+    def _abreger(libelle: QLabel, texte: str, largeur: int) -> str:
+        """Le texte coupe a la largeur de sa colonne, dans sa vraie police.
+
+        Un `QLabel` de largeur fixe ne raccourcit pas son texte de lui-meme :
+        GTK avait `set_ellipsize`, en Qt c'est a l'appelant de mesurer. Le
+        `ensurePolished` est le meme detour que dans `_police` -- sans lui, la
+        coupe est calculee sur une police plus petite que celle du rendu, et
+        le texte deborde de la colonne au lieu d'y tenir.
+        """
+        libelle.ensurePolished()
+        return QFontMetrics(libelle.font()).elidedText(
+            texte, Qt.TextElideMode.ElideRight, largeur)
 
     def _ligne(self, avant_poste, mien: bool, zebre: bool,
-               largeur_niveau: int) -> QWidget:
+               mesures: Mesures) -> QWidget:
         rangee = QWidget()
         # Sans cet attribut, Qt ne peint pas le fond que la feuille
         # de style donne a un QWidget nu.
@@ -310,10 +413,10 @@ class PageAvantPostes(QWidget):
         exterieur.addStretch(1)
 
         bloc = QWidget()
-        bloc.setFixedWidth(LARGEUR_BLOC)
+        bloc.setFixedWidth(mesures.bloc)
         ligne = QHBoxLayout(bloc)
         ligne.setContentsMargins(0, 0, 0, 0)
-        ligne.setSpacing(8)
+        ligne.setSpacing(ESPACEMENT)
 
         # L'embleme de la guilde, charge en tache de fond et mis en cache.
         embleme = QLabel()
@@ -325,32 +428,51 @@ class PageAvantPostes(QWidget):
 
         nom = QLabel()
         nom.setObjectName("fini" if mien else "compact")
-        nom.setFixedWidth(LARGEUR_NOM)
-        # Coupe a la main : un QLabel de largeur fixe ne raccourcit pas son
-        # texte, il le laisse deborder -- "Avant-Poste Diplomatique du
-        # Croisement" chevauchait la colonne du niveau. GTK avait
-        # `set_ellipsize` ; en Qt c'est a l'appelant de mesurer.
-        nom.setText(QFontMetrics(nom.font()).elidedText(
-            self._fenetre.noms.name(avant_poste.name_key),
-            Qt.TextElideMode.ElideRight, LARGEUR_NOM))
+        nom.setFixedWidth(mesures.nom)
+        nom.setText(self._abreger(
+            nom, self._fenetre.noms.name(avant_poste.name_key), mesures.nom))
         ligne.addWidget(nom)
 
         niveau = QLabel(str(avant_poste.level) if avant_poste.level else "—")
         niveau.setObjectName("discret")
-        niveau.setFixedWidth(largeur_niveau)
+        niveau.setFixedWidth(mesures.niveau)
         niveau.setAlignment(Qt.AlignmentFlag.AlignRight
                             | Qt.AlignmentFlag.AlignVCenter)
         ligne.addWidget(niveau)
 
         guilde = QLabel()
         guilde.setObjectName("fini" if mien else "compact")
-        guilde.setText(QFontMetrics(guilde.font()).elidedText(
-            avant_poste.guild, Qt.TextElideMode.ElideRight, LARGEUR_GUILDE))
+        guilde.setText(self._abreger(guilde, avant_poste.guild,
+                                     mesures.guilde))
+        # Le dernier prend ce qui reste : les trois largeurs font le bloc, il
+        # recoit donc exactement la sienne.
         ligne.addWidget(guilde, 1)
 
         exterieur.addWidget(bloc)
         exterieur.addStretch(1)
         return rangee
+
+    def resizeEvent(self, evenement) -> None:       # noqa: N802
+        """Retaille les colonnes quand la page change franchement de largeur.
+
+        Les trois colonnes sont calculees pour la place offerte au moment du
+        remplissage. GTK n'a pas ce souci -- ses `SizeGroup` et son
+        `ellipsize` suivent le widget toute sa vie ; en Qt les largeurs sont
+        posees une fois pour toutes, il faut donc refaire la carte.
+
+        Pas a chaque pixel : l'ascenseur vertical qui parait ou disparait en
+        vaut dix a lui seul, et la carte refaite peut justement le faire
+        paraitre -- deux largeurs qui s'appelleraient l'une l'autre sans fin.
+        """
+        super().resizeEvent(evenement)
+        if not self._carte or self._dd_vue.currentIndex() == 1:
+            return
+        if abs(self.width() - self._largeur_remplie) < SEUIL_REDIMENSION:
+            return
+        self._largeur_remplie = self.width()
+        # Apres l'evenement, et non pendant : on ne refait pas un affichage
+        # que Qt est en train de poser.
+        QTimer.singleShot(0, self._rafraichir)
 
     @staticmethod
     def _rappel_embleme(cible: QLabel, cote: int):
@@ -358,9 +480,18 @@ class PageAvantPostes(QWidget):
             if not chemin:
                 return
             image = QPixmap(chemin)
-            if not image.isNull():
+            if image.isNull():
+                return
+            try:
                 cible.setPixmap(image.scaledToWidth(
                     cote, Qt.TransformationMode.SmoothTransformation))
+            except RuntimeError:
+                # La carte a ete refaite pendant que l'embleme voyageait --
+                # un changement d'entite, ou la fenetre redimensionnee. Le
+                # libelle vise n'existe plus du cote C++, et Python l'apprend
+                # par cette exception. Rien a faire : la ligne qui l'a
+                # remplace a redemande la meme image, qui est en cache.
+                pass
         return arrivee
 
     @staticmethod
