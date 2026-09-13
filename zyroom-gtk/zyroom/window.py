@@ -13,6 +13,7 @@ import shutil
 import threading
 import unicodedata
 from datetime import datetime, timedelta
+from math import cos, radians, sin
 
 from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
 
@@ -1215,6 +1216,34 @@ class MainWindow(Gtk.ApplicationWindow):
     #: quarante-deux rend bien vingt a cent pour cent, la valeur d'avant.
     PART_EMBLEME = 0.42
 
+    #: La part des icones d'inventaire qu'occupe la pastille de changement.
+    #:
+    #: La meme que l'embleme, et non la moitie : a dix pixels, les deux
+    #: fleches se confondaient en un anneau et le symbole ne disait plus rien.
+    #: Elle suit le zoom comme lui, pour que la ligne grossisse d'un bloc.
+    PART_PASTILLE = 0.42
+
+    #: Le symbole de la pastille -- deux fleches qui tournent -- **dessine et
+    #: non ecrit**.
+    #:
+    #: Le caractere du recyclage existe (U+267B), mais aucune police
+    #: d'interface ne le porte : ni Cantarell sous GNOME, ni Segoe UI sous
+    #: Windows. Le repli tombe sur Noto Color Emoji, qui l'impose en couleur
+    #: -- un vert qui n'est pas le notre, a cote d'un nom qui l'est. Dessine,
+    #: le symbole a la couleur qu'on lui donne, la meme taille partout, et le
+    #: meme trace dans les deux portages : `page_outposts.py` repete ces
+    #: memes valeurs pour QPainter.
+    #:
+    #: Les deux arcs, en degres, dans le sens des aiguilles a l'ecran.
+    #: Rayon et epaisseur sont tenus par une contrainte : la pointe va
+    #: jusqu'a `rayon + trait * barbe`, et ce total doit rester sous la
+    #: moitie du cote, sinon la zone de dessin rogne les barbes.
+    PASTILLE_ARCS = ((25, 155), (205, 335))
+    PASTILLE_RAYON = 0.31       #: du cote de la pastille
+    PASTILLE_TRAIT = 0.15       #: epaisseur, du cote aussi
+    PASTILLE_BARBE = 1.20       #: demi-hauteur de la barbe, en parts du trait
+    PASTILLE_POINTE = 28        #: les degres que la pointe parcourt en plus
+
     def _build_outposts_page(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
@@ -1360,6 +1389,11 @@ class MainWindow(Gtk.ApplicationWindow):
         # Sans cela, ouvrir la carte depuis son personnage ne mettait rien en
         # vert, alors que c'est justement là qu'on se demande « et nous ? ».
         ma_guilde = self._ma_guilde()
+        # Ce qui a change de main depuis le dernier coup d'oeil au journal.
+        # Lu ici et non au chargement : la carte se redessine aussi quand on
+        # revient du journal, et le marqueur de lecture vient d'etre pose --
+        # les pastilles doivent alors avoir disparu.
+        recents = self._op_store.recents()
         miens = sum(1 for o in carte if o.guild == ma_guilde)
         entete = _("%d avant-postes tenus sur Atys") % len(carte)
         # Des qu'on sait de quelle guilde on parle, on le dit -- meme quand la
@@ -1401,7 +1435,8 @@ class MainWindow(Gtk.ApplicationWindow):
                     try:
                         rangee = self._ligne_outpost(
                             avant_poste, avant_poste.guild == ma_guilde,
-                            rang % 2 == 0, groupes)
+                            rang % 2 == 0, groupes,
+                            recents.get(avant_poste.code), bool(recents))
                     except Exception as souci:           # noqa: BLE001
                         noter_erreur(
                             f"avant-poste {getattr(avant_poste, 'code', '?')}",
@@ -1454,8 +1489,72 @@ class MainWindow(Gtk.ApplicationWindow):
         row.set_child(label)
         return row
 
+    def _pastille_changement(self, change) -> Gtk.Widget:
+        """Les deux flèches qui tournent, sur une ligne qui a changé de main.
+
+        Toujours construite, même quand rien n'a changé : sans place réservée,
+        la colonne du nom sauterait de quelques pixels d'une ligne à l'autre
+        selon qu'elle porte une pastille ou non. Vide, la zone ne peint rien et
+        ne fait que tenir sa largeur.
+        """
+        cote = self._settings.icone(self.PART_PASTILLE)
+        zone = Gtk.DrawingArea()
+        zone.set_content_width(cote)
+        zone.set_content_height(cote)
+        zone.set_valign(Gtk.Align.CENTER)
+        if change is None:
+            return zone
+        zone.set_draw_func(self._dessiner_pastille)
+        zone.set_tooltip_text(self._infobulle_changement(change))
+        return zone
+
+    def _dessiner_pastille(self, _zone, cr, largeur, hauteur) -> None:
+        """Deux arcs opposés, chacun terminé par une pointe qui suit le cercle.
+
+        La barbe de la pointe est **radiale** et sa pointe **tangente** : c'est
+        ce qui fait lire une flèche qui tourne plutôt qu'un trait posé en
+        travers. Le tracé est celui de `page_outposts.py`, au degré près.
+        """
+        cote = min(largeur, hauteur)
+        cx, cy = largeur / 2.0, hauteur / 2.0
+        rayon = cote * self.PASTILLE_RAYON
+        trait = cote * self.PASTILLE_TRAIT
+        barbe = trait * self.PASTILLE_BARBE
+        # Le vert du survol des boutons : `accent_color`, deja dans la palette.
+        cr.set_source_rgb(0x7f / 255, 0xb3 / 255, 0xa2 / 255)
+        cr.set_line_width(trait)
+        cr.set_line_cap(1)                    # cairo.LINE_CAP_ROUND
+        for depart, fin in self.PASTILLE_ARCS:
+            cr.new_sub_path()
+            cr.arc(cx, cy, rayon, radians(depart), radians(fin))
+            cr.stroke()
+            # La pointe : deux points sur le rayon de la fin de l'arc, et un
+            # troisieme un peu plus loin sur le cercle.
+            a, b = radians(fin), radians(fin + self.PASTILLE_POINTE)
+            cr.move_to(cx + (rayon + barbe) * cos(a),
+                       cy + (rayon + barbe) * sin(a))
+            cr.line_to(cx + (rayon - barbe) * cos(a),
+                       cy + (rayon - barbe) * sin(a))
+            cr.line_to(cx + rayon * cos(b), cy + rayon * sin(b))
+            cr.close_path()
+            cr.fill()
+
+    def _infobulle_changement(self, change) -> str:
+        """Ce que la pastille raconte quand on s'arrête dessus.
+
+        Sans le nom de l'avant-poste : il est écrit juste à côté, sur la ligne
+        que la pastille marque.
+        """
+        quand = datetime.fromtimestamp(change.at).strftime("%d/%m %H:%M")
+        if change.taken:
+            return _("Pris par %s (%s)") % (change.to, quand)
+        if change.lost:
+            return _("Perdu par %s (%s)") % (change.frm, quand)
+        return _("%s ▸ %s (%s)") % (change.frm, change.to, quand)
+
     def _ligne_outpost(self, avant_poste, mien: bool, zebre: bool,
-                       groupes) -> Gtk.ListBoxRow:
+                       groupes, change=None,
+                       pastilles: bool = False) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         if zebre:
             row.add_css_class("zebre")
@@ -1476,6 +1575,15 @@ class MainWindow(Gtk.ApplicationWindow):
             avant_poste.icon,
             lambda chemin, img=image: img.set_from_file(chemin) if chemin else None)
         line.append(image)
+
+        # Apres l'embleme et non en bout de ligne : ce qui a change, c'est le
+        # proprietaire, et c'est son embleme qu'on vient de voir changer.
+        #
+        # La colonne n'existe que les jours ou quelque chose a bouge : le reste
+        # du temps, reserver sa place volerait trente pixels a la colonne des
+        # noms pour ne rien y mettre.
+        if pastilles:
+            line.append(self._pastille_changement(change))
 
         # `set_size_request` ne fixe qu'un **minimum** : un nom long débordait et
         # poussait le niveau et la guilde plus loin, si bien qu'aucune colonne

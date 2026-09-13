@@ -11,11 +11,12 @@ c'est `outposts.py`, dans le noyau partagé, qui tient ce journal.
 from __future__ import annotations
 
 from datetime import datetime
-from math import ceil
+from math import ceil, cos, radians, sin
 from typing import NamedTuple
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QFontMetrics, QFontMetricsF, QPixmap
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtGui import (QColor, QFont, QFontMetrics, QFontMetricsF,
+                           QPainter, QPen, QPixmap, QPolygonF)
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
                                QScrollArea, QStackedWidget, QVBoxLayout,
                                QWidget)
@@ -33,6 +34,31 @@ PEUPLES = (("fyros", "Fyros"), ("matis", "Matis"),
 
 #: La part de la taille des icones d'inventaire qu'occupe un embleme.
 PART_EMBLEME = 0.42
+
+#: La part qu'occupe la pastille de changement de main.
+#:
+#: La meme que l'embleme, et non la moitie : a dix pixels, les deux fleches se
+#: confondaient en un anneau et le symbole ne disait plus rien.
+PART_PASTILLE = 0.42
+
+#: Le symbole de la pastille -- deux fleches qui tournent -- **dessine et non
+#: ecrit**.
+#:
+#: Le caractere du recyclage existe (U+267B), mais aucune police d'interface ne
+#: le porte : ni Cantarell sous GNOME, ni Segoe UI sous Windows. Le repli tombe
+#: sur une police emoji, qui l'impose en couleur -- un vert qui n'est pas le
+#: notre, a cote d'un nom qui l'est. Dessine, le symbole a la couleur qu'on lui
+#: donne, la meme taille partout, et le meme trace que la version GTK :
+#: `window.py` repete ces memes valeurs pour Cairo.
+#:
+#: Rayon et epaisseur sont tenus par une contrainte : la pointe va jusqu'a
+#: `rayon + trait * barbe`, et ce total doit rester sous la moitie du cote,
+#: sinon le widget rogne les barbes.
+PASTILLE_ARCS = ((25, 155), (205, 335))
+PASTILLE_RAYON = 0.31       #: du cote de la pastille
+PASTILLE_TRAIT = 0.15       #: epaisseur, du cote aussi
+PASTILLE_BARBE = 1.20       #: demi-hauteur de la barbe, en parts du trait
+PASTILLE_POINTE = 28        #: les degres que la pointe parcourt en plus
 
 #: Largeur minimale du bloc des trois colonnes. Le nom tenait autrefois toute
 #: la largeur disponible, ce qui repoussait le niveau et la guilde contre le
@@ -73,6 +99,66 @@ def _entier(avance: float) -> int:
     et n'y perd rien.
     """
     return ceil(avance) + 1
+
+
+class Pastille(QWidget):
+    """Les deux flèches qui tournent, sur une ligne qui a changé de main.
+
+    Toujours construite quand la colonne existe, même vide : sans place
+    réservée, la colonne du nom sauterait de quelques pixels d'une ligne à
+    l'autre selon qu'elle porte une pastille ou non.
+    """
+
+    def __init__(self, cote: int, infobulle: str = "") -> None:
+        super().__init__()
+        self.setFixedSize(cote, cote)
+        self._peindre = bool(infobulle)
+        if infobulle:
+            self.setToolTip(infobulle)
+
+    def paintEvent(self, _evenement) -> None:       # noqa: N802
+        """Deux arcs opposés, chacun terminé par une pointe qui suit le cercle.
+
+        La barbe de la pointe est **radiale** et sa pointe **tangente** : c'est
+        ce qui fait lire une flèche qui tourne plutôt qu'un trait posé en
+        travers. Le tracé est celui de `window.py`, au degré près.
+
+        **Les angles de Qt tournent à l'envers de ceux de Cairo** : ils
+        croissent dans le sens trigonométrique, et se comptent en seizièmes de
+        degré. Les arcs sont donc décrits en négatif -- les pointes, elles, se
+        calculent en cosinus et sinus, où les deux bibliothèques s'accordent.
+        """
+        if not self._peindre:
+            return
+        cote = min(self.width(), self.height())
+        cx, cy = self.width() / 2.0, self.height() / 2.0
+        rayon = cote * PASTILLE_RAYON
+        trait = cote * PASTILLE_TRAIT
+        barbe = trait * PASTILLE_BARBE
+        # Le vert du survol des boutons : `sarcelle_clair`, deja dans la palette.
+        couleur = QColor(theme.COULEURS["sarcelle_clair"])
+        peintre = QPainter(self)
+        peintre.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        boite = QRectF(cx - rayon, cy - rayon, rayon * 2, rayon * 2)
+        stylo = QPen(couleur, trait)
+        stylo.setCapStyle(Qt.PenCapStyle.RoundCap)
+        peintre.setPen(stylo)
+        peintre.setBrush(Qt.BrushStyle.NoBrush)
+        for depart, fin in PASTILLE_ARCS:
+            peintre.drawArc(boite, -depart * 16, -(fin - depart) * 16)
+        peintre.setPen(Qt.PenStyle.NoPen)
+        peintre.setBrush(couleur)
+        for _depart, fin in PASTILLE_ARCS:
+            # La pointe : deux points sur le rayon de la fin de l'arc, et un
+            # troisieme un peu plus loin sur le cercle.
+            a, b = radians(fin), radians(fin + PASTILLE_POINTE)
+            peintre.drawPolygon(QPolygonF([
+                QPointF(cx + (rayon + barbe) * cos(a),
+                        cy + (rayon + barbe) * sin(a)),
+                QPointF(cx + (rayon - barbe) * cos(a),
+                        cy + (rayon - barbe) * sin(a)),
+                QPointF(cx + rayon * cos(b), cy + rayon * sin(b))]))
+        peintre.end()
 
 
 class Mesures(NamedTuple):
@@ -276,6 +362,12 @@ class PageAvantPostes(QWidget):
         self._statut.setText(entete + ".")
 
         noms = self._fenetre.noms
+        # Ce qui a change de main depuis le dernier coup d'oeil au journal.
+        # Lu ici et non au chargement : la carte se redessine aussi quand on
+        # revient du journal, et le marqueur de lecture vient d'etre pose --
+        # les pastilles doivent alors avoir disparu.
+        magasin = self._fenetre.magasin_avant_postes
+        recents = magasin.recents() if magasin is not None else {}
         connus = {code for code, _n in PEUPLES}
         self._largeur_remplie = self.width()
         for pile, peuples, defilant in (
@@ -288,7 +380,7 @@ class PageAvantPostes(QWidget):
             # l'une.
             codes = {code for code, _n in peuples}
             mesures = self._mesures([o for o in carte if o.people in codes],
-                                    defilant)
+                                    defilant, bool(recents))
             rang = 0
             for code, nom in peuples:
                 # Du plus haut niveau au plus bas, comme on lit une carte de
@@ -311,7 +403,9 @@ class PageAvantPostes(QWidget):
                     try:
                         rangee = self._ligne(avant_poste,
                                              avant_poste.guild == ma_guilde,
-                                             rang % 2 == 0, mesures)
+                                             rang % 2 == 0, mesures,
+                                             recents.get(avant_poste.code),
+                                             bool(recents))
                     except Exception as souci:           # noqa: BLE001
                         noter_erreur(
                             f"avant-poste {getattr(avant_poste, 'code', '?')}",
@@ -351,6 +445,20 @@ class PageAvantPostes(QWidget):
                 texte = _("%s — %s ▸ %s") % (nom, c.frm, c.to)
             self._journal.addWidget(
                 self._ligne_simple(f"{quand}   {texte}", zebre=rang % 2 == 0))
+
+    @staticmethod
+    def _infobulle_changement(change) -> str:
+        """Ce que la pastille raconte quand on s'arrête dessus.
+
+        Sans le nom de l'avant-poste : il est écrit juste à côté, sur la ligne
+        que la pastille marque.
+        """
+        quand = datetime.fromtimestamp(change.at).strftime("%d/%m %H:%M")
+        if change.taken:
+            return _("Pris par %s (%s)") % (change.to, quand)
+        if change.lost:
+            return _("Perdu par %s (%s)") % (change.frm, quand)
+        return _("%s ▸ %s (%s)") % (change.frm, change.to, quand)
 
     @staticmethod
     def _entete_peuple(nom: str, largeur: int) -> QWidget:
@@ -398,7 +506,8 @@ class PageAvantPostes(QWidget):
         sonde.ensurePolished()
         return sonde.font()
 
-    def _mesures(self, siens: list, defilant: QScrollArea) -> Mesures:
+    def _mesures(self, siens: list, defilant: QScrollArea,
+                 pastilles: bool = False) -> Mesures:
         """La largeur des trois colonnes : chacune celle de son plus large.
 
         Le pendant des `Gtk.SizeGroup` de la version GTK, qui imposent a tous
@@ -434,6 +543,10 @@ class PageAvantPostes(QWidget):
 
         cote = self._fenetre.reglages.icone(PART_EMBLEME)
         du = cote + INTERVALLES * ESPACEMENT + largeur_niveau + largeur_guilde
+        # La colonne des pastilles n'existe que les jours ou quelque chose a
+        # bouge -- un intervalle de plus, et sa largeur.
+        if pastilles:
+            du += self._fenetre.reglages.icone(PART_PASTILLE) + ESPACEMENT
         # La place offerte est celle de la zone defilante. Elle vaut zero
         # tant que la fenetre n'est pas posee : on s'en tient alors au
         # plancher, et `resizeEvent` retaillera.
@@ -471,7 +584,8 @@ class PageAvantPostes(QWidget):
             texte, Qt.TextElideMode.ElideRight, largeur)
 
     def _ligne(self, avant_poste, mien: bool, zebre: bool,
-               mesures: Mesures) -> QWidget:
+               mesures: Mesures, change=None,
+               pastilles: bool = False) -> QWidget:
         rangee = QWidget()
         # Sans cet attribut, Qt ne peint pas le fond que la feuille
         # de style donne a un QWidget nu.
@@ -496,6 +610,13 @@ class PageAvantPostes(QWidget):
         self._fenetre.icones.demander_embleme(
             avant_poste.icon, self._rappel_embleme(embleme, cote))
         ligne.addWidget(embleme)
+
+        # Apres l'embleme et non en bout de ligne : ce qui a change, c'est le
+        # proprietaire, et c'est son embleme qu'on vient de voir changer.
+        if pastilles:
+            ligne.addWidget(Pastille(
+                self._fenetre.reglages.icone(PART_PASTILLE),
+                self._infobulle_changement(change) if change else ""))
 
         # **`#compact` pour les trois, la couleur par-dessus.** GTK cumule
         # ses classes : le nom porte `.compact` pour le corps et `.fini` pour

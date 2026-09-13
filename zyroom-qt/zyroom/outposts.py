@@ -243,6 +243,38 @@ class OutpostStore:
         return sum(1 for c in self.history()
                    if c.at > depuis and guilde in (c.frm, c.to))
 
+    #: Au-dela de cet age, une prise n'est plus une nouvelle.
+    #:
+    #: **Un plafond, en plus du marqueur de lecture.** Sans lui, une carte
+    #: ouverte pour la premiere fois apres une longue absence se couvrirait de
+    #: pastilles -- le marqueur vaut zero tant qu'on n'a jamais ouvert le
+    #: journal, et tout l'historique passerait pour du neuf. Sept jours : une
+    #: guerre d'avant-postes se joue sur une semaine, au-dela c'est de
+    #: l'histoire et cela se lit dans le journal.
+    JOURS_RECENTS = 7
+
+    def recents(self, jours: int = JOURS_RECENTS) -> dict:
+        """Les avant-postes qui ont changé de main et qu'on n'a pas encore vus.
+
+        Rend `code -> Change`, le changement le plus récent pour chacun : c'est
+        ce qui permet à la carte de marquer ses lignes sans relire le journal.
+
+        **Tout Atys, et non les nôtres seulement** — à la différence de
+        `non_lus`. Les deux ne répondent pas à la même question : le compteur
+        est un rappel dans la barre, et ne doit sonner que pour ce qui nous
+        concerne ; la pastille, elle, est posée sur la carte de conquête, où
+        l'intérêt est justement de voir où ça a bougé.
+
+        Le journal arrive du plus récent au plus ancien : le premier vu pour un
+        code est donc le bon, et les suivants sont son passé.
+        """
+        depuis = max(self._lire_marque(), int(time.time()) - jours * 86400)
+        vus = {}
+        for c in self.history():
+            if c.at > depuis and c.outpost not in vus:
+                vus[c.outpost] = c
+        return vus
+
     def marquer_lu(self) -> None:
         """Le journal vient d'être ouvert : ce qui y est devient vu."""
         try:

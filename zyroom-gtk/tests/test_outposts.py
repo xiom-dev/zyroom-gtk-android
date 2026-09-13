@@ -1,8 +1,10 @@
 """Les avant-postes : lecture de l'annuaire, et journal des prises."""
 
+import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -89,6 +91,51 @@ class Journal(unittest.TestCase):
             self.assertTrue(all(c.lost for c in histoire))
             store.clear()
             self.assertEqual([], store.history())
+
+
+class Pastilles(unittest.TestCase):
+    """`recents` : ce que la carte marque d'une pastille."""
+
+    @staticmethod
+    def _journal(dossier, lignes):
+        """Écrit un journal à la main : `record` horodate tout à maintenant."""
+        with open(os.path.join(dossier, "outposts.jsonl"), "w",
+                  encoding="utf-8") as fh:
+            for at, code, frm, to in lignes:
+                fh.write(json.dumps({"at": at, "outpost": code,
+                                     "from": frm, "to": to}) + "\n")
+
+    def test_les_prises_recentes_et_pas_les_vieilles(self):
+        maintenant = int(time.time())
+        with tempfile.TemporaryDirectory() as dossier:
+            self._journal(dossier, [
+                (maintenant - 3600, "a", "Alpha", "Beta"),
+                (maintenant - 40 * 86400, "b", "Gamma", "Delta"),
+            ])
+            recents = outposts.OutpostStore(dossier).recents()
+            self.assertEqual(["a"], sorted(recents))
+            self.assertEqual("Beta", recents["a"].to)
+
+    def test_un_avant_poste_repris_ne_montre_que_son_dernier_changement(self):
+        maintenant = int(time.time())
+        with tempfile.TemporaryDirectory() as dossier:
+            self._journal(dossier, [
+                (maintenant - 7200, "a", "Alpha", "Beta"),
+                (maintenant - 3600, "a", "Beta", "Gamma"),
+            ])
+            recents = outposts.OutpostStore(dossier).recents()
+            self.assertEqual(("Beta", "Gamma"),
+                             (recents["a"].frm, recents["a"].to))
+
+    def test_lire_le_journal_efface_les_pastilles(self):
+        """Le marqueur de lecture commande les deux : compteur et pastilles."""
+        maintenant = int(time.time())
+        with tempfile.TemporaryDirectory() as dossier:
+            self._journal(dossier, [(maintenant - 3600, "a", "Alpha", "Beta")])
+            store = outposts.OutpostStore(dossier)
+            self.assertEqual(["a"], sorted(store.recents()))
+            store.marquer_lu()
+            self.assertEqual({}, store.recents())
 
 
 if __name__ == "__main__":
