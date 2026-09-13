@@ -13,7 +13,7 @@ pas la ligne visible. Il faut donc redire à Qt ce qu'est la largeur voulue.
 from __future__ import annotations
 
 from PySide6.QtCore import QSize
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox, QStyledItemDelegate
 
 
 class Deroulante(QComboBox):
@@ -46,6 +46,15 @@ class Deroulante(QComboBox):
         # lui, part quel que soit le chemin.
         self.currentIndexChanged.connect(self.updateGeometry)
         self.currentTextChanged.connect(self.updateGeometry)
+        # **Rendre son delegue a la liste.** Celui que `QComboBox` lui pose
+        # d'office peint ses lignes lui-meme, sans consulter ni la palette ni
+        # la feuille de style : la ligne sous le pointeur sortait en noir pur
+        # -- `#000000`, releve au pixel --, quand les autres prenaient bien le
+        # fond de la feuille. Aucun selecteur QSS n'y pouvait rien, pas meme
+        # `QComboBox QAbstractItemView::item` : la regle etait juste, c'est le
+        # delegue qui ne la lisait pas. Un `QStyledItemDelegate` ordinaire
+        # repasse par le style, et le survol reprend le vert du theme.
+        self.view().setItemDelegate(QStyledItemDelegate(self.view()))
         # La liste qui s'ouvre est une fenêtre à part : elle s'arrondit comme
         # les menus, et comme le popover de la version GTK.
         from . import theme
