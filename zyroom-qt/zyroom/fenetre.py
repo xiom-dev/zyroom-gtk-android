@@ -1185,6 +1185,11 @@ class FenetrePrincipale(QMainWindow):
             QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows)
+        # **Plusieurs lignes d'un coup.** Qt n'en laisse choisir qu'une par
+        # defaut : on pouvait copier une ligne, jamais un passage. Maj+clic
+        # prend une plage, Ctrl+clic ajoute a la volee, comme partout ailleurs.
+        self._table.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection)
         cote = self._settings.icone(PART_ICONE_JOURNAL)
         self._table.setIconSize(QSize(cote, cote))
         self._table.setVerticalScrollMode(

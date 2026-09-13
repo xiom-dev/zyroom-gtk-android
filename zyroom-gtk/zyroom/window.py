@@ -165,6 +165,10 @@ class MainWindow(Gtk.ApplicationWindow):
         # se lit dans le nom : voir `models.categorie_item`. La liste n'est
         # donc plus figee, elle est refaite a chaque inventaire avec les seules
         # familles qui s'y trouvent.
+        #: Les rangs de la grille du journal qu'on a choisis, et le point
+        #: d'ou part une plage tenue a Maj+clic.
+        self._log_choisies: set[int] = set()
+        self._log_ancre = None
         self._categories = list(TYPE_NAMES)
         self._cat_rang = {nom: i for i, nom in enumerate(self._categories)}
         self._f_types = set(range(len(self._categories)))
@@ -716,6 +720,22 @@ class MainWindow(Gtk.ApplicationWindow):
         clic = Gtk.GestureClick(button=3)
         clic.connect("pressed", self._on_journal_clic_droit)
         self._log_grid.add_controller(clic)
+        # **Choisir des lignes, et pas seulement du texte.** Chaque etiquette
+        # se selectionne a la souris, mais une par une : impossible d'attraper
+        # une ligne de la date jusqu'a la qualite, et moins encore un passage
+        # entier. Le clic gauche prend donc une ligne, Maj+clic une plage,
+        # Ctrl+clic ajoute ou retire -- comme dans n'importe quelle liste.
+        choix = Gtk.GestureClick(button=1)
+        choix.connect("pressed", self._on_journal_clic)
+        self._log_grid.add_controller(choix)
+        raccourci = Gtk.ShortcutController()
+        raccourci.set_scope(Gtk.ShortcutScope.LOCAL)
+        raccourci.add_shortcut(Gtk.Shortcut(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control>c"),
+            action=Gtk.CallbackAction.new(
+                lambda *_a: self._copier_journal_choisi())))
+        self._log_grid.add_controller(raccourci)
+        self._log_grid.set_focusable(True)
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
@@ -3238,6 +3258,10 @@ class MainWindow(Gtk.ApplicationWindow):
     def _refresh_log(self) -> None:
         self._log_generation = getattr(self, "_log_generation", 0) + 1
         generation = self._log_generation
+        # Les rangs designeraient d'autres mouvements une fois la grille
+        # refaite : on repart sans rien de choisi.
+        self._log_choisies = set()
+        self._log_ancre = None
         child = self._log_grid.get_first_child()
         while child is not None:
             nxt = child.get_next_sibling()
@@ -3364,15 +3388,71 @@ class MainWindow(Gtk.ApplicationWindow):
                 mots.append(case.get_text())
         return "  ".join(mots)
 
+    def _on_journal_clic(self, geste, _n, _x, y) -> None:
+        """Choisit une ligne, une plage avec Maj, ou en ajoute une avec Ctrl."""
+        rang = self._rang_du_journal(y)
+        if rang is None:
+            return
+        self._log_grid.grab_focus()
+        etat = geste.get_current_event_state()
+        if etat & Gdk.ModifierType.SHIFT_MASK and self._log_ancre is not None:
+            debut, fin = sorted((self._log_ancre, rang))
+            self._log_choisies = set(range(debut, fin + 1))
+        elif etat & Gdk.ModifierType.CONTROL_MASK:
+            self._log_choisies ^= {rang}
+            self._log_ancre = rang
+        else:
+            self._log_choisies = {rang}
+            self._log_ancre = rang
+        self._maj_surlignage_journal()
+
+    def _maj_surlignage_journal(self) -> None:
+        """Repeint les lignes choisies, et rend les autres à leur fond."""
+        enfant = self._log_grid.get_first_child()
+        while enfant is not None:
+            rang = self._log_grid.query_child(enfant)[1]
+            if rang in self._log_choisies:
+                enfant.add_css_class("ligne-choisie")
+            else:
+                enfant.remove_css_class("ligne-choisie")
+            enfant = enfant.get_next_sibling()
+
+    def _lignes_journal_choisies(self) -> list:
+        """Le texte des lignes choisies, de la plus ancienne à la plus récente."""
+        textes = []
+        for rang in sorted(self._log_choisies):
+            texte = self._texte_du_rang(rang)
+            if texte:
+                textes.append(texte)
+        return textes
+
+    def _copier_journal_choisi(self) -> bool:
+        """Ctrl+C : met les lignes choisies dans le presse-papiers."""
+        textes = self._lignes_journal_choisies()
+        if not textes:
+            return False
+        self.get_clipboard().set("\n".join(textes))
+        self._set_status(_("%d ligne(s) copiée(s).") % len(textes))
+        return True
+
     def _on_journal_clic_droit(self, geste, _n, x, y) -> None:
         """Propose de copier la ligne sous le pointeur."""
         rang = self._rang_du_journal(y)
         if rang is None:
             return
-        texte = self._texte_du_rang(rang)
-        if not texte:
+        # Un clic droit hors de ce qui est choisi prend la ligne visee : sinon
+        # le menu proposerait de copier des lignes qu'on ne montre pas du
+        # doigt.
+        if rang not in self._log_choisies:
+            self._log_choisies = {rang}
+            self._log_ancre = rang
+            self._maj_surlignage_journal()
+        textes = self._lignes_journal_choisies()
+        if not textes:
             return
-        bouton = Gtk.Button(label=_("Copier la ligne"))
+        texte = "\n".join(textes)
+        bouton = Gtk.Button(label=_("Copier la ligne") if len(textes) == 1
+                            else _("Copier les %d lignes") % len(textes))
         bouton.add_css_class("flat")
         popover = Gtk.Popover()
         popover.add_css_class("menu")
@@ -3384,7 +3464,7 @@ class MainWindow(Gtk.ApplicationWindow):
         def copier(_b):
             self.get_clipboard().set(texte)
             popover.popdown()
-            self._set_status(_("Ligne copiée."))
+            self._set_status(_("%d ligne(s) copiée(s).") % len(textes))
         bouton.connect("clicked", copier)
         popover.popup()
 
@@ -4655,6 +4735,9 @@ class MainWindow(Gtk.ApplicationWindow):
                on perdait sa ligne en traversant un tableau de vingt-neuf
                avant-postes. */
             .survol row:hover { background: alpha(@zy_sarcelle, 0.28); }
+            /* Les lignes choisies du journal. Le meme sarcelle que le survol,
+               un peu plus soutenu : c'est un etat qui dure, pas un passage. */
+            .ligne-choisie { background: alpha(@zy_sarcelle, 0.38); }
             /* Les triangles du registre : la couleur porte le sens, la
                direction le confirme. */
             .tri-arrivee { color: #4caf50; font-weight: bold; }
