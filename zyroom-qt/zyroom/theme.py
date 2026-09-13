@@ -611,6 +611,8 @@ QLabel#compact[discret="true"] { color: rgba(226, 232, 230, 0.55); }
 #tri-arrivee { color: %(vert)s; font-weight: bold; }
 #tri-depart  { color: %(erreur)s; font-weight: bold; }
 #tri-grade   { color: %(or)s; font-weight: bold; }
+/* La retrogradation garde la couleur du texte : seule la montee se signale. */
+#tri-retro   { color: %(texte)s; font-weight: bold; }
 
 
 /* Les tetes de branche de l'arbre des competences. */

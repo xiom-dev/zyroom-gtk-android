@@ -1114,7 +1114,7 @@ class MainWindow(Gtk.ApplicationWindow):
         ("arrivee", True): ("▲", "tri-arrivee", "arrivée"),
         ("depart", True): ("▼", "tri-depart", "départ"),
         ("grade", True): ("▲", "tri-grade", "montée de grade"),
-        ("grade", False): ("▼", "tri-grade", "rétrogradation"),
+        ("grade", False): ("▼", "tri-retro", "rétrogradation"),
     }
 
     def _signe_mouvement(self, c) -> tuple:
@@ -4591,6 +4591,9 @@ class MainWindow(Gtk.ApplicationWindow):
             .tri-arrivee { color: #4caf50; font-weight: bold; }
             .tri-depart  { color: @zy_erreur; font-weight: bold; }
             .tri-grade   { color: @zy_or; font-weight: bold; }
+            /* La retrogradation garde la couleur du texte : seule la montee
+               se signale. */
+            .tri-retro   { color: @zy_texte; font-weight: bold; }
         """)
         provider.load_from_data(self._au_zoom(feuille).encode("utf-8"))
         if premier_passage:

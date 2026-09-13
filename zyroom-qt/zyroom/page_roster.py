@@ -40,7 +40,7 @@ SIGNES = {
     ("arrivee", True): ("▲", "tri-arrivee", "arrivée"),
     ("depart", True): ("▼", "tri-depart", "départ"),
     ("grade", True): ("▲", "tri-grade", "montée de grade"),
-    ("grade", False): ("▼", "tri-grade", "rétrogradation"),
+    ("grade", False): ("▼", "tri-retro", "rétrogradation"),
 }
 
 
