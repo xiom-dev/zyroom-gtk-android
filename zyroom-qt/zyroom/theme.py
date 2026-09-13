@@ -610,7 +610,7 @@ QLabel#compact[discret="true"] { color: rgba(226, 232, 230, 0.55); }
    confirme -- pour qui distingue mal les deux teintes. */
 #tri-arrivee { color: %(vert)s; font-weight: bold; }
 #tri-depart  { color: %(erreur)s; font-weight: bold; }
-#tri-grade   { color: %(texte)s; font-weight: bold; }
+#tri-grade   { color: %(or)s; font-weight: bold; }
 
 
 /* Les tetes de branche de l'arbre des competences. */

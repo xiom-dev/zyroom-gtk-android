@@ -4590,7 +4590,7 @@ class MainWindow(Gtk.ApplicationWindow):
                direction le confirme. */
             .tri-arrivee { color: #4caf50; font-weight: bold; }
             .tri-depart  { color: @zy_erreur; font-weight: bold; }
-            .tri-grade   { color: @zy_texte; font-weight: bold; }
+            .tri-grade   { color: @zy_or; font-weight: bold; }
         """)
         provider.load_from_data(self._au_zoom(feuille).encode("utf-8"))
         if premier_passage:
