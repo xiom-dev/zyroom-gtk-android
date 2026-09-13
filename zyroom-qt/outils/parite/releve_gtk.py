@@ -81,6 +81,27 @@ SANS_TEMOIN = {
 }
 
 
+
+def sans_les_familles(textes: list) -> list:
+    """Ôte de la liste les familles rangées sous « Type d'objet ».
+
+    **Cette section n'est plus comparable libellé par libellé.** Elle est
+    peuplée avec les seules familles de matière présentes dans l'inventaire
+    ouvert — « Résine », « Graine », « Fragment de peau » — et dépend donc du
+    coffre affiché et du `string_client.pack` que la machine a trouvé. Deux
+    relevés pris dans des conditions différentes n'y liront jamais la même
+    chose, sans que rien ne diverge entre les portages.
+
+    Les autres sections, elles, sont figées et restent vérifiées : on ne retire
+    que ce qui va de « Type d'objet » à « Classe ».
+    """
+    try:
+        debut = textes.index("Type d'objet") + 1
+        fin = textes.index("Classe")
+    except ValueError:
+        return textes
+    return textes[:debut] + textes[fin:]
+
 def couleur(widget) -> str:
     """La couleur du texte, telle que le thème la calcule, en #rrggbb."""
     c = widget.get_style_context().get_color()
@@ -887,7 +908,7 @@ def relever(f: MainWindow) -> dict:
     bouton_filtres = next(w for w in commandes(f._search.get_parent())
                           if isinstance(w, Gtk.MenuButton))
     defilant = bouton_filtres.get_popover().get_child()
-    points["filtres.panneau.textes"] = textes_du_panneau(defilant)
+    points["filtres.panneau.textes"] = sans_les_familles(textes_du_panneau(defilant))
     points["filtres.panneau.hauteur-max"] = defilant.get_max_content_height()
     reglage = f._qmin.get_adjustment()
     points["filtres.qualite.bornes"] = [int(reglage.get_lower()),
@@ -895,7 +916,9 @@ def relever(f: MainWindow) -> dict:
     points["filtres.qualite.pas"] = int(reglage.get_step_increment())
     points["filtres.qualite.depart"] = [int(f._qmin.get_value()),
                                         int(f._qmax.get_value())]
-    points["filtres.cases"] = len(f._all_checks)
+    # Les familles varient avec l'inventaire : on ne compte que
+    # les cases des sections figees.
+    points["filtres.cases"] = len(f._all_checks) - len(f._categories)
 
     # --- Les deux menus de la barre du haut, ouverts eux aussi -------------
     popover = f._plus_btn.get_popover()

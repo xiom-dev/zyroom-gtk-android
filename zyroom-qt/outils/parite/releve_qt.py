@@ -81,6 +81,27 @@ SANS_TEMOIN = {
 }
 
 
+
+def sans_les_familles(textes: list) -> list:
+    """Ôte de la liste les familles rangées sous « Type d'objet ».
+
+    **Cette section n'est plus comparable libellé par libellé.** Elle est
+    peuplée avec les seules familles de matière présentes dans l'inventaire
+    ouvert — « Résine », « Graine », « Fragment de peau » — et dépend donc du
+    coffre affiché et du `string_client.pack` que la machine a trouvé. Deux
+    relevés pris dans des conditions différentes n'y liront jamais la même
+    chose, sans que rien ne diverge entre les portages.
+
+    Les autres sections, elles, sont figées et restent vérifiées : on ne retire
+    que ce qui va de « Type d'objet » à « Classe ».
+    """
+    try:
+        debut = textes.index("Type d'objet") + 1
+        fin = textes.index("Classe")
+    except ValueError:
+        return textes
+    return textes[:debut] + textes[fin:]
+
 def couleur_texte(widget, sans_a_droite: int = 0,
                   sans_a_gauche: int = 0) -> str:
     """La couleur du texte, **lue dans le rendu du widget**.
@@ -721,12 +742,14 @@ def relever(f: FenetrePrincipale) -> dict:
     defilant = porteur.defaultWidget()
     contenu_filtres = (defilant.widget() if isinstance(defilant, QScrollArea)
                        else defilant)
-    points["filtres.panneau.textes"] = textes_du_panneau(contenu_filtres)
+    points["filtres.panneau.textes"] = sans_les_familles(textes_du_panneau(contenu_filtres))
     points["filtres.panneau.hauteur-max"] = defilant.maximumHeight()
     points["filtres.qualite.bornes"] = [f._qmin.minimum(), f._qmin.maximum()]
     points["filtres.qualite.pas"] = f._qmin.singleStep()
     points["filtres.qualite.depart"] = [f._qmin.value(), f._qmax.value()]
-    points["filtres.cases"] = len(f._toutes_cases)
+    # Les familles varient avec l'inventaire : on ne compte que
+    # les cases des sections figees.
+    points["filtres.cases"] = len(f._toutes_cases) - len(f._categories)
 
     # --- Les deux menus de la barre du haut, ouverts eux aussi -------------
     points["menu.bonus.libelles"] = [a.text()

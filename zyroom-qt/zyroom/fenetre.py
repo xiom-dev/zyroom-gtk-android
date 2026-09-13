@@ -1969,6 +1969,13 @@ class FenetrePrincipale(QMainWindow):
         les bonus d'abord, parce que c'est le tri qu'on vient chercher le plus
         souvent dans un coffre d'équipement.
         """
+        # **La liste repart de zero a chaque construction.** Le menu est refait
+        # quand les familles de matiere changent, et les cases de l'ancien
+        # menu, restees dans la liste, auraient ete recochees par « Reinit. »
+        # sans que rien ne bouge a l'ecran -- des widgets orphelins qui
+        # repondent encore. Le controle de parite l'a vu : soixante-douze cases
+        # comptees la ou GTK en montrait trente-deux.
+        self._toutes_cases = []
         menu = QMenu(self)
         contenu = QWidget()
         colonne = QVBoxLayout(contenu)

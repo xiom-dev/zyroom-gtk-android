@@ -18,4 +18,4 @@ __version__ = "1.11.66"
 #: "0.10" vient apres "0.9" pour nous, avant pour un tri de chaines. Il croit
 #: d'une unite a chaque livraison, comme le versionCode d'Android, et c'est ce
 #: meme entier que `version.json` annonce sur la page de telechargement.
-__version_code__ = 89
+__version_code__ = 95
