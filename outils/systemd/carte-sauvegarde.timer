@@ -1,0 +1,16 @@
+[Unit]
+Description=Relevé de la carte des membres, toutes les quinze minutes
+
+[Timer]
+# Trois minutes après l'ouverture de session : le réseau est là, et l'on ne
+# tombe pas en même temps que le relevé des guildes.
+OnBootSec=3min
+OnUnitActiveSec=15min
+# Rattrape le relevé manqué quand la machine était éteinte. Rien n'est perdu
+# pour autant : uMap liste ses versions, et le script rapatrie toutes celles
+# qui manquent, pas seulement la dernière.
+Persistent=true
+Unit=carte-sauvegarde.service
+
+[Install]
+WantedBy=timers.target

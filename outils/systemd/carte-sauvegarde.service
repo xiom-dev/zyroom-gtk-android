@@ -1,0 +1,8 @@
+[Unit]
+Description=Sauvegarde des versions de la carte des membres (Framacarte)
+Documentation=file:///home/ludo/jeu/ryzom/zyroom/xiom-dev/outils/sauver-carte.py
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/ludo/jeu/ryzom/zyroom/xiom-dev/outils/sauver-carte.py

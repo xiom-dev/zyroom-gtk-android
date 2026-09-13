@@ -26,4 +26,10 @@
 
 # La copie de la page pour le domaine : elle se regenere avec
 # `outils/site-domaine.py`, elle n'a pas a etre versionnee.
-site-domaine/
+#
+# `carte/`, elle, fait exception : cette page est ecrite a la main et ne
+# derive de rien -- hors du depot, elle n'existerait qu'ici. Il faut ignorer
+# le contenu du dossier (`/*`) et non le dossier lui-meme, sinon git n'y
+# entre pas et la reinclusion ne serait jamais lue.
+site-domaine/*
+!site-domaine/carte/

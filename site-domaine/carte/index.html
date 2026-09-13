@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Carte de La Lune Éternelle</title>
+<meta name="description" content="Où vivent les membres de la guilde La Lune Éternelle, sur une carte libre.">
+<meta name="theme-color" content="#10171a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233f7a68'/><circle cx='20' cy='12' r='11' fill='%2310171a'/></svg>">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Carte de La Lune Éternelle">
+<meta property="og:description" content="Où vivent les membres de la guilde, sur une carte libre.">
+<meta property="og:url" content="https://xiom.be/carte/">
+
+<style>
+  /* Les couleurs de xiom.be, reprises telles quelles : la page de la carte
+     doit se lire comme une piece du meme site, pas comme une page a part. */
+  :root {
+    color-scheme: dark;
+    --fond:     #10171a;
+    --surface:  #172226;
+    --sarcelle: #3f7a68;
+    --clair:    #8fbfae;
+    --or:       #e8c15a;
+    --texte:    #e2e8e6;
+    --faible:   #9aa8a5;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    background: var(--fond);
+    color: var(--texte);
+    font-family: system-ui, sans-serif;
+    /* Colonne : le bandeau prend sa hauteur, la carte tout le reste. Sans
+       cela l'iframe reclame une hauteur en pixels, qu'il faudrait deviner. */
+    display: flex;
+    flex-direction: column;
+    /* `dvh` suit la barre d'adresse des navigateurs mobiles, qui se retracte
+       en defilant ; `vh` reste le repli pour les navigateurs plus anciens. */
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  header {
+    flex: none;
+    display: flex;
+    align-items: baseline;
+    gap: .9rem 1.1rem;
+    flex-wrap: wrap;
+    padding: .7rem clamp(.9rem, 3vw, 1.4rem);
+    padding-top: max(.7rem, env(safe-area-inset-top));
+    background: var(--surface);
+    border-bottom: 1px solid #0b1113;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 1.02rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+  }
+  h1 span { color: var(--or); }
+
+  .dit {
+    font-size: .87rem;
+    color: var(--faible);
+    margin: 0;
+  }
+
+  /* Pousse les liens a droite quand la place le permet, et les laisse passer
+     a la ligne quand elle manque. */
+  .liens {
+    margin-left: auto;
+    display: flex;
+    gap: 1.1rem;
+    font-size: .87rem;
+  }
+  a { color: var(--clair); text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+  a:focus-visible { outline: 2px solid var(--sarcelle); outline-offset: 3px; }
+
+  .carte {
+    flex: 1 1 auto;
+    position: relative;
+    min-height: 0;      /* sans quoi l'iframe deborde le conteneur flex */
+    background: var(--fond);
+  }
+
+  iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+
+  /* Le repli : il est dessous, et l'iframe le recouvre des qu'elle charge.
+     S'il reste visible, c'est que la carte n'a pas pu s'afficher. */
+  .repli {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: .8rem;
+    text-align: center;
+    padding: 2rem;
+    color: var(--faible);
+    font-size: .95rem;
+  }
+
+  @media (max-width: 520px) {
+    .liens { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Carte de <span>La Lune Éternelle</span></h1>
+  <p class="dit">D’où viennent les membres de la guilde.</p>
+  <nav class="liens">
+    <a href="https://framacarte.org/fr/map/la-lune-eternelle_238251"
+       target="_blank" rel="noopener">Ouvrir en grand</a>
+    <a href="/">Les applications</a>
+  </nav>
+</header>
+
+<div class="carte">
+  <p class="repli">
+    La carte ne s’affiche pas ?
+    <a href="https://framacarte.org/fr/map/la-lune-eternelle_238251"
+       target="_blank" rel="noopener">Voir la carte sur Framacarte</a>
+  </p>
+  <!-- uMap lit ses reglages dans la requete : pas de molette qui happe le
+       defilement de la page, les calques accessibles pour filtrer, et la
+       carte en lecture seule. `allow="geolocation"` laisse le visiteur se
+       placer lui-meme ; `title` nomme le cadre pour les lecteurs d'ecran. -->
+  <iframe
+    title="Carte des membres de La Lune Éternelle"
+    src="https://framacarte.org/fr/map/la-lune-eternelle_238251?scaleControl=true&amp;miniMap=false&amp;scrollWheelZoom=true&amp;zoomControl=true&amp;allowEdit=false&amp;moreControl=true&amp;searchControl=true&amp;tilelayersControl=true&amp;embedControl=false&amp;datalayersControl=true&amp;onLoadPanel=none&amp;captionBar=false&amp;captionMenus=false&amp;fullscreenControl=true"
+    allow="geolocation; fullscreen"
+    allowfullscreen
+    loading="eager"
+    referrerpolicy="no-referrer-when-downgrade"></iframe>
+</div>
+
+</body>
+</html>
