@@ -3290,13 +3290,13 @@ class MainWindow(Gtk.ApplicationWindow):
                 row += 1
             jour_precedent = jour
 
-            when = Gtk.Label(label=mv.when, xalign=0.0, selectable=True)
+            when = Gtk.Label(label=mv.when, xalign=0.0)
             when.add_css_class("dim-label")
             when.add_css_class("monospace")
             self._log_grid.attach(when, 0, row, 1, 1)
 
             where = Gtk.Label(label=self._sans_parenthese(mv.inv_label),
-                              xalign=0.0, selectable=True)
+                              xalign=0.0)
             where.add_css_class("dim-label")
             self._log_grid.attach(where, 1, row, 1, 1)
 
@@ -3316,7 +3316,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             name = Gtk.Label(label=_("Dappers") if argent
                              else self._names.name(mv.sheet),
-                             xalign=0.0, selectable=True)
+                             xalign=0.0)
             self._log_grid.attach(name, 3, row, 1, 1)
 
             # L'icône de l'objet, sur la ligne, juste avant sa qualité : c'est
@@ -3337,7 +3337,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     self._icone_journal(generation, icone))
 
             quality = Gtk.Label(label=f"Q{mv.quality}" if mv.quality else "",
-                                xalign=0.0, selectable=True)
+                                xalign=0.0)
             quality.add_css_class("dim-label")
             # C'est la derniere colonne qui prend l'espace libre, et non celle
             # des noms : la qualite se pose alors juste apres l'icone, sous le
@@ -3369,32 +3369,31 @@ class MainWindow(Gtk.ApplicationWindow):
             # C'est la sous-page visible qui décide ce qu'il faut charger.
             self._on_plus_changed()
 
-    def _rang_du_journal(self, y: float):
-        """Le rang de la grille du journal sous cette ordonnée, ou None."""
-        enfant = self._log_grid.get_first_child()
-        while enfant is not None:
-            ok, cadre = enfant.compute_bounds(self._log_grid)
-            if ok and cadre.origin.y <= y < cadre.origin.y + cadre.size.height:
-                return self._log_grid.query_child(enfant)[1]
-            enfant = enfant.get_next_sibling()
+    def _rang_du_journal(self, x: float, y: float):
+        """Le rang de la grille du journal sous ce point, ou None.
+
+        **`pick` plutôt qu'un parcours.** Chercher la ligne en mesurant chaque
+        enfant coûtait quatre-vingt-dix millisecondes par clic sur un journal
+        de mille cinq cents lignes — sept mille cinq cents `compute_bounds`, et
+        une application qui collait au doigt. GTK sait répondre lui-même quel
+        widget se trouve sous un point ; il ne reste qu'à remonter jusqu'à
+        l'enfant direct de la grille pour lui demander son rang.
+        """
+        case = self._log_grid.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while case is not None and case is not self._log_grid:
+            if case.get_parent() is self._log_grid:
+                return self._log_grid.query_child(case)[1]
+            case = case.get_parent()
         return None
 
-    def _texte_du_rang(self, rang: int) -> str:
-        """Les mots d'une ligne du journal, dans l'ordre des colonnes."""
-        mots = []
-        for colonne in range(6):
-            case = self._log_grid.get_child_at(colonne, rang)
-            if isinstance(case, Gtk.Label) and case.get_text():
-                mots.append(case.get_text())
-        return "  ".join(mots)
-
-    def _on_journal_clic(self, geste, _n, _x, y) -> None:
+    def _on_journal_clic(self, geste, _n, x, y) -> None:
         """Choisit une ligne, une plage avec Maj, ou en ajoute une avec Ctrl."""
-        rang = self._rang_du_journal(y)
+        rang = self._rang_du_journal(x, y)
         if rang is None:
             return
         self._log_grid.grab_focus()
         etat = geste.get_current_event_state()
+        avant = set(self._log_choisies)
         if etat & Gdk.ModifierType.SHIFT_MASK and self._log_ancre is not None:
             debut, fin = sorted((self._log_ancre, rang))
             self._log_choisies = set(range(debut, fin + 1))
@@ -3404,18 +3403,25 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             self._log_choisies = {rang}
             self._log_ancre = rang
-        self._maj_surlignage_journal()
+        self._maj_surlignage_journal(avant)
 
-    def _maj_surlignage_journal(self) -> None:
-        """Repeint les lignes choisies, et rend les autres à leur fond."""
-        enfant = self._log_grid.get_first_child()
-        while enfant is not None:
-            rang = self._log_grid.query_child(enfant)[1]
-            if rang in self._log_choisies:
-                enfant.add_css_class("ligne-choisie")
-            else:
-                enfant.remove_css_class("ligne-choisie")
-            enfant = enfant.get_next_sibling()
+    def _maj_surlignage_journal(self, avant: set = frozenset()) -> None:
+        """Repeint les seules lignes dont l'état a changé.
+
+        Repasser sur toute la grille coûtait vingt millisecondes par clic :
+        c'est le genre de dépense qu'on ne voit pas venir et qui rend une
+        application collante.
+        """
+        for rang in set(avant) ^ self._log_choisies:
+            choisie = rang in self._log_choisies
+            for colonne in range(6):
+                case = self._log_grid.get_child_at(colonne, rang)
+                if case is None:
+                    continue
+                if choisie:
+                    case.add_css_class("ligne-choisie")
+                else:
+                    case.remove_css_class("ligne-choisie")
 
     def _lignes_journal_choisies(self) -> list:
         """Le texte des lignes choisies, de la plus ancienne à la plus récente."""
@@ -3437,16 +3443,17 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_journal_clic_droit(self, geste, _n, x, y) -> None:
         """Propose de copier la ligne sous le pointeur."""
-        rang = self._rang_du_journal(y)
+        rang = self._rang_du_journal(x, y)
         if rang is None:
             return
         # Un clic droit hors de ce qui est choisi prend la ligne visee : sinon
         # le menu proposerait de copier des lignes qu'on ne montre pas du
         # doigt.
         if rang not in self._log_choisies:
+            avant = set(self._log_choisies)
             self._log_choisies = {rang}
             self._log_ancre = rang
-            self._maj_surlignage_journal()
+            self._maj_surlignage_journal(avant)
         textes = self._lignes_journal_choisies()
         if not textes:
             return
