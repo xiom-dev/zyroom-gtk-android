@@ -728,6 +728,13 @@ class MainWindow(Gtk.ApplicationWindow):
         choix = Gtk.GestureClick(button=1)
         choix.connect("pressed", self._on_journal_clic)
         self._log_grid.add_controller(choix)
+        # **Et le glisse, comme dans un tableau.** Maj+clic suppose qu'on sache
+        # qu'il existe ; tirer du doigt sur plusieurs lignes est le geste qu'on
+        # essaie d'abord, et c'est celui que la version Qt offre. L'ancre reste
+        # la ligne ou le bouton s'est enfonce ; la sélection suit le pointeur.
+        glisse = Gtk.GestureDrag()
+        glisse.connect("drag-update", self._on_journal_glisse)
+        self._log_grid.add_controller(glisse)
         raccourci = Gtk.ShortcutController()
         raccourci.set_scope(Gtk.ShortcutScope.LOCAL)
         raccourci.add_shortcut(Gtk.Shortcut(
@@ -3369,23 +3376,6 @@ class MainWindow(Gtk.ApplicationWindow):
             # C'est la sous-page visible qui décide ce qu'il faut charger.
             self._on_plus_changed()
 
-    def _rang_du_journal(self, x: float, y: float):
-        """Le rang de la grille du journal sous ce point, ou None.
-
-        **`pick` plutôt qu'un parcours.** Chercher la ligne en mesurant chaque
-        enfant coûtait quatre-vingt-dix millisecondes par clic sur un journal
-        de mille cinq cents lignes — sept mille cinq cents `compute_bounds`, et
-        une application qui collait au doigt. GTK sait répondre lui-même quel
-        widget se trouve sous un point ; il ne reste qu'à remonter jusqu'à
-        l'enfant direct de la grille pour lui demander son rang.
-        """
-        case = self._log_grid.pick(x, y, Gtk.PickFlags.DEFAULT)
-        while case is not None and case is not self._log_grid:
-            if case.get_parent() is self._log_grid:
-                return self._log_grid.query_child(case)[1]
-            case = case.get_parent()
-        return None
-
     def _on_journal_clic(self, geste, _n, x, y) -> None:
         """Choisit une ligne, une plage avec Maj, ou en ajoute une avec Ctrl."""
         rang = self._rang_du_journal(x, y)
@@ -3404,6 +3394,39 @@ class MainWindow(Gtk.ApplicationWindow):
             self._log_choisies = {rang}
             self._log_ancre = rang
         self._maj_surlignage_journal(avant)
+
+    def _rang_du_journal(self, x: float, y: float):
+        """Le rang de la grille du journal sous ce point, ou None.
+
+        **`pick` plutôt qu'un parcours.** Chercher la ligne en mesurant chaque
+        enfant coûtait quatre-vingt-dix millisecondes par clic sur un journal
+        de mille cinq cents lignes — sept mille cinq cents `compute_bounds`, et
+        une application qui collait au doigt. GTK sait répondre lui-même quel
+        widget se trouve sous un point ; il ne reste qu'à remonter jusqu'à
+        l'enfant direct de la grille pour lui demander son rang.
+        """
+        case = self._log_grid.pick(x, y, Gtk.PickFlags.DEFAULT)
+        while case is not None and case is not self._log_grid:
+            if case.get_parent() is self._log_grid:
+                return self._log_grid.query_child(case)[1]
+            case = case.get_parent()
+        return None
+
+    def _on_journal_glisse(self, geste, dx, dy) -> None:
+        """Étend la sélection jusqu'à la ligne sous le pointeur."""
+        if self._log_ancre is None:
+            return
+        ok, x, y = geste.get_start_point()
+        if not ok:
+            return
+        rang = self._rang_du_journal(x + dx, y + dy)
+        if rang is None:
+            return
+        avant = set(self._log_choisies)
+        debut, fin = sorted((self._log_ancre, rang))
+        self._log_choisies = set(range(debut, fin + 1))
+        if self._log_choisies != avant:
+            self._maj_surlignage_journal(avant)
 
     def _maj_surlignage_journal(self, avant: set = frozenset()) -> None:
         """Repeint les seules lignes dont l'état a changé.
