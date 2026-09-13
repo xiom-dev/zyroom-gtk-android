@@ -68,7 +68,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.24" if _DEV else "0.95"
+VERSION = "1.25" if _DEV else "0.96"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
