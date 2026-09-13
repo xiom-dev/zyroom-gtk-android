@@ -87,6 +87,89 @@
   a:hover, a:focus-visible { text-decoration: underline; }
   a:focus-visible { outline: 2px solid var(--sarcelle); outline-offset: 3px; }
 
+  /* **Le seul bouton de la page, et il mene ailleurs.** L'editeur s'ouvre
+     bien dans le cadre, mais rien ne s'y enregistre : le cookie CSRF de
+     Framacarte est pose en `SameSite=Lax`, et un navigateur ne le transmet
+     pas depuis une iframe d'un autre domaine. Contribuer se fait donc dans
+     un onglet a part, ou le cookie redevient valide. Autant que ce chemin
+     saute aux yeux, plutot que de laisser un membre buter sur un
+     enregistrement qui echoue sans rien dire. */
+  .ajouter {
+    background: var(--sarcelle);
+    color: #06120e;
+    font-weight: 600;
+    padding: .3rem .85rem;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .ajouter:hover, .ajouter:focus-visible {
+    background: var(--clair);
+    text-decoration: none;
+  }
+
+  /* Le mode d'emploi, ouvert en permanence : un membre qui arrive doit voir
+     quoi faire sans avoir a deplier quoi que ce soit. Il ne prend qu'une
+     bande sous le bandeau, et la carte occupe tout le reste. */
+  .aide { flex: none; background: var(--surface); border-bottom: 1px solid #0b1113; }
+
+  .aide h2 {
+    margin: 0;
+    padding: .55rem clamp(.9rem, 3vw, 1.4rem) .1rem;
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--sarcelle);
+  }
+
+  .etapes {
+    margin: 0;
+    padding: .5rem clamp(.9rem, 3vw, 1.4rem) .9rem;
+    list-style: none;
+    display: grid;
+    gap: .75rem 1.6rem;
+    counter-reset: etape;
+  }
+  @media (min-width: 760px) { .etapes { grid-template-columns: repeat(4, 1fr); } }
+
+  /* **Le numero est pose en absolu, et la phrase reste une phrase.** Une
+     grille sur le `li` ferait de chaque `b` et du `svg` une case a eux : les
+     mots en gras partaient a la ligne, et le mode d'emploi devenait
+     illisible. Ici le contenu reste du texte courant. */
+  .etapes li {
+    position: relative;
+    padding-left: 2.2rem;
+    font-size: .88rem;
+    color: var(--faible);
+  }
+  /* **Gros, pour qu'on compte du regard.** A la taille du texte, les numeros
+     se confondaient avec lui et l'ordre des etapes se devinait au lieu de se
+     voir. `line-height: 1` les cale sur la premiere ligne : sans lui, un
+     chiffre de cette taille se centrerait sur son propre interligne et
+     flotterait au-dessus du texte qu'il numerote. */
+  .etapes li::before {
+    counter-increment: etape;
+    content: counter(etape);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.7rem;
+    text-align: center;
+    color: var(--or);
+    font-weight: 700;
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+  .etapes b { color: var(--texte); font-weight: 600; }
+  /* La goutte, dessinee : c'est le symbole que le membre doit reconnaitre
+     dans la barre d'outils, et aucune police ne le porte. */
+  .goutte {
+    width: 1em;
+    height: 1em;
+    vertical-align: -.16em;
+    margin: 0 .1em;
+  }
+
   .carte {
     flex: 1 1 auto;
     position: relative;
@@ -128,11 +211,32 @@
   <h1>Carte de <span>La Lune Éternelle</span></h1>
   <p class="dit">D’où viennent les membres de la guilde.</p>
   <nav class="liens">
-    <a href="https://framacarte.org/fr/map/la-lune-eternelle_238251"
-       target="_blank" rel="noopener">Ouvrir en grand</a>
     <a href="/">Les applications</a>
+    <!-- La meme vue que le cadre, pour ne pas depayser en changeant d'onglet. -->
+    <a class="ajouter"
+       href="https://framacarte.org/fr/map/la-lune-eternelle_238251#6/47.189712/6.657715"
+       target="_blank" rel="noopener">Ajouter mon lieu</a>
   </nav>
 </header>
+
+<section class="aide">
+  <h2>Ajouter mon lieu, en quatre clics</h2>
+  <ol class="etapes">
+    <li>Clique sur <b>Ajouter mon lieu</b>, en haut à droite. Framacarte
+    s’ouvre dans un nouvel onglet.</li>
+    <li>Là-bas, clique sur <b>Éditer</b>, en haut à droite de la carte.</li>
+    <li>Clique sur la
+      <svg class="goutte" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2c-3.9 0-7 3.1-7 7 0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z"
+              fill="#8fbfae"></path>
+        <circle cx="12" cy="9" r="2.6" fill="#172226"></circle>
+      </svg>
+      <b>goutte</b> dans la barre d’outils, puis sur la carte à l’endroit où
+    tu habites.</li>
+    <li>Écris ton nom dans la fiche qui s’ouvre, puis clique sur
+    <b>Enregistrer</b>. C’est tout.</li>
+  </ol>
+</section>
 
 <div class="carte">
   <p class="repli">
@@ -143,10 +247,18 @@
   <!-- uMap lit ses reglages dans la requete : pas de molette qui happe le
        defilement de la page, les calques accessibles pour filtrer, et la
        carte en lecture seule. `allow="geolocation"` laisse le visiteur se
-       placer lui-meme ; `title` nomme le cadre pour les lecteurs d'ecran. -->
+       placer lui-meme ; `title` nomme le cadre pour les lecteurs d'ecran.
+
+       Le `#6/47.189712/6.657715` de la fin impose la vue d'ouverture :
+       zoom 6, centre sur l'Europe de l'Ouest, de quoi voir tous les membres
+       d'un coup. Il vient **apres** la requete, jamais avant -- un fragment
+       se place toujours en dernier dans une adresse, et ce qui le suivrait
+       en ferait partie au lieu d'etre lu comme un parametre. Le centre et le
+       zoom enregistres dans uMap restent ce qu'ils sont : cette page ne fait
+       que demander une autre vue a l'ouverture. -->
   <iframe
     title="Carte des membres de La Lune Éternelle"
-    src="https://framacarte.org/fr/map/la-lune-eternelle_238251?scaleControl=true&amp;miniMap=false&amp;scrollWheelZoom=true&amp;zoomControl=true&amp;allowEdit=false&amp;moreControl=true&amp;searchControl=true&amp;tilelayersControl=true&amp;embedControl=false&amp;datalayersControl=true&amp;onLoadPanel=none&amp;captionBar=false&amp;captionMenus=false&amp;fullscreenControl=true"
+    src="https://framacarte.org/fr/map/la-lune-eternelle_238251?scaleControl=true&amp;miniMap=false&amp;scrollWheelZoom=true&amp;zoomControl=true&amp;allowEdit=false&amp;moreControl=true&amp;searchControl=true&amp;tilelayersControl=true&amp;embedControl=false&amp;datalayersControl=true&amp;onLoadPanel=none&amp;captionBar=false&amp;captionMenus=false&amp;fullscreenControl=true#6/47.189712/6.657715"
     allow="geolocation; fullscreen"
     allowfullscreen
     loading="eager"
