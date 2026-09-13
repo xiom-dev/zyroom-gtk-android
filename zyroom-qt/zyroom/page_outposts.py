@@ -11,6 +11,7 @@ c'est `outposts.py`, dans le noyau partagé, qui tient ce journal.
 from __future__ import annotations
 
 from datetime import datetime
+from html import escape
 from math import ceil, cos, radians, sin
 from typing import NamedTuple
 
@@ -99,6 +100,35 @@ def _entier(avance: float) -> int:
     et n'y perd rien.
     """
     return ceil(avance) + 1
+
+
+#: Les couleurs du journal des prises, celles du registre de l'effectif : ce
+#: qui arrive est vert, ce qui part est rouge, et l'or nomme la guilde qui a
+#: perdu. Ecrites ici et non dans la feuille : une ligne porte trois couleurs,
+#: et un selecteur ne s'applique qu'a l'etiquette entiere.
+PRISE_VERT = "#4caf50"
+PRISE_ROUGE = "#e2696a"
+PRISE_OR = "#e8c15a"
+
+
+def _phrase_prise(quand: str, nom: str, change) -> str:
+    """Une ligne du journal, en HTML.
+
+    La guilde qui perd est en or derrière une flèche rouge qui descend ; celle
+    qui gagne en vert derrière une flèche verte qui monte. Un échange porte les
+    deux, dans l'ordre où il s'est produit. Le pendant exact de
+    `MainWindow._phrase_prise`, en HTML plutôt qu'en markup Pango.
+    """
+    parts = [f"{escape(quand)}   {escape(nom)}   —"]
+    if change.frm:
+        parts.append(
+            f'<span style="color:{PRISE_ROUGE}">▼</span> '
+            f'<span style="color:{PRISE_OR}">{escape(change.frm)}</span>')
+    if change.to:
+        parts.append(
+            f'<span style="color:{PRISE_VERT}">▲</span> '
+            f'<span style="color:{PRISE_VERT}">{escape(change.to)}</span>')
+    return " ".join(parts)
 
 
 class Pastille(QWidget):
@@ -437,14 +467,8 @@ class PageAvantPostes(QWidget):
         for rang, c in enumerate(self._changements):
             quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
             nom = noms.name(f"{c.outpost}.outpost")
-            if c.taken:
-                texte = _("%s — pris par %s") % (nom, c.to)
-            elif c.lost:
-                texte = _("%s — perdu par %s") % (nom, c.frm)
-            else:
-                texte = _("%s — %s ▸ %s") % (nom, c.frm, c.to)
-            self._journal.addWidget(
-                self._ligne_simple(f"{quand}   {texte}", zebre=rang % 2 == 0))
+            self._journal.addWidget(self._ligne_simple(
+                _phrase_prise(quand, nom, c), zebre=rang % 2 == 0, riche=True))
 
     @staticmethod
     def _infobulle_changement(change) -> str:
@@ -699,8 +723,15 @@ class PageAvantPostes(QWidget):
 
     @staticmethod
     def _ligne_simple(texte: str, discret: bool = False,
-                      zebre: bool = False) -> QWidget:
+                      zebre: bool = False, riche: bool = False) -> QWidget:
         lbl = QLabel(texte)
+        # Le journal des prises colore les noms de guildes : il passe donc son
+        # texte en HTML, deja echappe par `_phrase_prise`. Impose plutot que
+        # devine : Qt choisit son format sur la mine du texte, et un nom de
+        # guilde avec un chevron suffirait a le tromper dans un sens comme
+        # dans l'autre.
+        lbl.setTextFormat(Qt.TextFormat.RichText if riche
+                          else Qt.TextFormat.PlainText)
         lbl.setWordWrap(True)
         lbl.setContentsMargins(8, 4, 8, 4)
         if discret:

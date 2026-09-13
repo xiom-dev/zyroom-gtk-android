@@ -1466,14 +1466,36 @@ class MainWindow(Gtk.ApplicationWindow):
         for rang, c in enumerate(self._op_changements):
             quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
             nom = self._names.name(f"{c.outpost}.outpost")
-            if c.taken:
-                texte = _("%s — pris par %s") % (nom, c.to)
-            elif c.lost:
-                texte = _("%s — perdu par %s") % (nom, c.frm)
-            else:
-                texte = _("%s — %s ▸ %s") % (nom, c.frm, c.to)
-            self._op_box.append(self._ligne_simple(f"{quand}   {texte}",
-                                                   zebre=rang % 2 == 0))
+            self._op_box.append(self._ligne_simple(
+                self._phrase_prise(quand, nom, c),
+                zebre=rang % 2 == 0, markup=True))
+
+    #: Les couleurs du journal des prises, celles du registre de l'effectif :
+    #: ce qui arrive est vert, ce qui part est rouge, et l'or nomme la guilde
+    #: qui a perdu. Ecrites ici et non en CSS : une ligne porte trois couleurs,
+    #: et une classe ne s'applique qu'a l'etiquette entiere.
+    PRISE_VERT = "#4caf50"
+    PRISE_ROUGE = "#e2696a"
+    PRISE_OR = "#e8c15a"
+
+    def _phrase_prise(self, quand: str, nom: str, change) -> str:
+        """Une ligne du journal, en markup Pango.
+
+        La guilde qui perd est en or derrière une flèche rouge qui descend ;
+        celle qui gagne en vert derrière une flèche verte qui monte. Un
+        échange porte les deux, dans l'ordre où il s'est produit.
+        """
+        echapper = GLib.markup_escape_text
+        parts = [f"{echapper(quand)}   {echapper(nom)}   —"]
+        if change.frm:
+            parts.append(
+                f'<span foreground="{self.PRISE_ROUGE}">▼</span> '
+                f'<span foreground="{self.PRISE_OR}">{echapper(change.frm)}</span>')
+        if change.to:
+            parts.append(
+                f'<span foreground="{self.PRISE_VERT}">▲</span> '
+                f'<span foreground="{self.PRISE_VERT}">{echapper(change.to)}</span>')
+        return " ".join(parts)
 
     def _entete_peuple(self, nom: str) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
@@ -1621,11 +1643,18 @@ class MainWindow(Gtk.ApplicationWindow):
         return row
 
     def _ligne_simple(self, texte: str, dim: bool = False,
-                      zebre: bool = False) -> Gtk.ListBoxRow:
+                      zebre: bool = False,
+                      markup: bool = False) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         if zebre:
             row.add_css_class("zebre")
-        label = Gtk.Label(label=texte, xalign=0.0, wrap=True)
+        label = Gtk.Label(xalign=0.0, wrap=True)
+        # Le journal des prises colore les noms de guildes : il passe donc son
+        # texte en markup Pango, deja echappe par `_phrase_prise`.
+        if markup:
+            label.set_markup(texte)
+        else:
+            label.set_text(texte)
         if dim:
             label.add_css_class("dim-label")
         self._pad(label)
