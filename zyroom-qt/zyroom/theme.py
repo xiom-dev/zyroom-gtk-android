@@ -902,7 +902,12 @@ QComboBox {
        trouves. */
     min-height: 26px;
 }
-QComboBox:hover { background-color: #454545; }
+/* **Le survol prend le vert du theme, et non le gris des boutons.** C'etait
+   la seule touche neutre d'une barre par ailleurs sarcelle : le menu du haut
+   (`QMenu::item:selected`) et la ligne choisie d'une liste (le `Highlight` de
+   la palette) portaient deja cette meme sarcelle sombre. La version GTK la
+   pose au meme endroit, sur `dropdown > button:hover`. */
+QComboBox:hover { background-color: %(sarcelle_sombre)s; }
 QComboBox:focus { border-color: %(sarcelle)s; }
 QComboBox::drop-down { border: none; width: 22px; }
 QComboBox::down-arrow {

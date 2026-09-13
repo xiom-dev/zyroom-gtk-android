@@ -4496,6 +4496,25 @@ class MainWindow(Gtk.ApplicationWindow):
             dropdown > popover listview > row {
                 min-height: 0; padding-top: 2px; padding-bottom: 2px; }
 
+            /* **Le survol prend le vert du theme, et non le voile d'Adwaita.**
+               Une deroulante survolee virait au gris clair -- la seule touche
+               neutre d'une barre par ailleurs sarcelle, et la seule aussi a
+               s'ecarter du portage Qt, ou ce vert etait deja en place : son
+               `QMenu::item:selected` et le `Highlight` de sa palette sont
+               tous deux la sarcelle sombre. Les trois selecteurs couvrent les
+               trois endroits ou l'on survole un menu : le bouton de la
+               deroulante fermee, une ligne de la liste ouverte, et les
+               boutons des popovers de menu -- « Bonus » et la cloche.
+
+               `background-image: none` en plus de la couleur, comme pour les
+               cases a cocher plus haut : Adwaita peint son survol avec une
+               image, qui l'emporterait sur un simple fond. */
+            dropdown > button:hover,
+            dropdown > popover listview > row:hover,
+            popover.menu button:hover {
+                background-image: none;
+                background-color: @zy_sarcelle_sombre; }
+
             .separation-jour { background-color: alpha(@zy_or, 0.55);
                                min-height: 1px; }
 
