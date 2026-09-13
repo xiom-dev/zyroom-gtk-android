@@ -169,6 +169,8 @@ class MainWindow(Gtk.ApplicationWindow):
         #: d'ou part une plage tenue a Maj+clic.
         self._log_choisies: set[int] = set()
         self._log_ancre = None
+        #: Les rangs de grille qui portent une ligne, du haut vers le bas.
+        self._log_rangs: list[int] = []
         self._categories = list(TYPE_NAMES)
         self._cat_rang = {nom: i for i, nom in enumerate(self._categories)}
         self._f_types = set(range(len(self._categories)))
@@ -3269,6 +3271,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # refaite : on repart sans rien de choisi.
         self._log_choisies = set()
         self._log_ancre = None
+        self._log_rangs = []
         child = self._log_grid.get_first_child()
         while child is not None:
             nxt = child.get_next_sibling()
@@ -3297,6 +3300,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 row += 1
             jour_precedent = jour
 
+            self._log_rangs.append(row)
             when = Gtk.Label(label=mv.when, xalign=0.0)
             when.add_css_class("dim-label")
             when.add_css_class("monospace")
@@ -3395,22 +3399,56 @@ class MainWindow(Gtk.ApplicationWindow):
             self._log_ancre = rang
         self._maj_surlignage_journal(avant)
 
-    def _rang_du_journal(self, x: float, y: float):
-        """Le rang de la grille du journal sous ce point, ou None.
+    def _rang_du_journal(self, _x: float, y: float):
+        """Le rang de la ligne du journal à cette ordonnée, ou None.
 
-        **`pick` plutôt qu'un parcours.** Chercher la ligne en mesurant chaque
-        enfant coûtait quatre-vingt-dix millisecondes par clic sur un journal
-        de mille cinq cents lignes — sept mille cinq cents `compute_bounds`, et
-        une application qui collait au doigt. GTK sait répondre lui-même quel
-        widget se trouve sous un point ; il ne reste qu'à remonter jusqu'à
-        l'enfant direct de la grille pour lui demander son rang.
+        **Par l'ordonnée seule, et non par ce qui se trouve sous le pointeur.**
+        `Gtk.Widget.pick` ne rend une étiquette que si l'on clique pile sur un
+        texte : entre deux colonnes, dans les seize pixels d'espacement, ou à
+        droite du dernier mot, il rend la grille — et la ligne passait alors
+        pour introuvable. Ni le menu contextuel ni le choix ne répondaient,
+        selon l'endroit exact où l'on avait cliqué.
+
+        La colonne des dates existe pour chaque ligne et les rangs se suivent
+        du haut vers le bas : onze mesures suffisent à situer un clic, où qu'il
+        tombe sur la largeur.
         """
-        case = self._log_grid.pick(x, y, Gtk.PickFlags.DEFAULT)
-        while case is not None and case is not self._log_grid:
-            if case.get_parent() is self._log_grid:
-                return self._log_grid.query_child(case)[1]
-            case = case.get_parent()
+        bas, haut = 0, len(self._log_rangs) - 1
+        while bas <= haut:
+            milieu = (bas + haut) // 2
+            rang = self._log_rangs[milieu]
+            case = self._log_grid.get_child_at(0, rang)
+            if case is None:
+                return None
+            ok, cadre = case.compute_bounds(self._log_grid)
+            if not ok:
+                return None
+            if y < cadre.origin.y:
+                haut = milieu - 1
+            elif y >= cadre.origin.y + cadre.size.height:
+                bas = milieu + 1
+            else:
+                return rang
         return None
+
+    def _on_journal_clic(self, geste, _n, x, y) -> None:
+        """Choisit une ligne, une plage avec Maj, ou en ajoute une avec Ctrl."""
+        rang = self._rang_du_journal(x, y)
+        if rang is None:
+            return
+        self._log_grid.grab_focus()
+        etat = geste.get_current_event_state()
+        avant = set(self._log_choisies)
+        if etat & Gdk.ModifierType.SHIFT_MASK and self._log_ancre is not None:
+            debut, fin = sorted((self._log_ancre, rang))
+            self._log_choisies = set(range(debut, fin + 1))
+        elif etat & Gdk.ModifierType.CONTROL_MASK:
+            self._log_choisies ^= {rang}
+            self._log_ancre = rang
+        else:
+            self._log_choisies = {rang}
+            self._log_ancre = rang
+        self._maj_surlignage_journal(avant)
 
     def _on_journal_glisse(self, geste, dx, dy) -> None:
         """Étend la sélection jusqu'à la ligne sous le pointeur."""
