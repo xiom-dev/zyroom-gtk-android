@@ -55,6 +55,7 @@ from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
 from .i18n import _
 from .icones import ChargeurIcones
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
+                     categorie_item,
                      ItemInfo, ItemType)
 from .namedb import NameDb
 from .options import FenetreOptions
@@ -418,7 +419,7 @@ class FenetrePrincipale(QMainWindow):
         self._entrees: list[dict] = []
         self._entite: Entity | None = None
         #: (case, objet, cle de recherche) pour chaque objet de la grille.
-        self._cases: list[tuple[QListWidgetItem, object, str]] = []
+        self._cases: list[tuple[QListWidgetItem, object, str, str]] = []
         #: Invalide les icones et portraits en vol : quand on change de
         #: contenant, ceux qui arrivent encore sont d'un affichage perime.
         self._generation = 0
@@ -437,7 +438,14 @@ class FenetrePrincipale(QMainWindow):
         self._tri_index, self._tri_desc = self._settings.sort_order
         if self._tri_index >= len(TRI_LIBELLES):
             self._tri_index = Settings.TRI_DEFAUT[0]
-        self._f_types = set(range(len(TYPE_NAMES)))
+        # **Le filtre par type descend jusqu'a la famille de matiere.** Le
+        # type d'item ne connait que le regne -- « Matiere naturelle » couvre
+        # la resine comme la graine. La famille se lit dans le nom : voir
+        # `models.categorie_item`. La liste est refaite a chaque inventaire
+        # avec les seules familles qui s'y trouvent.
+        self._categories = list(TYPE_NAMES)
+        self._cat_rang = {nom: i for i, nom in enumerate(self._categories)}
+        self._f_types = set(range(len(self._categories)))
         self._f_ecosys = set(range(len(ECOSYSTEM_NAMES)))
         self._f_classes = set(range(len(CLASS_NAMES)))
         self._f_equips = set(range(len(EQUIP_NAMES)))
@@ -958,7 +966,7 @@ class FenetrePrincipale(QMainWindow):
         ligne2.setSpacing(8)
 
         self._recherche = QLineEdit()
-        self._recherche.setPlaceholderText(_("Rechercher un item par nom…"))
+        self._recherche.setPlaceholderText(_("Rechercher : nom, ou qualité (ex. œil 220)"))
         self._recherche.setClearButtonEnabled(True)
         theme.poser_loupe(self._recherche)
         self._recherche.textChanged.connect(self._appliquer_filtre)
@@ -1998,7 +2006,7 @@ class FenetrePrincipale(QMainWindow):
         self._en_vente.toggled.connect(self._appliquer_filtre)
         colonne.addWidget(self._en_vente)
 
-        for titre, noms, etat in (("Type d'objet", TYPE_NAMES, self._f_types),
+        for titre, noms, etat in (("Type d'objet", self._categories, self._f_types),
                                   ("Classe", CLASS_NAMES, self._f_classes),
                                   ("Écosystème", ECOSYSTEM_NAMES, self._f_ecosys),
                                   ("Équipement", EQUIP_NAMES, self._f_equips)):
@@ -2077,19 +2085,23 @@ class FenetrePrincipale(QMainWindow):
         self._appliquer_filtre()
 
     def _appliquer_filtre(self) -> None:
-        motif = _norm(self._recherche.text().strip())
+        # Un nombre isole dans la recherche vaut une qualite : « oeil 220 »
+        # trouve les yeux de 220 sans passer par les bornes du menu.
+        motif, qualites = decouper_recherche(_norm(self._recherche.text()))
         qmin, qmax = self._qmin.value(), self._qmax.value()
         cadenas = self._cadenas.isChecked()
         avec_bonus = self._avec_bonus.isChecked()
         en_vente = self._en_vente.isChecked()
 
-        for case, objet, cle in self._cases:
+        for case, objet, cle, categorie in self._cases:
             ok = True
             if motif and motif not in cle:
                 ok = False
+            elif qualites and objet.quality not in qualites:
+                ok = False
             elif not (qmin <= objet.quality <= qmax):
                 ok = False
-            elif int(objet.item_type) not in self._f_types:
+            elif self._cat_rang.get(categorie, -1) not in self._f_types:
                 ok = False
             elif int(objet.ecosystem) not in self._f_ecosys:
                 ok = False
@@ -2109,6 +2121,28 @@ class FenetrePrincipale(QMainWindow):
                 ok = False
             case.setHidden(not ok)
         self._maj_statut()
+
+    def _maj_categories(self) -> None:
+        """Refait la liste du filtre par type avec ce que l'inventaire contient.
+
+        **Seulement les familles présentes.** Le pack en connaît quatre cent
+        onze ; un joueur en tient quelques dizaines. Une liste figée obligerait
+        à chercher « Résine » parmi des centaines de lignes vides.
+
+        Tout est recoché dès que la liste change : une case retenue par son
+        rang désignerait une autre famille au prochain inventaire, et le joueur
+        verrait disparaître des items sans avoir rien touché.
+        """
+        trouvees = sorted({categorie for _c, _o, _k, categorie in self._cases})
+        if trouvees == self._categories:
+            return
+        self._categories = trouvees
+        self._cat_rang = {nom: i for i, nom in enumerate(trouvees)}
+        self._f_types = set(range(len(trouvees)))
+        # Le menu est bati une fois a la construction de la barre : il faut le
+        # refaire pour qu'il montre la nouvelle liste.
+        if getattr(self, "_btn_filtres", None) is not None:
+            self._btn_filtres.setMenu(self._menu_filtres())
 
     def _on_reinit_filtre(self) -> None:
         self._recherche.clear()
@@ -2558,13 +2592,15 @@ class FenetrePrincipale(QMainWindow):
             self._grille.addItem(case)
             # La cle de recherche est calculee une fois, a la creation : la
             # recalculer a chaque frappe ferait ramer un coffre de deux cents.
-            cle = _norm(f"{self._names.name(objet.sheet)} {objet.sheet}")
-            self._cases.append((case, objet, cle))
+            nom = self._names.name(objet.sheet)
+            cle = _norm(f"{nom} {objet.sheet}")
+            self._cases.append((case, objet, cle, categorie_item(objet, nom)))
             self._icones_en_vol += 1
             self._attendre(True)
             self._icones.demander(objet,
                                   self._rappel_icone(generation, case, objet))
 
+        self._maj_categories()
         self._appliquer_filtre()
 
     def _rappel_icone(self, generation: int, case: QListWidgetItem, objet):

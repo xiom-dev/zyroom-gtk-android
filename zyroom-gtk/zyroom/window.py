@@ -35,6 +35,7 @@ from .icons import IconLoader
 from .options import OptionsWindow
 from .namedb import NameDb
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
+                     categorie_item, decouper_recherche,
                      ItemInfo, ItemType)
 from .ryzom_api import (KIND_CHARACTER, KIND_GUILD, ApiError, Entity)
 from .sheetdb import SheetDb
@@ -144,7 +145,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self._entries: list[dict] = []       # entités fusionnées (perso + guilde)
         self._entity: Entity | None = None
-        self._rows: list[tuple[Gtk.FlowBoxChild, object, str]] = []  # (child, item, clé recherche)
+        self._rows: list[tuple[Gtk.FlowBoxChild, object, str, str]] = []  # (child, item, clé recherche, catégorie)
         self._generation = 0                 # invalide les callbacks d'icônes obsolètes
         self._portrait_gen = 0               # invalide les portraits obsolètes
         self._alerts: list[alerts.Alert] = []
@@ -158,7 +159,15 @@ class MainWindow(Gtk.ApplicationWindow):
         # un reglage qu'on pose une fois pour toutes, pas a chaque lancement.
         # Le menu n'existe pas encore -- il sera regle dessus a sa creation.
         self._sort_index, self._sort_desc = self._settings.sort_order
-        self._f_types = set(range(len(TYPE_NAMES)))
+        # **Le filtre par type descend jusqu'a la famille de matiere.** Le
+        # type d'item ne connait que le regne -- « Matiere naturelle » couvre
+        # la resine comme la graine, l'ecorce comme la fibre. La famille, elle,
+        # se lit dans le nom : voir `models.categorie_item`. La liste n'est
+        # donc plus figee, elle est refaite a chaque inventaire avec les seules
+        # familles qui s'y trouvent.
+        self._categories = list(TYPE_NAMES)
+        self._cat_rang = {nom: i for i, nom in enumerate(self._categories)}
+        self._f_types = set(range(len(self._categories)))
         self._f_ecosys = set(range(len(ECOSYSTEM_NAMES)))
         self._f_classes = set(range(len(CLASS_NAMES)))
         self._f_equips = set(range(len(EQUIP_NAMES)))
@@ -455,12 +464,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._pad(bar2)
         inv_page.append(bar2)
         self._search = Gtk.SearchEntry()
-        self._search.set_placeholder_text(_("Rechercher un item par nom…"))
+        self._search.set_placeholder_text(_("Rechercher : nom, ou qualité (ex. œil 220)"))
         self._search.set_hexpand(True)
         self._search.connect("search-changed", lambda *a: self._apply_filter())
         bar2.append(self._search)
 
-        filter_btn = Gtk.MenuButton(label=_("Filtres"))
+        filter_btn = self._filter_btn = Gtk.MenuButton(label=_("Filtres"))
         filter_btn.set_popover(self._build_filter_popover())
         bar2.append(filter_btn)
 
@@ -3764,8 +3773,11 @@ class MainWindow(Gtk.ApplicationWindow):
                     pile.add_overlay(self._icone_sort(gen, sort))
                 child.set_child(pile)
             self._flow.append(child)
-            search_key = _norm(f"{self._names.name(item.sheet)} {item.sheet}")
-            self._rows.append((child, item, search_key))
+            nom = self._names.name(item.sheet)
+            search_key = _norm(f"{nom} {item.sheet}")
+            self._rows.append((child, item, search_key,
+                               categorie_item(item, nom)))
+
             self._icones_en_vol += 1
             self._attendre(True)
             self._icons.request(item, self._make_icon_cb(gen, image))
@@ -3778,7 +3790,30 @@ class MainWindow(Gtk.ApplicationWindow):
             dclick.connect("released", self._on_item_activate, item)
             image.add_controller(dclick)
 
+        self._maj_categories()
         self._apply_filter()
+
+    def _maj_categories(self) -> None:
+        """Refait la liste du filtre par type avec ce que l'inventaire contient.
+
+        **Seulement les familles presentes.** Le pack en connait quatre cent
+        onze ; un joueur en tient quelques dizaines. Une liste figee obligerait
+        a chercher « Resine » parmi des centaines de lignes vides.
+
+        Tout est recoche des que la liste change : une case retenue par son
+        rang designerait une autre famille au prochain inventaire, et le joueur
+        verrait disparaitre des items sans avoir rien touche.
+        """
+        trouvees = sorted({categorie for _c, _i, _k, categorie in self._rows})
+        if trouvees == self._categories:
+            return
+        self._categories = trouvees
+        self._cat_rang = {nom: i for i, nom in enumerate(trouvees)}
+        self._f_types = set(range(len(trouvees)))
+        # Le popover est bati une fois pour toutes a la construction de la
+        # barre : il faut le refaire pour qu'il montre la nouvelle liste.
+        if getattr(self, "_filter_btn", None) is not None:
+            self._filter_btn.set_popover(self._build_filter_popover())
 
     def _make_icon_cb(self, gen: int, image: Gtk.Image):
         """Le retour d'une icône : elle se pose, et l'attente diminue d'autant.
@@ -3951,7 +3986,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self._sale_only.connect("toggled", lambda *a: self._apply_filter())
         content.append(self._sale_only)
 
-        content.append(self._check_group("Type d'objet", TYPE_NAMES, self._f_types))
+        content.append(self._check_group("Type d'objet", self._categories,
+                                        self._f_types))
         content.append(self._check_group("Classe", CLASS_NAMES, self._f_classes))
         content.append(self._check_group("Écosystème", ECOSYSTEM_NAMES, self._f_ecosys))
         content.append(self._check_group("Équipement", EQUIP_NAMES, self._f_equips))
@@ -4009,7 +4045,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._apply_filter()
 
     def _apply_filter(self) -> None:
-        needle = _norm(self._search.get_text().strip())
+        # Un nombre isole dans la recherche vaut une qualite : « oeil 220 »
+        # trouve les yeux de 220 sans passer par les bornes du menu.
+        needle, qualites = decouper_recherche(_norm(self._search.get_text()))
         qmin = int(self._qmin.get_value())
         qmax = int(self._qmax.get_value())
         locked_only = self._locked_only.get_active()
@@ -4017,13 +4055,15 @@ class MainWindow(Gtk.ApplicationWindow):
         sale_only = self._sale_only.get_active()
 
         visible = 0
-        for child, item, search_key in self._rows:
+        for child, item, search_key, categorie in self._rows:
             ok = True
             if needle and needle not in search_key:
                 ok = False
+            elif qualites and item.quality not in qualites:
+                ok = False
             elif not (qmin <= item.quality <= qmax):
                 ok = False
-            elif int(item.item_type) not in self._f_types:
+            elif self._cat_rang.get(categorie, -1) not in self._f_types:
                 ok = False
             elif int(item.ecosystem) not in self._f_ecosys:
                 ok = False

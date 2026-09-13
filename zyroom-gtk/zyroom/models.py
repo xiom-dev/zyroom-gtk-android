@@ -8,6 +8,8 @@ Portage fidèle de la logique de `UnitRyzom.pas` / `RyzomApi.pas` (Delphi) :
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from enum import IntEnum
 from xml.etree.ElementTree import Element
@@ -216,6 +218,87 @@ class ItemInfo:
             l=1 if self.locked else 0,
             sap=1 if self.sap else 0,
         )
+
+
+#: Les mots par lesquels un nom de matière annonce sa classe.
+#:
+#: **C'est la classe qui borne la famille, pas le premier mot.** « Résine de
+#: base de Colle » donne bien « Résine », mais « Bout de chair exceptionnelle »
+#: donne « Bout », et « Fragment d'épine fine » donne « Fragment » -- alors que
+#: les familles sont « Bout de chair » et « Fragment d'épine ». Couper au
+#: premier mot de classe rencontré rend les trois correctement.
+#:
+#: La liste couvre les cinq classes du jeu et leurs variantes de libellé : la
+#: viande est « de premier ordre » là où la sécrétion est « parfaite ». Relevée
+#: sur les 4942 fiches de matière du pack, elle en découpe 584 familles.
+CLASSES_MATIERE = (
+    " de base", " de choix", " de premier ordre", " fin", " fine",
+    " excellent", " excellente", " suprême", " exceptionnel", " exceptionnelle",
+    " parfait", " parfaite", " ordinaire", " moyen",
+)
+
+#: Les types dont un item tire sa famille de son nom. Les autres -- équipement,
+#: catalyseur, téléporteur -- gardent le libellé de leur type.
+TYPES_MATIERE = (ItemType.ANIMAL_MAT, ItemType.NATURAL_MAT, ItemType.SYSTEM_MAT)
+
+
+def famille_matiere(nom: str) -> str:
+    """La famille d'une matière, lue dans son nom : « Résine », « Graine »…
+
+    Rend la chaîne vide si le nom ne dit rien — sans le `string_client.pack`,
+    un item ne porte que son code de fiche et n'a donc pas de famille.
+    """
+    if not nom:
+        return ""
+    # L'espece vient apres la barre oblique -- « Petite feuille / Roseau
+    # ordinaire » --, et elle n'appartient pas a la famille.
+    coupe = len(nom)
+    barre = nom.find(" /")
+    if barre != -1:
+        coupe = barre
+    for classe in CLASSES_MATIERE:
+        trouve = nom.find(classe)
+        if trouve != -1:
+            coupe = min(coupe, trouve)
+    return nom[:coupe].strip(" /")
+
+
+def categorie_item(item, nom: str) -> str:
+    """Ce sous quoi un item se range dans le filtre par type.
+
+    **Une matière se range sous sa famille, pas sous son règne.** Le nom de
+    fiche ne descend qu'au végétal ou à l'animal : résine, graine, écorce et
+    fibre y tombent ensemble sous « Matière naturelle », et le filtre ne
+    pouvait pas les séparer. La famille, elle, se lit dans le nom.
+
+    Tout ce qui n'est pas une matière garde le libellé de son type.
+    """
+    if item.item_type in TYPES_MATIERE:
+        famille = famille_matiere(nom)
+        if famille:
+            return famille
+    return TYPE_NAMES[int(item.item_type)]
+
+
+def decouper_recherche(texte: str) -> tuple[str, set[int]]:
+    """Sépare, dans une requête, ce qui cherche un nom de ce qui cherche une qualité.
+
+    « oeil 220 » rend `("oeil", {220})`, « ongle 270 250 » rend
+    `("ongle", {270, 250})`, et « 250 » seul rend `("", {250})` — utile pour
+    voir d'un coup tout ce qu'on a dans cette qualité.
+
+    **Un nombre isolé, et non n'importe quel chiffre.** Le filtre ne saisit
+    qu'un groupe de chiffres entouré d'espaces ou seul : `q250` et `mp2` restent
+    du texte, et continuent de chercher dans les noms. Sans cette limite, un
+    nom d'item qui porte un chiffre deviendrait introuvable dès qu'on le taperait
+    en entier.
+
+    Le texte rendu est déjà débarrassé des nombres et des espaces en trop : il
+    part tel quel dans la comparaison de noms.
+    """
+    qualites = {int(n) for n in re.findall(r"(?<!\S)(\d+)(?!\S)", texte)}
+    reste = re.sub(r"(?<!\S)\d+(?!\S)", " ", texte)
+    return " ".join(reste.split()), qualites
 
 
 def item_sig(item: "ItemInfo") -> str:
