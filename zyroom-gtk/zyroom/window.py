@@ -744,7 +744,7 @@ class MainWindow(Gtk.ApplicationWindow):
             action=Gtk.CallbackAction.new(
                 lambda *_a: self._copier_journal_choisi())))
         self.add_controller(raccourci)
-        scrolled = Gtk.ScrolledWindow()
+        scrolled = self._log_defilant = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
         scrolled.set_child(self._log_grid)
@@ -3524,9 +3524,37 @@ class MainWindow(Gtk.ApplicationWindow):
         popover = Gtk.Popover()
         popover.add_css_class("menu")
         popover.set_child(bouton)
-        popover.set_parent(self._log_grid)
-        popover.set_pointing_to(Gdk.Rectangle(x=int(x), y=int(y),
-                                              width=1, height=1))
+        # **Accroche a la ligne cliquee, et non a la grille.** Parent de la
+        # grille entiere -- des milliers de pixels de haut --, le point vise
+        # tombait hors de la zone affichee et GTK rabattait le menu dans le
+        # coin superieur gauche du tableau. Accroche a l'etiquette de la ligne,
+        # il s'ouvre la ou l'on a clique, quel que soit le defilement.
+        # **Accroche au defilant, et vise le point clique.** Accroche a la
+        # grille, qui fait des milliers de pixels de haut, le menu se rabattait
+        # dans le coin superieur gauche ; accroche a l'etiquette de la ligne,
+        # large de cent cinquante pixels, un clic a cinq cents partait hors
+        # d'elle. Le defilant, lui, a exactement la taille de ce qu'on voit :
+        # les coordonnees du clic y sont converties, et le menu s'ouvre sous le
+        # pointeur quel que soit le defilement.
+        popover.set_parent(self._log_defilant)
+        popover.set_position(Gtk.PositionType.BOTTOM)
+        # Du repere de la grille a celui de ce qu'on voit : il suffit d'oter le
+        # defilement. `compute_point` echouait sans le dire -- le menu gardait
+        # alors le rectangle par defaut, (0,0), et s'ouvrait dans le coin
+        # superieur gauche du tableau quel que soit l'endroit du clic.
+        # **Le rectangle se remplit champ par champ.** `Gdk.Rectangle(x=…, y=…)`
+        # ne pose rien : PyGObject ignore les arguments d'une structure boxed et
+        # rend (0,0,0,0), avec un avertissement qu'on ne voit jamais. Le menu
+        # visait donc le coin superieur gauche du tableau, quel que soit
+        # l'endroit du clic -- et ce depuis le premier jour.
+        vise = Gdk.Rectangle()
+        vise.x = int(x - self._log_defilant.get_hadjustment().get_value())
+        vise.y = int(y - self._log_defilant.get_vadjustment().get_value())
+        vise.width = vise.height = 1
+        popover.set_pointing_to(vise)
+        # Un popover parente doit etre detache a sa fermeture, sinon il reste
+        # accroche a l'etiquette et s'accumule a chaque clic droit.
+        popover.connect("closed", lambda pop: pop.unparent())
 
         def copier(_b):
             self.get_clipboard().set(texte)
