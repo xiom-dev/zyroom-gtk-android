@@ -38,16 +38,19 @@ GRADES = (
 
 #: Combien de temps le journal garde ses lignes, en jours.
 #:
-#: Six mois. C'était un mois — la mémoire utile d'un officier —, mais ce qui
-#: se passe dans une guilde se relit sur une saison : qui est parti au
-#: printemps, qui est monté officier depuis. Une ligne pèse une centaine
-#: d'octets et une guilde en produit quelques dizaines par mois ; six mois
-#: tiennent dans un fichier qu'on ouvre sans y penser.
+#: Un an. C'était un mois — la mémoire utile d'un officier —, puis six : ce qui
+#: se passe dans une guilde se relit sur une saison, qui est parti au
+#: printemps, qui est monté officier depuis. L'année permet la comparaison qui
+#: manquait encore, celle d'une date à la même l'an dernier.
+#:
+#: Le fichier ne s'en ressent pas : une ligne pèse une centaine d'octets et une
+#: guilde en produit quelques dizaines par mois — douze mois font quelques
+#: dizaines de kilo-octets, moins qu'une icône du journal.
 #:
 #: Les lignes plus vieilles sont écartées à la lecture, et le fichier est
 #: réécrit quand il en contient trop — ainsi rien ne se perd tant qu'on n'a
 #: pas relu, et rien ne s'accumule indéfiniment.
-RETENTION_JOURS = 180
+RETENTION_JOURS = 365
 
 #: Les mouvements repris d'un autre journal, par guilde.
 #:
