@@ -292,3 +292,27 @@ class DrapeauxDeCreation(unittest.TestCase):
         # Sans cela, le joueur n'a qu'un bouton qui ne fait rien, et l'on
         # cherche pendant des jours du cote des noms de dossiers.
         self.assertTrue(hasattr(updater, "derniere_erreur"))
+
+
+class NomsDefinis(unittest.TestCase):
+    """Aucun nom utilisé sans être importé ni défini.
+
+    **Deux appels manquants ont traversé des livraisons entières.**
+    `QApplication.clipboard()` dans la copie du journal et
+    `decouper_recherche` dans le filtre : ni l'un ni l'autre n'était importé,
+    et Python ne s'en plaint qu'au moment où la ligne s'exécute — le presse-
+    papiers gardait alors son contenu précédent, et la recherche échouait à
+    chaque frappe, sans rien dire.
+    """
+
+    def test_aucun_nom_indefini(self):
+        import glob
+        import os
+        import subprocess
+        import sys
+        racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        fichiers = sorted(glob.glob(os.path.join(racine, "zyroom", "*.py")))
+        sortie = subprocess.run([sys.executable, "-m", "pyflakes", *fichiers],
+                                capture_output=True, text=True).stdout
+        fautes = [l for l in sortie.splitlines() if "undefined name" in l]
+        self.assertEqual([], fautes, "\n".join(fautes))

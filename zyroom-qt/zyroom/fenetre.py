@@ -55,7 +55,7 @@ from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
 from .i18n import _
 from .icones import ChargeurIcones
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
-                     categorie_item,
+                     categorie_item, decouper_recherche,
                      ItemInfo, ItemType)
 from .namedb import NameDb
 from .options import FenetreOptions
@@ -1495,7 +1495,12 @@ class FenetrePrincipale(QMainWindow):
         lignes = self._lignes_journal_choisies()
         if not lignes:
             return
-        QApplication.clipboard().setText("\n".join(lignes))
+        # `QGuiApplication` et non `QApplication` : ce dernier n'est pas
+        # importe ici, et l'appel levait un `NameError` a chaque copie. Le
+        # presse-papiers gardait alors son contenu precedent, si bien qu'on
+        # collait ce qu'on avait copie ailleurs -- la copie n'avait jamais
+        # fonctionne ni par Ctrl+C ni par le clic droit.
+        QGuiApplication.clipboard().setText("\n".join(lignes))
         self._statut(_("{} ligne(s) copiée(s).").format(len(lignes)))
 
     def _menu_journal(self, point) -> None:
