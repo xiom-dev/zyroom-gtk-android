@@ -3190,10 +3190,29 @@ class MainWindow(Gtk.ApplicationWindow):
         pris sa place, et le journal afficherait l'icône du voisin."""
         def arrivee(chemin):
             if generation == self._log_generation and chemin:
-                image.set_from_file(chemin)
-                image.set_pixel_size(self._cote_icone_journal)
+                self._poser_icone(image, chemin, self._cote_icone_journal)
             return False
         return arrivee
+
+    @staticmethod
+    def _poser_icone(image, chemin: str, cote: int) -> None:
+        """Pose une image de fichier à une taille imposée, au pixel près.
+
+        **`set_pixel_size` ne suffit pas.** Il ne commande vraiment que les
+        icônes nommées ; sur une image chargée d'un fichier, GTK garde la main
+        et certaines sortaient plus petites que leurs voisines — la recharge en
+        sève du journal, la même à toutes les échelles, alors que les matières
+        suivaient le zoom. Mise a l'echelle ici, le carre est exact et toutes
+        les lignes s'alignent.
+        """
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                chemin, cote, cote, False)
+        except Exception:                               # noqa: BLE001
+            image.set_from_file(chemin)
+            image.set_pixel_size(cote)
+            return
+        image.set_from_pixbuf(pixbuf)
 
     #: La bourse de dappers, celle du jeu.
     #:
