@@ -738,13 +738,12 @@ class MainWindow(Gtk.ApplicationWindow):
         glisse.connect("drag-update", self._on_journal_glisse)
         self._log_grid.add_controller(glisse)
         raccourci = Gtk.ShortcutController()
-        raccourci.set_scope(Gtk.ShortcutScope.LOCAL)
+        raccourci.set_scope(Gtk.ShortcutScope.GLOBAL)
         raccourci.add_shortcut(Gtk.Shortcut(
             trigger=Gtk.ShortcutTrigger.parse_string("<Control>c"),
             action=Gtk.CallbackAction.new(
                 lambda *_a: self._copier_journal_choisi())))
-        self._log_grid.add_controller(raccourci)
-        self._log_grid.set_focusable(True)
+        self.add_controller(raccourci)
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
@@ -3380,25 +3379,6 @@ class MainWindow(Gtk.ApplicationWindow):
             # C'est la sous-page visible qui décide ce qu'il faut charger.
             self._on_plus_changed()
 
-    def _on_journal_clic(self, geste, _n, x, y) -> None:
-        """Choisit une ligne, une plage avec Maj, ou en ajoute une avec Ctrl."""
-        rang = self._rang_du_journal(x, y)
-        if rang is None:
-            return
-        self._log_grid.grab_focus()
-        etat = geste.get_current_event_state()
-        avant = set(self._log_choisies)
-        if etat & Gdk.ModifierType.SHIFT_MASK and self._log_ancre is not None:
-            debut, fin = sorted((self._log_ancre, rang))
-            self._log_choisies = set(range(debut, fin + 1))
-        elif etat & Gdk.ModifierType.CONTROL_MASK:
-            self._log_choisies ^= {rang}
-            self._log_ancre = rang
-        else:
-            self._log_choisies = {rang}
-            self._log_ancre = rang
-        self._maj_surlignage_journal(avant)
-
     def _rang_du_journal(self, _x: float, y: float):
         """Le rang de la ligne du journal à cette ordonnée, ou None.
 
@@ -3436,7 +3416,10 @@ class MainWindow(Gtk.ApplicationWindow):
         rang = self._rang_du_journal(x, y)
         if rang is None:
             return
-        self._log_grid.grab_focus()
+        # **Surtout pas de `grab_focus` ici.** La grille vit dans un defilant :
+        # lui donner le focus le faisait sauter tout en bas du journal, et la
+        # ligne qu'on venait de choisir quittait l'ecran -- au point qu'on
+        # croyait le clic sans effet.
         etat = geste.get_current_event_state()
         avant = set(self._log_choisies)
         if etat & Gdk.ModifierType.SHIFT_MASK and self._log_ancre is not None:
@@ -3484,6 +3467,15 @@ class MainWindow(Gtk.ApplicationWindow):
                 else:
                     case.remove_css_class("ligne-choisie")
 
+    def _texte_du_rang(self, rang: int) -> str:
+        """Les mots d'une ligne du journal, dans l'ordre des colonnes."""
+        mots = []
+        for colonne in range(6):
+            case = self._log_grid.get_child_at(colonne, rang)
+            if isinstance(case, Gtk.Label) and case.get_text():
+                mots.append(case.get_text())
+        return "  ".join(mots)
+
     def _lignes_journal_choisies(self) -> list:
         """Le texte des lignes choisies, de la plus ancienne à la plus récente."""
         textes = []
@@ -3494,7 +3486,14 @@ class MainWindow(Gtk.ApplicationWindow):
         return textes
 
     def _copier_journal_choisi(self) -> bool:
-        """Ctrl+C : met les lignes choisies dans le presse-papiers."""
+        """Ctrl+C : met les lignes choisies dans le presse-papiers.
+
+        Sans effet hors du journal : le raccourci est pose sur la fenetre, et
+        il n'a pas a repondre quand on est ailleurs.
+        """
+        bouton = getattr(self, "_nav_boutons", {}).get("log")
+        if bouton is not None and not bouton.get_active():
+            return False
         textes = self._lignes_journal_choisies()
         if not textes:
             return False
