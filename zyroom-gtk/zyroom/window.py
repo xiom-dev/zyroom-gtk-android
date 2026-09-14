@@ -5984,6 +5984,13 @@ class MainWindow(Gtk.ApplicationWindow):
         # Les deux sortent d'elles-mêmes tant que rien n'a été chargé.
         self._refresh_outposts()
         self._refresh_meteo()
+        # **Et le journal, oublie jusqu'ici.** Ses icones sont posees a la
+        # taille du zoom au moment ou la ligne se construit, et ses colonnes se
+        # calent sur ce que mesurent ses etiquettes. Sans le refaire, la grille
+        # restait a l'echelle precedente : le zoom decalait les colonnes, et le
+        # retour en arriere ne les remettait pas -- la qualite restait collee
+        # aux noms. Il sort de lui-meme tant qu'aucune entite n'est chargee.
+        self._refresh_log()
         self._set_status(_("Zoom : {} %").format(round(reglages.zoom * 100)))
 
     def _cote_icone_barre(self) -> int:
