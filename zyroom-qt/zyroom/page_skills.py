@@ -14,13 +14,14 @@ import unicodedata
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QLineEdit,
-                               QProgressBar, QPushButton, QScrollArea,
-                               QVBoxLayout, QWidget)
+                               QPushButton, QScrollArea, QVBoxLayout,
+                               QWidget)
 
 from . import skills as skills_mod
 from . import theme
 from .deroulante import Choix
 from .i18n import _
+from .jauge import Jauge
 from .ryzom_api import KIND_CHARACTER
 
 
@@ -237,11 +238,8 @@ class PageCompetences(QWidget):
         ligne.addWidget(nom, 1)
 
         if noeud.skill.progress:
-            barre = QProgressBar()
-            barre.setObjectName("jauge")
-            barre.setRange(0, 100)
+            barre = Jauge()
             barre.setValue(noeud.skill.progress)
-            barre.setTextVisible(False)
             # Quatre-vingt-dix sur onze, les mesures du Gtk.LevelBar de la
             # version GTK. **En pixels et non en hauteurs de ligne** : GTK pose
             # ces deux nombres en dur, et une jauge qui suivrait la police

@@ -32,7 +32,7 @@ from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtGui import QFont  # noqa: E402
 from PySide6.QtWidgets import (QAbstractButton, QApplication,  # noqa: E402
                                QCheckBox, QComboBox, QLabel, QLayout,
-                               QLineEdit, QProgressBar, QScrollArea,
+                               QLineEdit, QScrollArea,
                                QSpinBox, QToolButton, QWidget, QWidgetAction)
 
 from zyroom import ryzom_api, theme  # noqa: E402
@@ -41,6 +41,7 @@ from zyroom import ryzom_api, theme  # noqa: E402
 # le remplacait par un entier au premier `for _ in ...`.
 from zyroom.i18n import _ as traduire  # noqa: E402
 from zyroom.fenetre import AIR_PORTRAIT, FenetrePrincipale  # noqa: E402
+from zyroom.jauge import Jauge  # noqa: E402
 
 
 #: Les noms de style qui se correspondent, et le genre de témoin à fabriquer.
@@ -570,10 +571,10 @@ def relever(f: FenetrePrincipale) -> dict:
 
     f._jauge.setValue(50)
     points["volume.jauge.taille"] = taille(f._jauge)
-    # Les paliers : GTK les tient de ses `add_offset_value`, Qt d'une propriété
-    # que la feuille interroge. À 50 %, le palier est le premier des trois.
+    # Les paliers : GTK les tient de ses `add_offset_value`, Qt du nom que la
+    # jauge retient pour choisir son liseré. À 50 %, c'est le premier des trois.
     f._niveau_jauge_a(50)
-    points["volume.jauge.paliers"] = [f._jauge.property("niveau")]
+    points["volume.jauge.paliers"] = [f._niveau_jauge]
 
     # L'écart au corps courant, et non le corps lui-même : ce relevé tourne
     # hors écran, où la police par défaut n'est pas celle du bureau, et deux
@@ -603,7 +604,7 @@ def relever(f: FenetrePrincipale) -> dict:
         page = page_de(f, "PageCompetences")
         page.rafraichir()
         page._tout_basculer()
-        jauges = [taille(b) for b in page.findChildren(QProgressBar)]
+        jauges = [taille(b) for b in page.findChildren(Jauge)]
         points["skills.jauge.taille"] = jauges[0] if jauges else None
         finis = [l for l in page.findChildren(QLabel)
                  if l.objectName() == "fini" and l.width() > 8]

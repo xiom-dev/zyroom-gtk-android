@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QFileDialog, QFrame, QGridLayout,
                                QHBoxLayout, QHeaderView, QLabel, QLineEdit,
                                QListWidget, QListWidgetItem, QMainWindow,
-                               QMenu, QMessageBox, QProgressBar, QPushButton,
+                               QMenu, QMessageBox, QPushButton,
                                QScrollArea, QSpinBox, QStackedWidget,
                                QTableWidget, QTableWidgetItem, QToolButton,
                                QVBoxLayout, QWidget, QWidgetAction)
@@ -54,6 +54,7 @@ from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      snapshot_path)
 from .i18n import _
 from .icones import ChargeurIcones
+from .jauge import LISERE_BAS, LISERE_HAUT, LISERE_PLEIN, Jauge
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
                      categorie_item, decouper_recherche,
                      ItemInfo, ItemType)
@@ -941,14 +942,11 @@ class FenetrePrincipale(QMainWindow):
         ligne_vol.setContentsMargins(8, 0, 8, 0)
         ligne_vol.setSpacing(8)
         ligne_vol.addWidget(QLabel(_("Volume :")))
-        # Onze pixels, comme le Gtk.LevelBar de la version GTK : neuf de bloc
-        # et un de bordure de part et d'autre. Sans hauteur fixee, le layout
-        # l'etirait a seize, et la jauge paraissait plus grasse que sa jumelle.
-        self._jauge = QProgressBar()
-        self._jauge.setObjectName("jauge-volume")
-        self._jauge.setRange(0, 100)
-        self._jauge.setTextVisible(False)
-        self._jauge.setFixedHeight(11)
+        # Onze pixels de haut, comme le Gtk.LevelBar de la version GTK : neuf
+        # de bloc et un de lisere de part et d'autre. C'est la Jauge qui pose
+        # cette hauteur -- sans elle, le layout l'etirait a seize, et la jauge
+        # paraissait plus grasse que sa jumelle.
+        self._jauge = Jauge()
         self._niveau_jauge = ""
         ligne_vol.addWidget(self._jauge, 1)
         self._lbl_volume = QLabel()
@@ -2726,25 +2724,30 @@ class FenetrePrincipale(QMainWindow):
             morceaux.append(ligne)
         return "<br><br>".join(morceaux)
 
+    #: La couleur du lisere a chaque palier du Gtk.LevelBar. "low" n'est pas
+    #: orange : la classe existe bien -- GTK la pose sous les soixante pour
+    #: cent --, mais Adwaita ne lui donne aucune couleur propre, et un
+    #: `Gtk.LevelBar` mesure a cinquante-neuf pour cent peint exactement le
+    #: meme bleu qu'a soixante-dix. L'orange #f57900 qu'on lui avait donne
+    #: dessinait un lisere rouge-orange que la fenetre GTK ne montre jamais.
+    LISERES = {"low": LISERE_BAS, "high": LISERE_HAUT, "full": LISERE_PLEIN}
+
     def _niveau_jauge_a(self, valeur: int) -> None:
         """Le liseré de la jauge, aux seuils exacts du Gtk.LevelBar.
 
         GTK pose sur son bloc une classe par palier — `low` jusqu'à 60,
         `high` jusqu'à 85, `full` au-delà — et le thème lui donne sa couleur
-        de bordure : orange, bleu, vert. Qt n'a pas de paliers ; on les
-        rejoue avec une propriété que la feuille de style interroge.
+        de bordure. Qt n'a pas de paliers ; on les rejoue en changeant la
+        couleur que la jauge se peint.
 
-        Repolir n'a lieu qu'au changement de palier : le faire à chaque
-        volume recalculerait le style de la jauge à chaque ouverture de
-        coffre, pour un résultat identique.
+        Le changement n'a lieu qu'au passage d'un palier : repeindre à chaque
+        volume referait le même dessin à chaque ouverture de coffre.
         """
         niveau = "low" if valeur <= 60 else ("high" if valeur <= 85 else "full")
         if niveau == self._niveau_jauge:
             return
         self._niveau_jauge = niveau
-        self._jauge.setProperty("niveau", niveau)
-        self._jauge.style().unpolish(self._jauge)
-        self._jauge.style().polish(self._jauge)
+        self._jauge.poser_lisere(self.LISERES[niveau])
 
     def _maj_jauge(self, inv) -> None:
         total = inv.total_volume

@@ -662,10 +662,9 @@ QPushButton#principal:disabled {
     color: %(texte_faible)s;
 }
 
-/* Tout ce qui etait bleu passe au sarcelle : la jauge de volume comme
-   l'avancement d'une competence. Une seule regle pour les deux, comme la
-   version GTK -- j'avais mis du vert sur l'avancement, et les deux
-   applications ne se ressemblaient plus. */
+/* Tout ce qui etait bleu passe au sarcelle, comme la version GTK -- j'avais
+   mis du vert sur l'avancement, et les deux applications ne se ressemblaient
+   plus. Les deux jauges, elles, se peignent seules : voir jauge.py. */
 QProgressBar {
     background-color: %(variante)s;
     border: none;
@@ -677,12 +676,6 @@ QProgressBar::chunk {
     border-radius: 5px;
 }
 
-/* La jauge de volume, calquee au pixel sur le Gtk.LevelBar de la version
-   GTK -- c'est elle la reference. Le theme y donne au bloc neuf pixels et
-   une bordure d'un pixel, un fond #282828 pour le vide, et un lisere qui
-   change de couleur au passage des paliers. Les trois couleurs viennent du
-   Default-dark.css de GTK, pas de notre palette : les reprendre autrement
-   aurait fait deux jauges cousines au lieu de deux jumelles. */
 /* La barre d'attente, calquee sur celle de GTK. Adwaita lui donne un fond
    #282828 et un lisere #15539e, que notre CSS ne remplace pas -- il ne change
    que la couleur de remplissage. Le rayon est de 4, contre 5 pour les jauges.
@@ -703,31 +696,6 @@ QProgressBar#attente::chunk {
     width: 9px;
     margin: 0px;
 }
-
-QProgressBar#jauge, QProgressBar#jauge-volume {
-    background-color: #282828;
-    border: none;             /* le lisere appartient au bloc rempli, pas au fond */
-    border-radius: 5px;
-}
-QProgressBar#jauge::chunk, QProgressBar#jauge-volume::chunk {
-    background-color: %(sarcelle)s;
-    border: 1px solid #15539e;      /* high, le palier par defaut */
-    border-radius: 5px;
-}
-/* Seule la jauge de volume a des paliers : GTK lui pose trois
-   `add_offset_value`, la jauge des competences aucun -- son bloc ne porte
-   que « filled », et son lisere reste bleu de bout en bout.
-
-   **« low » n'est pas orange.** La classe existe bien -- GTK la pose sous les
-   soixante pour cent --, mais Adwaita ne lui donne aucune couleur propre :
-   un `Gtk.LevelBar` aux memes trois offsets, mesure a cinquante-neuf pour
-   cent, peint exactement le meme bleu qu'a soixante-dix, et ne vire au vert
-   qu'au dernier palier. L'orange
-   #f57900 qu'on lui avait donne dessinait un lisere rouge-orange autour de la
-   ligne de volume, que la fenetre GTK ne montre a aucun moment. */
-QProgressBar#jauge-volume[niveau="low"]::chunk  { border-color: #15539e; }
-QProgressBar#jauge-volume[niveau="high"]::chunk { border-color: #15539e; }
-QProgressBar#jauge-volume[niveau="full"]::chunk { border-color: #26ab62; }
 
 /* **Les fenetres de menu, et les listes qu'ouvre une deroulante.** GTK leur
    donne des coins arrondis -- un popover en a douze --, Qt les laissait
