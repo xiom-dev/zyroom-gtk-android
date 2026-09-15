@@ -205,13 +205,25 @@ Reste a faire, a la main -- rien n'a ete envoye :
      Une branche orpheline reconstruite a chaque fois, sans changer de branche
      ici : le contenu de pages/ est ignore sur main.
 
+FINAL
+
+# Le numero, et non un gabarit a recopier : c'est la ligne qu'on colle sans
+# la relire, et "qt-VERSION" y est passe tel quel plus d'une fois.
+cat <<FINAL
   3. valider le nouveau numero et etiqueter :
 
        git add -u && git commit
-       git tag qt-VERSION
+       git tag -a qt-$nom -m "ZyRoom-Qt $nom"
        git push origin main --follow-tags
 
      L'etiquette dit quel code a produit quelle archive : sans elle,
-     retrouver la version qu'un joueur execute devient une fouille.
+     retrouver la version qu'un joueur execute devient une fouille. Et
+     c'est elle qui met la CI en route : le paquet Windows se construit
+     sur une etiquette qt-*, jamais sur une poussee de main.
+
+     **Annotee (-a), et non legere.** --follow-tags ne pousse que les
+     etiquettes annotees. Un "git tag qt-$nom" tout court resterait sur
+     cette machine : la CI ne partirait pas, le paquet Windows n'existerait
+     nulle part, et rien ne le dirait -- la poussee, elle, reussit.
 
 FINAL
