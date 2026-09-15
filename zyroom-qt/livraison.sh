@@ -21,9 +21,10 @@
 # arriere : l'application aurait deja dit a son utilisateur qu'une version
 # l'attend.
 #
-# **Ce script ne construit que pour Linux.** Le paquet Windows se construit
-# sur une machine Windows, avec packaging\build.bat, et se depose a la main
-# dans pages/ sous le nom que version.json annonce.
+# **Ce script ne construit que pour Linux.** Le paquet Windows sort d'une
+# machine que GitHub prete le temps d'une etiquette qt-*, et outils/publier-
+# windows.sh va chercher ce qu'elle a produit. Rien a construire a la main :
+# la marche a suivre affichee a la fin dit dans quel ordre.
 set -euo pipefail
 
 # Sans cela, un __init__.py reecrit dans la meme seconde garde son .pyc
@@ -185,15 +186,35 @@ elif la_bas < ici:
     print("    pas depose : outils/publier-windows.sh")
 PY
 
-cat <<'FINAL'
+# L'etiquette d'abord, et le numero dedans plutot qu'un gabarit : c'est la
+# ligne qu'on colle sans la relire, et "qt-VERSION" y est passe tel quel plus
+# d'une fois. Elle vient en premier parce que c'est elle qui met la CI du
+# paquet Windows en route -- deux minutes qui tournent pendant qu'on publie
+# le site.
+cat <<FINAL
 
 Reste a faire, a la main -- rien n'a ete envoye :
 
-  1. le paquet Windows, s'il change lui aussi : le construire la-bas avec
-     packaging\build.bat, et deposer son ZIP dans pages/ sous le nom
-     ZyRoom-Qt-windows.zip. Le manifeste l'annonce deja.
+  1. valider le nouveau numero et etiqueter :
 
-  2. publier le site (version.json et l'archive qu'il annonce) :
+       git add -u && git commit
+       git tag -a qt-$nom -m "ZyRoom-Qt $nom"
+       git push origin main --follow-tags
+
+     L'etiquette dit quel code a produit quelle archive : sans elle,
+     retrouver la version qu'un joueur execute devient une fouille. Et
+     c'est elle qui construit le paquet Windows : la CI part sur une
+     etiquette qt-*, jamais sur une poussee de main.
+
+     **Annotee (-a), et non legere.** --follow-tags ne pousse que les
+     etiquettes annotees. Un "git tag qt-$nom" tout court resterait sur
+     cette machine : la CI ne partirait pas, le paquet Windows n'existerait
+     nulle part, et rien ne le dirait -- la poussee, elle, reussit.
+
+FINAL
+
+cat <<'FINAL'
+  2. publier le site (version.json et l'archive Linux qu'il annonce) :
 
        cd ..
        tampon=$(mktemp -u)
@@ -205,25 +226,22 @@ Reste a faire, a la main -- rien n'a ete envoye :
      Une branche orpheline reconstruite a chaque fois, sans changer de branche
      ici : le contenu de pages/ est ignore sur main.
 
-FINAL
+     Windows reste a sa version le temps du point suivant, et c'est sans
+     danger : le manifeste tient une case par systeme, et chaque paquet ne
+     compare que la sienne.
 
-# Le numero, et non un gabarit a recopier : c'est la ligne qu'on colle sans
-# la relire, et "qt-VERSION" y est passe tel quel plus d'une fois.
-cat <<FINAL
-  3. valider le nouveau numero et etiqueter :
+  3. deposer le paquet Windows, une fois la CI finie :
 
-       git add -u && git commit
-       git tag -a qt-$nom -m "ZyRoom-Qt $nom"
-       git push origin main --follow-tags
+       outils/publier-windows.sh
 
-     L'etiquette dit quel code a produit quelle archive : sans elle,
-     retrouver la version qu'un joueur execute devient une fouille. Et
-     c'est elle qui met la CI en route : le paquet Windows se construit
-     sur une etiquette qt-*, jamais sur une poussee de main.
+     Il va chercher l'artefact que la machine Windows a produit, le pose
+     dans pages/ et remplit sa case du manifeste. Puis republier le site
+     comme au point 2 : l'archive Windows en fait partie, et la case du
+     manifeste avec elle.
 
-     **Annotee (-a), et non legere.** --follow-tags ne pousse que les
-     etiquettes annotees. Un "git tag qt-$nom" tout court resterait sur
-     cette machine : la CI ne partirait pas, le paquet Windows n'existerait
-     nulle part, et rien ne le dirait -- la poussee, elle, reussit.
+     **Ce point n'est pas facultatif.** Sans lui, version.json annonce une
+     version que l'archive Windows ne contient pas, et les joueurs de ce
+     systeme reinstallent sans fin la meme vieille -- c'est arrive deux
+     fois.
 
 FINAL
