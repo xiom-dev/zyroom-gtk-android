@@ -79,6 +79,49 @@ analyse = Analysis(
     optimize=0,
 )
 
+# --------------------------------------------- Le theme GTK3 dont on ne sert pas
+#
+# PySide6 embarque `platformthemes/libqgtk3.so`, le plugin par lequel Qt suit
+# le theme GTK du bureau -- et PyInstaller, voyant ce plugin, emporte la pile
+# GTK3 entiere avec lui : libgtk-3 et ses huit megaoctets, gdk, cairo, pango,
+# epoxy, pixman. Seize megaoctets decompresses pour une application qui
+# n'ecoute pas le theme du bureau : ZyRoom-Qt impose le sien par feuille de
+# style, du fond aux coins arrondis, precisement pour ressembler a la version
+# GTK partout ou elle tourne.
+#
+# **Ce qui n'est pas dans cette liste l'est pour une raison.** `libglib-2.0`,
+# `libgio-2.0` et `libgobject-2.0` restent : QtCore s'en sert pour sa boucle
+# d'evenements quand glib est la. `libharfbuzz` et `libfreetype` aussi : c'est
+# Qt qui compose le texte avec. Les retirer ne gagnerait que de quoi ne plus
+# demarrer.
+#
+# Sous Windows, aucun de ces fichiers n'existe : le filtre n'y retire rien.
+gtk3 = (
+    "libqgtk3", "libgtk-3", "libgdk-3", "libgdk_pixbuf-2.0",
+    "libatk-1.0", "libatk-bridge-2.0", "libcairo", "libpango",
+    "libepoxy", "libpixman-1",
+)
+
+
+def sans_gtk3(entrees):
+    """Retire les entrees dont le nom de fichier commence par l'un des motifs.
+
+    Le nom seul, et non le chemin : PyInstaller range `libqgtk3.so` sous
+    `PySide6/Qt/plugins/platformthemes/` et les bibliotheques a la racine de
+    `_internal`, et cette arborescence n'a pas a se retrouver ici.
+    """
+    gardees = []
+    for entree in entrees:
+        base = entree[0].replace(os.sep, "/").rsplit("/", 1)[-1]
+        if any(base.startswith(motif) for motif in gtk3):
+            continue
+        gardees.append(entree)
+    return gardees
+
+
+analyse.binaries = sans_gtk3(analyse.binaries)
+analyse.datas = sans_gtk3(analyse.datas)
+
 pyz = PYZ(analyse.pure)
 
 # L'icone : un .ico sous Windows, un .png ailleurs. Les deux sont fabriques
