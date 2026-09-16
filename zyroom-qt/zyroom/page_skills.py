@@ -238,7 +238,11 @@ class PageCompetences(QWidget):
         ligne.addWidget(nom, 1)
 
         if noeud.skill.progress:
-            barre = Jauge()
+            # Sans lisere bleu : une competence n'a pas de palier, et le
+            # trait d'Adwaita ne faisait que cacher le sarcelle des faibles
+            # pourcentages. La version GTK pose la meme couleur par sa classe
+            # « jauge-competence ».
+            barre = Jauge(lisere=theme.COULEURS["sarcelle"])
             barre.setValue(noeud.skill.progress)
             # Quatre-vingt-dix sur onze, les mesures du Gtk.LevelBar de la
             # version GTK. **En pixels et non en hauteurs de ligne** : GTK pose

@@ -46,12 +46,20 @@ class Jauge(QWidget):
     L'interface reprend le peu qu'on utilisait de `QProgressBar` — `setValue`
     et une hauteur fixe — pour que les deux appels d'origine n'aient qu'à
     changer de classe.
+
+    Le liseré se choisit à la construction. La jauge de volume y met la
+    couleur de son palier ; celle d'une compétence, qui n'a pas de palier,
+    y met son propre sarcelle — un liseré de la couleur du remplissage ne
+    se voit plus. **C'est une couleur et non un liseré retiré** : le trait
+    d'un pixel compte dans la géométrie du bloc, et ne plus le tracer
+    amincirait la jauge sans qu'on l'ait demandé.
     """
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None,
+                 lisere: str = LISERE_HAUT) -> None:
         super().__init__(parent)
         self._valeur = 0
-        self._lisere = LISERE_HAUT
+        self._lisere = lisere
         # Onze pixels : neuf de bloc et un de lisere de part et d'autre.
         # **En pixels et non en hauteurs de ligne** : GTK pose ce nombre en
         # dur, et une jauge qui suivrait la police cesserait de lui ressembler
