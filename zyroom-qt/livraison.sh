@@ -131,6 +131,32 @@ echo "  $pages/$servi"
 # de retrouver le paquet d'un numero donne une fois la page ecrasee.
 cp "$archive" "dist/ZyRoom-Qt-${nom}-linux.zip"
 
+# Et le menage : dans dist/, rien d'autre que la livraison qu'on vient de
+# faire.
+#
+# **Pourquoi c'est ici et pas dans un coin de tete.** Trois archives par
+# livraison, une soixantaine de megaoctets chacune -- cent quatre-vingts a
+# chaque passage, que personne ne reprenait. Cent quatre-vingt-quatorze s'y
+# etaient accumulees, onze gigaoctets, et /home est arrive a cent pour cent.
+# Ce n'est pas la livraison Qt qui s'en est plainte : c'est celle de GTK, dont
+# le depot OSTree refuse d'ecrire sous trois pour cent d'espace libre. Le
+# symptome tombait loin de la cause, et la cause ne se voyait nulle part.
+#
+# Ce sont des copies locales. Ce qui compte est publie sur gh-pages, et
+# n'importe quelle version se reconstruit depuis son etiquette.
+retires=0
+for fichier in dist/*; do
+    [ -f "$fichier" ] || continue
+    case "${fichier##*/}" in
+        *-"$nom"-*) continue ;;
+    esac
+    rm -f "$fichier"
+    retires=$((retires + 1))
+done
+if [ "$retires" -gt 0 ]; then
+    echo "  dist/ : $retires archive(s) d'anciennes livraisons retiree(s)"
+fi
+
 "$python" - "$manifeste" "$application" "$code" "$nom" "$base_url" "$servi" <<'PY'
 import json, sys
 chemin, application, code, nom, base, servi = sys.argv[1:7]

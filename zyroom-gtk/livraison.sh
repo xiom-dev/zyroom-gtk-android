@@ -269,6 +269,43 @@ echo "── sommaire du dépôt"
 flatpak build-update-repo --generate-static-deltas --prune \
     --gpg-sign="$cle" "$depot_publie"
 
+# Le ménage : dans dist/, un bundle par lignée, celui du numéro courant.
+#
+# **Les deux lignées, et non la seule qu'on vient de livrer.** Livrer `dev`
+# seul ne périme pas le bundle `guilde` : il reste ce que la variante des
+# joueurs a de plus récent, et l'effacer laisserait une lignée sans archive
+# locale. Les numéros se relisent donc dans version.properties, où la boucle
+# de construction vient d'écrire ce qui a bougé et où dort ce qui n'a pas
+# bougé.
+#
+# Deux cent quarante-quatre bundles s'y étaient empilés, trois cent
+# quarante-cinq mégaoctets. Ce n'est rien à côté des onze gigaoctets de
+# `zyroom-qt/dist`, mais c'est la même négligence, et la même fin : un disque
+# plein, et un `build-commit-from` qui refuse d'écrire sans dire pourquoi.
+#
+# Ce qui n'est pas un bundle — INSTALLATION.md — n'est pas concerné : le
+# ménage ne regarde que les .flatpak.
+if [ -d dist ]; then
+    gardes=""
+    for lignee in guilde dev; do
+        gardes="$gardes $(fichier_de "$lignee" "$(lire "$lignee.versionName")").flatpak"
+    done
+    retires=0
+    for bundle in dist/*.flatpak; do
+        [ -f "$bundle" ] || continue
+        garde=0
+        for g in $gardes; do
+            [ "${bundle##*/}" = "$g" ] && garde=1
+        done
+        [ "$garde" = 1 ] && continue
+        rm -f "$bundle"
+        retires=$((retires + 1))
+    done
+    if [ "$retires" -gt 0 ]; then
+        echo "── dist/ : $retires bundle(s) d'anciennes livraisons retiré(s)"
+    fi
+fi
+
 # L'etiquette ne peut pas etre posee ici : le commit qui fige le nouveau numero
 # n'existe pas encore -- c'est l'etape 2 ci-dessous. Le script prepare donc la
 # commande exacte, numeros deja remplis. Les numeros sont relus dans

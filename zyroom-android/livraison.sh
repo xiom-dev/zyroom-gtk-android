@@ -237,6 +237,59 @@ for v in "${variantes[@]}"; do
         | grep -E 'Signer #1 certificate DN'
 done
 
+# Le ménage : dans dist/, un APK par lignée, celui du numéro courant.
+#
+# **Les deux lignées, et non la seule qu'on vient de livrer.** Livrer `dev`
+# seul ne périme pas l'APK `guilde` : il reste ce que la variante des joueurs
+# a de plus récent. Les numéros se relisent donc dans version.properties, où
+# la boucle vient d'écrire ce qui a bougé et où dort ce qui n'a pas bougé.
+#
+# Ce qui part est consigné dans SUPPRIMES.txt, nom, taille et date : c'est la
+# convention du dossier depuis la purge du 31 août 2026, et la seule trace
+# qu'un APK a existé une fois son fichier effacé.
+#
+# Quarante et un APK s'y étaient empilés, trois cent cinquante mégaoctets.
+# Trois dossiers dist/ faisaient la même chose dans leur coin ; celui de
+# ZyRoom-Qt est monté à onze gigaoctets et a fini par remplir le disque.
+if [ -d "$racine/dist" ]; then
+    gardes=""
+    for lignee in guilde dev; do
+        livre=$(lire "$lignee.versionName")
+        case $lignee in
+            guilde) gardes="$gardes V-RyLune-Android_$livre.apk" ;;
+            dev)    gardes="$gardes V-RyLune-Android-dev_$livre.apk" ;;
+        esac
+    done
+    journal=$racine/dist/SUPPRIMES.txt
+    entete=0
+    retires=0
+    for apk in "$racine"/dist/*.apk; do
+        [ -f "$apk" ] || continue
+        garde=0
+        for g in $gardes; do
+            [ "${apk##*/}" = "$g" ] && garde=1
+        done
+        [ "$garde" = 1 ] && continue
+        if [ "$entete" = 0 ]; then
+            {
+                echo
+                echo "# APK retires de dist/ le $(date +%F)" \
+                     "— seule la derniere livraison de chaque lignee est conservee."
+                echo "# nom  taille  date de livraison"
+            } >> "$journal"
+            entete=1
+        fi
+        printf '%s  %s  %s\n' "${apk##*/}" "$(stat -c %s "$apk")" \
+            "$(stat -c %y "$apk")" >> "$journal"
+        rm -f "$apk"
+        retires=$((retires + 1))
+    done
+    if [ "$retires" -gt 0 ]; then
+        echo
+        echo "dist/ : $retires APK d'anciennes livraisons retiré(s), notés dans SUPPRIMES.txt"
+    fi
+fi
+
 # L'etiquette ne peut pas etre posee ici : le commit qui fige le nouveau numero
 # n'existe pas encore -- c'est l'etape 2 ci-dessous. Le script prepare donc la
 # commande exacte, numeros deja remplis. Sans elle, plus rien ne dit quel code a
