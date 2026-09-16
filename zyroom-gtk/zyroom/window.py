@@ -1340,6 +1340,8 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self._op_carte: list = []
         self._op_changements: list = []
+        #: Nom de guilde -> identifiant d'embleme, pour le journal des prises.
+        self._op_emblemes: dict = {}
         self._op_premier = False
         self._op_charge = False
         return page
@@ -1360,17 +1362,18 @@ class MainWindow(Gtk.ApplicationWindow):
 
         def work():
             xml = ryzom_api.fetch_guild_directory_xml()
-            carte = outposts.parse_outposts(xml)
+            carte, emblemes = outposts.parse_annuaire(xml)
             premier = self._op_store.jamais_releve()
             self._op_store.record(carte)
-            return carte, self._op_store.history(), premier
+            return carte, emblemes, self._op_store.history(), premier
 
         def done(res, err):
             self._op_refresh.set_sensitive(True)
             if err:
                 self._op_status.set_text(_("Annuaire indisponible : %s") % err)
                 return
-            self._op_carte, self._op_changements, self._op_premier = res
+            (self._op_carte, self._op_emblemes,
+             self._op_changements, self._op_premier) = res
             self._op_status.set_text("")
             self._refresh_outposts()
 
@@ -1503,9 +1506,8 @@ class MainWindow(Gtk.ApplicationWindow):
         for rang, c in enumerate(self._op_changements):
             quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
             nom = self._names.name(f"{c.outpost}.outpost")
-            self._op_box.append(self._ligne_simple(
-                self._phrase_prise(quand, nom, c),
-                zebre=rang % 2 == 0, markup=True))
+            self._op_box.append(
+                self._ligne_prise(quand, nom, c, zebre=rang % 2 == 0))
 
     #: Les couleurs du journal des prises, celles du registre de l'effectif :
     #: ce qui arrive est vert, ce qui part est rouge, et l'or nomme la guilde
@@ -1515,24 +1517,71 @@ class MainWindow(Gtk.ApplicationWindow):
     PRISE_ROUGE = "#e2696a"
     PRISE_OR = "#e8c15a"
 
-    def _phrase_prise(self, quand: str, nom: str, change) -> str:
-        """Une ligne du journal, en markup Pango.
+    def _fleche_prise(self, gagne: bool) -> str:
+        """La flèche du sens : verte qui monte, rouge qui descend."""
+        couleur = self.PRISE_VERT if gagne else self.PRISE_ROUGE
+        return f'<span foreground="{couleur}">{"▲" if gagne else "▼"}</span>'
 
-        La guilde qui perd est en or derrière une flèche rouge qui descend ;
-        celle qui gagne en vert derrière une flèche verte qui monte. Un
-        échange porte les deux, dans l'ordre où il s'est produit.
+    def _nom_guilde(self, guilde: str, gagne: bool) -> str:
+        """Le nom d'une guilde, vert si elle gagne, or si elle perd."""
+        couleur = self.PRISE_VERT if gagne else self.PRISE_OR
+        return (f'<span foreground="{couleur}">'
+                f'{GLib.markup_escape_text(guilde)}</span>')
+
+    def _ligne_prise(self, quand: str, nom: str, change,
+                     zebre: bool = False) -> Gtk.ListBoxRow:
+        """Une ligne du journal : la date, l'avant-poste, et qui l'a pris.
+
+        **Une boîte et non une seule étiquette.** Le markup Pango ne sait pas
+        porter d'image, et l'emblème d'une guilde est justement ce qui la fait
+        reconnaître d'un coup d'œil dans une colonne de noms qui se
+        ressemblent. La ligne se compose donc : le texte de gauche, puis pour
+        chaque guilde son emblème et son nom.
+
+        L'emblème se cherche par le nom, seule chose que le journal retienne
+        d'une guilde. Une guilde absente de l'annuaire du jour — dissoute
+        depuis — n'en a plus : sa ligne se lit alors comme avant.
         """
-        echapper = GLib.markup_escape_text
-        parts = [f"{echapper(quand)}   {echapper(nom)}   —"]
-        if change.frm:
-            parts.append(
-                f'<span foreground="{self.PRISE_ROUGE}">▼</span> '
-                f'<span foreground="{self.PRISE_OR}">{echapper(change.frm)}</span>')
-        if change.to:
-            parts.append(
-                f'<span foreground="{self.PRISE_VERT}">▲</span> '
-                f'<span foreground="{self.PRISE_VERT}">{echapper(change.to)}</span>')
-        return " ".join(parts)
+        row = Gtk.ListBoxRow()
+        if zebre:
+            row.add_css_class("zebre")
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+
+        gauche = Gtk.Label(
+            label=f"{quand}   {nom}   —", xalign=0.0)
+        line.append(gauche)
+
+        for guilde, gagne in ((change.frm, False), (change.to, True)):
+            if not guilde:
+                continue
+            # La fleche d'abord : elle dit le sens de l'echange, et c'est
+            # a ce titre qu'elle ouvre le groupe. L'embleme vient ensuite,
+            # colle au nom qu'il illustre.
+            fleche = Gtk.Label(xalign=0.0)
+            fleche.set_markup(self._fleche_prise(gagne))
+            line.append(fleche)
+
+            # La place est reservee meme quand l'annuaire ne connait plus la
+            # guilde : sans elle, une ligne sans embleme serait plus basse que
+            # ses voisines, et le journal monterait et descendrait en
+            # defilant.
+            image = Gtk.Image()
+            image.set_pixel_size(self._settings.icone(self.PART_EMBLEME))
+            line.append(image)
+            embleme = self._op_emblemes.get(guilde, "")
+            if embleme:
+                self._icons.request_emblem(
+                    embleme,
+                    lambda chemin, img=image: (img.set_from_file(chemin)
+                                               if chemin else None))
+
+            etiquette = Gtk.Label(xalign=0.0)
+            etiquette.set_markup(self._nom_guilde(guilde, gagne))
+            line.append(etiquette)
+
+        self._pad(line)
+        row.set_child(line)
+        return row
 
     def _entete_peuple(self, nom: str) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
@@ -1680,18 +1729,15 @@ class MainWindow(Gtk.ApplicationWindow):
         return row
 
     def _ligne_simple(self, texte: str, dim: bool = False,
-                      zebre: bool = False,
-                      markup: bool = False) -> Gtk.ListBoxRow:
+                      zebre: bool = False) -> Gtk.ListBoxRow:
         row = Gtk.ListBoxRow()
         if zebre:
             row.add_css_class("zebre")
         label = Gtk.Label(xalign=0.0, wrap=True)
-        # Le journal des prises colore les noms de guildes : il passe donc son
-        # texte en markup Pango, deja echappe par `_phrase_prise`.
-        if markup:
-            label.set_markup(texte)
-        else:
-            label.set_text(texte)
+        # Du texte nu, jamais de markup : le seul qui en demandait etait le
+        # journal des prises, et il compose desormais sa ligne lui-meme --
+        # voir `_ligne_prise`.
+        label.set_text(texte)
         if dim:
             label.add_css_class("dim-label")
         self._pad(label)

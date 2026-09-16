@@ -111,24 +111,16 @@ PRISE_ROUGE = "#e2696a"
 PRISE_OR = "#e8c15a"
 
 
-def _phrase_prise(quand: str, nom: str, change) -> str:
-    """Une ligne du journal, en HTML.
+def _fleche_prise(gagne: bool) -> str:
+    """La flèche du sens : verte qui monte, rouge qui descend."""
+    couleur = PRISE_VERT if gagne else PRISE_ROUGE
+    return f'<span style="color:{couleur}">{"▲" if gagne else "▼"}</span>'
 
-    La guilde qui perd est en or derrière une flèche rouge qui descend ; celle
-    qui gagne en vert derrière une flèche verte qui monte. Un échange porte les
-    deux, dans l'ordre où il s'est produit. Le pendant exact de
-    `MainWindow._phrase_prise`, en HTML plutôt qu'en markup Pango.
-    """
-    parts = [f"{escape(quand)}   {escape(nom)}   —"]
-    if change.frm:
-        parts.append(
-            f'<span style="color:{PRISE_ROUGE}">▼</span> '
-            f'<span style="color:{PRISE_OR}">{escape(change.frm)}</span>')
-    if change.to:
-        parts.append(
-            f'<span style="color:{PRISE_VERT}">▲</span> '
-            f'<span style="color:{PRISE_VERT}">{escape(change.to)}</span>')
-    return " ".join(parts)
+
+def _nom_guilde(guilde: str, gagne: bool) -> str:
+    """Le nom d'une guilde, vert si elle gagne, or si elle perd."""
+    couleur = PRISE_VERT if gagne else PRISE_OR
+    return f'<span style="color:{couleur}">{escape(guilde)}</span>'
 
 
 class Pastille(QWidget):
@@ -205,6 +197,8 @@ class PageAvantPostes(QWidget):
         self._fenetre = fenetre
         self._carte: list = []
         self._changements: list = []
+        #: Nom de guilde -> identifiant d'embleme, pour le journal des prises.
+        self._emblemes: dict = {}
         self._premier = False
         self._charge = False
         #: La largeur qu'avait la page au dernier remplissage de la carte.
@@ -303,17 +297,18 @@ class PageAvantPostes(QWidget):
 
         def travail():
             xml = ryzom_api.fetch_guild_directory_xml()
-            carte = outposts.parse_outposts(xml)
+            carte, emblemes = outposts.parse_annuaire(xml)
             premier = magasin.jamais_releve()
             magasin.record(carte)
-            return carte, magasin.history(), premier
+            return carte, emblemes, magasin.history(), premier
 
         def apres(resultat, erreur):
             self._btn_actualiser.setEnabled(True)
             if erreur:
                 self._statut.setText(_("Annuaire indisponible : %s") % erreur)
                 return
-            self._carte, self._changements, self._premier = resultat
+            (self._carte, self._emblemes,
+             self._changements, self._premier) = resultat
             self._statut.setText("")
             self._rafraichir()
 
@@ -467,8 +462,8 @@ class PageAvantPostes(QWidget):
         for rang, c in enumerate(self._changements):
             quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
             nom = noms.name(f"{c.outpost}.outpost")
-            self._journal.addWidget(self._ligne_simple(
-                _phrase_prise(quand, nom, c), zebre=rang % 2 == 0, riche=True))
+            self._journal.addWidget(
+                self._ligne_prise(quand, nom, c, zebre=rang % 2 == 0))
 
     @staticmethod
     def _infobulle_changement(change) -> str:
@@ -721,17 +716,78 @@ class PageAvantPostes(QWidget):
                 pass
         return arrivee
 
+    def _ligne_prise(self, quand: str, nom: str, change,
+                     zebre: bool = False) -> QWidget:
+        """Une ligne du journal : la date, l'avant-poste, et qui l'a pris.
+
+        **Une rangée de widgets et non une seule étiquette riche.** Qt sait
+        poser une image dans du HTML, mais elle arriverait après coup, d'un
+        fil de fond, et il faudrait réécrire le texte entier pour l'y glisser.
+        La ligne se compose donc : le texte de gauche, puis pour chaque guilde
+        son emblème et son nom — l'emblème se remplit tout seul quand il
+        arrive, comme dans « Qui tient quoi ».
+
+        L'emblème se cherche par le nom, seule chose que le journal retienne
+        d'une guilde. Une guilde absente de l'annuaire du jour — dissoute
+        depuis — n'en a plus : sa ligne se lit alors comme avant.
+        """
+        rangee = QWidget()
+        # Sans cet attribut, Qt ne peint pas le fond que la feuille de style
+        # donne a un QWidget nu.
+        rangee.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        if zebre:
+            rangee.setProperty("zebre", True)
+        ligne = QHBoxLayout(rangee)
+        ligne.setContentsMargins(8, 4, 8, 4)
+        ligne.setSpacing(6)
+
+        gauche = QLabel(f"{quand}   {nom}   —")
+        gauche.setTextFormat(Qt.TextFormat.PlainText)
+        ligne.addWidget(gauche)
+
+        cote = self._fenetre.reglages.icone(PART_EMBLEME)
+        for guilde, gagne in ((change.frm, False), (change.to, True)):
+            if not guilde:
+                continue
+            # La fleche d'abord : elle dit le sens de l'echange, et c'est
+            # a ce titre qu'elle ouvre le groupe. L'embleme vient ensuite,
+            # colle au nom qu'il illustre.
+            fleche = QLabel(_fleche_prise(gagne))
+            fleche.setTextFormat(Qt.TextFormat.RichText)
+            ligne.addWidget(fleche)
+
+            # La place est reservee meme quand l'annuaire ne connait plus la
+            # guilde : sans elle, une ligne sans embleme serait plus basse que
+            # ses voisines, et le journal monterait et descendrait en
+            # defilant.
+            image = QLabel()
+            image.setFixedSize(cote, cote)
+            ligne.addWidget(image)
+            embleme = self._emblemes.get(guilde, "")
+            if embleme:
+                self._fenetre.icones.demander_embleme(
+                    embleme, self._rappel_embleme(image, cote))
+
+            etiquette = QLabel(_nom_guilde(guilde, gagne))
+            # Impose plutot que devine : Qt choisit son format sur la mine du
+            # texte, et un nom de guilde avec un chevron suffirait a le
+            # tromper dans un sens comme dans l'autre.
+            etiquette.setTextFormat(Qt.TextFormat.RichText)
+            ligne.addWidget(etiquette)
+
+        ligne.addStretch(1)
+        return rangee
+
     @staticmethod
     def _ligne_simple(texte: str, discret: bool = False,
-                      zebre: bool = False, riche: bool = False) -> QWidget:
+                      zebre: bool = False) -> QWidget:
         lbl = QLabel(texte)
-        # Le journal des prises colore les noms de guildes : il passe donc son
-        # texte en HTML, deja echappe par `_phrase_prise`. Impose plutot que
-        # devine : Qt choisit son format sur la mine du texte, et un nom de
-        # guilde avec un chevron suffirait a le tromper dans un sens comme
-        # dans l'autre.
-        lbl.setTextFormat(Qt.TextFormat.RichText if riche
-                          else Qt.TextFormat.PlainText)
+        # Du texte nu, jamais de HTML : le seul qui en demandait etait le
+        # journal des prises, et il compose desormais sa ligne lui-meme --
+        # voir `_ligne_prise`. Impose plutot que devine : Qt choisit son
+        # format sur la mine du texte, et un nom d'avant-poste avec un
+        # chevron suffirait a le tromper.
+        lbl.setTextFormat(Qt.TextFormat.PlainText)
         lbl.setWordWrap(True)
         lbl.setContentsMargins(8, 4, 8, 4)
         if discret:

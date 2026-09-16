@@ -90,25 +90,45 @@ NIVEAUX: dict[str, int] = {
 
 # --------------------------------------------------------------- Lecture
 
-def parse_outposts(xml_bytes: bytes) -> list[Outpost]:
-    """L'annuaire des guildes → la liste des avant-postes tenus.
+def parse_annuaire(xml_bytes: bytes) -> tuple[list[Outpost], dict[str, str]]:
+    """L'annuaire des guildes → les avant-postes tenus, et tous les emblèmes.
 
     `guilds.php` rend les 2 420 guildes du serveur, chacune avec son emblème et
     les avant-postes qu'elle tient. Les guildes sans nom sont écartées : le flux
     en contient quelques-unes, vestiges de guildes dissoutes.
+
+    **Les emblèmes couvrent tout l'annuaire, pas seulement les propriétaires.**
+    Le journal des prises nomme des guildes qui ont perdu leur dernier
+    avant-poste, et qui ne figurent donc dans aucun `Outpost` : les chercher
+    parmi les seuls détenteurs les laisserait sans image. Une guilde dissoute
+    depuis, elle, a quitté l'annuaire, et rien ne peut plus la dessiner.
+
+    Les deux relevés sortent du même parcours : le flux pèse deux mégaoctets,
+    et le lire deux fois pour en tirer deux fois la même chose serait payer
+    l'analyse en double.
     """
     root = fromstring(xml_bytes)
     trouves: list[Outpost] = []
+    emblemes: dict[str, str] = {}
     for guilde in root.iter("guild"):
         nom = (guilde.findtext("name") or "").strip()
         if not nom:
             continue
         embleme = (guilde.findtext("icon") or "").strip()
+        # Le premier gagne : deux guildes de meme nom existent, et rien ne
+        # permet de les departager une fois le nom seul ecrit dans le journal.
+        if embleme and nom not in emblemes:
+            emblemes[nom] = embleme
         for noeud in guilde.iter("outpost"):
             code = (noeud.text or "").strip()
             if code:
                 trouves.append(Outpost(code=code, guild=nom, icon=embleme))
-    return trouves
+    return trouves, emblemes
+
+
+def parse_outposts(xml_bytes: bytes) -> list[Outpost]:
+    """Les seuls avant-postes tenus. Voir `parse_annuaire`."""
+    return parse_annuaire(xml_bytes)[0]
 
 
 # ------------------------------------------------- Journal des prises
