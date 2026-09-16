@@ -54,7 +54,7 @@ from .config import (CATEGORY_CSV, SHEETID_CSV, EntityStore, Settings,
                      snapshot_path)
 from .i18n import _
 from .icones import ChargeurIcones
-from .jauge import LISERE_BAS, LISERE_HAUT, LISERE_PLEIN, Jauge
+from .jauge import PLEIN, Jauge
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
                      categorie_item, decouper_recherche,
                      ItemInfo, ItemType)
@@ -2724,21 +2724,20 @@ class FenetrePrincipale(QMainWindow):
             morceaux.append(ligne)
         return "<br><br>".join(morceaux)
 
-    #: La couleur du lisere a chaque palier du Gtk.LevelBar. "low" n'est pas
-    #: orange : la classe existe bien -- GTK la pose sous les soixante pour
-    #: cent --, mais Adwaita ne lui donne aucune couleur propre, et un
-    #: `Gtk.LevelBar` mesure a cinquante-neuf pour cent peint exactement le
-    #: meme bleu qu'a soixante-dix. L'orange #f57900 qu'on lui avait donne
-    #: dessinait un lisere rouge-orange que la fenetre GTK ne montre jamais.
-    LISERES = {"low": LISERE_BAS, "high": LISERE_HAUT, "full": LISERE_PLEIN}
-
     def _niveau_jauge_a(self, valeur: int) -> None:
-        """Le liseré de la jauge, aux seuils exacts du Gtk.LevelBar.
+        """La couleur de la jauge, aux seuils exacts du Gtk.LevelBar.
 
         GTK pose sur son bloc une classe par palier — `low` jusqu'à 60,
-        `high` jusqu'à 85, `full` au-delà — et le thème lui donne sa couleur
-        de bordure. Qt n'a pas de paliers ; on les rejoue en changeant la
-        couleur que la jauge se peint.
+        `high` jusqu'à 85, `full` au-delà — et le thème lui donne sa couleur.
+        Qt n'a pas de paliers ; on les rejoue en changeant la couleur que la
+        jauge se peint.
+
+        **Deux couleurs et non trois.** « low » n'est pas orange : la classe
+        existe bien — GTK la pose sous les soixante pour cent —, mais Adwaita
+        ne lui donne aucune couleur propre, et un `Gtk.LevelBar` mesuré à
+        cinquante-neuf pour cent peint exactement le même fond qu'à
+        soixante-dix. Seul le dernier palier se distingue, et il passe au
+        vert.
 
         Le changement n'a lieu qu'au passage d'un palier : repeindre à chaque
         volume referait le même dessin à chaque ouverture de coffre.
@@ -2747,7 +2746,9 @@ class FenetrePrincipale(QMainWindow):
         if niveau == self._niveau_jauge:
             return
         self._niveau_jauge = niveau
-        self._jauge.poser_lisere(self.LISERES[niveau])
+        self._jauge.poser_couleur(
+            PLEIN if niveau == "full" else theme.COULEURS["sarcelle"],
+            plein=niveau == "full")
 
     def _maj_jauge(self, inv) -> None:
         total = inv.total_volume

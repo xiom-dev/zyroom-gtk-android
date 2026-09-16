@@ -28,38 +28,41 @@ from PySide6.QtWidgets import QWidget
 
 from . import theme
 
-#: Le fond du creux, et les trois liseres des paliers. Ces quatre couleurs
-#: viennent du Default-dark.css de GTK et non de notre palette : les reprendre
+#: Le fond du creux, et le vert du dernier palier. Ces deux couleurs viennent
+#: du Default-dark.css de GTK et non de notre palette : les reprendre
 #: autrement aurait fait deux jauges cousines au lieu de deux jumelles.
 FOND = "#282828"
-LISERE_BAS = "#15539e"
-LISERE_HAUT = "#15539e"
-LISERE_PLEIN = "#26ab62"
+PLEIN = "#26ab62"
 
 #: Cinq pixels, le rayon qu'Adwaita donne au creux comme au bloc.
 RAYON = 5.0
 
 
 class Jauge(QWidget):
-    """Un creux, un bloc rempli, un liseré. Rien de plus.
+    """Un creux et un bloc rempli, d'une seule couleur. Rien de plus.
 
     L'interface reprend le peu qu'on utilisait de `QProgressBar` — `setValue`
     et une hauteur fixe — pour que les deux appels d'origine n'aient qu'à
     changer de classe.
 
-    Le liseré se choisit à la construction. La jauge de volume y met la
-    couleur de son palier ; celle d'une compétence, qui n'a pas de palier,
-    y met son propre sarcelle — un liseré de la couleur du remplissage ne
-    se voit plus. **C'est une couleur et non un liseré retiré** : le trait
-    d'un pixel compte dans la géométrie du bloc, et ne plus le tracer
-    amincirait la jauge sans qu'on l'ait demandé.
+    **Plus de liseré bleu.** Adwaita en pose un d'un pixel autour du bloc, et
+    sa couleur y disait le palier. Il ne disait rien d'une compétence, qui n'a
+    pas de palier, et il cachait le sarcelle des faibles avancements : à 3 %,
+    le bloc mesure 2,7 pixels et ses deux bords le remplissaient entièrement.
+    La jauge de volume, elle, garde son palier — mais c'est tout son bloc qui
+    passe au vert, et non son seul contour.
+
+    Le trait continue d'être tracé, de la couleur du remplissage : il compte
+    dans la géométrie du bloc, et ne plus le poser amincirait la jauge sans
+    qu'on l'ait demandé.
     """
 
     def __init__(self, parent: QWidget | None = None,
-                 lisere: str = LISERE_HAUT) -> None:
+                 couleur: str = "") -> None:
         super().__init__(parent)
         self._valeur = 0
-        self._lisere = lisere
+        self._couleur = couleur or theme.COULEURS["sarcelle"]
+        self._plein = False
         # Onze pixels : neuf de bloc et un de lisere de part et d'autre.
         # **En pixels et non en hauteurs de ligne** : GTK pose ce nombre en
         # dur, et une jauge qui suivrait la police cesserait de lui ressembler
@@ -75,24 +78,40 @@ class Jauge(QWidget):
             self._valeur = valeur
             self.update()
 
-    def lisere(self) -> str:
-        return self._lisere
+    def couleur(self) -> str:
+        return self._couleur
 
-    def poser_lisere(self, couleur: str) -> None:
-        """Le liseré du palier. Seule la jauge de volume en change."""
-        if couleur != self._lisere:
-            self._lisere = couleur
+    def poser_couleur(self, couleur: str, plein: bool = False) -> None:
+        """La couleur du bloc. Seule la jauge de volume en change.
+
+        `plein` dit que le bloc porte la classe « full » de GTK, et il change
+        sa forme autant que sa couleur : Adwaita arrondit alors les deux
+        bords, là où un bloc ordinaire n'arrondit que celui de gauche. Sans
+        ce détail, la jauge de volume dépassait de six pixels celle de GTK
+        au dernier palier — mesuré à 90 %.
+        """
+        if couleur != self._couleur or plein != self._plein:
+            self._couleur = couleur
+            self._plein = plein
             self.update()
 
     # ------------------------------------------------------------- peinture
     @staticmethod
     def _bloc(x: float, y: float, largeur: float, hauteur: float,
-              rayon: float) -> QPainterPath:
-        """Le contour du bloc rempli : arrondi à gauche, franc à droite."""
-        rayon = max(0.0, min(rayon, largeur, hauteur / 2))
+              rayon: float, deux_bords: bool = False) -> QPainterPath:
+        """Le contour du bloc rempli : arrondi à gauche, franc à droite.
+
+        `deux_bords` arrondit aussi celui de droite — la forme du bloc
+        « full » d'Adwaita, et la seule occasion où il change.
+        """
+        rayon = max(0.0, min(rayon, largeur / (2 if deux_bords else 1),
+                             hauteur / 2))
         chemin = QPainterPath()
         if rayon <= 0.0:
             chemin.addRect(QRectF(x, y, largeur, hauteur))
+            return chemin
+        if deux_bords:
+            chemin.addRoundedRect(QRectF(x, y, largeur, hauteur), rayon, rayon)
             return chemin
         cote = 2 * rayon
         chemin.moveTo(x + largeur, y)
@@ -129,10 +148,12 @@ class Jauge(QWidget):
         # pose la bordure par-dessus. En une seule passe, le remplissage
         # s'arrete au milieu du trait et les coins arrondis ressortaient plus
         # pales que ceux de la reference.
-        peintre.fillPath(self._bloc(0.0, 0.0, float(rempli), hauteur, rayon),
-                         QColor(theme.COULEURS["sarcelle"]))
+        peintre.fillPath(
+            self._bloc(0.0, 0.0, float(rempli), hauteur, rayon, self._plein),
+            QColor(self._couleur))
         # Un demi-pixel de retrait, pour que le trait d'un pixel tombe
         # exactement sur le pixel du bord au lieu de l'enjamber.
         peintre.strokePath(
-            self._bloc(0.5, 0.5, rempli - 1.0, hauteur - 1.0, rayon - 0.5),
-            QPen(QColor(self._lisere), 1))
+            self._bloc(0.5, 0.5, rempli - 1.0, hauteur - 1.0, rayon - 0.5,
+                       self._plein),
+            QPen(QColor(self._couleur), 1))
