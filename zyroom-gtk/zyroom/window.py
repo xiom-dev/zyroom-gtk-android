@@ -69,7 +69,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.36" if _DEV else "1.07"
+VERSION = "1.37" if _DEV else "1.08"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -3086,6 +3086,11 @@ class MainWindow(Gtk.ApplicationWindow):
             barre.set_value(node.skill.progress)
             barre.set_size_request(90, -1)
             barre.set_valign(Gtk.Align.CENTER)
+            # Sans le lisere bleu d'Adwaita : voir la regle du meme nom dans
+            # le CSS. Il ne dit rien ici -- la jauge de volume s'en sert pour
+            # ses paliers, une competence n'en a pas -- et il mangeait les
+            # faibles pourcentages.
+            barre.add_css_class("jauge-competence")
             line.append(barre)
 
         # Le niveau atteint, et non le plafond de l'echelon : « Creer bijoux »
@@ -4678,6 +4683,17 @@ class MainWindow(Gtk.ApplicationWindow):
             levelbar > trough > block.filled,
             progressbar > trough > progress {
                 background-color: @zy_sarcelle; }
+            /* La jauge d'une competence n'a pas de lisere. Adwaita en pose
+               un d'un pixel autour du bloc rempli, bleu, et il sert a la
+               jauge de volume : sa couleur y dit le palier. Une competence
+               n'a pas de palier, et ce lisere ne faisait qu'y cacher le
+               sarcelle -- a 3 %, le bloc mesure 2,7 pixels et ses deux bords
+               le remplissaient entierement : la jauge paraissait bleue.
+               La couleur du bord plutot que `border: none` : la bordure
+               compte dans la hauteur du bloc, et la retirer amincirait la
+               jauge d'un pixel de chaque cote. */
+            levelbar.jauge-competence > trough > block.filled {
+                border-color: @zy_sarcelle; }
             /* `background-image: none` en plus de la couleur : Adwaita peint
                ces cases avec une image, qui l'emporterait sur un simple fond
                et laissait la coche bleue au milieu d'une fenêtre sarcelle. */
