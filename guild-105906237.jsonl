@@ -5087,3 +5087,4 @@
 {"ts": 1789514721.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0756dxacc01.sitem", "q": 250, "kind": "modified", "delta": 1, "old": 202, "new": 203}
 {"ts": 1789519457.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ixpca03.sitem", "q": 150, "kind": "modified", "delta": -999, "old": 6670, "new": 5671}
 {"ts": 1789519457.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ixpca03.sitem", "q": 100, "kind": "modified", "delta": -3996, "old": 6993, "new": 2997}
+{"ts": 1789522211.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ipoc_int.sitem", "q": 250, "kind": "modified", "delta": 1, "old": 84, "new": 85}
