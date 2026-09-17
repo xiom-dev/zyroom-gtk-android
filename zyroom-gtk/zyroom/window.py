@@ -796,6 +796,7 @@ class MainWindow(Gtk.ApplicationWindow):
     #: dont la table cache les siens.
     def _colonnes_du_journal(self) -> list:
         colonnes = []
+        self._log_colonnes = {}
         for rang, (nom, poser, lier) in enumerate((
                 ("date", self._cellule_texte, self._lier_date),
                 ("contenant", self._cellule_texte, self._lier_contenant),
@@ -812,8 +813,66 @@ class MainWindow(Gtk.ApplicationWindow):
             # qualite se pose alors juste apres l'icone, et le vide reste a sa
             # droite.
             colonne.set_expand(nom == "qualite")
+            self._log_colonnes[nom] = colonne
             colonnes.append(colonne)
         return colonnes
+
+    #: L'air que le CSS met de chaque cote d'une cellule du journal.
+    _AIR_CELLULE = 16
+
+    def _caler_colonnes_journal(self, lignes: list) -> None:
+        """Fige la largeur des colonnes sur le contenu du journal entier.
+
+        **Sinon elles bougent toutes seules en défilant.** Un `Gtk.ColumnView`
+        ne connaît que les lignes qu'il a réalisées : il cale ses colonnes sur
+        ce qui passe à l'écran, et la première ligne plus longue qui arrive les
+        élargit — l'œil voit alors le tableau glisser latéralement sans qu'on
+        ait rien touché. La grille d'avant ne le faisait pas : elle construisait
+        tout, donc mesurait tout.
+
+        La version Qt a rencontré le même écueil et y répond pareil : une seule
+        mesure, la dernière ligne posée, puis les colonnes ne bougent plus (voir
+        `_rafraichir_journal`, côté Qt).
+
+        **On ne mesure pas six mille textes.** Pour chaque colonne, les dix
+        plus longs en signes suffisent : le plus large en pixels est
+        forcément parmi eux, et dix mesures Pango coûtent moins d'une
+        milliseconde là où six mille en coûteraient cent.
+        """
+        if not lignes:
+            return
+        cote = self._cote_icone_journal
+        colonnes = {
+            "date": [l.mv.when for l in lignes],
+            "contenant": [self._sans_parenthese(l.mv.inv_label)
+                          for l in lignes],
+            "quantite": [f"{l.mv.delta:+,}".replace(",", " ")
+                         if l.mv.inv_key == movements.MONEY_KEY
+                         else f"{l.mv.delta:+d}" for l in lignes],
+            "objet": [_("Dappers") if l.mv.inv_key == movements.MONEY_KEY
+                      else self._names.name(l.mv.sheet) for l in lignes],
+        }
+        for nom, textes in colonnes.items():
+            colonne = self._log_colonnes.get(nom)
+            if colonne is None:
+                continue
+            candidats = sorted(set(textes), key=len, reverse=True)[:10]
+            largeur = 0
+            for texte in candidats:
+                mise = self._log_vue.create_pango_layout(texte)
+                # **L'horodatage est a chasse fixe.** Mesure avec la police du
+                # tableau, il sortait neuf pixels trop etroit et toutes les
+                # colonnes suivantes remontaient d'autant : le journal ne se
+                # superposait plus a celui de la version Qt.
+                if nom == "date":
+                    police = mise.get_context().get_font_description().copy()
+                    police.set_family("monospace")
+                    mise.set_font_description(police)
+                largeur = max(largeur, mise.get_pixel_size().width)
+            colonne.set_fixed_width(largeur + self._AIR_CELLULE)
+        icone = self._log_colonnes.get("icone")
+        if icone is not None:
+            icone.set_fixed_width(cote + self._AIR_CELLULE)
 
     # ----------------------------------------------- Les cellules du journal
     def _cellule_texte(self, _fabrique, cellule) -> None:
@@ -3677,6 +3736,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # D'un seul coup, et non ligne a ligne : `splice` ne previent qu'une
         # fois, la ou mille `append` feraient mille recalculs de la vue.
         self._log_modele.splice(0, self._log_modele.get_n_items(), lignes)
+        self._caler_colonnes_journal(lignes)
 
         total = len(self._log_entries)
         if not total:
