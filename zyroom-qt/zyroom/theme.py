@@ -577,6 +577,11 @@ QToolButton#nav[actif="true"] {
    True)` du cote Python. Il sert aux lignes des tableaux comme aux blocs de
    l'effectif, qui sont des boites et non des lignes de liste. */
 QWidget[zebre="true"] { background-color: %(zebre)s; }
+/* Les rangees choisies du registre. Le meme sarcelle que les lignes choisies
+   du journal, et que la version GTK donne a ses `row:selected` : c'est un
+   etat qui dure, pas un passage. Apres le zebrage, pour l'emporter sur lui --
+   QSS applique la derniere regle de meme poids. */
+QWidget[choisie="true"] { background-color: %(sarcelle_sombre)s; }
 
 /* Ce qui est monte au maximum, dans l'arbre des competences comme sur un
    avant-poste qui nous appartient : le vert de l'application. */

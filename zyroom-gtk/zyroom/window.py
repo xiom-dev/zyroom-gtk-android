@@ -1158,8 +1158,28 @@ class MainWindow(Gtk.ApplicationWindow):
         bar.append(self._roster_status)
 
         self._roster_box = Gtk.ListBox()
-        self._roster_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        # **Plusieurs lignes d'un coup.** Chaque etiquette se selectionnait
+        # deja a la souris, mais une par une : recopier trois arrivees dans le
+        # canal de guilde demandait trois passages. La ListBox sait choisir
+        # plusieurs rangees -- clic, Maj+clic, Ctrl+clic -- des qu'on le lui
+        # permet, et le glisse s'ajoute d'un geste. Ctrl+C et le clic droit
+        # copient ensuite, comme dans le journal des mouvements.
+        self._roster_box.set_selection_mode(Gtk.SelectionMode.MULTIPLE)
         self._roster_box.add_css_class("survol")
+        glisse = Gtk.GestureDrag()
+        glisse.connect("drag-begin", self._on_registre_glisse_debut)
+        glisse.connect("drag-update", self._on_registre_glisse)
+        self._roster_box.add_controller(glisse)
+        clic = Gtk.GestureClick(button=3)
+        clic.connect("pressed", self._on_registre_clic_droit)
+        self._roster_box.add_controller(clic)
+        raccourci = Gtk.ShortcutController()
+        raccourci.set_scope(Gtk.ShortcutScope.GLOBAL)
+        raccourci.add_shortcut(Gtk.Shortcut(
+            trigger=Gtk.ShortcutTrigger.parse_string("<Control>c"),
+            action=Gtk.CallbackAction.new(
+                lambda *_a: self._copier_registre_choisi())))
+        self.add_controller(raccourci)
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
@@ -1360,9 +1380,12 @@ class MainWindow(Gtk.ApplicationWindow):
             line.props.margin_top = 2
             line.props.margin_bottom = 2
 
+            # **Plus de `selectable` ici.** Une etiquette selectionnable
+            # avale le clic pour y poser un curseur de texte, et la rangee ne
+            # se choisissait plus. Ce qu'on vient chercher -- le nom du
+            # joueur -- part maintenant avec la ligne entiere.
             quand = Gtk.Label(label=datetime.fromtimestamp(c.at)
-                              .strftime("%d/%m %H:%M"), xalign=0.0,
-                              selectable=True)
+                              .strftime("%d/%m %H:%M"), xalign=0.0)
             quand.add_css_class("dim-label")
             quand.add_css_class("compact")
             line.append(quand)
@@ -1372,10 +1395,124 @@ class MainWindow(Gtk.ApplicationWindow):
             triangle.add_css_class(classe)
             line.append(triangle)
 
-            line.append(Gtk.Label(label=roster.decrire(c), xalign=0.0,
-                                  selectable=True))
+            line.append(Gtk.Label(label=roster.decrire(c), xalign=0.0))
             row.set_child(line)
             self._roster_box.append(row)
+
+    # ------------------------------------- Choisir et copier dans le registre
+    @staticmethod
+    def _textes_du_widget(widget) -> list:
+        """Tous les libellés d'une rangée, de gauche à droite.
+
+        Recursif : une rangée du registre est une boîte de trois étiquettes,
+        celle de l'effectif une grille de six, et la légende un assemblage de
+        paires. On ne sait pas d'avance laquelle on tient.
+        """
+        mots = []
+        if isinstance(widget, Gtk.Label):
+            texte = widget.get_text()
+            if texte:
+                mots.append(texte)
+            return mots
+        enfant = widget.get_first_child() if widget is not None else None
+        while enfant is not None:
+            mots += MainWindow._textes_du_widget(enfant)
+            enfant = enfant.get_next_sibling()
+        return mots
+
+    def _lignes_registre_choisies(self) -> list:
+        """Le texte des rangées choisies, de haut en bas."""
+        textes = []
+        for row in self._roster_box.get_selected_rows():
+            mots = self._textes_du_widget(row.get_child())
+            if mots:
+                textes.append("  ".join(mots))
+        return textes
+
+    def _copier_registre_choisi(self) -> bool:
+        """Ctrl+C : met les rangées choisies dans le presse-papiers.
+
+        Sans effet ailleurs que sur l'écran du registre : le raccourci est
+        pose sur la fenetre, et le journal des mouvements a le sien.
+        """
+        if self._stack.get_visible_child_name() != "plus":
+            return False
+        if self._plus_stack.get_visible_child_name() != "roster":
+            return False
+        textes = self._lignes_registre_choisies()
+        if not textes:
+            return False
+        self.get_clipboard().set("\n".join(textes))
+        self._set_status(_("%d ligne(s) copiée(s).") % len(textes))
+        return True
+
+    def _on_registre_glisse_debut(self, _geste, _x, y) -> None:
+        """L'ancre du glissé : la rangée où le bouton s'est enfoncé."""
+        self._registre_ancre = self._roster_box.get_row_at_y(int(y))
+
+    def _on_registre_glisse(self, geste, dx, dy) -> None:
+        """Étend le choix jusqu'à la rangée sous le pointeur.
+
+        Maj+clic suppose qu'on sache qu'il existe ; tirer du doigt sur
+        plusieurs lignes est le geste qu'on essaie d'abord.
+        """
+        ancre = getattr(self, "_registre_ancre", None)
+        if ancre is None:
+            return
+        ok, _x, y = geste.get_start_point()
+        if not ok:
+            return
+        arrivee = self._roster_box.get_row_at_y(int(y + dy))
+        if arrivee is None:
+            return
+        debut, fin = sorted((ancre.get_index(), arrivee.get_index()))
+        self._roster_box.unselect_all()
+        for rang in range(debut, fin + 1):
+            row = self._roster_box.get_row_at_index(rang)
+            if row is not None and row.get_selectable():
+                self._roster_box.select_row(row)
+
+    def _on_registre_clic_droit(self, _geste, _n, x, y) -> None:
+        """Propose de copier ce qui est choisi, ou la rangée visée."""
+        row = self._roster_box.get_row_at_y(int(y))
+        if row is None:
+            return
+        # Un clic droit hors de ce qui est choisi prend la rangee visee : sinon
+        # le menu proposerait de copier des lignes qu'on ne montre pas du
+        # doigt.
+        if not row.is_selected():
+            self._roster_box.unselect_all()
+            self._roster_box.select_row(row)
+        textes = self._lignes_registre_choisies()
+        if not textes:
+            return
+        texte = "\n".join(textes)
+        bouton = Gtk.Button(label=_("Copier la ligne") if len(textes) == 1
+                            else _("Copier les %d lignes") % len(textes))
+        bouton.add_css_class("flat")
+        popover = Gtk.Popover()
+        popover.add_css_class("menu")
+        popover.set_child(bouton)
+        # Accroche a la rangee cliquee, qui mesure ce qu'on voit : le menu
+        # s'ouvre sous le pointeur quel que soit le defilement. **Le rectangle
+        # se remplit champ par champ** -- `Gdk.Rectangle(x=…)` ne pose rien,
+        # PyGObject ignore les arguments d'une structure boxed.
+        ok, cadre = row.compute_bounds(self._roster_box)
+        vise = Gdk.Rectangle()
+        vise.x = int(x)
+        vise.y = int(y - cadre.origin.y) if ok else 0
+        vise.width = vise.height = 1
+        popover.set_parent(row)
+        popover.set_position(Gtk.PositionType.BOTTOM)
+        popover.set_pointing_to(vise)
+        popover.connect("closed", lambda pop: pop.unparent())
+
+        def copier(_b):
+            self.get_clipboard().set(texte)
+            popover.popdown()
+            self._set_status(_("%d ligne(s) copiée(s).") % len(textes))
+        bouton.connect("clicked", copier)
+        popover.popup()
 
     def _legende_roster(self) -> Gtk.ListBoxRow:
         """Quatre signes et leur sens, en tête du journal.
@@ -1388,6 +1525,9 @@ class MainWindow(Gtk.ApplicationWindow):
         départ ne l'est que du relevé qui l'a constaté, faute que l'API en
         garde la moindre trace."""
         row = Gtk.ListBoxRow()
+        # La legende coiffe le registre, elle n'en est pas une ligne :
+        # la choisir copierait le mode d'emploi des triangles.
+        row.set_selectable(False)
         row.set_activatable(False)
         line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
         self._pad(line)

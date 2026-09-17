@@ -17,9 +17,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QScrollArea, QVBoxLayout, QWidget)
+                               QMenu, QPushButton, QScrollArea, QVBoxLayout,
+                               QWidget)
 
 from . import roster
 from . import theme
@@ -56,11 +58,63 @@ def _signe(changement) -> tuple:
     return SIGNES[(changement.kind, True)]
 
 
+class _Rangee(QWidget):
+    """Une rangée du registre. Elle dit quand on la clique et qu'on la survole.
+
+    **Plusieurs lignes d'un coup.** Chaque étiquette se sélectionnait déjà à la
+    souris, mais une par une : recopier trois arrivées dans le canal de guilde
+    demandait trois passages. Qt n'a rien d'équivalent au `SelectionMode` d'une
+    `Gtk.ListBox` pour une pile de widgets — clic, Maj+clic, Ctrl+clic et
+    glissé se posent donc ici, et la page en tient le compte.
+    """
+
+    clique = Signal(int, Qt.KeyboardModifier)
+    glissee = Signal(int, QPoint)
+    appelee = Signal(int, QPoint)
+
+    def __init__(self, rang: int) -> None:
+        super().__init__()
+        self._rang = rang
+        # Sans cet attribut, Qt ne peint pas le fond que la feuille de style
+        # donne a un QWidget nu.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+
+    def mousePressEvent(self, evenement) -> None:      # noqa: N802
+        if evenement.button() == Qt.MouseButton.RightButton:
+            self.appelee.emit(self._rang, evenement.globalPosition().toPoint())
+            return
+        if evenement.button() == Qt.MouseButton.LeftButton:
+            self.clique.emit(self._rang, evenement.modifiers())
+        super().mousePressEvent(evenement)
+
+    def mouseMoveEvent(self, evenement) -> None:       # noqa: N802
+        """Le glissé. **Toujours reçu par la rangée où le bouton s'est
+        enfoncé** : Qt lui donne la souris jusqu'au relâchement, et les
+        coordonnées sortent d'elle. On passe donc le point en repère écran, et
+        c'est la page qui dit quelle rangée se trouve dessous.
+        """
+        if evenement.buttons() & Qt.MouseButton.LeftButton:
+            self.glissee.emit(self._rang,
+                              evenement.globalPosition().toPoint())
+        super().mouseMoveEvent(evenement)
+
+
 class PageEffectif(QWidget):
     def __init__(self, fenetre) -> None:
         super().__init__()
         self._fenetre = fenetre
         self._vue = "effectif"
+        #: Les rangees affichees, leur choix, et le point d'ou part une plage
+        #: tenue a Maj+clic.
+        self._rangees: list = []
+        self._choisies: set = set()
+        self._ancre = None
+        copier = QShortcut(QKeySequence.StandardKey.Copy, self)
+        # Sur la page et non sur la fenetre : le journal des mouvements a son
+        # propre Ctrl+C, et deux raccourcis identiques sur la meme fenetre se
+        # disputeraient la frappe.
+        copier.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        copier.activated.connect(self._copier_choix)
 
         colonne = QVBoxLayout(self)
         colonne.setContentsMargins(0, 0, 0, 0)
@@ -184,6 +238,7 @@ class PageEffectif(QWidget):
         self.rafraichir()
 
     def _vider(self) -> None:
+        self._oublier_choix()
         while self._liste.count():
             element = self._liste.takeAt(0)
             if element.widget():
@@ -336,20 +391,20 @@ class PageEffectif(QWidget):
                   "une."), True))
             return
         for rang, changement in enumerate(changements):
-            rangee = QWidget()
-            # Sans cet attribut, Qt ne peint pas le fond que la feuille
-            # de style donne a un QWidget nu.
-            rangee.setAttribute(
-                Qt.WidgetAttribute.WA_StyledBackground, True)
+            rangee = _Rangee(rang)
+            self._brancher_rangee(rangee)
             if rang % 2 == 0:
                 rangee.setProperty("zebre", True)
             ligne = QHBoxLayout(rangee)
             ligne.setContentsMargins(8, 2, 8, 2)
             ligne.setSpacing(8)
 
-            quand = self._copiable(
-                QLabel(datetime.fromtimestamp(changement.at)
-                       .strftime("%d/%m %H:%M")))
+            # **Plus de `_copiable` ici.** Une etiquette selectionnable
+            # avale le clic pour y poser un curseur de texte, et la ligne ne
+            # se choisissait plus. Ce qu'on vient chercher -- le nom du
+            # joueur -- part maintenant avec la ligne entiere.
+            quand = QLabel(datetime.fromtimestamp(changement.at)
+                           .strftime("%d/%m %H:%M"))
             quand.setObjectName("discret")
             ligne.addWidget(quand)
 
@@ -358,9 +413,107 @@ class PageEffectif(QWidget):
             triangle.setObjectName(style)
             ligne.addWidget(triangle)
 
-            ligne.addWidget(
-                self._copiable(QLabel(roster.decrire(changement))), 1)
+            ligne.addWidget(QLabel(roster.decrire(changement)), 1)
             self._liste.addWidget(rangee)
+
+    # ------------------------------------- Choisir et copier dans le registre
+    def _oublier_choix(self) -> None:
+        """Les rangs designeraient d'autres lignes une fois la liste refaite."""
+        self._rangees = []
+        self._choisies = set()
+        self._ancre = None
+
+    def _rangee_a(self, point_ecran: QPoint):
+        """Le rang de la rangée sous ce point de l'écran, ou None."""
+        for rang, rangee in enumerate(self._rangees):
+            haut = rangee.mapToGlobal(rangee.rect().topLeft()).y()
+            if haut <= point_ecran.y() < haut + rangee.height():
+                return rang
+        return None
+
+    def _on_rangee_cliquee(self, rang: int, modificateurs) -> None:
+        """Choisit une ligne, une plage avec Maj, ou en ajoute une avec Ctrl."""
+        avant = set(self._choisies)
+        if (modificateurs & Qt.KeyboardModifier.ShiftModifier
+                and self._ancre is not None):
+            debut, fin = sorted((self._ancre, rang))
+            self._choisies = set(range(debut, fin + 1))
+        elif modificateurs & Qt.KeyboardModifier.ControlModifier:
+            self._choisies ^= {rang}
+            self._ancre = rang
+        else:
+            self._choisies = {rang}
+            self._ancre = rang
+        self._maj_surlignage(avant)
+
+    def _on_rangee_glissee(self, _rang: int, point_ecran: QPoint) -> None:
+        """Étend le choix jusqu'à la rangée sous le pointeur."""
+        if self._ancre is None:
+            return
+        arrivee = self._rangee_a(point_ecran)
+        if arrivee is None:
+            return
+        avant = set(self._choisies)
+        debut, fin = sorted((self._ancre, arrivee))
+        self._choisies = set(range(debut, fin + 1))
+        if self._choisies != avant:
+            self._maj_surlignage(avant)
+
+    def _maj_surlignage(self, avant: set = frozenset()) -> None:
+        """Repeint les seules rangées dont l'état a changé."""
+        for rang in set(avant) ^ self._choisies:
+            if rang >= len(self._rangees):
+                continue
+            rangee = self._rangees[rang]
+            rangee.setProperty("choisie", rang in self._choisies)
+            rangee.style().unpolish(rangee)
+            rangee.style().polish(rangee)
+
+    def _lignes_choisies(self) -> list:
+        """Le texte des rangées choisies, de haut en bas."""
+        textes = []
+        for rang in sorted(self._choisies):
+            if rang >= len(self._rangees):
+                continue
+            mots = [lbl.text() for lbl in
+                    self._rangees[rang].findChildren(QLabel) if lbl.text()]
+            if mots:
+                textes.append("  ".join(mots))
+        return textes
+
+    def _copier_choix(self) -> None:
+        """Ctrl+C : met les rangées choisies dans le presse-papiers."""
+        textes = self._lignes_choisies()
+        if not textes:
+            return
+        QGuiApplication.clipboard().setText("\n".join(textes))
+        self._statut.setText(_("%d ligne(s) copiée(s).") % len(textes))
+
+    def _on_rangee_appelee(self, rang: int, point_ecran: QPoint) -> None:
+        """Propose de copier ce qui est choisi, ou la rangée visée."""
+        # Un clic droit hors de ce qui est choisi prend la rangee visee : sinon
+        # le menu proposerait de copier des lignes qu'on ne montre pas du
+        # doigt.
+        if rang not in self._choisies:
+            avant = set(self._choisies)
+            self._choisies = {rang}
+            self._ancre = rang
+            self._maj_surlignage(avant)
+        textes = self._lignes_choisies()
+        if not textes:
+            return
+        menu = QMenu(self)
+        action = menu.addAction(_("Copier la ligne") if len(textes) == 1
+                                else _("Copier les %d lignes") % len(textes))
+        action.triggered.connect(self._copier_choix)
+        menu.exec(point_ecran)
+
+    def _brancher_rangee(self, rangee) -> None:
+        """Relie une rangée neuve au choix, et la retient."""
+        rangee.clique.connect(self._on_rangee_cliquee)
+        rangee.glissee.connect(self._on_rangee_glissee)
+        rangee.appelee.connect(self._on_rangee_appelee)
+        self._rangees.append(rangee)
 
     def _legende(self) -> QWidget:
         """Quatre signes et leur sens, en tête du journal.
