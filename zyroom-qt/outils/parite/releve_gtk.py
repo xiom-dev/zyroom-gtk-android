@@ -946,32 +946,59 @@ def relever(f: MainWindow) -> dict:
     f._log_entries = journal_temoin()
     f._refresh_log()
     tourner(150)
-    colonnes = 0
-    while f._log_grid.get_child_at(colonnes, 0) is not None:
-        colonnes += 1
-    points["journal.colonnes"] = colonnes
-    points["journal.alignements"] = [cote(f._log_grid.get_child_at(c, 0))
-                                     for c in range(colonnes)]
+    # Les cellules d'une rangee du tableau. Le `Gtk.ColumnView` ne donne pas
+    # d'acces direct a la cellule (colonne, rang) comme le faisait la grille :
+    # c'est le journal lui-meme qui retient, dans `_log_cellules`, quelle
+    # cellule sert quelle ligne -- il en a besoin pour son menu contextuel.
+    # Elles s'ordonnent par leur abscisse, l'ordre des colonnes a l'ecran.
+    def cellules(rang):
+        trouvees = [w for w, pos in f._log_cellules.items() if pos == rang]
+
+        def abscisse(widget):
+            ok, cadre = widget.compute_bounds(f._log_vue)
+            return cadre.origin.x if ok else 0.0
+
+        return sorted(trouvees, key=abscisse)
+
+    premiere = cellules(0)
+    points["journal.colonnes"] = len(premiere)
+    points["journal.alignements"] = [cote(w) for w in premiere]
     # La couleur du montant vit dans le balisage Pango, que le style ignore :
     # on la relit dans le balisage lui-meme.
     for quoi, rang in (("entrant", 0), ("sortant", 1)):
-        montant = f._log_grid.get_child_at(2, rang)
+        ligne = cellules(rang)
+        montant = ligne[2] if len(ligne) > 2 else None
         teinte = re.search(r'foreground="(#[0-9a-fA-F]{6})"',
-                           montant.get_label() or "")
+                           (montant.get_label() or "") if montant else "")
         points[f"journal.{quoi}.couleur"] = (teinte.group(1).lower()
                                              if teinte else "sans couleur")
-    horodatage = f._log_grid.get_child_at(0, 0)
     points["journal.horodatage.chasse-fixe"] = (
-        "monospace" in horodatage.get_css_classes())
-    image = f._log_grid.get_child_at(4, 0)
+        "monospace" in premiere[0].get_css_classes() if premiere else False)
+    image = premiere[4] if len(premiere) > 4 else None
     points["journal.icone.cote"] = (image.get_pixel_size()
                                     if isinstance(image, Gtk.Image) else 0)
-    # Le trait entre deux journees : un pixel peint, six d'air de chaque cote,
-    # treize en tout. `measure` compte deja les marges -- inutile de les
-    # rajouter, on comptait le double.
-    trait = f._log_grid.get_child_at(0, 2)
-    points["journal.trait-de-jour.hauteur"] = (taille(trait)[1]
-                                               if trait is not None else 0)
+    # Le trait entre deux journees. Qt pose une rangee de treize pixels ; GTK
+    # n'en pose plus depuis que le journal est un tableau -- c'est une bordure
+    # haute sur la premiere ligne du jour, six pixels de marge, un de trait,
+    # six de remplissage. Ce qui se compare est donc l'air ajoute entre les
+    # deux journees, et non la hauteur d'une rangee qui n'existe plus ici.
+    def depart(widget):
+        ok, cadre = widget.compute_bounds(f._log_vue)
+        return cadre.origin.y if ok else 0.0
+
+    # **L'air ajoute, et non l'air total.** Deux lignes ordinaires se suivent
+    # deja d'un certain pas ; ce qui se compare a la rangee de treize pixels
+    # que Qt insere, c'est ce que le changement de jour ajoute a ce pas-la.
+    #
+    # Mesure de depart a depart, et non de bord a bord : la bordure et son
+    # remplissage sont **dans** la cellule du bas, pas entre les deux, et
+    # d'un bord a l'autre on n'aurait vu que la marge -- six pixels sur les
+    # treize.
+    premiere_l, deuxieme, troisieme = cellules(0), cellules(1), cellules(2)
+    points["journal.trait-de-jour.hauteur"] = (
+        round((depart(troisieme[0]) - depart(deuxieme[0]))
+              - (depart(deuxieme[0]) - depart(premiere_l[0])))
+        if premiere_l and deuxieme and troisieme else 0)
     points["journal.trait-de-jour.rangee"] = 2
     # Le contrat du zoom : la meme plage, le meme pas, le meme facteur au
     # maximum. C'est le seul reglage d'apparence qui reste, et les deux
@@ -1011,13 +1038,17 @@ def relever(f: MainWindow) -> dict:
         mise.get_pixel_size().width / 10) * 10
     # La hauteur d'une ligne du journal, allouee : c'est elle qui decide
     # combien de mouvements tiennent dans un ecran.
+    # Deux lignes successives du tableau, d'un bord a l'autre : le pas
+    # comprend l'air que le `Gtk.ColumnView` met autour de ses cellules, la ou
+    # la grille d'avant l'ajoutait par `row_spacing`.
+    premieres, secondes = cellules(0), cellules(1)
     points["geo.journal.pas-des-rangees"] = (
-        f._log_grid.get_child_at(0, 0).get_height()
-        + f._log_grid.get_row_spacing())
+        round(depart(secondes[0]) - depart(premieres[0]))
+        if premieres and secondes else 0)
     # Ou commence la premiere ligne du journal, sous la barre : l'air declare
     # par les marges ne dit rien -- GTK le pose autour de sa grille, Qt dans
     # les marges de sa vue --, celui-ci se voit.
-    ok, rect = f._log_grid.get_child_at(0, 0).compute_bounds(f._log_search)
+    ok, rect = premieres[0].compute_bounds(f._log_search)
     points["geo.journal.premiere-ligne.depart"] = (round(rect.origin.y)
                                                    if ok else -1)
     # Ou commence chaque colonne, **en pixels depuis la premiere**. Ni en
@@ -1026,8 +1057,8 @@ def relever(f: MainWindow) -> dict:
     # l'ecartement des colonnes qui se compare, celui-la meme que Ludo avait
     # vu se resserrer.
     depart = None
-    for c in range(colonnes):
-        ok, rect = f._log_grid.get_child_at(c, 0).compute_bounds(f._log_grid)
+    for c, cellule in enumerate(premieres):
+        ok, rect = cellule.compute_bounds(f._log_vue)
         if not ok:
             continue
         if depart is None:

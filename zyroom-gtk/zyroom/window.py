@@ -15,7 +15,8 @@ import unicodedata
 from datetime import datetime, timedelta
 from math import cos, radians, sin
 
-from gi.repository import Gdk, GdkPixbuf, GLib, Gio, Gtk, Pango
+from gi.repository import (Gdk, GdkPixbuf, GLib, Gio, GObject,
+                           Gtk, Pango)
 
 from . import (alerts, armory, backup, carte, chatlog, detail, gisements, i18n,
                meteo, movements, outposts, partage, polices, roster, ryzom_api,
@@ -103,6 +104,24 @@ def _norm(text: str) -> str:
     return "".join(c for c in text if not unicodedata.combining(c)).lower()
 
 
+class LigneJournal(GObject.Object):
+    """Un mouvement, tel que le modèle du tableau le porte.
+
+    Le `Gtk.ColumnView` ne travaille pas sur des `Movement` : il lui faut des
+    `GObject`, qu'il garde et compare. Cette enveloppe n'ajoute qu'une chose au
+    mouvement — le fait qu'il ouvre une journée, d'où le trait qui sépare deux
+    jours dans le journal. Le calculer au remplissage plutôt qu'à l'affichage
+    évite de comparer chaque ligne à sa voisine à chaque défilement.
+    """
+
+    __gtype_name__ = "ZyLigneJournal"
+
+    def __init__(self, mv, ouvre_le_jour: bool) -> None:
+        super().__init__()
+        self.mv = mv
+        self.ouvre_le_jour = ouvre_le_jour
+
+
 class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, application):
         super().__init__(application=application)
@@ -165,12 +184,6 @@ class MainWindow(Gtk.ApplicationWindow):
         # se lit dans le nom : voir `models.categorie_item`. La liste n'est
         # donc plus figee, elle est refaite a chaque inventaire avec les seules
         # familles qui s'y trouvent.
-        #: Les rangs de la grille du journal qu'on a choisis, et le point
-        #: d'ou part une plage tenue a Maj+clic.
-        self._log_choisies: set[int] = set()
-        self._log_ancre = None
-        #: Les rangs de grille qui portent une ligne, du haut vers le bas.
-        self._log_rangs: list[int] = []
         self._categories = list(TYPE_NAMES)
         self._cat_rang = {nom: i for i, nom in enumerate(self._categories)}
         self._f_types = set(range(len(self._categories)))
@@ -668,21 +681,30 @@ class MainWindow(Gtk.ApplicationWindow):
     #: La mémoire du journal, en jours. Tout ce qui est plus récent s'affiche,
     #: quel qu'en soit le nombre de lignes.
     #:
-    #: Il se coupait à quatre cents lignes, et une guilde active en produit
+    #: Il se coupait a quatre cents lignes, et une guilde active en produit
     #: huit cents en deux jours : on ne voyait donc jamais l'avant-veille.
-    #: Une semaine est ce qu'il faut pour retrouver « qui a pris quoi » après
-    #: un week-end. Le fichier, lui, gardait déjà tout — c'était l'affichage
-    #: qui tronquait.
-    _LOG_JOURS = 7
+    #: Une semaine a suivi, puis un mois -- le fichier, lui, gardait deja tout,
+    #: c'etait l'affichage qui tronquait.
+    #:
+    #: **Le mois n'a ete possible qu'avec le tableau.** La grille de widgets
+    #: d'avant demandait une seconde entiere pour six mille lignes et quatre-
+    #: vingts megaoctets ; le `Gtk.ColumnView` ne peint que le visible et s'en
+    #: tire en quarante millisecondes. Sans lui, trente jours auraient rendu le
+    #: journal collant a chaque frappe dans la recherche.
+    _LOG_JOURS = 30
 
-    #: Ce qu'on montre malgré tout après une semaine calme : une page vide
+    #: Ce qu'on montre malgre tout apres un mois calme : une page vide
     #: n'apprend rien, et un petit coffre peut ne bouger qu'une fois par mois.
     _LOG_MINIMUM = 400
 
-    #: Plafond dur, pour un journal qu'on aurait laissé courir. Trois mille
-    #: lignes se construisent en moins de quatre cents millisecondes (mesuré) ;
-    #: au-delà, le filtre et la recherche servent à chercher plus loin.
-    _LOG_MAX = 3000
+    #: Plafond dur, pour un journal qu'on aurait laisse courir.
+    #:
+    #: Huit mille, comme la version Qt : le coffre le plus actif de Ludo ecrit
+    #: cent quatre-vingt-dix-huit lignes par jour, un mois en fait pres de six
+    #: mille, et trois mille coupaient donc le mois demande en son milieu.
+    #: Le tableau les tient sans effort -- c'est le nombre de lignes retenues
+    #: qu'il borne, plus le cout de l'affichage.
+    _LOG_MAX = 8000
 
     def _build_log_page(self) -> Gtk.Widget:
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -712,31 +734,40 @@ class MainWindow(Gtk.ApplicationWindow):
         clear_btn.connect("clicked", self._on_log_clear)
         bar.append(clear_btn)
 
-        self._log_grid = Gtk.Grid(column_spacing=16, row_spacing=2)
-        self._pad(self._log_grid)
-        # **Une ligne se copie.** Le bouton « Copier » prend tout ce qui est
-        # affiche -- des milliers de lignes -- quand on ne veut souvent qu'une
-        # date, un nom d'objet, un montant a recopier ailleurs. Chaque
-        # etiquette se selectionne deja a la souris ; le clic droit prend la
-        # ligne entiere d'un coup.
-        clic = Gtk.GestureClick(button=3)
-        clic.connect("pressed", self._on_journal_clic_droit)
-        self._log_grid.add_controller(clic)
-        # **Choisir des lignes, et pas seulement du texte.** Chaque etiquette
-        # se selectionne a la souris, mais une par une : impossible d'attraper
-        # une ligne de la date jusqu'a la qualite, et moins encore un passage
-        # entier. Le clic gauche prend donc une ligne, Maj+clic une plage,
-        # Ctrl+clic ajoute ou retire -- comme dans n'importe quelle liste.
-        choix = Gtk.GestureClick(button=1)
-        choix.connect("pressed", self._on_journal_clic)
-        self._log_grid.add_controller(choix)
-        # **Et le glisse, comme dans un tableau.** Maj+clic suppose qu'on sache
-        # qu'il existe ; tirer du doigt sur plusieurs lignes est le geste qu'on
-        # essaie d'abord, et c'est celui que la version Qt offre. L'ancre reste
-        # la ligne ou le bouton s'est enfonce ; la sélection suit le pointeur.
-        glisse = Gtk.GestureDrag()
-        glisse.connect("drag-update", self._on_journal_glisse)
-        self._log_grid.add_controller(glisse)
+        # **Un tableau, et non plus une grille de widgets.** La grille posait
+        # six etiquettes par ligne, toutes construites d'avance : a trois mille
+        # lignes cela faisait dix-huit mille widgets, trois cent soixante
+        # millisecondes a batir, deux cent vingt a mettre en page et quatre-
+        # vingts megaoctets de memoire -- mesure. Le `Gtk.ColumnView` ne peint
+        # que ce qu'on voit et recycle ses lignes au defilement : quarante
+        # millisecondes et une memoire qui ne bouge pas, a six mille lignes
+        # comme a dix mille. C'est ce qui permet au journal de montrer un mois
+        # entier au lieu d'une semaine, comme la version Qt avec sa table.
+        #
+        # Il rend aussi tout ce qu'on avait ecrit a la main : `MultiSelection`
+        # fait le clic, le Maj+clic et le Ctrl+clic, et `enable_rubberband` le
+        # glisse. Les quatre gestionnaires de gestes et les trois methodes qui
+        # tenaient les rangs a jour disparaissent avec la grille.
+        self._log_modele = Gio.ListStore(item_type=LigneJournal)
+        self._log_choix = Gtk.MultiSelection(model=self._log_modele)
+        self._log_vue = Gtk.ColumnView(model=self._log_choix)
+        self._log_vue.set_enable_rubberband(True)
+        self._log_vue.set_vexpand(True)
+        self._log_vue.add_css_class("journal")
+        # Les cellules savent a quelle ligne elles servent : c'est ce que le
+        # clic droit consulte pour savoir ce qu'on montre du doigt.
+        self._log_cellules: dict = {}
+        for colonne in self._colonnes_du_journal():
+            self._log_vue.append_column(colonne)
+        # **La rangee d'en-tetes se cache.** Les titres sont vides -- la grille
+        # n'en avait pas, et la table de la version Qt cache les siens --, mais
+        # la rangee garde sa hauteur : dix-huit pixels de vide entre la barre
+        # de recherche et la premiere ligne, que Qt n'a pas. `Gtk.ColumnView`
+        # n'offre pas d'interrupteur ; son premier enfant est cette rangee.
+        entetes = self._log_vue.get_first_child()
+        if entetes is not None:
+            entetes.set_visible(False)
+
         raccourci = Gtk.ShortcutController()
         raccourci.set_scope(Gtk.ShortcutScope.GLOBAL)
         raccourci.add_shortcut(Gtk.Shortcut(
@@ -744,10 +775,11 @@ class MainWindow(Gtk.ApplicationWindow):
             action=Gtk.CallbackAction.new(
                 lambda *_a: self._copier_journal_choisi())))
         self.add_controller(raccourci)
+
         scrolled = self._log_defilant = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
-        scrolled.set_child(self._log_grid)
+        scrolled.set_child(self._log_vue)
         page.append(scrolled)
 
         self._log_status = Gtk.Label(xalign=0.0)
@@ -756,6 +788,157 @@ class MainWindow(Gtk.ApplicationWindow):
         self._log_status.props.margin_bottom = 6
         page.append(self._log_status)
         return page
+
+    #: Les six colonnes du journal : leur titre, et ce qu'elles savent faire.
+    #:
+    #: Le titre reste vide : la grille n'en avait pas, et une ligne d'en-tetes
+    #: au-dessus du journal ferait une difference de plus avec la version Qt,
+    #: dont la table cache les siens.
+    def _colonnes_du_journal(self) -> list:
+        colonnes = []
+        for rang, (nom, poser, lier) in enumerate((
+                ("date", self._cellule_texte, self._lier_date),
+                ("contenant", self._cellule_texte, self._lier_contenant),
+                ("quantite", self._cellule_nombre, self._lier_quantite),
+                ("objet", self._cellule_texte, self._lier_nom),
+                ("icone", self._cellule_image, self._lier_icone),
+                ("qualite", self._cellule_texte, self._lier_qualite))):
+            fabrique = Gtk.SignalListItemFactory()
+            fabrique.connect("setup", poser)
+            fabrique.connect("bind", lier)
+            fabrique.connect("unbind", self._delier_cellule)
+            colonne = Gtk.ColumnViewColumn(title="", factory=fabrique)
+            # La derniere prend l'espace libre, comme dans la version Qt : la
+            # qualite se pose alors juste apres l'icone, et le vide reste a sa
+            # droite.
+            colonne.set_expand(nom == "qualite")
+            colonnes.append(colonne)
+        return colonnes
+
+    # ----------------------------------------------- Les cellules du journal
+    def _cellule_texte(self, _fabrique, cellule) -> None:
+        etiquette = Gtk.Label(xalign=0.0)
+        self._armer_clic_droit(etiquette)
+        cellule.set_child(etiquette)
+
+    def _cellule_nombre(self, _fabrique, cellule) -> None:
+        etiquette = Gtk.Label(xalign=1.0)
+        self._armer_clic_droit(etiquette)
+        cellule.set_child(etiquette)
+
+    def _cellule_image(self, _fabrique, cellule) -> None:
+        image = Gtk.Image()
+        self._armer_clic_droit(image)
+        cellule.set_child(image)
+
+    def _armer_clic_droit(self, widget) -> None:
+        """Le menu contextuel, pose une fois pour toutes sur la cellule.
+
+        Sur la cellule et non sur le tableau : un `Gtk.ColumnView` ne sait pas
+        dire quelle ligne se trouve sous une ordonnee, la ou une cellule, elle,
+        connait la sienne. C'est `_log_cellules` qui la retient, tenue a jour a
+        chaque `bind` -- les cellules etant recyclees au defilement, celle qui
+        servait la ligne 12 sert la 340 trois secondes plus tard.
+        """
+        geste = Gtk.GestureClick(button=3)
+        geste.connect("pressed", self._on_journal_clic_droit, widget)
+        widget.add_controller(geste)
+
+    def _delier_cellule(self, _fabrique, cellule) -> None:
+        self._log_cellules.pop(cellule.get_child(), None)
+
+    def _cellule_de(self, cellule, ligne) -> Gtk.Label:
+        """Le widget d'une cellule, sa position retenue, son trait de jour pose.
+
+        Le trait qui separe deux journees etait une rangee a lui seul dans la
+        grille. Ici c'est une bordure haute posee sur les six cellules de la
+        premiere ligne du jour : mises bout a bout, elles tracent le meme trait
+        d'un pixel, sans rien couter au modele.
+        """
+        widget = cellule.get_child()
+        self._log_cellules[widget] = cellule.get_position()
+        if ligne.ouvre_le_jour:
+            widget.add_css_class("debut-de-jour")
+        else:
+            widget.remove_css_class("debut-de-jour")
+        return widget
+
+    def _lier_date(self, _fabrique, cellule) -> None:
+        ligne = cellule.get_item()
+        etiquette = self._cellule_de(cellule, ligne)
+        etiquette.set_text(ligne.mv.when)
+        etiquette.add_css_class("dim-label")
+        etiquette.add_css_class("monospace")
+
+    def _lier_contenant(self, _fabrique, cellule) -> None:
+        ligne = cellule.get_item()
+        etiquette = self._cellule_de(cellule, ligne)
+        etiquette.set_text(self._sans_parenthese(ligne.mv.inv_label))
+        etiquette.add_css_class("dim-label")
+
+    def _lier_quantite(self, _fabrique, cellule) -> None:
+        ligne = cellule.get_item()
+        etiquette = self._cellule_de(cellule, ligne)
+        mv = ligne.mv
+        # Le tresor n'est pas un objet : des montants a sept chiffres qu'on ne
+        # lit pas d'un bloc. Vert pour ce qui entre, rouge pour ce qui sort :
+        # la couleur est ce qu'on lit en premier en parcourant une colonne de
+        # chiffres.
+        argent = mv.inv_key == movements.MONEY_KEY
+        etiquette.set_markup('<span foreground="{}"><tt>{}</tt></span>'.format(
+            "#4caf50" if mv.delta > 0 else "#e05252",
+            f"{mv.delta:+,}".replace(",", " ") if argent
+            else f"{mv.delta:+d}"))
+
+    def _lier_nom(self, _fabrique, cellule) -> None:
+        ligne = cellule.get_item()
+        etiquette = self._cellule_de(cellule, ligne)
+        mv = ligne.mv
+        etiquette.set_text(_("Dappers") if mv.inv_key == movements.MONEY_KEY
+                           else self._names.name(mv.sheet))
+
+    def _lier_qualite(self, _fabrique, cellule) -> None:
+        ligne = cellule.get_item()
+        etiquette = self._cellule_de(cellule, ligne)
+        etiquette.set_text(f"Q{ligne.mv.quality}" if ligne.mv.quality else "")
+        etiquette.add_css_class("dim-label")
+
+    def _lier_icone(self, _fabrique, cellule) -> None:
+        """L'icône de l'objet, demandée à chaque liaison.
+
+        **Et verifiee a l'arrivee.** Les cellules etant recyclees, l'icone
+        demandee pour la ligne 12 peut revenir alors que la cellule sert
+        maintenant la 340 : on la pose seulement si la cellule montre toujours
+        la meme fiche. La generation, elle, protege du cas ou tout le journal a
+        ete refait entre-temps -- une frappe dans la recherche suffit.
+        """
+        ligne = cellule.get_item()
+        image = self._cellule_de(cellule, ligne)
+        mv = ligne.mv
+        cote = self._cote_icone_journal
+        image.set_pixel_size(cote)
+        if mv.inv_key == movements.MONEY_KEY:
+            image.set_from_file(self.BOURSE)
+            self._poser_icone(image, self.BOURSE, cote)
+            return
+        # Une image generique tient la place en attendant, pour que la colonne
+        # ne se decale pas a l'arrivee.
+        image.set_from_icon_name("image-x-generic-symbolic")
+        attendue = (mv.sheet, mv.quality)
+        generation = self._log_generation
+
+        def arrivee(chemin, img=image, attendue=attendue, gen=generation):
+            if not chemin or gen != self._log_generation:
+                return False
+            actuelle = getattr(img, "_fiche_journal", None)
+            if actuelle != attendue:
+                return False
+            self._poser_icone(img, chemin, self._cote_icone_journal)
+            return False
+
+        image._fiche_journal = attendue
+        self._icons.request(ItemInfo(sheet=mv.sheet, quality=mv.quality),
+                            arrivee)
 
     # ---------------------------------------------------------- Compétences
     #: Les quatre écrans de « Bonus », dans l'ordre du menu.
@@ -3330,98 +3513,30 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _refresh_log(self) -> None:
         self._log_generation = getattr(self, "_log_generation", 0) + 1
-        generation = self._log_generation
-        # Les rangs designeraient d'autres mouvements une fois la grille
-        # refaite : on repart sans rien de choisi.
-        self._log_choisies = set()
-        self._log_ancre = None
-        self._log_rangs = []
-        child = self._log_grid.get_first_child()
-        while child is not None:
-            nxt = child.get_next_sibling()
-            self._log_grid.remove(child)
-            child = nxt
+        # Les cellules vont etre reliees a d'autres lignes : ce que le clic
+        # droit savait d'elles ne vaut plus rien.
+        self._log_cellules.clear()
 
         shown = self._filtered_log()
-        # Un trait entre deux journées. Le journal se lit du plus récent au plus
-        # ancien, et trois relèves d'affilée y produisent trois paquets de
-        # lignes à la même seconde : sans séparation, on ne voyait plus où
-        # finissait une journée. Le jour se prend sur les dix premiers signes de
-        # l'horodatage — « 2026-08-12 22:44:35 » — plutôt que d'analyser une
-        # date pour la recomparer aussitôt.
-        row = 0
-        jour_precedent = None
         montrees = movements.lignes_recentes(
             shown, self._LOG_JOURS, self._LOG_MINIMUM, self._LOG_MAX)
+
+        # Le jour se prend sur les dix premiers signes de l'horodatage --
+        # « 2026-08-12 22:44:35 » -- plutot que d'analyser une date pour la
+        # recomparer aussitot. Le journal se lit du plus recent au plus ancien,
+        # et trois releves d'affilee y produisent trois paquets de lignes a la
+        # meme seconde : sans separation, on ne voyait plus ou finissait une
+        # journee.
+        lignes = []
+        jour_precedent = None
         for mv in shown[:montrees]:
             jour = mv.when[:10]
-            if jour_precedent is not None and jour != jour_precedent:
-                trait = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
-                trait.add_css_class("separation-jour")
-                trait.props.margin_top = 6
-                trait.props.margin_bottom = 6
-                self._log_grid.attach(trait, 0, row, 6, 1)
-                row += 1
+            lignes.append(LigneJournal(
+                mv, jour_precedent is not None and jour != jour_precedent))
             jour_precedent = jour
-
-            self._log_rangs.append(row)
-            when = Gtk.Label(label=mv.when, xalign=0.0)
-            when.add_css_class("dim-label")
-            when.add_css_class("monospace")
-            self._log_grid.attach(when, 0, row, 1, 1)
-
-            where = Gtk.Label(label=self._sans_parenthese(mv.inv_label),
-                              xalign=0.0)
-            where.add_css_class("dim-label")
-            self._log_grid.attach(where, 1, row, 1, 1)
-
-            # Le trésor n'est pas un objet : pas de fiche à nommer, pas d'icône
-            # à télécharger, et des montants à sept chiffres qu'on ne lit pas
-            # d'un bloc.
-            argent = mv.inv_key == movements.MONEY_KEY
-
-            # Vert pour ce qui entre, rouge pour ce qui sort : la couleur est
-            # ce qu'on lit en premier en parcourant une colonne de chiffres.
-            qty = Gtk.Label(xalign=1.0)
-            qty.set_markup('<span foreground="{}"><tt>{}</tt></span>'.format(
-                "#4caf50" if mv.delta > 0 else "#e05252",
-                f"{mv.delta:+,}".replace(",", " ") if argent
-                else f"{mv.delta:+d}"))
-            self._log_grid.attach(qty, 2, row, 1, 1)
-
-            name = Gtk.Label(label=_("Dappers") if argent
-                             else self._names.name(mv.sheet),
-                             xalign=0.0)
-            self._log_grid.attach(name, 3, row, 1, 1)
-
-            # L'icône de l'objet, sur la ligne, juste avant sa qualité : c'est
-            # elle qu'on reconnaît en parcourant le journal, bien avant de lire
-            # un nom. Elle arrive quand elle arrive — le chargement est en
-            # arrière-plan — et une image générique tient la place en attendant,
-            # pour que la colonne ne se décale pas à l'arrivée.
-            if argent:
-                icone = Gtk.Image.new_from_file(self.BOURSE)
-                icone.set_pixel_size(self._cote_icone_journal)
-                self._log_grid.attach(icone, 4, row, 1, 1)
-            else:
-                icone = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
-                icone.set_pixel_size(self._cote_icone_journal)
-                self._log_grid.attach(icone, 4, row, 1, 1)
-                self._icons.request(
-                    ItemInfo(sheet=mv.sheet, quality=mv.quality),
-                    self._icone_journal(generation, icone))
-
-            quality = Gtk.Label(label=f"Q{mv.quality}" if mv.quality else "",
-                                xalign=0.0)
-            quality.add_css_class("dim-label")
-            # C'est la derniere colonne qui prend l'espace libre, et non celle
-            # des noms : la qualite se pose alors juste apres l'icone, sous le
-            # bouton « Copier », et le vide reste a sa droite. C'est la
-            # disposition de la version Qt, ou l'espace va lui aussi a la
-            # derniere colonne -- texte cale a gauche.
-            quality.set_hexpand(True)
-            self._log_grid.attach(quality, 5, row, 1, 1)
-            row += 1
+        # D'un seul coup, et non ligne a ligne : `splice` ne previent qu'une
+        # fois, la ou mille `append` feraient mille recalculs de la vue.
+        self._log_modele.splice(0, self._log_modele.get_n_items(), lignes)
 
         total = len(self._log_entries)
         if not total:
@@ -3435,119 +3550,38 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             self._log_status.set_text(f"{len(shown)} lignes sur {total} au journal")
 
-    def _on_page_changed(self, *_args) -> None:
-        page = self._stack.get_visible_child_name()
-        self._refresh_navigation()
-        if page == "log":
-            self._load_log()
-        elif page == "plus":
-            # C'est la sous-page visible qui décide ce qu'il faut charger.
-            self._on_plus_changed()
+    # ------------------------------------------- Choisir et copier des lignes
+    def _texte_du_mouvement(self, mv) -> str:
+        """Les mots d'une ligne du journal, dans l'ordre des colonnes.
 
-    def _rang_du_journal(self, _x: float, y: float):
-        """Le rang de la ligne du journal à cette ordonnée, ou None.
-
-        **Par l'ordonnée seule, et non par ce qui se trouve sous le pointeur.**
-        `Gtk.Widget.pick` ne rend une étiquette que si l'on clique pile sur un
-        texte : entre deux colonnes, dans les seize pixels d'espacement, ou à
-        droite du dernier mot, il rend la grille — et la ligne passait alors
-        pour introuvable. Ni le menu contextuel ni le choix ne répondaient,
-        selon l'endroit exact où l'on avait cliqué.
-
-        La colonne des dates existe pour chaque ligne et les rangs se suivent
-        du haut vers le bas : onze mesures suffisent à situer un clic, où qu'il
-        tombe sur la largeur.
+        Lu dans le mouvement et non dans les widgets : les cellules d'un
+        tableau ne sont construites que pour ce qu'on voit, et une ligne
+        choisie puis sortie de l'ecran n'en a plus aucune. C'est d'ailleurs
+        plus sur -- ce qui se copie ne depend plus de ce qui est peint.
         """
-        bas, haut = 0, len(self._log_rangs) - 1
-        while bas <= haut:
-            milieu = (bas + haut) // 2
-            rang = self._log_rangs[milieu]
-            case = self._log_grid.get_child_at(0, rang)
-            if case is None:
-                return None
-            ok, cadre = case.compute_bounds(self._log_grid)
-            if not ok:
-                return None
-            if y < cadre.origin.y:
-                haut = milieu - 1
-            elif y >= cadre.origin.y + cadre.size.height:
-                bas = milieu + 1
-            else:
-                return rang
-        return None
-
-    def _on_journal_clic(self, geste, _n, x, y) -> None:
-        """Choisit une ligne, une plage avec Maj, ou en ajoute une avec Ctrl."""
-        rang = self._rang_du_journal(x, y)
-        if rang is None:
-            return
-        # **Surtout pas de `grab_focus` ici.** La grille vit dans un defilant :
-        # lui donner le focus le faisait sauter tout en bas du journal, et la
-        # ligne qu'on venait de choisir quittait l'ecran -- au point qu'on
-        # croyait le clic sans effet.
-        etat = geste.get_current_event_state()
-        avant = set(self._log_choisies)
-        if etat & Gdk.ModifierType.SHIFT_MASK and self._log_ancre is not None:
-            debut, fin = sorted((self._log_ancre, rang))
-            self._log_choisies = set(range(debut, fin + 1))
-        elif etat & Gdk.ModifierType.CONTROL_MASK:
-            self._log_choisies ^= {rang}
-            self._log_ancre = rang
-        else:
-            self._log_choisies = {rang}
-            self._log_ancre = rang
-        self._maj_surlignage_journal(avant)
-
-    def _on_journal_glisse(self, geste, dx, dy) -> None:
-        """Étend la sélection jusqu'à la ligne sous le pointeur."""
-        if self._log_ancre is None:
-            return
-        ok, x, y = geste.get_start_point()
-        if not ok:
-            return
-        rang = self._rang_du_journal(x + dx, y + dy)
-        if rang is None:
-            return
-        avant = set(self._log_choisies)
-        debut, fin = sorted((self._log_ancre, rang))
-        self._log_choisies = set(range(debut, fin + 1))
-        if self._log_choisies != avant:
-            self._maj_surlignage_journal(avant)
-
-    def _maj_surlignage_journal(self, avant: set = frozenset()) -> None:
-        """Repeint les seules lignes dont l'état a changé.
-
-        Repasser sur toute la grille coûtait vingt millisecondes par clic :
-        c'est le genre de dépense qu'on ne voit pas venir et qui rend une
-        application collante.
-        """
-        for rang in set(avant) ^ self._log_choisies:
-            choisie = rang in self._log_choisies
-            for colonne in range(6):
-                case = self._log_grid.get_child_at(colonne, rang)
-                if case is None:
-                    continue
-                if choisie:
-                    case.add_css_class("ligne-choisie")
-                else:
-                    case.remove_css_class("ligne-choisie")
-
-    def _texte_du_rang(self, rang: int) -> str:
-        """Les mots d'une ligne du journal, dans l'ordre des colonnes."""
-        mots = []
-        for colonne in range(6):
-            case = self._log_grid.get_child_at(colonne, rang)
-            if isinstance(case, Gtk.Label) and case.get_text():
-                mots.append(case.get_text())
-        return "  ".join(mots)
+        argent = mv.inv_key == movements.MONEY_KEY
+        mots = [mv.when,
+                self._sans_parenthese(mv.inv_label),
+                f"{mv.delta:+,}".replace(",", " ") if argent
+                else f"{mv.delta:+d}",
+                _("Dappers") if argent else self._names.name(mv.sheet)]
+        if mv.quality:
+            mots.append(f"Q{mv.quality}")
+        return "  ".join(m for m in mots if m)
 
     def _lignes_journal_choisies(self) -> list:
-        """Le texte des lignes choisies, de la plus ancienne à la plus récente."""
+        """Le texte des lignes choisies, du plus récent au plus ancien.
+
+        L'ordre du journal lui-même : `Gtk.Bitset` rend les positions par
+        ordre croissant, et le modèle est trié du mouvement le plus récent au
+        plus ancien.
+        """
+        choix = self._log_choix.get_selection()
         textes = []
-        for rang in sorted(self._log_choisies):
-            texte = self._texte_du_rang(rang)
-            if texte:
-                textes.append(texte)
+        for rang in range(choix.get_size()):
+            ligne = self._log_modele.get_item(choix.get_nth(rang))
+            if ligne is not None:
+                textes.append(self._texte_du_mouvement(ligne.mv))
         return textes
 
     def _copier_journal_choisi(self) -> bool:
@@ -3566,19 +3600,16 @@ class MainWindow(Gtk.ApplicationWindow):
         self._set_status(_("%d ligne(s) copiée(s).") % len(textes))
         return True
 
-    def _on_journal_clic_droit(self, geste, _n, x, y) -> None:
+    def _on_journal_clic_droit(self, _geste, _n, x, y, widget) -> None:
         """Propose de copier la ligne sous le pointeur."""
-        rang = self._rang_du_journal(x, y)
-        if rang is None:
+        position = self._log_cellules.get(widget)
+        if position is None:
             return
         # Un clic droit hors de ce qui est choisi prend la ligne visee : sinon
         # le menu proposerait de copier des lignes qu'on ne montre pas du
         # doigt.
-        if rang not in self._log_choisies:
-            avant = set(self._log_choisies)
-            self._log_choisies = {rang}
-            self._log_ancre = rang
-            self._maj_surlignage_journal(avant)
+        if not self._log_choix.is_selected(position):
+            self._log_choix.select_item(position, True)
         textes = self._lignes_journal_choisies()
         if not textes:
             return
@@ -3589,36 +3620,25 @@ class MainWindow(Gtk.ApplicationWindow):
         popover = Gtk.Popover()
         popover.add_css_class("menu")
         popover.set_child(bouton)
-        # **Accroche a la ligne cliquee, et non a la grille.** Parent de la
-        # grille entiere -- des milliers de pixels de haut --, le point vise
-        # tombait hors de la zone affichee et GTK rabattait le menu dans le
-        # coin superieur gauche du tableau. Accroche a l'etiquette de la ligne,
-        # il s'ouvre la ou l'on a clique, quel que soit le defilement.
-        # **Accroche au defilant, et vise le point clique.** Accroche a la
-        # grille, qui fait des milliers de pixels de haut, le menu se rabattait
-        # dans le coin superieur gauche ; accroche a l'etiquette de la ligne,
-        # large de cent cinquante pixels, un clic a cinq cents partait hors
-        # d'elle. Le defilant, lui, a exactement la taille de ce qu'on voit :
-        # les coordonnees du clic y sont converties, et le menu s'ouvre sous le
-        # pointeur quel que soit le defilement.
-        popover.set_parent(self._log_defilant)
-        popover.set_position(Gtk.PositionType.BOTTOM)
-        # Du repere de la grille a celui de ce qu'on voit : il suffit d'oter le
-        # defilement. `compute_point` echouait sans le dire -- le menu gardait
-        # alors le rectangle par defaut, (0,0), et s'ouvrait dans le coin
-        # superieur gauche du tableau quel que soit l'endroit du clic.
+        # **Accroche a la cellule cliquee.** Du temps de la grille, le menu
+        # etait accroche au defilant et visait un point converti a la main :
+        # la grille faisait des milliers de pixels de haut, et le point vise
+        # tombait hors de la zone affichee. Une cellule, elle, mesure ce qu'on
+        # voit, et les coordonnees du geste sont deja dans son repere -- le
+        # menu s'ouvre sous le pointeur sans conversion.
+        #
         # **Le rectangle se remplit champ par champ.** `Gdk.Rectangle(x=…, y=…)`
         # ne pose rien : PyGObject ignore les arguments d'une structure boxed et
-        # rend (0,0,0,0), avec un avertissement qu'on ne voit jamais. Le menu
-        # visait donc le coin superieur gauche du tableau, quel que soit
-        # l'endroit du clic -- et ce depuis le premier jour.
+        # rend (0,0,0,0), avec un avertissement qu'on ne voit jamais.
         vise = Gdk.Rectangle()
-        vise.x = int(x - self._log_defilant.get_hadjustment().get_value())
-        vise.y = int(y - self._log_defilant.get_vadjustment().get_value())
+        vise.x = int(x)
+        vise.y = int(y)
         vise.width = vise.height = 1
+        popover.set_parent(widget)
+        popover.set_position(Gtk.PositionType.BOTTOM)
         popover.set_pointing_to(vise)
         # Un popover parente doit etre detache a sa fermeture, sinon il reste
-        # accroche a l'etiquette et s'accumule a chaque clic droit.
+        # accroche a la cellule et s'accumule a chaque clic droit.
         popover.connect("closed", lambda pop: pop.unparent())
 
         def copier(_b):
@@ -3627,6 +3647,15 @@ class MainWindow(Gtk.ApplicationWindow):
             self._set_status(_("%d ligne(s) copiée(s).") % len(textes))
         bouton.connect("clicked", copier)
         popover.popup()
+
+    def _on_page_changed(self, *_args) -> None:
+        page = self._stack.get_visible_child_name()
+        self._refresh_navigation()
+        if page == "log":
+            self._load_log()
+        elif page == "plus":
+            # C'est la sous-page visible qui décide ce qu'il faut charger.
+            self._on_plus_changed()
 
     def _on_log_copy(self, _btn) -> None:
         lines = [movements.describe(mv, self._names.name)
@@ -4842,8 +4871,25 @@ class MainWindow(Gtk.ApplicationWindow):
                 background-image: none;
                 background-color: @zy_sarcelle_sombre; }
 
-            .separation-jour { background-color: alpha(@zy_or, 0.55);
-                               min-height: 1px; }
+            /* Le trait qui separe deux journees du journal. C'etait une
+               rangee entiere dans la grille ; dans le tableau, c'est une
+               bordure haute posee sur les six cellules de la premiere ligne
+               du jour -- mises bout a bout, elles tracent le meme trait. */
+            .debut-de-jour { border-top: 1px solid alpha(@zy_or, 0.55);
+                             margin-top: 13px; padding-top: 6px; }
+            /* Les cellules du journal. Le `Gtk.ColumnView` leur donne, par
+               defaut, de quoi accueillir une case a cocher : quarante pixels
+               par rangee la ou la grille d'avant en tenait vingt-six, et six
+               mouvements de moins par ecran. On lui reprend cet air, et on
+               pose l'ecartement des colonnes que la grille declarait par
+               `column_spacing`. */
+            columnview.journal > listview > row > cell {
+                padding-top: 1px; padding-bottom: 1px;
+                padding-left: 8px; padding-right: 8px; }
+            /* L'air sous la barre de recherche, une fois la rangee d'en-tetes
+               cachee : sept pixels pour retomber sur le depart de la premiere
+               ligne de la version Qt. */
+            columnview.journal > listview { padding-top: 7px; }
 
             /* Le nom de l'application : la gothique du titre d'Android, et
                son or. La police est embarquée — voir `zyroom/polices` — car

@@ -173,14 +173,30 @@ PAGES_AGRANDIES = ()
 #: La memoire du journal, en jours. Tout ce qui est plus recent s'affiche,
 #: quel qu'en soit le nombre de lignes. Une semaine est ce qu'il faut pour
 #: retrouver "qui a pris quoi" apres un week-end.
-JOURNAL_JOURS = 7
+JOURNAL_JOURS = 30
 
-#: Ce qu'on montre malgre tout apres une semaine calme : une page vide
-#: n'apprend rien, et un petit coffre peut ne bouger qu'une fois par mois.
+#: Ce qu'on montre malgre tout apres un mois calme : une page vide n'apprend
+#: rien, et un petit coffre peut ne bouger qu'une fois par mois.
 JOURNAL_MINIMUM = 400
 
 #: Plafond dur, pour un journal qu'on aurait laisse courir.
-JOURNAL_MAX = 3000
+#:
+#: **Huit mille, et le chiffre est mesure.** Le coffre le plus actif de Ludo
+#: ecrit cent quatre-vingt-dix-huit lignes par jour : un mois en fait pres de
+#: six mille, et le plafond precedent -- trois mille -- coupait donc le mois
+#: demande en son milieu. Huit mille laissent quarante jours a ce rythme.
+#:
+#: Ce que coute le remplissage de la table, mesure hors ecran : 94 ms a trois
+#: mille lignes, 167 a six mille, 267 a dix mille. La recherche refaisant la
+#: table a chaque touche frappee, un plafond a dix mille se serait senti sous
+#: les doigts ; a huit mille on reste sous les deux cent vingt millisecondes,
+#: et seul le cas le plus lourd -- champ de recherche vide -- les paie.
+#:
+#: La version GTK garde sept jours : sa grille de widgets demande une seconde
+#: entiere pour six mille lignes, contre quarante millisecondes a un
+#: `Gtk.ColumnView` qui ne peint que le visible. Le jour ou son journal
+#: passera au tableau, elle pourra suivre ce chiffre-ci.
+JOURNAL_MAX = 8000
 
 #: Le vert de ce qui entre et le rouge de ce qui sort : la couleur est ce
 #: qu'on lit en premier en parcourant une colonne de chiffres.
