@@ -311,15 +311,31 @@ Reste à faire, à la main — rien n'a été envoyé :
   1. publier le site (version.json, et l'APK dev qu'il annonce) :
 
        cd ..
+       git fetch origin gh-pages
        tampon=$(mktemp -u)
        (cd pages && GIT_INDEX_FILE=$tampon git --git-dir=../.git --work-tree=. add -Af .)
        arbre=$(GIT_INDEX_FILE=$tampon git write-tree)
-       commit=$(git commit-tree "$arbre" -m "Site : dépôt Flatpak et version.json")
-       git push -f origin "$commit:refs/heads/gh-pages"
+       commit=$(git commit-tree "$arbre" -p FETCH_HEAD -m "Site : dépôt Flatpak et version.json")
+       git push origin "$commit:refs/heads/gh-pages"
 
-     Une branche orpheline reconstruite à chaque fois, sans changer de branche
-     ici : le contenu de pages/ est ignoré sur main, et un `git checkout` l'a
-     déjà effacé une fois.
+     Rien n'est verse dans la branche de travail : le contenu de pages/ est
+     ignore sur main, et un `git checkout` l'a deja efface une fois.
+
+     Le commit se chaine sur ce qui est deja publie -- `-p FETCH_HEAD` --, et
+     c'est tout ce qui separe une poussee de quelques secondes d'une poussee
+     de vingt-cinq minutes. Sans parent, git ne peut se raccrocher a rien et
+     renvoie l'arbre entier : deux cent six megaoctets d'archives deja en
+     ligne, cent trente-quatre une fois empaquetees. Avec, il n'envoie que la
+     difference -- cent vingt-sept kilo-octets, deux ZIP Linux successifs ne
+     differant que de cent soixante-quinze octets.
+
+     GitHub a coupe la connexion au bout de vingt-cinq minutes le jour ou la
+     liaison montante etait prise par autre chose. C'est ce jour-la qu'on a
+     mesure les deux.
+
+     Plus de `-f` : le commit descend de ce qui est en ligne, la poussee
+     avance sans rien ecraser. Le `fetch` d'abord, sans quoi `FETCH_HEAD` ne
+     designe rien.
 
 FIN
 

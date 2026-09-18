@@ -96,9 +96,14 @@ cat <<'FIN'
   Reste a publier le site :
 
     cd ..
+    git fetch origin gh-pages
     tampon=$(mktemp -u)
     (cd pages && GIT_INDEX_FILE=$tampon git --git-dir=../.git --work-tree=. add -Af .)
     arbre=$(GIT_INDEX_FILE=$tampon git write-tree)
-    commit=$(git commit-tree "$arbre" -m "Site : paquet Windows")
-    git push -f origin "$commit:refs/heads/gh-pages"
+    commit=$(git commit-tree "$arbre" -p FETCH_HEAD -m "Site : paquet Windows")
+    git push origin "$commit:refs/heads/gh-pages"
+
+  `-p FETCH_HEAD` : le commit se chaine sur ce qui est publie, et la poussee
+  ne renvoie que la difference. Sans parent, git renvoie l'arbre entier --
+  cent trente-quatre megaoctets au lieu de cent vingt-sept kilo-octets.
 FIN
