@@ -2514,8 +2514,25 @@ class FenetrePrincipale(QMainWindow):
         else:
             self._lbl_dappers.clear()
             self._img_bourse.setVisible(False)
-        if ent.motd:
-            self._motd_lbl.setText(ent.motd)
+        # **Le cadre reste, meme sans message.** Il disparaissait avec lui, et
+        # la fenetre entiere remontait de trois lignes : on croyait l'avoir
+        # perdu. Un message de guilde va et vient -- il s'efface en jeu, et
+        # l'API l'a rendu vide deux jours durant sans qu'on sache pourquoi --
+        # alors que le porte-voix, lui, dit ou le lire quand il revient.
+        #
+        # Pour une guilde seulement : un personnage n'a pas de message du
+        # jour, et un cadre vide sur sa fiche ne dirait rien.
+        if ent.kind == KIND_GUILD:
+            if ent.motd:
+                self._motd_lbl.setText(ent.motd)
+                self._motd_lbl.setObjectName("")
+            else:
+                self._motd_lbl.setText(_("Aucun message de guilde"))
+                self._motd_lbl.setObjectName("discret")
+            # Qt ne repeint pas un widget dont l'identifiant vient de changer :
+            # la feuille de style est relue au polissage, pas a l'affectation.
+            self._motd_lbl.style().unpolish(self._motd_lbl)
+            self._motd_lbl.style().polish(self._motd_lbl)
             self._motd_boite.setVisible(True)
         else:
             self._motd_boite.setVisible(False)

@@ -5188,8 +5188,21 @@ class MainWindow(Gtk.ApplicationWindow):
         else:
             self._dappers_lbl.set_text("")
             self._bourse_img.set_visible(False)
-        if ent.motd:
-            self._motd_lbl.set_text(ent.motd)
+        # **Le cadre reste, meme sans message.** Il disparaissait avec lui, et
+        # la fenetre entiere remontait de trois lignes : on croyait l'avoir
+        # perdu. Un message de guilde va et vient -- il s'efface en jeu, et
+        # l'API l'a rendu vide deux jours durant sans qu'on sache pourquoi --
+        # alors que le porte-voix, lui, dit ou le lire quand il revient.
+        #
+        # Pour une guilde seulement : un personnage n'a pas de message du
+        # jour, et un cadre vide sur sa fiche ne dirait rien.
+        if ent.kind == KIND_GUILD:
+            if ent.motd:
+                self._motd_lbl.set_text(ent.motd)
+                self._motd_lbl.remove_css_class("dim-label")
+            else:
+                self._motd_lbl.set_text(_("Aucun message de guilde"))
+                self._motd_lbl.add_css_class("dim-label")
             self._motd_box.set_visible(True)
         else:
             self._motd_box.set_visible(False)
