@@ -5744,3 +5744,5 @@
 {"ts": 1789816504.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0754dxacc01.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 163, "new": 164}
 {"ts": 1789821373.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ipoc_dex.sitem", "q": 200, "kind": "modified", "delta": 1, "old": 94, "new": 95}
 {"ts": 1789821373.0, "inv": "chest3", "label": "Coffre 3 — La Resserre Lunaire 2/2 (Equipem", "sheet": "m0755dxacc01.sitem", "q": 200, "kind": "modified", "delta": 1, "old": 538, "new": 539}
+{"ts": 1789830834.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ipoc_dex.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 94, "new": 95}
+{"ts": 1789830834.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0748dxacc01.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 334, "new": 335}
