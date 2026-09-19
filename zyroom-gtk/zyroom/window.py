@@ -3737,6 +3737,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # fois, la ou mille `append` feraient mille recalculs de la vue.
         self._log_modele.splice(0, self._log_modele.get_n_items(), lignes)
         self._caler_colonnes_journal(lignes)
+        self._journal_en_haut()
 
         total = len(self._log_entries)
         if not total:
@@ -3751,6 +3752,27 @@ class MainWindow(Gtk.ApplicationWindow):
             self._log_status.set_text(f"{len(shown)} lignes sur {total} au journal")
 
     # ------------------------------------------- Choisir et copier des lignes
+    def _journal_en_haut(self) -> None:
+        """Ramène le journal sur sa première ligne après un remplissage.
+
+        **La grille le faisait sans qu'on le demande.** Elle etait videe puis
+        reconstruite : l'ascenseur retombait a zero faute de contenu. Un
+        `Gtk.ColumnView` garde sa position d'un remplissage a l'autre, et le
+        journal s'ouvrait tout en bas de la liste -- sur le mouvement le plus
+        ancien, le moins interessant, quand la premiere ligne est justement le
+        dernier releve.
+
+        En differe, et non tout de suite : au retour de `splice`, la vue n'a
+        pas encore recalcule sa hauteur, et l'ascenseur qu'on remettrait a
+        zero serait repousse par la mise en page qui suit.
+        """
+        def poser():
+            ajustement = self._log_defilant.get_vadjustment()
+            if ajustement is not None:
+                ajustement.set_value(0)
+            return False
+        GLib.idle_add(poser)
+
     def _texte_du_mouvement(self, mv) -> str:
         """Les mots d'une ligne du journal, dans l'ordre des colonnes.
 
