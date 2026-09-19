@@ -384,3 +384,5 @@
 {"ts": 1789830718.0, "inv": "chest1", "label": "Coffre 1 — Mixed Mps", "sheet": "ipoc_str.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 18, "new": 19}
 {"ts": 1789830718.0, "inv": "chest1", "label": "Coffre 1 — Mixed Mps", "sheet": "ipoc_met.sitem", "q": 200, "kind": "modified", "delta": 1, "old": 18, "new": 19}
 {"ts": 1789830718.0, "inv": "chest1", "label": "Coffre 1 — Mixed Mps", "sheet": "m0753dxacc01.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 18, "new": 19}
+{"ts": 1789833607.0, "inv": "chest1", "label": "Coffre 1 — Mixed Mps", "sheet": "m0747dxacc01.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 18, "new": 19}
+{"ts": 1789833607.0, "inv": "chest1", "label": "Coffre 1 — Mixed Mps", "sheet": "ipoc_dex.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 18, "new": 19}
