@@ -49,9 +49,9 @@ def _version() -> tuple[str, bool]:
     """Le numéro affiché, et si c'est la variante du mainteneur.
 
     Il est lu dans le source de `window.py` plutôt qu'importé : importer ce
-    module tirerait GTK et six mille lignes d'interface pour trois caractères,
-    et le relevé doit pouvoir parler d'une installation dont l'interface, elle,
-    ne démarre plus.
+    module tirerait GTK et toute l'interface pour trois caractères, et le
+    relevé doit pouvoir parler d'une installation dont l'interface, elle, ne
+    démarre plus.
     """
     dev = (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
     chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "window.py")

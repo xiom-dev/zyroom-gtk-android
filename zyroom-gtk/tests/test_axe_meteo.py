@@ -24,15 +24,24 @@ from zyroom.window import MainWindow                             # noqa: E402
 
 
 def constantes_de_fenetre() -> dict:
-    """Les constantes que `MainWindow` definit, telles quelles.
+    """Les constantes que la fenetre et ses pages definissent, telles quelles.
 
     Le trace en lit une dizaine, et la liste s'allonge des qu'on regle quelque
     chose : les recopier a la main condamnait les essais a tomber sur un
-    AttributeError au premier ajout. `vars` ne rend que ce que la classe
-    definit elle-meme, sans l'heritage de GTK.
+    AttributeError au premier ajout.
+
+    On remonte l'heritage, en s'arretant a ce qui n'est pas de nous : depuis
+    que chaque ecran a son module, les reglages de la courbe vivent dans
+    `page_meteo.py`, et `vars(MainWindow)` ne les voyait plus. Ce qui vient de
+    GTK reste dehors -- c'est tout l'interet de ne pas prendre `dir()`.
     """
-    return {nom: valeur for nom, valeur in vars(MainWindow).items()
-            if nom.isupper()}
+    constantes = {}
+    for classe in reversed(MainWindow.__mro__):
+        if not classe.__module__.startswith("zyroom."):
+            continue
+        constantes.update({nom: valeur for nom, valeur in vars(classe).items()
+                           if nom.isupper()})
+    return constantes
 
 
 class FauxCr:

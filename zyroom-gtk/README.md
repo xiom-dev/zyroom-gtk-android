@@ -149,11 +149,36 @@ sont dans `~/.cache/zyroom-gtk/`.
 | `zyroom/specialites.py` | Les gouttes de bonus dessinées sur l'icône d'un équipement |
 | `zyroom/enchantements.py` | Le sort gravé dans un objet (flux personnage seul) |
 | `zyroom/config.py` | Chemins XDG + persistance des personnages |
-| `zyroom/window.py` | Fenêtre principale GTK4 |
+| `zyroom/window.py` | Fenêtre principale GTK4 : le cadre, la grille, le journal |
+| `zyroom/page_*.py` | Un écran du menu « Bonus » par fichier (voir plus bas) |
+| `zyroom/ui_commun.py` | Les deux outils que la fenêtre et ses pages partagent |
 | `zyroom/app.py` / `run.py` | Application et point d'entrée |
 
 Aucune dépendance hors GTK : le réseau et le XML utilisent la bibliothèque
 standard de Python.
+
+### Un écran, un fichier
+
+`window.py` portait les sept écrans à lui seul — six mille quatre cents
+lignes, deux cent dix méthodes dans une seule classe. Chacun a maintenant son
+module, aux mêmes noms que dans le portage Qt, où la coupe avait déjà été
+faite : `page_skills.py`, `page_roster.py`, `page_outposts.py`,
+`page_meteo.py`, `page_betes.py`, `page_gisements.py`, `page_alertes.py`, et
+`page_cartes.py` pour les quelques réglages que les deux cartes partagent.
+
+**Ce sont des mixins** : `MainWindow` en hérite, et rien d'autre n'a changé —
+`self._refresh_meteo()` continue de désigner la même méthode, au même moment.
+Le découpage est un déménagement, pas une réécriture : aucune ligne n'a été
+reformulée en chemin.
+
+Ce que la fenêtre garde, c'est ce qui n'appartient à aucun écran : la barre,
+la navigation, la grille d'objets, le journal des mouvements, les entités, les
+filtres, le tri, la bande d'état et la mise à jour.
+
+`tests/test_coherence_fenetre.py` lit la fenêtre et ses pages comme un seul
+ensemble, et refuse qu'un nom soit défini deux fois : deux pages qui
+définiraient la même méthode, et c'est l'ordre des bases qui trancherait, sans
+un mot.
 
 ## Les compétences
 
