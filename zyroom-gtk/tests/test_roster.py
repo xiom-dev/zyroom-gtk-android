@@ -9,6 +9,14 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from fuseau import poser_le_fuseau  # noqa: E402
+
+
+def setUpModule():
+    # Ces essais ecrivent des dates en dur : sans fuseau pose, ils
+    # disent autre chose a Greenwich qu'a Paris. Voir tests/fuseau.py.
+    poser_le_fuseau()
+
 from zyroom import roster                                          # noqa: E402
 
 
