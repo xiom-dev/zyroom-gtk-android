@@ -1,0 +1,85 @@
+# Les essais des deux portages de bureau, a chaque poussee.
+#
+# **Pourquoi ce workflow existe.** Les essais etaient la -- trois cent
+# vingt-six pour GTK, soixante-quinze pour Qt -- mais ils ne tournaient que
+# quand quelqu'un y pensait, sur la machine du mainteneur. Une regression
+# attendait donc la livraison suivante pour se signaler, c'est-a-dire le
+# moment ou l'on a le moins envie de la decouvrir.
+#
+# Rien n'est construit ici et rien n'est publie : on relit, on execute, on dit
+# oui ou non. Le paquet Windows a son propre workflow, declenche par une
+# etiquette.
+#
+# **Le portage Android n'y est pas.** Il a ses propres essais, en Java, qui
+# demandent le SDK -- c'est un autre chantier.
+name: Essais
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "zyroom-gtk/**"
+      - "zyroom-qt/**"
+      - ".github/workflows/essais.yml"
+  pull_request:
+    paths:
+      - "zyroom-gtk/**"
+      - "zyroom-qt/**"
+      - ".github/workflows/essais.yml"
+  # A la main depuis l'onglet Actions, pour verifier le workflow lui-meme.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gtk:
+    name: ZyRoom-GTK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: zyroom-gtk
+    steps:
+      - uses: actions/checkout@v4
+
+      # **Le python du systeme, et non celui de setup-python.** PyGObject
+      # arrive ici par apt : il est lie au GTK du systeme, et un interpreteur
+      # installe a cote ne le verrait pas. C'est aussi ainsi que
+      # l'application tourne chez le joueur, paquet Debian comme Flatpak.
+      - name: GTK4, PyGObject et un ecran virtuel
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-gi python3-gi-cairo gir1.2-gtk-4.0 xvfb
+
+      - name: Ce que la machine a sous la main
+        run: |
+          python3 --version
+          python3 -c "import gi; gi.require_version('Gtk', '4.0'); \
+                      from gi.repository import Gtk; \
+                      print('GTK', Gtk.get_major_version(), Gtk.get_minor_version())"
+
+      # Xvfb parce que trois essais construisent de vrais widgets : sans
+      # ecran, GTK refuse de les poser. Les autres n'en ont pas besoin, mais
+      # les separer pour si peu compliquerait plus que ca n'aiderait.
+      - name: Les essais
+        env:
+          GDK_BACKEND: x11
+        run: xvfb-run -a python3 -m unittest discover -s tests
+
+  qt:
+    name: ZyRoom-Qt
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: zyroom-qt
+    steps:
+      - uses: actions/checkout@v4
+
+      # Aucune dependance, et c'est voulu : ces essais relisent les fichiers
+      # ou travaillent dans un dossier jetable. Ni PySide6, ni fenetre, ni
+      # reseau -- ils tournent donc partout, y compris la ou l'on veut
+      # justement savoir si le code se tient.
+      - name: Les essais
+        run: python3 -m unittest discover -s tests
