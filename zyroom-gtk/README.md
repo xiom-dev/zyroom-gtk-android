@@ -108,6 +108,21 @@ forcez le rendu logiciel :
 ./run.py --software        # équivaut à GSK_RENDERER=cairo
 ```
 
+### Ce que l'application voit de son installation
+
+```bash
+./run.py --diagnostic
+flatpak run net.ryzom.zyroomgtk --diagnostic     # depuis le paquet
+```
+
+Chemins, données embarquées, entités configurées, journal d'erreurs — sans
+ouvrir de fenêtre. C'est la réponse à « ça ne marche pas » quand on n'a pas la
+machine sous les yeux, et surtout à l'intérieur du **bac à sable** : un
+Flatpak ne voit du disque que ce que `--filesystem` lui accorde, et le
+`string_client.pack` « qui est pourtant là » peut très bien lui rester
+invisible. Le relevé le dit, et ne montre aucune clé d'API : il est fait pour
+être recopié dans un message.
+
 ## Utilisation
 
 1. Cliquez sur **＋** dans la barre de titre.

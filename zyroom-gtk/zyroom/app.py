@@ -56,5 +56,13 @@ def installer_journal_erreurs() -> None:
 
 def main(argv=None) -> int:
     import sys
+    arguments = argv if argv is not None else sys.argv
+    # Le paquet n'embarque pas run.py : son lanceur appelle ce main-ci, et
+    # `flatpak run net.ryzom.zyroomgtk --diagnostic` n'a pas d'autre porte. La
+    # branche est prise avant Gtk.Application.run, qui refuserait une option
+    # qu'il ne connait pas au lieu de la laisser passer.
+    if "--diagnostic" in arguments:
+        from .diagnostic import main as diagnostic
+        return diagnostic()
     installer_journal_erreurs()
-    return ZyroomApp().run(argv if argv is not None else sys.argv)
+    return ZyroomApp().run(arguments)
