@@ -29,11 +29,11 @@
     }
   },
   "net.ryzom.zyroomgtk": {
-    "versionName": "1.14",
+    "versionName": "1.15",
     "url": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-GTK.flatpak"
   },
   "net.ryzom.zyroomgtk.dev": {
-    "versionName": "1.43",
+    "versionName": "1.44",
     "url": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-GTK-dev.flatpak"
   }
 }
