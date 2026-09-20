@@ -138,14 +138,9 @@ synchronisation.
 python3 build_i18n.py
 ```
 
-Couverture actuelle : **94 % en anglais, 86 % en allemand** — les mots
-identiques d'une langue à l'autre (« Bonus », « Continent ») y comptent à tort
-comme non traduits, la couverture réelle est meilleure.
-
 Deux chaînes restent en français quelle que soit la langue : le nom de la
-saison et la formule « synchro aujourd'hui à… ». Elles viennent du **noyau
-partagé**, qui ne passe pas par gettext — ZyRoom-GTK a exactement la même
-limite, pour la même raison.
+saison et la formule « synchro aujourd'hui à… ». C'est assumé, et ZyRoom-GTK
+est dans le même cas.
 
 ## La mise à jour
 
@@ -322,6 +317,9 @@ n'est pas toujours ce que Windows accepte.
 python3 -m unittest discover -s tests
 ```
 
+Ils tournent aussi **à chaque poussée**, par le workflow `essais.yml`, avec
+ceux de ZyRoom-GTK.
+
 Rien n'y demande PySide6, ni fenêtre, ni réseau : les essais relisent les
 fichiers ou travaillent dans un dossier jetable. Ils tournent donc là où l'on
 veut justement savoir si le code se tient — une machine sans l'environnement
@@ -329,7 +327,7 @@ complet, la CI, un paquet qu'on vient de sortir.
 
 **Ce qui est couvert ici, c'est ce qui est propre au portage.** Le noyau ne
 l'est pas, et n'a pas à l'être : ce sont les mêmes fichiers que ZyRoom-GTK,
-dont les vingt-huit essais valent donc pour les deux — et `sync-noyau.sh
+dont les 326 essais valent donc pour les deux — et `sync-noyau.sh
 --verifie`, appelé par les deux livraisons, dit si une copie a dérivé.
 
 | Fichier | Ce qu'il tient |

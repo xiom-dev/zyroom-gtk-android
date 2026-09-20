@@ -206,10 +206,19 @@ l'accordent pas. La page le dit alors, plutôt que de rester vide.
 python3 -m unittest discover -s tests
 ```
 
-Seize tests : le lecteur de pack, son cache, et l'arbre des compétences. Quatre se branchent sur les vraies données du poste quand elles sont là — le pack du client, le flux en cache — et se désactivent sinon. Le portage
-Android en compte soixante-trois ; celui-ci n'en avait aucun, et c'est
-justement dans le lecteur de pack qu'un défaut est resté invisible des mois —
-il perdait des noms sans rien signaler. Le cache des noms porte un numéro de
-format (`v2:`) en plus de l'empreinte du pack : sans lui, corriger le lecteur
-n'aurait servi à personne, chacun gardant la table incomplète tirée du même
-fichier.
+**326 essais**, répartis sur vingt-neuf fichiers — le lecteur de pack et son
+cache, l'arbre des compétences, le journal des mouvements, l'effectif, la
+météo et son axe du temps, les cartes, le tri, la recherche, la mise à jour,
+et la cohérence de la fenêtre avec ses pages. Trois se branchent sur les
+vraies données du poste quand elles sont là — le pack du client, le flux en
+cache — et se désactivent sinon. Le portage Android en compte 223.
+
+Ils tournent aussi **à chaque poussée**, par le workflow `essais.yml`, avec
+ceux de ZyRoom-Qt. Un écran virtuel suffit : trois d'entre eux construisent de
+vrais widgets.
+
+Cette application n'en avait aucun au départ, et c'est justement dans le
+lecteur de pack qu'un défaut est resté invisible des mois — il perdait des
+noms sans rien signaler. Le cache des noms porte un numéro de format (`v2:`)
+en plus de l'empreinte du pack : sans lui, corriger le lecteur n'aurait servi
+à personne, chacun gardant la table incomplète tirée du même fichier.
