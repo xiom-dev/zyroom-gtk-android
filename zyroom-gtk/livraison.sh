@@ -115,6 +115,31 @@ flatpak info org.flatpak.Builder >/dev/null 2>&1 || {
     exit 1
 }
 
+# ------------------------------------------- Le noyau, vu de l'autre bord
+# Les modules du noyau ne s'editent qu'ici ; zyroom-qt n'en tient qu'une
+# copie, que `outils/sync-noyau.sh` rafraichit depuis sa propre livraison.
+# Rien, de ce cote-ci, ne disait qu'une copie avait pris du retard : l'ecart
+# ne se decouvrait qu'a la livraison Qt suivante, parfois une semaine plus
+# tard, au milieu d'un autre travail.
+#
+# **C'est un rappel, pas un garde-fou.** Le noyau change ici d'abord, par
+# construction : arreter la livraison GTK pour cela obligerait a livrer Qt
+# dans la foulee -- et deux livraisons menees ensemble s'ecrasent l'une
+# l'autre sur version.json et sur gh-pages.
+noyau_en_retard=""
+sync_noyau=$racine/../zyroom-qt/outils/sync-noyau.sh
+if [ -x "$sync_noyau" ]; then
+    # --verifie ne recopie rien et sort toujours 0 : ce sont ses lignes
+    # "differe :" qui portent la reponse.
+    noyau_en_retard=$("$sync_noyau" --verifie | grep "^differe" || true)
+    if [ -n "$noyau_en_retard" ]; then
+        echo
+        echo "== Noyau : la copie de zyroom-qt est restée en arrière =="
+        echo "$noyau_en_retard" | sed "s/^/  /"
+        echo "  (rien ne s'arrête : elle se remettra à jour à la livraison Qt)"
+    fi
+fi
+
 lire()   { grep -E "^$1=" "$proprietes" | head -1 | cut -d= -f2 | tr -d '[:space:]'; }
 ecrire() {
     grep -qE "^$1=" "$proprietes" || { echo "clé $1 absente de $proprietes" >&2; exit 1; }
@@ -370,3 +395,16 @@ cat <<'FIN'
   3. vérifier depuis une installation propre :
        flatpak update net.ryzom.zyroomgtk.dev
 FIN
+
+# Rappele ici, et pas seulement en tete : entre les deux, la construction a
+# fait defiler cent lignes.
+if [ -n "$noyau_en_retard" ]; then
+    cat <<'FIN'
+
+  Et pour mémoire — la copie du noyau de zyroom-qt est en retard (liste en
+  tête de cette livraison). Sa prochaine livraison la rafraîchit d'elle-même ;
+  pour le faire tout de suite, sans rien livrer :
+
+       ../zyroom-qt/outils/sync-noyau.sh
+FIN
+fi
