@@ -172,8 +172,11 @@ def _reprendre_gtk(path: str) -> None:
     _reprise_faite = True
     if WINDOWS:
         return                    # le portage GTK ne tourne pas sous Windows
-    if any(os.scandir(path)):
-        return                    # deja configure : on ne touche a rien
+    # `with` : sans lui l'iterateur reste ouvert jusqu'au ramasse-miettes,
+    # et Python le signale a qui ecoute ses avertissements.
+    with os.scandir(path) as entrees:
+        if any(entrees):
+            return                # deja configure : on ne touche a rien
     base = (os.environ.get("XDG_CONFIG_HOME")
             or os.path.join(os.path.expanduser("~"), ".config"))
     source = os.path.join(base, APP_ID_GTK)
@@ -210,8 +213,10 @@ def _reprendre_dossier_gtk(env: str, defaut: str, cible: str,
     if WINDOWS:
         return                    # le portage GTK ne tourne pas sous Windows
     destination = os.path.join(cible, sous_dossier)
-    if os.path.isdir(destination) and any(os.scandir(destination)):
-        return                    # deja quelque chose ici : il fait foi
+    if os.path.isdir(destination):
+        with os.scandir(destination) as entrees:
+            if any(entrees):
+                return            # deja quelque chose ici : il fait foi
     import shutil
     for base_gtk in _sources_gtk(env, defaut):
         source = os.path.join(base_gtk, sous_dossier)

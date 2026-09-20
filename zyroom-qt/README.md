@@ -316,6 +316,34 @@ n'est pas toujours ce que Windows accepte.
 > n'embarque aucune de ces DLL : sur un vrai Windows elles viennent du
 > système, et `find dist -iname 'icu*.dll'` ne rend rien.
 
+## Les essais
+
+```bash
+python3 -m unittest discover -s tests
+```
+
+Rien n'y demande PySide6, ni fenêtre, ni réseau : les essais relisent les
+fichiers ou travaillent dans un dossier jetable. Ils tournent donc là où l'on
+veut justement savoir si le code se tient — une machine sans l'environnement
+complet, la CI, un paquet qu'on vient de sortir.
+
+**Ce qui est couvert ici, c'est ce qui est propre au portage.** Le noyau ne
+l'est pas, et n'a pas à l'être : ce sont les mêmes fichiers que ZyRoom-GTK,
+dont les vingt-huit essais valent donc pour les deux — et `sync-noyau.sh
+--verifie`, appelé par les deux livraisons, dit si une copie a dérivé.
+
+| Fichier | Ce qu'il tient |
+|---------|----------------|
+| `test_updater_installation.py` | Le remplacement d'un dossier d'application par le suivant : le tour de main du renommage, les liens symboliques de Qt, le bit d'exécution, le lanceur du chef, et les échecs — archive illisible, archive étrangère, pas d'installation — qui doivent tous laisser le dossier intact |
+| `test_updater_manifeste.py` | La lecture du manifeste : la case par système, l'entier qu'on compare (jamais un nom), l'archive par système, et le silence en cas de panne de réseau |
+| `test_updater_suffixes.py` | Les noms de dossier qui ne s'empilent pas, et le relais de Windows |
+| `test_config_chemins.py` | `%APPDATA%` et `%LOCALAPPDATA%` d'un côté, XDG de l'autre ; et la reprise de la configuration de ZyRoom-GTK au premier lancement, bac à sable Flatpak compris |
+| `test_coherence_interface.py` | Que l'interface ne s'appelle pas elle-même avec un nom qui n'existe plus — l'`AttributeError` du menu contextuel, qui a déjà traversé une livraison |
+
+**Windows ne s'exécute pas ici.** Ce qui peut l'être se simule — le drapeau
+`WINDOWS` et les variables d'environnement suffisent à emprunter ce
+chemin-là — et le reste tient à la machine que GitHub prête.
+
 ## Licence
 
 **GNU AGPLv3 ou ultérieure** (`AGPL-3.0-or-later`), comme le zyRoom d'origine
