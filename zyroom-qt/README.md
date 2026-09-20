@@ -87,21 +87,12 @@ fait ici.
 
 ## Ce qui reste à faire, et qui n'est plus du code
 
-1. **Descendre les archives Windows du CI sans passer par le navigateur.**
-   Chaque étiquette `qt-*` fait construire les deux paquets Windows — le
-   public et celui du chef — par GitHub Actions, sur une vraie machine
-   Windows, diagnostic compris. Ce sont eux qui sont servis. Mais les
-   récupérer demande de télécharger l'artefact à la main depuis l'onglet
-   Actions, puis de déposer les deux ZIP dans `pages/` — l'artefact est un ZIP
-   qui **contient** les ZIP, il faut sortir ceux du dedans. Un `gh` sur la
-   machine du mainteneur suffirait à automatiser le geste.
-
-   **Les deux ne vont pas au même endroit** : `ZyRoom-Qt-windows.zip` à la
-   racine de `pages/`, `ZyRoom-Qt-windows-chef.zip` dans
-   `pages/chef-98a7c4153088/` (voir plus bas).
-2. **Les faire essayer par un joueur sous Windows.** Un diagnostic qui passe
-   n'est pas une partie jouée : personne n'a encore ouvert un coffre depuis un
-   vrai Windows.
+**Le faire essayer par un joueur sous Windows.** Chaque étiquette `qt-*` fait
+construire les deux paquets Windows — le public et celui du chef — par GitHub
+Actions, sur une vraie machine Windows, diagnostic compris ; ce sont eux qui
+sont servis, et `outils/publier-windows.sh` va les chercher sans qu'on ouvre
+le navigateur. Mais un diagnostic qui passe n'est pas une partie jouée :
+personne n'a encore ouvert un coffre depuis un vrai Windows.
 
 ## L'archive du chef de guilde
 
@@ -121,6 +112,15 @@ reste. Ce que le nom tiré au hasard empêche, c'est qu'un joueur tombe dessus e
 essayant l'adresse évidente, ou qu'un moteur l'indexe. Pour davantage, il
 faudrait ne pas publier l'archive du tout et la remettre au chef en main
 propre.
+
+**Son dépôt reste un geste à la main.** `outils/publier-windows.sh` sort les
+deux archives de l'artefact, mais il ne pose que la publique dans `pages/` ;
+celle du chef atterrit dans `dist/`, d'où elle se recopie :
+
+```bash
+cp dist/ZyRoom-Qt-*-windows-chef.zip \
+   ../pages/chef-98a7c4153088/ZyRoom-Qt-windows-chef.zip
+```
 
 Elle ne se télécharge **qu'une fois** : depuis la version 1.11, la mise à jour
 reporte les lanceurs trouvés en place, et `ZyRoom-Qt-dev.bat` survit donc aux
@@ -176,14 +176,35 @@ laissent le dossier intact.
 
 ### Pour publier une version
 
-Ajouter au `version.json` de `pages/` une entrée pour ce portage, à côté de
-celles d'Android :
+```bash
+./livraison.sh          # construit le numéro actuel
+./livraison.sh 1.12     # renumérote en 1.12, puis construit
+```
+
+Le script recopie le numéro là où il s'affiche, incrémente le `versionCode`,
+vérifie que le noyau n'est pas périmé, construit le paquet Linux, le pose dans
+`pages/` et remplit sa case de `version.json`. **Rien n'est envoyé sur
+GitHub** : il s'arrête au bord et affiche ce qui reste à faire — pousser
+`main` avec l'étiquette **annotée** `qt-<numéro>`, qui est ce qui déclenche la
+construction Windows ; publier `pages/` sur `gh-pages` ; puis, la CI finie,
+`outils/publier-windows.sh` et une seconde publication du site.
+
+L'entrée du manifeste tient **une case par système**, et chaque paquet ne
+compare que la sienne : Windows reste donc à sa version le temps que la CI
+finisse, sans que cela dérange personne.
 
 ```json
 "net.ryzom.zyroomqt": {
-  "versionCode": 9,
-  "versionName": "0.9.0",
-  "url": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Qt-windows.zip"
+  "versionCode": 105,
+  "versionName": "1.11.76",
+  "urls": {
+    "linux": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Qt-linux.zip",
+    "windows": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Qt-windows.zip"
+  },
+  "systemes": {
+    "linux":   { "versionCode": 105, "versionName": "1.11.76" },
+    "windows": { "versionCode": 105, "versionName": "1.11.76" }
+  }
 }
 ```
 
@@ -191,9 +212,6 @@ celles d'Android :
 `__version_code__` de `zyroom/__init__.py` : c'est lui, et lui seul, que
 l'application compare. L'archive doit être en ligne **avant** que le manifeste
 l'annonce, sinon le bouton mène à une adresse morte.
-
-Il reste à écrire un `livraison.sh`, comme en ont les deux autres portages,
-pour enchaîner construction, publication et mise à jour du manifeste.
 
 ### Deux écarts assumés avec la version GTK
 
