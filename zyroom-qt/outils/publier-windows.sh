@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Depose le paquet Windows construit par la CI, et le dit au manifeste.
+# Depose les paquets Windows construits par la CI, et le dit au manifeste.
 #
 #   outils/publier-windows.sh          le dernier paquet construit
 #   outils/publier-windows.sh 1.11.34  celui d'une version precise
@@ -23,6 +23,11 @@ pages=$racine/../pages
 manifeste=$pages/version.json
 depot=xiom-dev/zyroom-gtk-android
 servi=ZyRoom-Qt-windows.zip
+# L'archive du chef ne va pas au meme endroit : un dossier a part, avec sa
+# propre page, que rien ne reference (voir README, "L'archive du chef de
+# guilde"). Le nom servi est fixe -- c'est le lien de cette page-la.
+dossier_chef=chef-98a7c4153088
+servi_chef=ZyRoom-Qt-windows-chef.zip
 
 command -v gh >/dev/null || {
     echo "Erreur : gh n'est pas installe -- c'est lui qui va chercher l'artefact." >&2
@@ -66,8 +71,39 @@ print(f"  {len(noms)} entrees, executable et installeur presents")
 PY
 
 cp "$archive" "$pages/$servi"
+
+# **Le chef aussi part d'ici.** Sortir son archive de l'artefact et la laisser
+# dans dist/ ne la publiait pas : la copie vers sa page restait un geste de
+# plus, a faire de memoire. C'est precisement ce geste-la, pour l'archive
+# publique, qui a ete oublie deux fois -- et c'est la raison d'etre de ce
+# script. Il n'y a pas de raison d'en garder un second.
 chef=$(find "$travail" -name "*windows-chef.zip" | head -1)
-[ -n "$chef" ] && cp "$chef" "$racine/dist/"
+if [ -n "$chef" ]; then
+    # Le lanceur qui leve le masque est ce qui distingue cette archive de
+    # l'autre. Sans lui, c'est la publique qu'on s'apprete a servir sous le
+    # nom du chef -- et cela ne se verrait que le jour ou le chef ouvre le
+    # petit coffre de Nizy, des semaines plus tard.
+    python3 - "$chef" <<'FIN_CHEF'
+import sys, zipfile
+noms = zipfile.ZipFile(sys.argv[1]).namelist()
+attendus = ("ZyRoom-Qt/ZyRoom-Qt.exe", "ZyRoom-Qt/ZyRoom-Qt-dev.bat")
+manquants = [n for n in attendus if n not in noms]
+if manquants:
+    raise SystemExit(f"Erreur : {', '.join(manquants)} absent(s) de l'archive du chef.")
+print(f"  archive du chef : {len(noms)} entrees, lanceur du chef present")
+FIN_CHEF
+    cp "$chef" "$racine/dist/"
+    if [ -d "$pages/$dossier_chef" ]; then
+        cp "$chef" "$pages/$dossier_chef/$servi_chef"
+        echo "  pages/$dossier_chef/$servi_chef depose"
+    else
+        echo "Attention : $pages/$dossier_chef absent -- l'archive du chef reste" >&2
+        echo "            dans dist/, et sa page garde la version precedente." >&2
+    fi
+else
+    echo "Attention : pas d'archive du chef dans l'artefact -- sa page garde" >&2
+    echo "            la version precedente." >&2
+fi
 
 # Le code de cette version : celui que le manifeste porte deja pour Linux si
 # les numeros se suivent, sinon il faut le lire dans l'archive -- on prend

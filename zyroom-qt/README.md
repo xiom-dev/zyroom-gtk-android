@@ -113,14 +113,13 @@ essayant l'adresse évidente, ou qu'un moteur l'indexe. Pour davantage, il
 faudrait ne pas publier l'archive du tout et la remettre au chef en main
 propre.
 
-**Son dépôt reste un geste à la main.** `outils/publier-windows.sh` sort les
-deux archives de l'artefact, mais il ne pose que la publique dans `pages/` ;
-celle du chef atterrit dans `dist/`, d'où elle se recopie :
-
-```bash
-cp dist/ZyRoom-Qt-*-windows-chef.zip \
-   ../pages/chef-98a7c4153088/ZyRoom-Qt-windows-chef.zip
-```
+**Elle se dépose avec l'autre.** `outils/publier-windows.sh` sort les deux
+archives de l'artefact : la publique à la racine de `pages/`, celle du chef
+dans son dossier sous le nom fixe que sa page appelle, plus une copie dans
+`dist/`. Le script vérifie au passage qu'elle porte bien
+`ZyRoom-Qt-dev.bat` — sans ce lanceur, c'est l'archive publique qu'on
+s'apprêterait à servir sous le nom du chef, et cela ne se verrait que le jour
+où il ouvrirait le petit coffre.
 
 Elle ne se télécharge **qu'une fois** : depuis la version 1.11, la mise à jour
 reporte les lanceurs trouvés en place, et `ZyRoom-Qt-dev.bat` survit donc aux
