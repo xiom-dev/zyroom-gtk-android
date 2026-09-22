@@ -161,5 +161,50 @@ class Inconnues(unittest.TestCase):
                     self.assertLessEqual(haut, 100.0)
 
 
+class ProchaineSortie(unittest.TestCase):
+    """Le « prochaine fois dans… » que la carte d'une matière annonce.
+
+    Chaque matière a son seuil : Zun suprême sort dès cinquante pour cent
+    d'humidité, là où la grande fenêtre du suprême en demande quatre-vingt-
+    trois. La carte doit donc compter pour **sa** matière, et non répéter le
+    compte à rebours du titre.
+    """
+
+    @staticmethod
+    def _page(conditions, cycle=100):
+        """Une fausse fenêtre, avec juste ce que la méthode lit."""
+        import types
+        from zyroom import meteo as m
+        cycles = [m.Meteo(cycle=cycle + i, condition=c, value=0.5,
+                          text="uiRainy") for i, c in enumerate(conditions)]
+        releve = m.MeteoAtys(cycle_courant=cycle, heure_atys=cycle * 3.0,
+                             saison=m.SAISONS.index("ETE"),
+                             continents={"sources": cycles, "terre": cycles})
+        return types.SimpleNamespace(_meteo_affiche=releve, _meteo_releve=None)
+
+    def setUp(self):
+        from zyroom.page_gisements import PageGisements
+        self.methode = PageGisements._prochaine_sortie
+        self.lieux = [lieu for _x, _y, lieu
+                      in gisements.points("supreme", "Ambres", "Zun")]
+
+    def test_elle_compte_jusqu_au_seuil_de_la_matière(self):
+        """Zun sort en mauvais et en exécrable : le bon temps ne suffit pas."""
+        page = self._page(["good", "good", "bad", "worst"])
+        self.assertEqual(18, self.methode(page, "supreme", "Ambres", "Zun",
+                                          self.lieux))
+
+    def test_rien_dans_la_prévision_ne_s_invente_pas(self):
+        page = self._page(["good"] * 40)
+        self.assertIsNone(self.methode(page, "supreme", "Ambres", "Zun",
+                                       self.lieux))
+
+    def test_sans_relevé_météo(self):
+        import types
+        page = types.SimpleNamespace(_meteo_affiche=None, _meteo_releve=None)
+        self.assertIsNone(self.methode(page, "supreme", "Ambres", "Zun",
+                                       self.lieux))
+
+
 if __name__ == "__main__":
     unittest.main()

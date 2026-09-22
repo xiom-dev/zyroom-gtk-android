@@ -51,6 +51,33 @@ class PageGisements:
                   == attendue}
         return actifs, actuelle
 
+    def _prochaine_sortie(self, qualite: str, famille: str, matiere: str,
+                          lieux: list):
+        """Le premier cycle à venir où cette matière sortira quelque part.
+
+        Chaque matière a son propre seuil : Zun suprême sort dès cinquante pour
+        cent d'humidité, là où la grande fenêtre du suprême en demande
+        quatre-vingt-trois. Dire « ça ne sort pas » sans dire quand, c'était
+        obliger à retourner lire la courbe et à poser l'addition.
+
+        On interroge la même table que pour le rouge et le gris, cycle par
+        cycle : une carte qui annoncerait une sortie que le tableau ne montre
+        pas serait pire que le silence.
+        """
+        releve = self._meteo_affiche or self._meteo_releve
+        if releve is None:
+            return None
+        attendue = _QUALITE.get(qualite)
+        zones = [lieu for lieu in lieux if lieu in meteo.ZONES]
+        for cycle in releve.cycles_des_primes():
+            if cycle.cycle <= releve.cycle_courant:
+                continue
+            if any(meteo.qualite_de(lieu, famille, matiere, releve.saison,
+                                    cycle.condition) == attendue
+                   for lieu in zones):
+                return releve.minutes_avant(cycle.cycle)
+        return None
+
     def _on_gisement(self, _label, adresse: str) -> bool:
         self._montre_gisement(*adresse.split("|", 2))
         return True         # sinon GTK tente d'ouvrir l'adresse dans un navigateur
@@ -112,6 +139,20 @@ class PageGisements:
                 + (_("  Les autres sont en gris.") if dehors and sortent
                    else ""))
             boite.append(maintenant)
+            # Quand rien ne sort, la seule question qui reste est « quand ? ».
+            if not sortent:
+                minutes = self._prochaine_sortie(qualite, famille, matiere,
+                                                 lieux)
+                apres = Gtk.Label(xalign=0.0, wrap=True)
+                apres.add_css_class("caption")
+                apres.set_text(
+                    _("Prochaine fois dans %(delai)s — %(quand)s.")
+                    % {"delai": meteo.duree(minutes),
+                       "quand": meteo.moment_du_changement(minutes)}
+                    if minutes is not None
+                    else _("Pas avant six heures — au-delà, le jeu ne dit "
+                           "plus le temps qu'il fera."))
+                boite.append(apres)
 
         # L'état du zoom vit sur la fenêtre : deux gisements ouverts en même
         # temps ne doivent pas se déplacer ensemble.
