@@ -269,6 +269,46 @@ class Courbe(unittest.TestCase):
         self.assertAlmostEqual(attendu, plat[1][0] - plat[0][0], places=6)
 
 
+class FenetreSupreme(unittest.TestCase):
+    """Le compte à rebours que le tracker d'atys.us affiche, refait ici.
+
+    Sa règle a été trouvée en le mesurant : le 22 septembre 2026 à 14 h 22, il
+    annonçait « Supremes Available in 2h 48m », et la prévision du jeu plaçait
+    le prochain cycle exécrable à 17 h 09 — la même minute. « Bonnes conditions
+    pour le suprême » veut donc dire humidité au-dessus de 83,4 %, et rien
+    d'autre.
+    """
+
+    @staticmethod
+    def _releve(conditions, cycle=100):
+        cycles = [meteo.Meteo(cycle=cycle + i, condition=c, value=0.5,
+                              text="uiRainy")
+                  for i, c in enumerate(conditions)]
+        return meteo.MeteoAtys(cycle_courant=cycle, heure_atys=cycle * 3.0,
+                               saison=1,
+                               continents={"sources": cycles, "terre": cycles})
+
+    def test_le_premier_cycle_exécrable_à_venir(self):
+        r = self._releve(["good", "bad", "good", "worst", "worst", "best"])
+        self.assertEqual(103, meteo.prochaine_fenetre_supreme(r).cycle)
+
+    def test_le_cycle_en_cours_ne_compte_pas(self):
+        """On cherche la prochaine fenêtre, pas celle qu'on vit déjà.
+
+        L'écran dit « Fenêtre suprême ouverte » dans ce cas-là, et le compte à
+        rebours n'aurait aucun sens."""
+        r = self._releve(["worst", "good", "worst"])
+        self.assertEqual(102, meteo.prochaine_fenetre_supreme(r).cycle)
+
+    def test_rien_en_vue_ne_s_invente_pas(self):
+        """La prévision du jeu ne porte que six heures."""
+        self.assertIsNone(
+            meteo.prochaine_fenetre_supreme(self._releve(["good"] * 40)))
+
+    def test_sans_relevé_du_tout(self):
+        self.assertIsNone(meteo.prochaine_fenetre_supreme(self._releve([])))
+
+
 class CeQuiSort(unittest.TestCase):
     """Ce que la météo du moment fait sortir, zone par zone.
 

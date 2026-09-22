@@ -376,3 +376,26 @@ def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]
         if groupes:
             return qualite, {f: sorted(m) for f, m in groupes.items()}
     return None, {}
+
+
+def prochaine_fenetre_supreme(releve: "MeteoAtys") -> "Meteo | None":
+    """Le prochain cycle par temps exécrable — la fenêtre de forage du suprême.
+
+    **Mesuré contre le tracker d'atys.us**, qui affiche le même compte à
+    rebours : le 22 septembre 2026 à 14 h 22, il annonçait « Supremes Available
+    in 2h 48m », et la prévision du jeu plaçait le prochain cycle exécrable à
+    17 h 09 — la même minute. Son « bonnes conditions pour le suprême », c'est
+    donc l'humidité au-dessus de 83,4 %, et rien d'autre.
+
+    Ce n'est pas la même chose que la fourchette d'un gisement, qui dit où on
+    le trouve : à tout instant la moitié des matières d'une zone est dans sa
+    fourchette, et un compte à rebours bâti là-dessus ne s'allumerait jamais.
+    La grande fenêtre, celle qu'on attend, c'est l'exécrable.
+
+    Rend `None` si aucun cycle exécrable n'est en vue : la prévision du jeu ne
+    porte que six heures, et on ne devine pas au-delà.
+    """
+    for cycle in releve.cycles_des_primes():
+        if cycle.cycle > releve.cycle_courant and cycle.condition.lower() == "worst":
+            return cycle
+    return None

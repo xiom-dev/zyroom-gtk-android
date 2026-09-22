@@ -297,10 +297,31 @@ class PageMeteo:
                     _("%(condition)s, %(taux)d %%")
                     % {"condition": meteo.texte_condition(actuelle.condition),
                        "taux": round(actuelle.value * 100)}]
+        fenetre = self._fenetre_supreme(releve, actuelle)
+        if fenetre:
+            morceaux.append(fenetre)
         repop = self._repop_supreme()
         if repop:
             morceaux.append(repop)
         return "   ·   ".join(morceaux)
+
+    @staticmethod
+    def _fenetre_supreme(releve, actuelle) -> str:
+        """Quand s'ouvre la grande fenêtre du suprême : le temps exécrable.
+
+        C'est le compte à rebours que le tracker affiche, et celui qu'on vient
+        y chercher. Pendant qu'il dure, on le dit aussi — savoir qu'on est
+        **dedans** vaut mieux que savoir quand on y sera.
+        """
+        if actuelle.condition.lower() == "worst":
+            return _("Fenêtre suprême ouverte")
+        prochaine = meteo.prochaine_fenetre_supreme(releve)
+        if prochaine is None:
+            return _("Fenêtre suprême : au-delà des 6 h prévues")
+        minutes = releve.minutes_avant(prochaine.cycle)
+        return (_("Fenêtre suprême dans %(delai)s — %(quand)s")
+                % {"delai": meteo.duree(minutes),
+                   "quand": meteo.moment_du_changement(minutes)})
 
     def _repop_supreme(self) -> str:
         """Quand les gisements suprêmes se rempliront de nouveau.
