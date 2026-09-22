@@ -220,43 +220,39 @@ class PageMeteo:
             # côte dont l'une était la suivante : il fallait connaître le code
             # pour la décoder. Elle se lit maintenant comme une phrase, et ce
             # qui dure passe avant ce qui décrira le décor.
-            # **La condition qualifie l'humidité, pas ce qui sort.** Les quatre
-            # conditions de forage portent les memes mots que les qualites de
-            # matiere -- Excellente en tete des deux listes -- et « sort
-            # Mauvaise » affirmait donc qu'il sortait de la mauvaise matiere.
-            # C'est faux : a soixante-trois pour cent d'humidite la condition
-            # est mauvaise, et il sort tout de meme du supreme. Le mot passe
-            # donc devant l'humidite, ou il ne peut plus qualifier que celle-ci.
+            # La ligne, telle que Ludo la veut :
+            #
+            #   humidite mauvaise 61 %, sort supreme pendant 4 min
+            #     - excellente dans 1 h 12  -  beau, ete, 22 h sur Atys, nuit
+            #
+            # Les conditions en minuscules : « mauvaise » qualifie l'humidite
+            # qui precede, et la capitale en faisait un nom propre qu'on lisait
+            # comme une qualite de matiere.
             morceaux = [
                 clair(_("humidité ")),
-                gras(meteo.texte_condition(maintenant.condition)),
-                gras(f" {int(maintenant.value * 100)} %"),
+                gras(f"{meteo.texte_condition(maintenant.condition).lower()} "
+                     f"{int(maintenant.value * 100)} %"),
             ]
-            # **Rien apres « sort ».** La ligne a porte « sort Supreme », et
-            # elle le portait en permanence : la moitie des gisements d'une
-            # zone est toujours dans sa fourchette d'humidite. Elle contredisait
-            # donc le titre juste en dessous, qui annonce la fenetre supreme
-            # pour dans une heure et demie. Des deux, c'est le titre qui dit
-            # vrai -- le supreme sort par temps execrable. Tant que les colonnes
-            # se deduisent des fourchettes et non de cette regle-la, cette ligne
-            # ne peut rien affirmer sur la recolte sans mentir.
+            qualite = self._qualite_du_moment(releve, maintenant)
+            if qualite is not None:
+                morceaux.append(clair(_(", sort ")))
+                morceaux.append(gras(meteo.mot_qualite(qualite).lower()))
             if prochain is not None:
-                # Le temps qui reste, et non le nom de la condition d'après :
-                # « pendant 5 min » répond à « est-ce que j'ai le temps ? »,
-                # qui est la question qu'on se pose devant cet écran.
+                # Le temps qui reste, et non le nom de la condition d'apres :
+                # « pendant 4 min » repond a « est-ce que j'ai le temps ? ».
                 morceaux.append(gras(
                     _(" pendant %s")
                     % meteo.duree(releve.minutes_avant(prochain.cycle))))
-            # La fenêtre excellente, sauf si elle est déjà annoncée juste
+            # La fenetre excellente, sauf si elle est deja annoncee juste
             # au-dessus : les deux mentions se vaudraient mot pour mot.
             if (maintenant.condition != "best" and meilleur is not None
                     and (prochain is None or meilleur.cycle != prochain.cycle)):
                 morceaux.append(clair(
-                    "   ✦ " + _("Excellente dans %s")
+                    "   —   " + _("excellente dans %s")
                     % meteo.duree(releve.minutes_avant(meilleur.cycle))))
             morceaux.append(clair(
-                f"   —   {meteo.texte_meteo(maintenant.text)}, "
-                f"{meteo.nom_saison(releve.saison)}, "
+                f"   —   {meteo.texte_meteo(maintenant.text).lower()}, "
+                f"{meteo.nom_saison(releve.saison).lower()}, "
                 f"{releve.heure_du_jour} h sur Atys, "
                 f"{'nuit' if releve.nuit else 'jour'}"))
             self._meteo_entete.set_markup("".join(morceaux))
@@ -307,6 +303,18 @@ class PageMeteo:
               "Relevés de la guilde ; positions de ballisticmystix.net.")))
 
     @staticmethod
+    @staticmethod
+    def _qualite_du_moment(releve, actuelle):
+        """La meilleure qualité que les quatre zones rendent en ce moment.
+
+        C'est ce que la première ligne annonce après « sort » ; les colonnes
+        disent ensuite laquelle sort où.
+        """
+        connues = [meteo.sortie_de(releve.saison, zone, actuelle.condition)[0]
+                   for zone in meteo.ZONES]
+        connues = [q for q in connues if q is not None]
+        return min(connues, key=meteo.QUALITES.index) if connues else None
+
     @staticmethod
     def _titre_pop(releve, actuelle, _qualite: str) -> str:
         """« Suprême dans 2 h 10 — aujourd'hui à 17:09 », et rien de plus.
