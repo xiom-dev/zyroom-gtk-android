@@ -2193,11 +2193,14 @@ class FenetrePrincipale(QMainWindow):
 
     # ----------------------------------------------------------------- Tri
     #: Regroupement par famille : catalyseurs ensemble, feux d'artifice
-    #: ensemble, et les matieres reunies par materiau du plus bas niveau au
-    #: plus haut. Voir sorting.py -- le type brut du jeu ne s'y prete pas, la
-    #: moitie d'un coffre y etant classee "autre".
+    #: ensemble, et les matieres reunies par sorte puis par materiau, du plus
+    #: bas niveau au plus haut. Voir sorting.py -- le type brut du jeu ne s'y
+    #: prete pas, la moitie d'un coffre y etant classee "autre". La sorte
+    #: vient de category.csv : rien d'autre ne dit qu'une matiere est une
+    #: resine ou une huile, le nom de fiche n'en souffle mot.
     _CLES_TRI = {
-        1: lambda self, it: sorting.sort_key(it, _norm(self._names.name(it.sheet))),
+        1: lambda self, it: sorting.sort_key(
+            it, _norm(self._names.name(it.sheet)), self._categorydb.categories),
         2: lambda self, it: int(it.ecosystem),
         3: lambda self, it: int(it.item_class),
         4: lambda self, it: it.quality,
