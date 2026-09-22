@@ -442,6 +442,11 @@ class Minuteur(unittest.TestCase):
             faux, "charges", faux.charges + 1)
         faux._refresh_meteo = lambda: setattr(faux, "refraichi",
                                               faux.refraichi + 1)
+        # Le battement entraîne aussi les cartes de gisements laissées
+        # ouvertes : on compte qu'il les appelle, sans monter de fenêtre.
+        faux.cartes = 0
+        faux._rafraichir_cartes_gisements = lambda: setattr(
+            faux, "cartes", faux.cartes + 1)
         MainWindow._meteo_tick(faux)
         return faux
 
@@ -461,6 +466,13 @@ class Minuteur(unittest.TestCase):
         self.assertIsNotNone(faux._meteo_affiche)
         self.assertEqual(1, faux.refraichi)
         self.assertEqual(0, faux.charges)
+
+    def test_il_entraîne_les_cartes_ouvertes(self):
+        """Sans quoi une carte laissée ouverte mentirait dès la bascule.
+
+        Neuf minutes réelles par cycle, et rien ne distingue un point vert
+        juste d'un point vert périmé."""
+        self.assertEqual(1, self._fenetre(self._releve(20)).cartes)
 
     def test_près_du_bout_il_avance_ET_redemande(self):
         """Les deux tenaient dans le même « si » : il redemandait sans avancer."""

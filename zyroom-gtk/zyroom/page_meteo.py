@@ -150,6 +150,8 @@ class PageMeteo:
         # la droite du graphique, pas le trait du présent.
         self._meteo_affiche = avance
         self._refresh_meteo()
+        # Les cartes ouvertes suivent : elles lisent le meme releve.
+        self._rafraichir_cartes_gisements()
         return True
 
     def _load_meteo(self, force: bool = False) -> None:

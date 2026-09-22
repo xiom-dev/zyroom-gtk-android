@@ -206,5 +206,40 @@ class ProchaineSortie(unittest.TestCase):
                                        self.lieux))
 
 
+class TextesDeLaCarte(unittest.TestCase):
+    """Les deux phrases sous l'en-tête, qui suivent le cycle.
+
+    Elles sont calculées au même endroit à l'ouverture et à chaque battement :
+    une carte laissée ouverte doit dire la vérité neuf minutes plus tard, quand
+    le cycle a basculé.
+    """
+
+    def _textes(self, conditions):
+        from zyroom.page_gisements import PageGisements
+        page = ProchaineSortie._page(conditions)
+        page._gisements_actifs = lambda *a: PageGisements._gisements_actifs(
+            page, *a)
+        page._prochaine_sortie = lambda *a: PageGisements._prochaine_sortie(
+            page, *a)
+        lieux = [lieu for _x, _y, lieu
+                 in gisements.points("supreme", "Ambres", "Zun")]
+        return PageGisements._textes_carte(page, "supreme", "Ambres", "Zun",
+                                           lieux)
+
+    def test_rien_ne_sort_alors_on_dit_quand(self):
+        """Zun ne sort pas par temps bon : la seconde ligne s'allume."""
+        actifs, maintenant, apres = self._textes(["good", "good", "worst"])
+        self.assertEqual(set(), actifs)
+        self.assertIn("aucun des 4 gisements", maintenant)
+        self.assertIn("Prochaine fois dans", apres)
+
+    def test_quelque_chose_sort_alors_on_se_tait(self):
+        """La seconde ligne n'apprendrait rien : elle reste vide."""
+        actifs, maintenant, apres = self._textes(["worst", "good"])
+        self.assertTrue(actifs)
+        self.assertIn("gisements sur 4", maintenant)
+        self.assertEqual("", apres)
+
+
 if __name__ == "__main__":
     unittest.main()

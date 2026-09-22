@@ -7,10 +7,15 @@ qui ne répondrait pas.
 
 **Les quatre points ne se valent pas au même instant.** Une suprême sort dans
 une zone des Primes et pas dans la voisine, selon le temps qu'il y fait : la
-carte montrait les quatre en rouge, et il fallait retourner au tableau pour
-savoir auquel aller. Les gisements qui sortent en ce moment sont rouges, les
-autres gris — gris et non retirés, parce que « ici, mais pas maintenant » est
-une réponse, et qu'une carte amputée n'en donne aucune.
+carte montrait les quatre du même rouge, et il fallait retourner au tableau
+pour savoir auquel aller. Les gisements qui sortent en ce moment sont **verts**,
+les autres gris — gris et non retirés, parce que « ici, mais pas maintenant »
+est une réponse, et qu'une carte amputée n'en donne aucune.
+
+**Et elle suit le temps.** Un cycle météo dure neuf minutes réelles : une carte
+laissée ouverte mentait dès la bascule suivante. Elle se recalcule au battement
+de l'écran météo, toutes les dix secondes — couleurs, décompte et phrases —
+sans rien redemander à l'API.
 
 Le code vient de `window.py`, déplacé sans une ligne de changement. Les
 réglages que cette carte partage avec celle des bêtes — zoom, seuil de
@@ -78,6 +83,66 @@ class PageGisements:
                 return releve.minutes_avant(cycle.cycle)
         return None
 
+    def _textes_carte(self, qualite: str, famille: str, matiere: str,
+                      lieux: list):
+        """Les lieux qui sortent, et les deux phrases qui l'expliquent.
+
+        Un seul endroit pour les deux : l'ouverture de la fenêtre et le
+        battement qui la rafraîchit doivent dire mot pour mot la même chose,
+        sans quoi l'une des deux dériverait sans qu'on s'en aperçoive.
+        """
+        actifs, actuelle = self._gisements_actifs(qualite, famille, matiere,
+                                                  lieux)
+        if actifs is None:
+            return None, "", ""
+        dehors = [lieu for lieu in lieux if lieu not in actifs]
+        sortent = len(lieux) - len(dehors)
+        maintenant = (
+            (_("En ce moment — %(condition)s, %(taux)d %% : aucun des "
+               "%(total)d gisements ne sort.") if not sortent
+             else _("En ce moment — %(condition)s, %(taux)d %% : "
+                    "un gisement sur %(total)d.") if sortent == 1
+             else _("En ce moment — %(condition)s, %(taux)d %% : "
+                    "%(sortent)d gisements sur %(total)d."))
+            % {"condition": meteo.texte_condition(actuelle.condition),
+               "taux": round(actuelle.value * 100),
+               "sortent": sortent, "total": len(lieux)}
+            + (_("  Les autres sont en gris.") if dehors and sortent else ""))
+        apres = ""
+        if not sortent:
+            minutes = self._prochaine_sortie(qualite, famille, matiere, lieux)
+            apres = (_("Prochaine fois dans %(delai)s — %(quand)s.")
+                     % {"delai": meteo.duree(minutes),
+                        "quand": meteo.moment_du_changement(minutes)}
+                     if minutes is not None
+                     else _("Pas avant six heures — au-delà, le jeu ne dit "
+                            "plus le temps qu'il fera."))
+        return actifs, maintenant, apres
+
+    def _rafraichir_cartes_gisements(self) -> None:
+        """Remet les cartes ouvertes à l'heure, au battement de l'écran météo.
+
+        Un cycle dure neuf minutes réelles : une carte laissée ouverte mentait
+        dès la bascule suivante, et elle mentait en silence — rien ne distingue
+        un point vert juste qu'un point vert périmé. Rien n'est redemandé à
+        l'API : l'écran météo fait déjà avancer son relevé tout seul.
+        """
+        for ouverte in list(getattr(self, "_cartes_gisements", [])):
+            actifs, maintenant, apres = self._textes_carte(
+                ouverte["qualite"], ouverte["famille"], ouverte["matiere"],
+                ouverte["lieux"])
+            ouverte["etat"]["actifs"] = actifs
+            for label, texte in ((ouverte["maintenant"], maintenant),
+                                 (ouverte["apres"], apres)):
+                label.set_text(texte)
+                label.set_visible(bool(texte))
+            for lieu, label in ouverte["noms"].items():
+                if actifs is not None and lieu not in actifs:
+                    label.add_css_class("dim-label")
+                else:
+                    label.remove_css_class("dim-label")
+            ouverte["zone"].queue_draw()
+
     def _on_gisement(self, _label, adresse: str) -> bool:
         self._montre_gisement(*adresse.split("|", 2))
         return True         # sinon GTK tente d'ouvrir l'adresse dans un navigateur
@@ -95,8 +160,8 @@ class PageGisements:
             return
         # Les lieux d'abord : l'en-tête en parle, et le tracé les colore.
         lieux = list(dict.fromkeys(lieu for _x, _y, lieu in points))
-        actifs, actuelle = self._gisements_actifs(qualite, famille, matiere,
-                                                  lieux)
+        actifs, texte_maintenant, texte_apres = self._textes_carte(
+            qualite, famille, matiere, lieux)
         win = Gtk.Window(title=f"{matiere} — {famille}", transient_for=self)
         # Quarante points de plus qu'avant : la ligne « en ce moment » s'ajoute
         # sous l'en-tete, et elle se replie sur deux lignes quand rien ne sort.
@@ -119,40 +184,19 @@ class PageGisements:
             + (_("gisements") if len(points) > 1 else _("gisement")))
         boite.append(entete)
 
-        # Ce que le rouge et le gris veulent dire, écrit une fois : un code de
+        # Ce que le vert et le gris veulent dire, écrit une fois : un code de
         # couleur qu'il faut deviner ne vaut pas mieux que pas de code du tout.
-        if actifs is not None:
-            dehors = [lieu for lieu in lieux if lieu not in actifs]
-            maintenant = Gtk.Label(xalign=0.0, wrap=True)
-            maintenant.add_css_class("caption")
-            sortent = len(lieux) - len(dehors)
-            maintenant.set_text(
-                (_("En ce moment — %(condition)s, %(taux)d %% : aucun des "
-                   "%(total)d gisements ne sort.") if not sortent
-                 else _("En ce moment — %(condition)s, %(taux)d %% : "
-                        "un gisement sur %(total)d.") if sortent == 1
-                 else _("En ce moment — %(condition)s, %(taux)d %% : "
-                        "%(sortent)d gisements sur %(total)d."))
-                % {"condition": meteo.texte_condition(actuelle.condition),
-                   "taux": round(actuelle.value * 100),
-                   "sortent": sortent, "total": len(lieux)}
-                + (_("  Les autres sont en gris.") if dehors and sortent
-                   else ""))
-            boite.append(maintenant)
-            # Quand rien ne sort, la seule question qui reste est « quand ? ».
-            if not sortent:
-                minutes = self._prochaine_sortie(qualite, famille, matiere,
-                                                 lieux)
-                apres = Gtk.Label(xalign=0.0, wrap=True)
-                apres.add_css_class("caption")
-                apres.set_text(
-                    _("Prochaine fois dans %(delai)s — %(quand)s.")
-                    % {"delai": meteo.duree(minutes),
-                       "quand": meteo.moment_du_changement(minutes)}
-                    if minutes is not None
-                    else _("Pas avant six heures — au-delà, le jeu ne dit "
-                           "plus le temps qu'il fera."))
-                boite.append(apres)
+        # Les deux étiquettes existent toujours, même vides : le battement les
+        # remplit et les vide, et une étiquette créée à la volée obligerait à
+        # reconstruire la fenêtre pour rien.
+        etiquettes = []
+        for texte in (texte_maintenant, texte_apres):
+            label = Gtk.Label(xalign=0.0, wrap=True)
+            label.add_css_class("caption")
+            label.set_text(texte)
+            label.set_visible(bool(texte))
+            boite.append(label)
+            etiquettes.append(label)
 
         # L'état du zoom vit sur la fenêtre : deux gisements ouverts en même
         # temps ne doivent pas se déplacer ensemble.
@@ -195,9 +239,11 @@ class PageGisements:
         grille = Gtk.Grid(column_spacing=24, row_spacing=2)
         grille.set_column_homogeneous(True)
         rangs = (len(lieux) + 1) // 2
+        noms = {}
         for rang, lieu in enumerate(lieux):
             ligne = Gtk.Label(xalign=0.0)
             ligne.add_css_class("compact")
+            noms[lieu] = ligne
             # Le nom suit le point : terni quand le gisement ne sort pas, pour
             # qu'on puisse lire la reponse dans la liste sans viser un pixel.
             if actifs is not None and lieu not in actifs:
@@ -216,6 +262,20 @@ class PageGisements:
         scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scroll.set_child(boite)
         win.set_child(scroll)
+
+        # La fenetre s'inscrit au battement de l'ecran meteo, et s'en retire
+        # en se fermant : une carte fermee qu'on continuerait de redessiner
+        # leverait une erreur GTK a la premiere bascule de cycle.
+        ouverte = {"qualite": qualite, "famille": famille, "matiere": matiere,
+                   "lieux": lieux, "etat": etat, "zone": zone,
+                   "maintenant": etiquettes[0], "apres": etiquettes[1],
+                   "noms": noms}
+        if not hasattr(self, "_cartes_gisements"):
+            self._cartes_gisements = []
+        self._cartes_gisements.append(ouverte)
+        win.connect("close-request",
+                    lambda *_a: (self._cartes_gisements.remove(ouverte),
+                                 False)[1])
         win.present()
 
     def _gisement_zoom(self, zone, etat: dict, facteur: float,
@@ -348,16 +408,17 @@ class PageGisements:
             ex, ey, elieu, n = vus[cle]
             vus[cle] = (ex, ey, elieu, n + 1)
         actifs = etat.get("actifs")
-        # Les gris d'abord, les rouges par-dessus : deux gisements voisins se
+        # Les gris d'abord, les verts par-dessus : deux gisements voisins se
         # recouvrent parfois d'un pixel, et c'est celui qui sort qu'on veut voir.
-        for rouge in (False, True):
+        for vert in (False, True):
             for px, py, lieu, n in vus.values():
                 if not (-40 <= px <= largeur + 40
                         and -40 <= py <= hauteur + 40):
                     continue
                 sort = actifs is None or lieu in actifs
-                if sort != rouge:
+                if sort != vert:
                     continue
                 self._marqueur(cr, px, py, lieu if n == 1 else f"{lieu} ×{n}",
-                               self.POINT if sort else self.POINT_INACTIF)
+                               self.POINT_ACTIF if sort
+                               else self.POINT_INACTIF)
         cr.restore()

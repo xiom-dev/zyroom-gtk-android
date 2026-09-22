@@ -19,6 +19,13 @@ class CartesCommunes:
     #: Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton.
     POINT = (1.0, 0.18, 0.18)
 
+    #: Le vert d'un gisement qui sort en ce moment.
+    #:
+    #: Vert et non rouge : le rouge se lit comme un refus, alors qu'il marque
+    #: justement ce qu'on cherche. La carte des bêtes garde le sien — là, le
+    #: point ne dit pas « vas-y », il dit « c'est là ».
+    POINT_ACTIF = (0.28, 0.82, 0.36)
+
     #: Le gris d'un gisement qui ne sort pas en ce moment.
     #:
     #: Gris et non effacé : le montrer dit « ici, mais pas maintenant », ce
