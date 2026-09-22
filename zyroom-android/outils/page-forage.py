@@ -17,6 +17,11 @@ en tire un texte court, à coller dans le canal de guilde ou à renvoyer, et
 
 La page produite est autonome : un seul fichier, rien à installer sur
 l'hébergement.
+
+**Rien de tout cela n'est écrit sur la page.** Les foreuses ne suivent pas le
+développement : pourquoi les colonnes ont été réunies, où sont gardées les
+croix, comment on fusionne deux relevés — ce sont des explications d'auteur, et
+trop d'information tue l'information. La page dit comment cocher, et s'arrête.
 """
 import html
 import os
@@ -164,8 +169,6 @@ GABARIT = """<!DOCTYPE html>
   textarea { width: 100%; height: 170px; background: var(--fond);
              color: var(--texte); border: 1px solid #24343a; border-radius: 7px;
              padding: 8px; font-family: ui-monospace, monospace; font-size: .85rem; }
-  footer { max-width: 900px; margin: 28px auto 0; color: var(--faible);
-           font-size: .85rem; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -213,16 +216,6 @@ GABARIT = """<!DOCTYPE html>
     </div>
   </form>
 </dialog>
-
-<footer>
-  <p>Les deux colonnes <i>Bad</i> du classeur sont réunies en une, et les deux
-     <i>Good</i> aussi&nbsp;: sur les huit cent trente-six paires déjà relevées,
-     elles n'ont jamais différé. Restent les quatre conditions que le jeu rend
-     lui-même.</p>
-  <p>Ce qui est coché reste dans ce navigateur. Pour rassembler les relevés de
-     plusieurs foreuses, chacune exporte et l'on importe les textes les uns
-     après les autres.</p>
-</footer>
 
 <script>
   "use strict";
