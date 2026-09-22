@@ -1,0 +1,5 @@
+* The mount and the pack mektoubs now share the game's four slots: "Mount 1",
+  then "Mektoub 2", "Mektoub 3", "Mektoub 4". They used to be counted per
+  species, so two beasts carried number 1 and none carried 4: the inventory
+  just read on screen could not be found in game, and the wrong mektoub was
+  opened. Zigs have slots of their own and keep their own sequence.

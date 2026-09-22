@@ -1,0 +1,6 @@
+* La monture et les mektoubs de bât se partagent les quatre numéros du jeu :
+  « Monture 1 », puis « Mektoub 2 », « Mektoub 3 », « Mektoub 4 ». Le compte
+  se faisait par espèce, si bien que deux bêtes portaient le numéro 1 et
+  qu'aucune ne portait le 4 : l'inventaire qu'on venait de lire ne se
+  retrouvait pas en jeu, et l'on ouvrait le mauvais mektoub. Les zigs, qui
+  ont leurs propres emplacements, gardent leur propre suite.
