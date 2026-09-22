@@ -232,12 +232,14 @@ class PageMeteo:
                 gras(meteo.texte_condition(maintenant.condition)),
                 gras(f" {int(maintenant.value * 100)} %"),
             ]
-            # Et apres « sort », la qualite qu'on ramasse vraiment -- la
-            # meilleure des quatre zones, celle que les colonnes detaillent.
-            qualite = self._qualite_du_moment(releve, maintenant)
-            if qualite is not None:
-                morceaux.append(clair(_(", sort ")))
-                morceaux.append(gras(meteo.mot_qualite(qualite)))
+            # **Rien apres « sort ».** La ligne a porte « sort Supreme », et
+            # elle le portait en permanence : la moitie des gisements d'une
+            # zone est toujours dans sa fourchette d'humidite. Elle contredisait
+            # donc le titre juste en dessous, qui annonce la fenetre supreme
+            # pour dans une heure et demie. Des deux, c'est le titre qui dit
+            # vrai -- le supreme sort par temps execrable. Tant que les colonnes
+            # se deduisent des fourchettes et non de cette regle-la, cette ligne
+            # ne peut rien affirmer sur la recolte sans mentir.
             if prochain is not None:
                 # Le temps qui reste, et non le nom de la condition d'après :
                 # « pendant 5 min » répond à « est-ce que j'ai le temps ? »,
@@ -305,18 +307,6 @@ class PageMeteo:
               "Relevés de la guilde ; positions de ballisticmystix.net.")))
 
     @staticmethod
-    @staticmethod
-    def _qualite_du_moment(releve, actuelle):
-        """La meilleure qualité que les quatre zones rendent en ce moment.
-
-        C'est ce que la première ligne annonce après « sort ». Les colonnes
-        disent ensuite le détail — laquelle sort où, et sous quel nom.
-        """
-        connues = [meteo.sortie_de(releve.saison, zone, actuelle.condition)[0]
-                   for zone in meteo.ZONES]
-        connues = [q for q in connues if q is not None]
-        return min(connues, key=meteo.QUALITES.index) if connues else None
-
     @staticmethod
     def _titre_pop(releve, actuelle, _qualite: str) -> str:
         """« Suprême dans 2 h 10 — aujourd'hui à 17:09 », et rien de plus.
