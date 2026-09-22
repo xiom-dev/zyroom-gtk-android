@@ -74,7 +74,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.57" if _DEV else "1.18"
+VERSION = "1.58" if _DEV else "1.18"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2960,7 +2960,12 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             # une saison peut changer quatre jours plus tard. Demande des
             # joueurs de la guilde.
             minutes = int(round(td["minutes_to_next"]))
-            text = (f"{td['season_name']} · {td['next_season_name']} dans "
+            # **Sans la saison en cours.** « Été · Automne dans 16 h 06 » posait
+            # deux saisons cote a cote sans dire laquelle etait laquelle : on
+            # pouvait aussi bien lire que l'ete arrivait. Ne reste que celle qui
+            # vient, avec son delai -- la saison du moment se lit sur l'ecran
+            # Meteo, qui l'ecrit dans sa premiere ligne.
+            text = (f"{td['next_season_name']} dans "
                     f"{meteo.duree(minutes, unite=True)}"
                     f" — {meteo.moment_du_changement(minutes)}")
             # L'or du thème, celui des titres : cette ligne dit la saison
