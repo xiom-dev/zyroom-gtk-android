@@ -39,7 +39,11 @@ PAGES = os.path.join(RACINE, "pages")
 BASE = "https://xiom-dev.github.io/zyroom-gtk-android/"
 
 #: Ce qui reste local, parce qu'on l'emporte avec la page.
-EMPORTE = ("apercus/",)
+#:
+#: L'icone y est aussi, et pas seulement pour economiser une requete : un
+#: navigateur retient l'icone d'un domaine autant que celle d'une page, et
+#: celle de xiom.be doit venir de xiom.be.
+EMPORTE = ("apercus/", "favicon")
 
 
 def absolu(page: str) -> str:
@@ -111,6 +115,8 @@ def main() -> int:
     apercus = os.path.join(sortie, "apercus")
     shutil.rmtree(apercus, ignore_errors=True)
     shutil.copytree(os.path.join(PAGES, "apercus"), apercus)
+    for icone in ("favicon.png", "favicon-32.png"):
+        shutil.copy2(os.path.join(PAGES, icone), os.path.join(sortie, icone))
     open(os.path.join(sortie, ".htaccess"), "w",
          encoding="utf-8").write(HTACCESS)
 
