@@ -454,6 +454,10 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         inv_page.append(barvol)
         barvol.append(Gtk.Label(label=_("Volume :")))
         self._vol_bar = Gtk.LevelBar()
+        # Sa classe a elle : le vert des jauges vaut pour toutes -- celles des
+        # competences comprises --, et celle-ci seule prend le vert de
+        # l'onglet choisi.
+        self._vol_bar.add_css_class("volume")
         self._vol_bar.set_min_value(0)
         self._vol_bar.set_max_value(100)
         self._vol_bar.set_hexpand(True)
@@ -2551,6 +2555,22 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             levelbar > trough > block.filled {
                 border-color: @zy_sarcelle; }
             levelbar > trough > block.full {
+                background-color: #26ab62; border-color: #26ab62; }
+            /* La jauge de volume, elle, prend le vert d'un onglet choisi.
+               C'est la barre qu'on a sous les yeux toute la journee, juste
+               sous la rangee des onglets : deux verts voisins et differents
+               s'y lisaient comme une difference de sens, alors qu'il n'y en a
+               aucune. Le sarcelle franc reste aux jauges de competences, ou
+               rien ne le jouxte.
+
+               Le dernier palier repasse apres, et non avant : les deux
+               regles pesent le meme poids -- deux classes chacune -- et c'est
+               donc la derniere ecrite qui l'emporte. Sans elle, un coffre
+               plein cessait de se voir de loin. */
+            levelbar.volume > trough > block.filled {
+                background-color: @zy_sarcelle_sombre;
+                border-color: @zy_sarcelle_sombre; }
+            levelbar.volume > trough > block.full {
                 background-color: #26ab62; border-color: #26ab62; }
             /* `background-image: none` en plus de la couleur : Adwaita peint
                ces cases avec une image, qui l'emporterait sur un simple fond

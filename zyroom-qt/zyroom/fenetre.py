@@ -962,7 +962,12 @@ class FenetrePrincipale(QMainWindow):
         # de bloc et un de lisere de part et d'autre. C'est la Jauge qui pose
         # cette hauteur -- sans elle, le layout l'etirait a seize, et la jauge
         # paraissait plus grasse que sa jumelle.
-        self._jauge = Jauge()
+        # Le vert d'un onglet choisi, et non le sarcelle franc des autres
+        # jauges : cette barre-ci est sous la rangee des onglets, et deux
+        # verts voisins et differents s'y lisaient comme une difference de
+        # sens. Les jauges de competences gardent le sarcelle, rien ne les
+        # jouxte.
+        self._jauge = Jauge(couleur=theme.COULEURS["sarcelle_sombre"])
         self._niveau_jauge = ""
         ligne_vol.addWidget(self._jauge, 1)
         self._lbl_volume = QLabel()
@@ -2783,7 +2788,7 @@ class FenetrePrincipale(QMainWindow):
             return
         self._niveau_jauge = niveau
         self._jauge.poser_couleur(
-            PLEIN if niveau == "full" else theme.COULEURS["sarcelle"],
+            PLEIN if niveau == "full" else theme.COULEURS["sarcelle_sombre"],
             plein=niveau == "full")
 
     def _maj_jauge(self, inv) -> None:
