@@ -562,15 +562,20 @@ def parse_character(xml_bytes: bytes, resolve_sheet=None) -> Entity:
     pets = node.find("pets")
     if pets is not None:
         _labels = {"mektoub": _("Mektoub"), "mount": _("Monture"), "zig": _("Zig")}
-        counters = {"mektoub": 0, "mount": 0, "zig": 0}
+        # Monture et mektoubs de bat se partagent les quatre emplacements de
+        # betes de bat du jeu : la numerotation court sur les deux ensemble
+        # -- Monture 1, Mektoub 2, Mektoub 3, Mektoub 4 -- et non une suite
+        # par espece. Les zigs, eux, ont leurs propres emplacements.
+        counters = {"bat": 0, "zig": 0}
         for animal in pets.findall("animal"):
             index = animal.get("index", "?")
             inv_node = animal.find("inventory")
             items = _build_items(inv_node, resolve_sheet) if inv_node is not None else []
             creature = animal.findtext("sheet", default="")
             capacity, kind = volume_mod.animal_capacity(creature)
-            counters[kind] += 1
-            label = f"{_labels[kind]} {counters[kind]}"
+            famille = "zig" if kind == "zig" else "bat"
+            counters[famille] += 1
+            label = f"{_labels[kind]} {counters[famille]}"
             ent.inventories.append(Inventory(f"animal{index}", label, items, capacity))
             ent.betes.append(_bete(animal, label, kind))
 

@@ -49,7 +49,9 @@ class BeteTest {
     /** Une bête à l'écurie est là où on l'a rangée : sa position ne dit rien. */
     @Test
     fun `une bête sans position ne prétend pas en avoir une`() {
-        val rangee = betes.first { it.etiquette == "Mektoub 1" }
+        // La monture et les mektoubs de bat partagent les quatre
+        // emplacements du jeu : le premier mektoub de bat porte le numero 2.
+        val rangee = betes.first { it.etiquette == "Mektoub 2" }
         assertFalse(rangee.dehors)
         assertEquals(0, rangee.x)
     }

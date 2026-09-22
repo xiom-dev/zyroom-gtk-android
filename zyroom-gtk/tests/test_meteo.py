@@ -474,7 +474,9 @@ class ColonnesDesBetes(unittest.TestCase):
     def test_seul_le_zig_va_dans_sa_colonne(self):
         betes = self._betes()
         self.assertEqual(["Zig 1"], [b.etiquette for b in betes if b.zig])
-        self.assertEqual(["Monture 1", "Mektoub 1"],
+        # La monture et les mektoubs de bat partagent les quatre
+        # emplacements du jeu : la numerotation court sur les deux.
+        self.assertEqual(["Monture 1", "Mektoub 2"],
                          [b.etiquette for b in betes if not b.zig])
 
 if __name__ == "__main__":

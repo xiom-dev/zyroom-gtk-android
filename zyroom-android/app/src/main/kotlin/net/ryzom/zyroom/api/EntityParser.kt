@@ -196,11 +196,16 @@ object EntityParser {
             // Chaque bête porte son propre inventaire. La fiche de créature dit
             // laquelle : « chj… » un mektoub de bât, « …zig… » un zig, sinon une
             // monture — chacune avec sa capacité, comme dans l'original.
-            val compteurs = mutableMapOf<Monture, Int>()
+            // Monture et mektoubs de bat se partagent les quatre
+            // emplacements de betes de bat du jeu : la numerotation court sur
+            // les deux ensemble -- Monture 1, Mektoub 2, Mektoub 3,
+            // Mektoub 4 -- et non une suite par espece. Les zigs, eux, ont
+            // leurs propres emplacements, donc leur propre compte.
+            val compteurs = mutableMapOf<String, Int>()
             node.child("pets")?.children("animal")?.forEach { animal ->
                 val inventory = animal.child("inventory") ?: return@forEach
                 val espece = montureDe(animal.text("sheet"))
-                val rang = compteurs.merge(espece, 1, Int::plus)!!
+                val rang = compteurs.merge(espece.famille, 1, Int::plus)!!
                 // Le nom donné en jeu est une chaîne multilingue à rallonge :
                 // « Zig 1 », « Zig 2 » se lisent mieux dans un menu.
                 val etiquette = "${espece.label} $rang"
@@ -397,10 +402,11 @@ object EntityParser {
         }
 
     /** Les trois espèces de bête à inventaire, avec ce qu'elles portent. */
-    private enum class Monture(val label: String, val capacity: Int) {
-        MEKTOUB("Mektoub", CAPACITY_MEKTOUB),
-        MOUNT("Monture", CAPACITY_MOUNT),
-        ZIG("Zig", CAPACITY_ZIG),
+    private enum class Monture(val label: String, val capacity: Int,
+                               val famille: String) {
+        MEKTOUB("Mektoub", CAPACITY_MEKTOUB, "bat"),
+        MOUNT("Monture", CAPACITY_MOUNT, "bat"),
+        ZIG("Zig", CAPACITY_ZIG, "zig"),
     }
 
     /**
