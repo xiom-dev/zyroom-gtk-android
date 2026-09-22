@@ -9,14 +9,24 @@ une exception. Les deux moitiés sont donc réunies ici, ce qui ramène le table
 par deux le nombre de cases à cocher sur le terrain.
 
 La page se coche d'un clic : vide → `x` (ça sort) → `−` (ça ne sort pas) →
-vide. Tout est gardé dans le navigateur de la foreuse ; le bouton « Exporter »
-en tire un texte court, à coller dans le canal de guilde ou à renvoyer, et
-« Importer » fusionne celui d'une autre.
+vide, et **tout le monde voit les croix de tout le monde** — le relevé vit sur
+le serveur, dans un fichier JSON que `releve.php` tient à jour.
+
+**Lecture libre, écriture sur adresse secrète.** Sans clef dans l'adresse, la
+page se lit et ne se coche pas. Avec `?k=…`, elle devient inscriptible. La clef
+est gardée dans `~/.config/zyroom/forage.cle`, hors du dépôt, et recopiée dans
+`releve.php` — que le serveur exécute, et ne montre donc jamais. Si elle fuite,
+on en tire une autre et l'ancienne ne vaut plus rien.
+
+Chaque croix porte le nom de la foreuse : sur un tableau rempli à plusieurs sur
+des mois, savoir à qui demander vaut cher le jour où deux relevés se
+contredisent.
 
     python3 outils/page-forage.py
 
-La page produite est autonome : un seul fichier, rien à installer sur
-l'hébergement.
+Trois fichiers sont écrits dans `site-domaine/forage/`, à monter tels quels :
+`index.html`, `releve.php` et `.htaccess`. Le fichier de données et ses
+sauvegardes, PHP les crée tout seul.
 
 **Rien de tout cela n'est écrit sur la page.** Les foreuses ne suivent pas le
 développement : pourquoi les colonnes ont été réunies, où sont gardées les
@@ -35,6 +45,10 @@ _ANDROID = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DEPOT = os.path.dirname(_ANDROID)
 CIBLE = os.path.join(_DEPOT, "site-domaine", "forage", "index.html")
 
+#: La clef d'ecriture. Hors du depot, comme le jeton du tracker : elle finit
+#: recopiee dans `releve.php`, que le serveur execute et ne montre jamais.
+CLE_FICHIER = os.path.expanduser("~/.config/zyroom/forage.cle")
+
 ONGLET = "Original vierge"
 SAISONS = ("Printemps", "Été", "Automne", "Hiver")
 
@@ -47,6 +61,17 @@ CONDITIONS = (("Exécrable", "Worst", "84 – 100 %"),
               ("Excellente", "Best", "0 – 16 %"))
 
 QUALITES = ("Supp", "XL", "Choix")
+
+
+def clef() -> str:
+    """La clef d'écriture, lue une fois pour toutes."""
+    if not os.path.isfile(CLE_FICHIER):
+        raise SystemExit(
+            f"Clef absente : {CLE_FICHIER}\n"
+            "En tirer une : python3 -c \"import secrets; "
+            "print('forage-' + secrets.token_hex(6))\" > " + CLE_FICHIER)
+    with open(CLE_FICHIER, encoding="utf-8") as fh:
+        return fh.read().strip()
 
 
 def catalogue() -> list:
@@ -101,6 +126,144 @@ def grille(familles: list) -> str:
                               f'<th class="qualite">{qualite}</th>{cles}</tr>')
     return "\n".join(lignes)
 
+
+
+PHP = """<?php
+// Le releve commun du forage des Primes, tenu dans un simple fichier JSON.
+//
+// GET  : rend l'etat entier. Lecture libre.
+// POST : une case a la fois, et seulement avec la bonne clef.
+//
+// Pourquoi un fichier et pas une base : le releve tient en quelques dizaines
+// de kilooctets, il s'ouvre dans un editeur de texte le jour ou quelque chose
+// cloche, et il se sauvegarde en le recopiant. Une base pour cela couterait
+// plus d'ennuis qu'elle n'en eviterait.
+declare(strict_types=1);
+
+const CLE = '__CLE__';
+const FICHIER = __DIR__ . '/releve.json';
+const SAUVEGARDES = __DIR__ . '/sauvegardes';
+const MAX_SAUVEGARDES = 60;
+const MAX_CORPS = 4096;
+
+// Ce qu'une case a le droit d'etre. On valide contre ces listes plutot que
+// contre une expression : une cle inventee n'entrera pas dans le fichier, et
+// le relever se lit encore dans six mois.
+const SAISONS = __SAISONS__;
+const QUALITES = __QUALITES__;
+const CONDITIONS = __CONDITIONS__;
+const MATIERES = __MATIERES__;
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
+
+function etat(): array
+{
+    if (!is_file(FICHIER)) {
+        return ['cases' => (object) [], 'maj' => null];
+    }
+    $lu = json_decode((string) file_get_contents(FICHIER), true);
+    if (!is_array($lu) || !isset($lu['cases']) || !is_array($lu['cases'])) {
+        return ['cases' => (object) [], 'maj' => null];
+    }
+    return ['cases' => (object) $lu['cases'], 'maj' => $lu['maj'] ?? null];
+}
+
+function repond(int $code, array $corps): never
+{
+    http_response_code($code);
+    echo json_encode($corps, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    repond(200, etat());
+}
+
+$brut = (string) file_get_contents('php://input', false, null, 0, MAX_CORPS);
+$demande = json_decode($brut, true);
+if (!is_array($demande)) {
+    repond(400, ['erreur' => 'requete illisible']);
+}
+// hash_equals plutot que == : la comparaison ne doit pas fuir la clef par le
+// temps qu'elle met a echouer.
+if (!hash_equals(CLE, (string) ($demande['cle'] ?? ''))) {
+    repond(403, ['erreur' => 'clef']);
+}
+
+$case = (string) ($demande['case'] ?? '');
+$valeur = (string) ($demande['valeur'] ?? '');
+$foreuse = trim((string) ($demande['foreuse'] ?? ''));
+// Ni mbstring ni substr : l'un n'est pas garanti sur tous les hebergements,
+// l'autre couperait un caractere accentue en deux. PCRE en mode /u fait
+// les deux -- ne garder que des lettres, puis s'arreter a vingt-quatre.
+$foreuse = (string) preg_replace('/[^\\p{L}\\p{N} \\-\\']/u', '', $foreuse);
+$foreuse = (string) preg_replace('/^(.{0,24}).*$/us', '$1', $foreuse);
+
+$morceaux = explode('|', $case);
+if (count($morceaux) !== 4
+    || !in_array($morceaux[0], SAISONS, true)
+    || !in_array($morceaux[1], MATIERES, true)
+    || !in_array($morceaux[2], QUALITES, true)
+    || !in_array($morceaux[3], CONDITIONS, true)) {
+    repond(400, ['erreur' => 'case inconnue']);
+}
+if (!in_array($valeur, ['x', '-', ''], true)) {
+    repond(400, ['erreur' => 'valeur inconnue']);
+}
+
+// Le verrou tient le temps de lire, modifier et reecrire : deux foreuses qui
+// cochent dans la meme seconde ne doivent pas s'effacer l'une l'autre.
+$fh = fopen(FICHIER, 'c+');
+if ($fh === false || !flock($fh, LOCK_EX)) {
+    repond(500, ['erreur' => 'fichier verrouille']);
+}
+$contenu = stream_get_contents($fh);
+$lu = json_decode((string) $contenu, true);
+$cases = (is_array($lu) && isset($lu['cases']) && is_array($lu['cases']))
+    ? $lu['cases'] : [];
+
+// Une sauvegarde avant chaque ecriture : un tableau rempli sur des mois par
+// plusieurs foreuses ne doit pas pouvoir disparaitre sur une fausse manoeuvre.
+if ($contenu !== '') {
+    @mkdir(SAUVEGARDES, 0775, true);
+    @file_put_contents(
+        SAUVEGARDES . '/releve-' . gmdate('Ymd-His') . '.json', $contenu);
+    $vieilles = glob(SAUVEGARDES . '/releve-*.json') ?: [];
+    sort($vieilles);
+    foreach (array_slice($vieilles, 0, max(0, count($vieilles) - MAX_SAUVEGARDES)) as $v) {
+        @unlink($v);
+    }
+}
+
+if ($valeur === '') {
+    unset($cases[$case]);
+} else {
+    $cases[$case] = ['v' => $valeur, 'qui' => $foreuse,
+                     'quand' => gmdate('c')];
+}
+$sortie = json_encode(['cases' => (object) $cases, 'maj' => gmdate('c')],
+                      JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+ftruncate($fh, 0);
+rewind($fh);
+fwrite($fh, (string) $sortie);
+fflush($fh);
+flock($fh, LOCK_UN);
+fclose($fh);
+
+repond(200, ['ok' => true, 'case' => $case, 'valeur' => $valeur]);
+"""
+
+HTACCESS = """# Le releve et ses sauvegardes ne se lisent que par releve.php, jamais en
+# direct : le fichier porte le nom des foreuses, et les sauvegardes
+# s'enumereraient une a une.
+<FilesMatch "\\.json$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+"""
 
 GABARIT = """<!DOCTYPE html>
 <html lang="fr">
@@ -180,13 +343,15 @@ GABARIT = """<!DOCTYPE html>
   .case[data-v="-"] { color: var(--non); }
   .case[data-v="-"]::after { content: "\\2212"; }
 
-  dialog {
-    background: var(--surface); color: var(--texte); border: 1px solid #24343a;
-    border-radius: 10px; max-width: 560px; width: 92%;
-  }
-  textarea { width: 100%; height: 170px; background: var(--fond);
-             color: var(--texte); border: 1px solid #24343a; border-radius: 7px;
-             padding: 8px; font-family: ui-monospace, monospace; font-size: .85rem; }
+  #bloc-nom { color: var(--faible); font-size: .9rem; }
+  #nom { background: var(--fond); color: var(--texte); font: inherit;
+         border: 1px solid #24343a; border-radius: 7px; padding: 6px 8px;
+         margin-left: 4px; }
+  #lecture { max-width: 900px; margin: 0 auto 10px; color: var(--or); }
+  /* En lecture seule, rien ne doit laisser croire qu'un clic fera quelque
+     chose : ni main de souris, ni case qui s'allume au survol. */
+  .lecture-seule .case { cursor: default; }
+  .lecture-seule .case:hover { background: none; }
 </style>
 </head>
 <body>
@@ -207,10 +372,14 @@ GABARIT = """<!DOCTYPE html>
 
 <div class="barre">
   __ONGLETS__
-  <button id="exporter">Exporter</button>
-  <button id="importer">Importer</button>
-  <span class="compte" id="compte"></span>
+  <label id="bloc-nom">Ton nom&nbsp;:
+    <input id="nom" maxlength="24" size="12" placeholder="Xiom" spellcheck="false">
+  </label>
+  <span class="compte" id="compte">chargement…</span>
 </div>
+
+<p id="lecture" hidden>Lecture seule&nbsp;: demande le lien de saisie dans le
+   canal de guilde pour pouvoir cocher.</p>
 
 <div class="cadre">
   <table>
@@ -224,58 +393,105 @@ GABARIT = """<!DOCTYPE html>
   </table>
 </div>
 
-<dialog id="boite">
-  <form method="dialog">
-    <p id="boite-titre"></p>
-    <textarea id="boite-texte" spellcheck="false"></textarea>
-    <div class="barre" style="margin-bottom:0">
-      <button id="boite-ok" value="ok">Fusionner</button>
-      <button value="annuler">Fermer</button>
-    </div>
-  </form>
-</dialog>
-
 <script>
   "use strict";
-  // Les saisons, dans l'ordre du classeur. L'onglet choisi ne change que
-  // l'etiquette des cases : la grille, elle, est dessinee une seule fois.
   const SAISONS = __SAISONS__;
-  const CLE = "forage-primes-v1";
+  // La clef de saisie voyage dans l'adresse : sans elle, la page se lit et ne
+  // se coche pas. C'est le lien qu'on colle dans le canal de guilde.
+  const CLE = new URLSearchParams(location.search).get("k") || "";
 
   let saison = 0;
-  let releve = {};
-  try { releve = JSON.parse(localStorage.getItem(CLE) || "{}"); } catch (e) {}
+  let cases = {};              // "saison|matiere|qualite|condition" -> {v, qui}
+  let enVol = 0;
 
   const corps = document.getElementById("corps");
   const compte = document.getElementById("compte");
+  const nom = document.getElementById("nom");
+
+  if (!CLE) {
+    document.getElementById("lecture").hidden = false;
+    document.getElementById("bloc-nom").hidden = true;
+    document.body.classList.add("lecture-seule");
+  }
+  try { nom.value = localStorage.getItem("forage-nom") || ""; } catch (e) {}
+  nom.addEventListener("change", () => {
+    try { localStorage.setItem("forage-nom", nom.value.trim()); } catch (e) {}
+  });
 
   function cle(td) { return SAISONS[saison] + "|" + td.dataset.cle; }
 
   function peindre() {
     document.getElementById("titre-saison").textContent = SAISONS[saison];
     for (const td of corps.querySelectorAll(".case")) {
-      const v = releve[cle(td)];
-      if (v) { td.dataset.v = v; } else { delete td.dataset.v; }
+      const c = cases[cle(td)];
+      if (c) {
+        td.dataset.v = c.v;
+        // Qui a coche, et quand : sur un tableau rempli a plusieurs sur des
+        // mois, c'est a quoi on se raccroche quand deux releves divergent.
+        td.title = (c.qui || "quelqu'un") + (c.quand ? " — " + c.quand.slice(0, 10) : "");
+      } else {
+        delete td.dataset.v;
+        td.removeAttribute("title");
+      }
     }
-    const n = Object.keys(releve).length;
-    compte.textContent = n ? n + " case" + (n > 1 ? "s" : "") + " cochée"
-                             + (n > 1 ? "s" : "") : "aucune case cochée";
+    const n = Object.keys(cases).length;
+    compte.textContent = n + " case" + (n > 1 ? "s" : "") + " cochée"
+                         + (n > 1 ? "s" : "") + (CLE ? "" : " · lecture seule");
   }
 
-  function garder() {
-    try { localStorage.setItem(CLE, JSON.stringify(releve)); } catch (e) {}
+  async function charger() {
+    try {
+      const r = await fetch("releve.php", { cache: "no-store" });
+      const d = await r.json();
+      cases = d.cases || {};
+      peindre();
+    } catch (e) {
+      compte.textContent = "relevé injoignable";
+    }
   }
 
-  corps.addEventListener("click", (e) => {
+  async function envoyer(k, v) {
+    enVol++;
+    try {
+      const r = await fetch("releve.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cle: CLE, case: k, valeur: v,
+                               foreuse: nom.value.trim() })
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.erreur || r.status);
+      }
+      return true;
+    } catch (e) {
+      compte.textContent = "refusé : " + e.message;
+      return false;
+    } finally {
+      enVol--;
+    }
+  }
+
+  corps.addEventListener("click", async (e) => {
+    if (!CLE) return;
     const td = e.target.closest(".case");
     if (!td) return;
     const k = cle(td);
-    // vide -> x -> moins -> vide : un seul doigt, trois etats.
+    const avant = cases[k];
     const suite = { undefined: "x", "x": "-", "-": undefined };
-    const v = suite[releve[k]];
-    if (v) { releve[k] = v; } else { delete releve[k]; }
-    garder();
+    const v = suite[avant ? avant.v : undefined];
+    // On peint d'abord et on demande ensuite : le clic doit repondre tout de
+    // suite. Si le serveur refuse, on remet ce qui etait la.
+    if (v) {
+      cases[k] = { v: v, qui: nom.value.trim(), quand: new Date().toISOString() };
+    } else {
+      delete cases[k];
+    }
     peindre();
+    if (!await envoyer(k, v || "")) {
+      if (avant) { cases[k] = avant; } else { delete cases[k]; }
+      peindre();
+    }
   });
 
   for (const b of document.querySelectorAll("[data-saison]")) {
@@ -288,54 +504,27 @@ GABARIT = """<!DOCTYPE html>
     });
   }
 
-  const boite = document.getElementById("boite");
-  const texte = document.getElementById("boite-texte");
-  const titre = document.getElementById("boite-titre");
-  const ok = document.getElementById("boite-ok");
-  let mode = "exporter";
-
-  document.getElementById("exporter").addEventListener("click", () => {
-    mode = "exporter";
-    titre.textContent = "À copier et renvoyer :";
-    ok.style.display = "none";
-    // Une ligne par case : court, lisible, et fusionnable a la main au besoin.
-    texte.value = Object.entries(releve).sort()
-      .map(([k, v]) => k + "=" + v).join("\\n");
-    boite.showModal();
-    texte.select();
-  });
-
-  document.getElementById("importer").addEventListener("click", () => {
-    mode = "importer";
-    titre.textContent = "Coller le relevé d'une autre foreuse :";
-    ok.style.display = "";
-    texte.value = "";
-    boite.showModal();
-  });
-
-  boite.addEventListener("close", () => {
-    if (mode !== "importer" || boite.returnValue !== "ok") return;
-    for (const ligne of texte.value.split("\\n")) {
-      const [k, v] = ligne.trim().split("=");
-      // On ne fusionne que ce qu'on reconnait : une ligne abimee par un
-      // copier-coller ne doit pas s'ajouter au releve en silence.
-      if (k && (v === "x" || v === "-") && k.split("|").length === 4) {
-        releve[k] = v;
-      }
-    }
-    garder();
-    peindre();
-  });
-
-  peindre();
+  // On relit regulierement : deux foreuses sur le meme creneau doivent voir
+  // les croix l'une de l'autre sans recharger la page. Jamais pendant qu'une
+  // ecriture est en vol, sinon elle reviendrait effacee.
+  setInterval(() => { if (enVol === 0) charger(); }, 45000);
+  charger();
 </script>
 </body>
 </html>
 """
 
 
+def _liste_php(elements) -> str:
+    """Une liste PHP littérale, guillemets simples échappés."""
+    return "[" + ", ".join("'" + str(e).replace("\\", "\\\\")
+                           .replace("'", "\\'") + "'" for e in elements) + "]"
+
+
 def main() -> int:
     familles = catalogue()
+    matieres = [m.replace("²", "").strip()
+                for _f, ms in familles for m in ms]
     entetes = "\n        ".join(
         f'<th class="cond">{fr}<span class="plage">{court} · {plage}</span></th>'
         for fr, court, plage in CONDITIONS)
@@ -347,13 +536,29 @@ def main() -> int:
             .replace("__ENTETES__", entetes)
             .replace("__GRILLE__", grille(familles))
             .replace("__SAISONS__", repr(list(SAISONS)).replace("'", '"')))
-    os.makedirs(os.path.dirname(CIBLE), exist_ok=True)
-    with open(CIBLE, "w", encoding="utf-8") as fh:
-        fh.write(page)
-    matieres = sum(len(m) for _f, m in familles)
-    print(f"{len(familles)} familles, {matieres} matières, "
-          f"{matieres * len(QUALITES) * len(CONDITIONS)} cases par saison")
-    print(f"{len(page) // 1024} Kio → {CIBLE}")
+    php = (PHP
+           .replace("__CLE__", clef())
+           .replace("__SAISONS__", _liste_php(SAISONS))
+           .replace("__QUALITES__", _liste_php(QUALITES))
+           .replace("__CONDITIONS__", _liste_php(c[0] for c in CONDITIONS))
+           .replace("__MATIERES__", _liste_php(matieres)))
+
+    dossier = os.path.dirname(CIBLE)
+    os.makedirs(dossier, exist_ok=True)
+    ecrits = []
+    for nom, contenu in (("index.html", page), ("releve.php", php),
+                         (".htaccess", HTACCESS)):
+        chemin = os.path.join(dossier, nom)
+        with open(chemin, "w", encoding="utf-8") as fh:
+            fh.write(contenu)
+        ecrits.append((nom, len(contenu)))
+
+    print(f"{len(familles)} familles, {len(matieres)} matières, "
+          f"{len(matieres) * len(QUALITES) * len(CONDITIONS)} cases par saison")
+    for nom, poids in ecrits:
+        print(f"  {nom:12s} {poids // 1024 or 1:3d} Kio")
+    print(f"→ {dossier}")
+    print("clef d'écriture : voir " + CLE_FICHIER)
     return 0
 
 
