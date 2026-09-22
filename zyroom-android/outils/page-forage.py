@@ -166,8 +166,11 @@ GABARIT = """<!DOCTYPE html>
              width: 54px; }
   /* Le rappel des conditions sur la ligne de la famille : assez lisible pour
      qu'on s'y repere, assez terne pour ne pas voler la vedette au nom jaune. */
+  /* Centres : `.famille th` aligne tout a gauche pour le nom de la famille,
+     et les rappels heritaient de cet alignement -- ils flottaient donc au bord
+     gauche de colonnes larges de cent huit points, loin de la case visee. */
   .famille .rappel { font-size: .75rem; font-weight: 400; color: var(--clair);
-                     letter-spacing: .02em; }
+                     letter-spacing: .02em; text-align: center; }
   .q-supp .qualite { color: var(--or); }
 
   .case { cursor: pointer; height: 26px; font-weight: 700; user-select: none; }
