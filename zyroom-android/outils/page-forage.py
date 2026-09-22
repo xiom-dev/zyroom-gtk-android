@@ -52,6 +52,12 @@ CLE_FICHIER = os.path.expanduser("~/.config/zyroom/forage.cle")
 ONGLET = "Original vierge"
 SAISONS = ("Printemps", "Été", "Automne", "Hiver")
 
+#: Les quatre zones des Primes. Le classeur leur donne un onglet chacune, et
+#: elles ne sortent pas les memes matieres au meme moment -- c'est meme tout
+#: l'interet du releve. Une page sans elles ne voulait rien dire.
+ZONES = ("Sources Interdites", "Terre de la Continuité",
+         "Cité Engloutie", "Profondeurs Interdites")
+
 #: Les quatre conditions du jeu, avec la fourchette d'humidite que le tracker
 #: affiche. Le nom anglais est garde : c'est celui du classeur et du tracker,
 #: donc celui que les foreuses ont sous les yeux.
@@ -149,6 +155,7 @@ const MAX_CORPS = 4096;
 // Ce qu'une case a le droit d'etre. On valide contre ces listes plutot que
 // contre une expression : une cle inventee n'entrera pas dans le fichier, et
 // le relever se lit encore dans six mois.
+const ZONES = __ZONES__;
 const SAISONS = __SAISONS__;
 const QUALITES = __QUALITES__;
 const CONDITIONS = __CONDITIONS__;
@@ -201,11 +208,12 @@ $foreuse = (string) preg_replace('/[^\\p{L}\\p{N} \\-\\']/u', '', $foreuse);
 $foreuse = (string) preg_replace('/^(.{0,24}).*$/us', '$1', $foreuse);
 
 $morceaux = explode('|', $case);
-if (count($morceaux) !== 4
-    || !in_array($morceaux[0], SAISONS, true)
-    || !in_array($morceaux[1], MATIERES, true)
-    || !in_array($morceaux[2], QUALITES, true)
-    || !in_array($morceaux[3], CONDITIONS, true)) {
+if (count($morceaux) !== 5
+    || !in_array($morceaux[0], ZONES, true)
+    || !in_array($morceaux[1], SAISONS, true)
+    || !in_array($morceaux[2], MATIERES, true)
+    || !in_array($morceaux[3], QUALITES, true)
+    || !in_array($morceaux[4], CONDITIONS, true)) {
     repond(400, ['erreur' => 'case inconnue']);
 }
 if (!in_array($valeur, ['x', '-', ''], true)) {
@@ -371,6 +379,10 @@ GABARIT = """<!DOCTYPE html>
 </header>
 
 <div class="barre">
+  __ZONES__
+</div>
+
+<div class="barre">
   __ONGLETS__
   <label id="bloc-nom">Ton nom&nbsp;:
     <input id="nom" maxlength="24" size="12" placeholder="Xiom" spellcheck="false">
@@ -396,11 +408,13 @@ GABARIT = """<!DOCTYPE html>
 <script>
   "use strict";
   const SAISONS = __SAISONS__;
+  const ZONES = __LISTE_ZONES__;
   // La clef de saisie voyage dans l'adresse : sans elle, la page se lit et ne
   // se coche pas. C'est le lien qu'on colle dans le canal de guilde.
   const CLE = new URLSearchParams(location.search).get("k") || "";
 
   let saison = 0;
+  let zone = 0;
   let cases = {};              // "saison|matiere|qualite|condition" -> {v, qui}
   let enVol = 0;
 
@@ -418,10 +432,13 @@ GABARIT = """<!DOCTYPE html>
     try { localStorage.setItem("forage-nom", nom.value.trim()); } catch (e) {}
   });
 
-  function cle(td) { return SAISONS[saison] + "|" + td.dataset.cle; }
+  function cle(td) {
+    return ZONES[zone] + "|" + SAISONS[saison] + "|" + td.dataset.cle;
+  }
 
   function peindre() {
-    document.getElementById("titre-saison").textContent = SAISONS[saison];
+    document.getElementById("titre-saison").textContent =
+      ZONES[zone] + " — " + SAISONS[saison];
     for (const td of corps.querySelectorAll(".case")) {
       const c = cases[cle(td)];
       if (c) {
@@ -494,20 +511,29 @@ GABARIT = """<!DOCTYPE html>
     }
   });
 
-  for (const b of document.querySelectorAll("[data-saison]")) {
-    b.addEventListener("click", () => {
-      saison = Number(b.dataset.saison);
-      for (const a of document.querySelectorAll("[data-saison]")) {
-        a.setAttribute("aria-pressed", a === b ? "true" : "false");
-      }
-      peindre();
-    });
+  // Les deux rangees d'onglets marchent pareil : on change l'indice, on
+  // rallume le bouton choisi, et la meme grille se repeint. Seize tableaux --
+  // quatre zones par quatre saisons -- et une seule grille dessinee.
+  for (const [attribut, poser] of [["data-saison", (n) => { saison = n; }],
+                                   ["data-zone", (n) => { zone = n; }]]) {
+    for (const b of document.querySelectorAll("[" + attribut + "]")) {
+      b.addEventListener("click", () => {
+        poser(Number(b.dataset[attribut === "data-zone" ? "zone" : "saison"]));
+        for (const a of document.querySelectorAll("[" + attribut + "]")) {
+          a.setAttribute("aria-pressed", a === b ? "true" : "false");
+        }
+        peindre();
+      });
+    }
   }
 
   // On relit regulierement : deux foreuses sur le meme creneau doivent voir
   // les croix l'une de l'autre sans recharger la page. Jamais pendant qu'une
   // ecriture est en vol, sinon elle reviendrait effacee.
   setInterval(() => { if (enVol === 0) charger(); }, 45000);
+  // Peindre d'abord : sans cela, le titre du tableau reste vide tant que le
+  // serveur n'a pas repondu -- et vide pour toujours s'il ne repond jamais.
+  peindre();
   charger();
 </script>
 </body>
@@ -531,13 +557,19 @@ def main() -> int:
     onglets = "\n  ".join(
         f'<button data-saison="{i}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{s}</button>' for i, s in enumerate(SAISONS))
+    zones = "\n  ".join(
+        f'<button data-zone="{i}" aria-pressed="{"true" if i == 0 else "false"}">'
+        f'{z}</button>' for i, z in enumerate(ZONES))
     page = (GABARIT
             .replace("__ONGLETS__", onglets)
+            .replace("__ZONES__", zones)
+            .replace("__LISTE_ZONES__", repr(list(ZONES)).replace("'", '"'))
             .replace("__ENTETES__", entetes)
             .replace("__GRILLE__", grille(familles))
             .replace("__SAISONS__", repr(list(SAISONS)).replace("'", '"')))
     php = (PHP
            .replace("__CLE__", clef())
+           .replace("__ZONES__", _liste_php(ZONES))
            .replace("__SAISONS__", _liste_php(SAISONS))
            .replace("__QUALITES__", _liste_php(QUALITES))
            .replace("__CONDITIONS__", _liste_php(c[0] for c in CONDITIONS))
@@ -553,8 +585,11 @@ def main() -> int:
             fh.write(contenu)
         ecrits.append((nom, len(contenu)))
 
+    par_tableau = len(matieres) * len(QUALITES) * len(CONDITIONS)
     print(f"{len(familles)} familles, {len(matieres)} matières, "
-          f"{len(matieres) * len(QUALITES) * len(CONDITIONS)} cases par saison")
+          f"{par_tableau} cases par tableau — {len(ZONES)} zones × "
+          f"{len(SAISONS)} saisons = "
+          f"{par_tableau * len(ZONES) * len(SAISONS)} au total")
     for nom, poids in ecrits:
         print(f"  {nom:12s} {poids // 1024 or 1:3d} Kio")
     print(f"→ {dossier}")
