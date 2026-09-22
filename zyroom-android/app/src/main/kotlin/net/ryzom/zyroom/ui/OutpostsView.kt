@@ -1,5 +1,6 @@
 package net.ryzom.zyroom.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,7 +28,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +46,9 @@ import net.ryzom.zyroom.model.niveauDe
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
 
 /** Les quatre peuples, dans l'ordre où le jeu les présente. */
 private val PEUPLES = listOf(
@@ -56,6 +65,32 @@ private val SORTIE_OUTPOST = androidx.compose.ui.graphics.Color(0xFFE05252)
 private val LARGEUR_NIVEAU = 44.dp
 private val LARGEUR_GUILDE = 132.dp
 
+/**
+ * Le symbole de la pastille — deux flèches qui tournent — **dessiné et non
+ * écrit**.
+ *
+ * Le caractère du recyclage existe (U+267B), mais aucune police d'interface ne
+ * le porte : ni Cantarell sous GNOME, ni Roboto ici. Le repli tombe sur Noto
+ * Color Emoji, qui l'impose en couleur — un vert qui n'est pas le nôtre, à côté
+ * d'un nom qui l'est. Dessiné, le symbole a la couleur qu'on lui donne, la même
+ * taille partout, et le même tracé dans les trois portages : `page_outposts.py`
+ * répète ces mêmes valeurs pour Cairo et pour QPainter.
+ *
+ * Les deux arcs, en degrés, dans le sens des aiguilles à l'écran. Rayon et
+ * épaisseur sont tenus par une contrainte : la pointe va jusqu'à
+ * `rayon + trait * barbe`, et ce total doit rester sous la moitié du côté,
+ * sinon la zone de dessin rogne les barbes.
+ */
+private val PASTILLE_ARCS = listOf(25f to 155f, 205f to 335f)
+private const val PASTILLE_RAYON = 0.31f    // du cote de la pastille
+private const val PASTILLE_TRAIT = 0.15f    // epaisseur, du cote aussi
+private const val PASTILLE_BARBE = 1.20f    // demi-hauteur de la barbe, en parts du trait
+private const val PASTILLE_POINTE = 28f     // les degres que la pointe parcourt en plus
+
+/** Le cote de la pastille, et le vert d'accent des deux autres portages. */
+private val COTE_PASTILLE = 20.dp
+private val VERT_PASTILLE = Color(0xFF7FB3A2)
+
 private val HORODATAGE_JOUR: DateTimeFormatter =
     DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
 
@@ -70,15 +105,23 @@ private val HORODATAGE_JOUR: DateTimeFormatter =
  * Le journal se déduit de deux relevés successifs, comme celui des mouvements :
  * l'API ne garde aucune histoire. Tant qu'il n'y a eu qu'un relevé, il n'a rien
  * à dire, et le texte l'explique plutôt que de laisser croire à un calme plat.
+ *
+ * Il se signale dans « Qui tient quoi » : [recents] pose une pastille sur les
+ * lignes qui ont changé de main, et [nonLus] compte sur la puce du journal
+ * celles qui nous concernent. Sans cela, le journal existait et ne se voyait
+ * pas — il fallait penser à l'ouvrir.
  */
 @Composable
 fun OutpostsView(
     carte: List<Outpost>?,
     changements: List<OutpostStore.Change>,
+    recents: Map<String, OutpostStore.Change>,
+    nonLus: Int,
     premierReleve: Boolean,
     erreur: String?,
     guilde: String,
     nameOf: (String) -> String,
+    onJournalOuvert: () -> Unit,
 ) {
     var journal by remember { mutableStateOf(false) }
 
@@ -98,10 +141,14 @@ fun OutpostsView(
             item {
                 FilterChip(
                     selected = journal,
-                    onClick = { journal = true },
+                    // Ouvrir le journal, c'est le lire : le compte tombe a
+                    // zero et les pastilles de la carte s'effacent avec lui.
+                    onClick = { journal = true; onJournalOuvert() },
                     label = {
-                        Text(if (changements.isEmpty()) "Journal"
-                             else "Journal · ${changements.size}")
+                        // Le compte est celui des prises qui nous concernent,
+                        // pas celui de tout Atys : un nombre jamais a zero ne
+                        // se regarde plus.
+                        Text(if (nonLus == 0) "Journal" else "Journal · $nonLus")
                     },
                 )
             }
@@ -121,12 +168,17 @@ fun OutpostsView(
         }
 
         if (journal) Journal(changements, premierReleve, nameOf)
-        else Possessions(carte, guilde, nameOf)
+        else Possessions(carte, guilde, recents, nameOf)
     }
 }
 
 @Composable
-private fun Possessions(carte: List<Outpost>, guilde: String, nameOf: (String) -> String) {
+private fun Possessions(
+    carte: List<Outpost>,
+    guilde: String,
+    recents: Map<String, OutpostStore.Change>,
+    nameOf: (String) -> String,
+) {
     val parPeuple = remember(carte) { carte.groupBy { it.people } }
     val miens = remember(carte, guilde) { carte.count { it.guild == guilde } }
 
@@ -151,7 +203,8 @@ private fun Possessions(carte: List<Outpost>, guilde: String, nameOf: (String) -
             if (siens.isEmpty()) return@forEach
             item(key = "peuple-$code") { EnTetePeuple(nom) }
             itemsIndexed(siens, key = { _, o -> o.code }) { rang, avantPoste ->
-                Ligne(avantPoste, avantPoste.guild == guilde, rang % 2 == 0, nameOf)
+                Ligne(avantPoste, avantPoste.guild == guilde, rang % 2 == 0,
+                      recents[avantPoste.code], recents.isNotEmpty(), nameOf)
             }
         }
         val orphelins = carte.filterNot { PEUPLES.any { (c, _) -> c == it.people } }
@@ -210,6 +263,8 @@ private fun Ligne(
     avantPoste: Outpost,
     notre: Boolean,
     zebre: Boolean,
+    change: OutpostStore.Change?,
+    pastilles: Boolean,
     nameOf: (String) -> String,
 ) {
     val niveau = niveauDe(avantPoste.code)
@@ -223,6 +278,12 @@ private fun Ligne(
             .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // En tete de ligne, et la colonne n'existe que les jours ou quelque
+        // chose a bouge : le reste du temps, reserver sa place volerait
+        // vingt points a la colonne des noms pour ne rien y mettre. Les jours
+        // ou elle existe, en revanche, elle est reservee sur toutes les
+        // lignes -- sans quoi les noms sauteraient d'un rang a l'autre.
+        if (pastilles) Pastille(change != null)
         Text(
             nameOf(avantPoste.nameKey),
             style = MaterialTheme.typography.bodyMedium,
@@ -257,6 +318,57 @@ private fun Ligne(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Les degres de la carte de conquete, en radians pour le dessin. */
+private fun radians(degres: Float): Float = (degres * Math.PI / 180.0).toFloat()
+
+/**
+ * Deux arcs opposés, chacun terminé par une pointe qui suit le cercle.
+ *
+ * La barbe de la pointe est **radiale** et sa pointe **tangente** : c'est ce
+ * qui fait lire une flèche qui tourne plutôt qu'un trait posé en travers. Le
+ * tracé est celui de `page_outposts.py`, au degré près.
+ *
+ * Dessinée même quand [marque] est faux — elle ne peint alors rien et ne fait
+ * que tenir sa largeur. Les jours où la colonne existe, elle doit exister sur
+ * toutes les lignes : sinon les noms ne s'alignent plus d'un rang à l'autre.
+ */
+@Composable
+private fun Pastille(marque: Boolean) {
+    Canvas(Modifier.padding(end = 4.dp).size(COTE_PASTILLE)) {
+        if (!marque) return@Canvas
+        val cote = min(size.width, size.height)
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val rayon = cote * PASTILLE_RAYON
+        val trait = cote * PASTILLE_TRAIT
+        val barbe = trait * PASTILLE_BARBE
+        PASTILLE_ARCS.forEach { (depart, fin) ->
+            drawArc(
+                color = VERT_PASTILLE,
+                startAngle = depart,
+                sweepAngle = fin - depart,
+                useCenter = false,
+                topLeft = Offset(cx - rayon, cy - rayon),
+                size = Size(rayon * 2f, rayon * 2f),
+                style = Stroke(width = trait, cap = StrokeCap.Round),
+            )
+            // La pointe : deux points sur le rayon de la fin de l'arc, et un
+            // troisieme un peu plus loin sur le cercle.
+            val a = radians(fin)
+            val b = radians(fin + PASTILLE_POINTE)
+            drawPath(
+                Path().apply {
+                    moveTo(cx + (rayon + barbe) * cos(a), cy + (rayon + barbe) * sin(a))
+                    lineTo(cx + (rayon - barbe) * cos(a), cy + (rayon - barbe) * sin(a))
+                    lineTo(cx + rayon * cos(b), cy + rayon * sin(b))
+                    close()
+                },
+                VERT_PASTILLE,
             )
         }
     }

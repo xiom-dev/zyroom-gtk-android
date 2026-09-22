@@ -1,0 +1,8 @@
+* The outpost log can now be seen from "Who holds what". An outpost that has
+  changed hands carries the recycling badge, and the log chip counts the
+  captures involving the guild — its own only, since a counter tracking all of
+  Atys would never fall back to zero. Opening the log clears both at once: it
+  is the same piece of news, told twice.
+
+* After seven days a capture is no longer news and stops marking the map.
+  Without that cap, coming back after a long absence covered the map in badges.

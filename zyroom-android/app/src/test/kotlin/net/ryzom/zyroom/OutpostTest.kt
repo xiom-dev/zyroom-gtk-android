@@ -1,14 +1,19 @@
 package net.ryzom.zyroom
 
+import kotlinx.coroutines.runBlocking
 import net.ryzom.zyroom.api.EntityParser
 import net.ryzom.zyroom.data.OutpostStore
 import net.ryzom.zyroom.model.NIVEAUX_AVANT_POSTES
+import net.ryzom.zyroom.model.Outpost
 import net.ryzom.zyroom.model.niveauDe
 import net.ryzom.zyroom.names.NameDb
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
 
 /**
@@ -53,6 +58,12 @@ class OutpostTest {
     }
 
     private val store = OutpostStore(File("/dev/null"))
+
+    @get:Rule
+    val dossier = TemporaryFolder()
+
+    private fun carte(vararg tenus: Pair<String, String>) =
+        tenus.map { (code, guilde) -> Outpost(code = code, guild = guilde, icon = "42") }
 
     @Test
     fun `une prise, une perte et une reprise se distinguent`() {
@@ -113,6 +124,64 @@ class OutpostTest {
     fun `un avant-poste sans niveau connu n'en reçoit pas`() {
         assertEquals(null, niveauDe("primes_outpost_01"))
         assertEquals(null, niveauDe("code_inexistant"))
+    }
+
+    /**
+     * La carte doit montrer d'elle-même ce qui a bougé : le journal existait
+     * déjà et ne se voyait pas — il fallait penser à l'ouvrir.
+     */
+    @Test
+    fun `la carte marque ce qui a changé, et le journal l'éteint`() = runBlocking {
+        val magasin = OutpostStore(dossier.newFolder())
+        magasin.record(carte("a" to "La Lune Eternelle", "b" to "Synoeca"))
+        magasin.record(carte("a" to "Synoeca", "b" to "Synoeca"))
+
+        assertEquals(setOf("a"), magasin.recents().keys)
+        assertEquals("une prise qui nous concerne se compte", 1,
+                     magasin.nonLus("La Lune Eternelle"))
+
+        // Lu : la pastille et le compteur disent la meme nouvelle, et
+        // tombent ensemble.
+        magasin.marquerLu()
+        assertTrue("la carte ne marque plus rien", magasin.recents().isEmpty())
+        assertEquals(0, magasin.nonLus("La Lune Eternelle"))
+        assertEquals("le journal, lui, garde tout", 1, magasin.history().size)
+    }
+
+    /**
+     * Le compteur est un rappel dans la barre : il ne doit sonner que pour ce
+     * qui nous concerne. La pastille, elle, est posée sur une carte de
+     * conquête — tout Atys y a sa place.
+     */
+    @Test
+    fun `le compteur ne retient que nos prises, la carte les retient toutes`() = runBlocking {
+        val magasin = OutpostStore(dossier.newFolder())
+        magasin.record(carte("a" to "Synoeca"))
+        magasin.record(carte("a" to "Al Kashi"))
+
+        assertEquals(setOf("a"), magasin.recents().keys)
+        assertEquals(0, magasin.nonLus("La Lune Eternelle"))
+        assertEquals("sans guilde, rien a compter", 0, magasin.nonLus(""))
+    }
+
+    /**
+     * Le plafond d'âge, en plus du marqueur de lecture : sans lui, une carte
+     * ouverte après une longue absence se couvrirait de pastilles, le marqueur
+     * valant zéro tant qu'on n'a jamais ouvert le journal.
+     */
+    @Test
+    fun `une prise trop vieille n'est plus une nouvelle`() = runBlocking {
+        val dir = dossier.newFolder()
+        val magasin = OutpostStore(dir)
+        // Ecrit a la main : la date d'un changement vient de l'horloge, et
+        // c'est justement l'age qu'on veut eprouver ici.
+        val vieux = System.currentTimeMillis() / 1000 - 30L * 86_400
+        File(dir, "outposts.jsonl").writeText(
+            """{"at":$vieux,"outpost":"a","from":"Synoeca","to":"La Lune Eternelle"}""" + "\n")
+
+        assertEquals("le journal garde l'histoire", 1, magasin.history().size)
+        assertTrue("la carte ne la marque plus", magasin.recents().isEmpty())
+        assertFalse("mais elle reste non lue", magasin.nonLus("La Lune Eternelle") == 0)
     }
 
     /**

@@ -175,6 +175,11 @@ fun InventoryScreen(
     // l'onglet — un demi-méga-octet n'a pas à partir au démarrage.
     var carte by remember { mutableStateOf<List<Outpost>?>(null) }
     var changements by remember { mutableStateOf(emptyList<OutpostStore.Change>()) }
+    // Ce que le journal des prises a a dire dans « Qui tient quoi » : les
+    // lignes a marquer d'une pastille, et le compte des prises qui nous
+    // concernent. Les deux tombent des que le journal est ouvert.
+    var recentsOutposts by remember { mutableStateOf(emptyMap<String, OutpostStore.Change>()) }
+    var prisesNonLues by remember { mutableStateOf(0) }
     var premierReleve by remember { mutableStateOf(false) }
     var erreurCarte by remember { mutableStateOf<String?>(null) }
     // Le registre du personnel : l'effectif vient du flux, les mouvements du
@@ -244,6 +249,8 @@ fun InventoryScreen(
         try {
             val relevee = repository.outposts(force)
             changements = outposts.record(relevee).let { outposts.history() }
+            recentsOutposts = outposts.recents()
+            prisesNonLues = outposts.nonLus(entity?.name ?: entry.label)
             carte = relevee
         } catch (echec: ApiException) {
             erreurCarte = echec.message
@@ -493,10 +500,22 @@ fun InventoryScreen(
                 vue == Vue.AVANTPOSTES -> OutpostsView(
                     carte = carte,
                     changements = changements,
+                    recents = recentsOutposts,
+                    nonLus = prisesNonLues,
                     premierReleve = premierReleve,
                     erreur = erreurCarte,
                     guilde = courant?.name ?: entry.label,
                     nameOf = { repository.nameOf(it) },
+                    onJournalOuvert = {
+                        portee.launch {
+                            outposts.marquerLu()
+                            // Lu : le compte retombe, et la carte perd ses
+                            // pastilles en meme temps -- c'est la meme
+                            // nouvelle, dite deux fois.
+                            recentsOutposts = emptyMap()
+                            prisesNonLues = 0
+                        }
+                    },
                 )
 
                 inventaires.isEmpty() ->

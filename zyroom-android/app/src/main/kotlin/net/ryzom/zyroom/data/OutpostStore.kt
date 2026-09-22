@@ -87,9 +87,70 @@ class OutpostStore(private val dir: File) {
         !snapFile().isFile
     }
 
+    // --------------------------------------------- Ce qu'on n'a pas encore lu
+
+    /**
+     * Combien de prises **nous** concernant depuis le dernier coup d'œil.
+     *
+     * **Les nôtres seulement.** Le journal recense tout Atys : vingt-neuf
+     * avant-postes qui changent de main au gré des guerres de guildes, et un
+     * compteur qui les compterait tous serait un nombre de plus dans la barre,
+     * jamais à zéro et jamais regardé. Ce qu'on veut savoir, c'est ce qui nous
+     * a échappé — ou ce qu'on vient de prendre.
+     *
+     * Rend zéro tant qu'on ne sait pas de quelle guilde on parle.
+     */
+    suspend fun nonLus(guilde: String): Int = withContext(Dispatchers.IO) {
+        if (guilde.isEmpty()) return@withContext 0
+        val depuis = lireMarque()
+        history().count { it.at > depuis && (it.from == guilde || it.to == guilde) }
+    }
+
+    /**
+     * Les avant-postes qui ont changé de main et qu'on n'a pas encore vus.
+     *
+     * Rend `code -> Change`, le changement le plus récent pour chacun : c'est
+     * ce qui permet à la carte de marquer ses lignes sans relire le journal.
+     *
+     * **Tout Atys, et non les nôtres seulement** — à la différence de
+     * [nonLus]. Les deux ne répondent pas à la même question : le compteur est
+     * un rappel sur la puce du journal, et ne doit sonner que pour ce qui nous
+     * concerne ; la pastille, elle, est posée sur la carte de conquête, où
+     * l'intérêt est justement de voir où ça a bougé.
+     *
+     * Le journal arrive du plus récent au plus ancien : le premier vu pour un
+     * code est donc le bon, et les suivants sont son passé.
+     */
+    suspend fun recents(jours: Int = JOURS_RECENTS): Map<String, Change> =
+        withContext(Dispatchers.IO) {
+            val plancher = System.currentTimeMillis() / 1000 - jours * 86_400L
+            val depuis = maxOf(lireMarque(), plancher)
+            val vus = LinkedHashMap<String, Change>()
+            history().forEach { c ->
+                if (c.at > depuis && c.outpost !in vus) vus[c.outpost] = c
+            }
+            vus
+        }
+
+    /** Le journal vient d'être ouvert : ce qui y est devient vu. */
+    suspend fun marquerLu() = withContext(Dispatchers.IO) {
+        runCatching {
+            dir.mkdirs()
+            marqueFile().writeText(
+                JSONObject().put("vu", System.currentTimeMillis() / 1000).toString())
+        }
+        Unit
+    }
+
     // ------------------------------------------------------------- interne
 
     private fun logFile() = File(dir, "outposts.jsonl")
+
+    private fun marqueFile() = File(dir, "outposts-vu.json")
+
+    private fun lireMarque(): Long =
+        runCatching { JSONObject(marqueFile().readText()).optLong("vu") }
+            .getOrDefault(0L)
 
     private fun snapFile() = File(dir, "outposts-etat.json")
 
@@ -119,6 +180,20 @@ class OutpostStore(private val dir: File) {
             dir.mkdirs()
             snapFile().writeText(JSONObject(carte as Map<*, *>).toString())
         }
+    }
+
+    companion object {
+        /**
+         * Au-delà de cet âge, une prise n'est plus une nouvelle.
+         *
+         * **Un plafond, en plus du marqueur de lecture.** Sans lui, une carte
+         * ouverte pour la première fois après une longue absence se couvrirait
+         * de pastilles — le marqueur vaut zéro tant qu'on n'a jamais ouvert le
+         * journal, et tout l'historique passerait pour du neuf. Sept jours :
+         * une guerre d'avant-postes se joue sur une semaine, au-delà c'est de
+         * l'histoire et cela se lit dans le journal.
+         */
+        const val JOURS_RECENTS = 7
     }
 
     private fun append(changements: List<Change>) {

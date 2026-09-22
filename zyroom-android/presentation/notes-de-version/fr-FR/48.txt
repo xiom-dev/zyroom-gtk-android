@@ -1,0 +1,9 @@
+* Le journal des prises se voit enfin depuis « Qui tient quoi ». Un avant-poste
+  qui a changé de main porte désormais la pastille du recyclage, et la puce du
+  journal compte les prises qui concernent la guilde — les siennes seulement,
+  un compteur qui recenserait tout Atys ne retomberait jamais à zéro. Ouvrir le
+  journal éteint les deux d'un coup : c'est la même nouvelle, dite deux fois.
+
+* Au-delà de sept jours, une prise cesse d'être une nouvelle et ne marque plus
+  la carte. Sans ce plafond, revenir après une longue absence couvrait la carte
+  de pastilles.
