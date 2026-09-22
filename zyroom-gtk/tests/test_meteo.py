@@ -318,6 +318,28 @@ class FenetreSupreme(unittest.TestCase):
         r = self._releve(["worst", "worst", "bad"])
         self.assertEqual(18, int(meteo.fin_fenetre_supreme(r)))
 
+    def test_la_ligne_et_le_titre_ne_peuvent_plus_se_contredire(self):
+        """« sort suprême » n'apparaît qu'en même temps que « Suprême maintenant ».
+
+        La ligne a écrit « sort suprême pendant 1 min » pendant que le titre
+        annonçait le suprême pour dans une heure vingt. Les deux se déduisaient
+        de règles différentes : la ligne des fourchettes d'humidité, le titre du
+        temps exécrable. C'est le titre qui dit vrai."""
+        from zyroom.page_meteo import PageMeteo
+        for saison in range(4):
+            for condition in ("best", "good", "bad", "worst"):
+                actuelle = meteo.Meteo(cycle=1, condition=condition,
+                                       value=0.5, text="uiRainy")
+                releve = self._releve([condition])
+                releve = meteo.MeteoAtys(
+                    cycle_courant=releve.cycle_courant,
+                    heure_atys=releve.heure_atys, saison=saison,
+                    continents=releve.continents)
+                qualite = PageMeteo._qualite_du_moment(releve, actuelle)
+                self.assertEqual(condition == "worst",
+                                 qualite == meteo.SUPREME,
+                                 f"{meteo.SAISONS[saison]} / {condition}")
+
     def test_exécrable_jusqu_au_bout_de_la_prévision(self):
         """On ne sait pas jusqu'à quand : l'écran le dit sans compter."""
         self.assertIsNone(meteo.fin_fenetre_supreme(

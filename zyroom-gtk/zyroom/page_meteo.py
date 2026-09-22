@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from gi.repository import GLib, Gtk
 
-from . import gisements, meteo, ryzom_api
+from . import forage as _forage, gisements, meteo, ryzom_api
 from .i18n import _
 from .ui_commun import run_async
 
@@ -305,15 +305,32 @@ class PageMeteo:
     @staticmethod
     @staticmethod
     def _qualite_du_moment(releve, actuelle):
-        """La meilleure qualité que les quatre zones rendent en ce moment.
+        """La qualité qui sort en ce moment, sur la même règle que le titre.
 
-        C'est ce que la première ligne annonce après « sort » ; les colonnes
-        disent ensuite laquelle sort où.
+        **Le suprême ne sort que par temps exécrable.** C'est ce que le
+        compte à rebours du titre annonce, ce que le tracker compte, et ce que
+        la guilde relève. La ligne doit donc s'y tenir : elle a écrit « sort
+        suprême pendant 1 min » pendant que le titre annonçait le suprême pour
+        dans une heure vingt, et les deux ne peuvent pas être vraies.
+
+        Hors de cette fenêtre, c'est l'excellente — la table de la page 1 du
+        tutoriel, celle qui s'accorde matière pour matière avec les fourchettes
+        du tracker — ou, à défaut, le choix par recoupement.
+
+        On ne passe **pas** par `sortie_de` : les colonnes se déduisent des
+        fourchettes d'humidité, et une fourchette dit où l'on trouve une
+        matière, pas en quelle qualité elle sort. C'est d'elle que venait la
+        contradiction.
         """
-        connues = [meteo.sortie_de(releve.saison, zone, actuelle.condition)[0]
-                   for zone in meteo.ZONES]
-        connues = [q for q in connues if q is not None]
-        return min(connues, key=meteo.QUALITES.index) if connues else None
+        if actuelle.condition.lower() == "worst":
+            return meteo.SUPREME
+        cle = (meteo.SAISONS[releve.saison]
+               if 0 <= releve.saison < len(meteo.SAISONS) else "")
+        creneau = (cle, actuelle.condition.upper())
+        if any(creneau in creneaux
+               for creneaux in _forage.EXCELLENTES_CONTINENTS.values()):
+            return meteo.EXCELLENTE
+        return meteo.CHOIX
 
     @staticmethod
     def _titre_pop(releve, actuelle, _qualite: str) -> str:
