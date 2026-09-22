@@ -69,12 +69,11 @@ def grille(familles: list) -> str:
         lignes.append(
             f'<tr class="famille"><th colspan="6">{html.escape(famille)}</th></tr>')
         for matiere in matieres:
-            # Le « ² » du classeur marque les matieres les plus demandees en
-            # craft full-MP : on le garde, en etoile, plus lisible qu'un exposant.
-            prioritaire = matiere.rstrip().endswith("²")
+            # Le « ² » du classeur marquait les matieres a stocker en priorite
+            # pour le GH. On le retire : ces listes datent de 2009 et une partie
+            # n'est plus vraie, et de toute facon cela n'aide pas a remplir le
+            # tableau -- qui est le seul but de cette page.
             propre = matiere.replace("²", "").strip()
-            marque = ' <span class="etoile" title="à stocker en priorité">★</span>' \
-                if prioritaire else ""
             for rang, qualite in enumerate(QUALITES):
                 cles = "".join(
                     f'<td class="case" data-cle="{html.escape(propre)}|{qualite}'
@@ -82,7 +81,7 @@ def grille(familles: list) -> str:
                     for _fr, court, _plage in CONDITIONS)
                 if rang == 0:
                     debut = (f'<th class="matiere" rowspan="3">'
-                             f'{html.escape(propre)}{marque}</th>')
+                             f'{html.escape(propre)}</th>')
                 else:
                     debut = ""
                 lignes.append(f'<tr class="q-{qualite.lower()}">{debut}'
@@ -153,7 +152,6 @@ GABARIT = """<!DOCTYPE html>
   .qualite { color: var(--faible); font-weight: 400; font-size: .85rem;
              width: 54px; }
   .q-supp .qualite { color: var(--or); }
-  .etoile { color: var(--or); font-size: .8rem; }
 
   .case { cursor: pointer; height: 26px; font-weight: 700; user-select: none; }
   .case:hover { background: #1d2b30; }
