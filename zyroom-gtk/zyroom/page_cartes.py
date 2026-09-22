@@ -19,6 +19,14 @@ class CartesCommunes:
     #: Le rouge du point. Il n'existe nulle part ailleurs sur la carte à ce ton.
     POINT = (1.0, 0.18, 0.18)
 
+    #: Le gris d'un gisement qui ne sort pas en ce moment.
+    #:
+    #: Gris et non effacé : le montrer dit « ici, mais pas maintenant », ce
+    #: qu'une carte amputée ne dirait pas. Assez clair pour rester visible sur
+    #: les zones sombres d'Atys, assez terne pour qu'on ne le confonde jamais
+    #: avec le rouge en un coup d'œil.
+    POINT_INACTIF = (0.58, 0.58, 0.60)
+
     #: En deçà de cette distance à l'écran, deux points n'en font qu'un.
     #:
     #: Quarante pixels : de quoi séparer deux troupeaux laissés dans deux
