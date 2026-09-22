@@ -74,7 +74,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.50" if _DEV else "1.18"
+VERSION = "1.51" if _DEV else "1.18"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2959,6 +2959,11 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             # obligeait a poser l'addition pour savoir quand se tenir pret --
             # une saison peut changer quatre jours plus tard. Demande des
             # joueurs de la guilde.
+            # Gardé sur la fenêtre : l'écran météo s'en sert pour annoncer le
+            # repop des suprêmes, qui tombe au changement de saison.
+            self._saison_infos = td
+            if getattr(self, "_meteo_charge", False):
+                self._refresh_meteo()
             minutes = int(round(td["minutes_to_next"]))
             text = (f"{td['season_name']} · {td['next_season_name']} dans "
                     f"{meteo.duree(minutes, unite=True)}"

@@ -114,6 +114,9 @@ class PageMeteo:
         dedans.append(self._meteo_note)
         page.append(defilement)
 
+        #: Ce que `time.php` dit de la saison : son nom, la suivante, et les
+        #: minutes qui les séparent. Rempli par `_refresh_season`.
+        self._saison_infos = None
         self._meteo_releve = None      #: ce que l'API a rendu, tel quel
         self._meteo_affiche = None     #: le même, recalé sur l'instant présent
         self._meteo_charge = False
@@ -282,39 +285,49 @@ class PageMeteo:
               "Relevés de la guilde ; positions de ballisticmystix.net.")))
 
     def _titre_pop(self, releve, actuelle, qualite: str) -> str:
-        """« Ce qui sort : Suprême · Exécrable, 91 % », et le réveil à mettre.
+        """« Ce qui sort : Suprême · Bonne, 20 % · Repop dans 17 h 13 ».
 
-        Tant qu'il ne sort pas de suprême, le titre dit d'abord dans combien de
-        temps il en sortira : c'est la seule chose qu'on vienne y chercher, et
-        certains mettent un réveil en pleine nuit pour y être.
+        Le repop est la moitié de l'information qui manquait. Les conditions
+        disent si une matière **peut** sortir ; elles ne disent pas s'il reste
+        quelque chose dans le gisement. Un spot suprême vidé ne se remplit
+        qu'au changement de saison — c'est ce que la guilde a mesuré — et
+        jusque-là le tableau peut annoncer une matière qu'on ne trouvera pas.
         """
-        morceaux = []
-        if qualite != meteo.SUPREME:
-            morceaux.append(_("Suprême disponible dans : %s")
-                            % self._attente_supreme(releve))
-        morceaux.append(_("Ce qui sort : %s") % meteo.mot_qualite(qualite))
-        morceaux.append(
-            _("%(condition)s, %(taux)d %%")
-            % {"condition": meteo.texte_condition(actuelle.condition),
-               "taux": round(actuelle.value * 100)})
+        morceaux = [_("Ce qui sort : %s") % meteo.mot_qualite(qualite),
+                    _("%(condition)s, %(taux)d %%")
+                    % {"condition": meteo.texte_condition(actuelle.condition),
+                       "taux": round(actuelle.value * 100)}]
+        repop = self._repop_supreme()
+        if repop:
+            morceaux.append(repop)
         return "   ·   ".join(morceaux)
 
-    @staticmethod
-    def _attente_supreme(releve) -> str:
-        """Le temps avant le prochain suprême, ou l'horizon de la prévision.
+    def _repop_supreme(self) -> str:
+        """Quand les gisements suprêmes se rempliront de nouveau.
 
-        Le jeu calcule son temps, et l'API en rend six heures d'avance. Passé
-        cet horizon, on dit qu'on ne voit pas plus loin plutôt que d'inventer
-        une heure : la saison peut changer, et avec elle les créneaux.
+        À chaque changement de saison, et à aucun autre moment : c'est la règle
+        que la guilde donne. L'application sait déjà quand la saison tourne —
+        `time.php` le dit à la minute —, il ne restait qu'à écrire ce que ça
+        veut dire pour une foreuse.
+
+        Rien tant que le flux n'a pas répondu : une heure inventée ferait
+        manquer le rendez-vous, ce qui est pire que pas d'heure du tout.
         """
-        prochaine = meteo.prochaine_supreme(releve)
-        if prochaine is not None:
-            return meteo.duree(releve.minutes_avant(prochaine.cycle))
-        cycles = releve.cycles_des_primes()
-        if not cycles:
-            return _("un moment indéterminé")
-        return _("plus de %s") % meteo.duree(
-            releve.minutes_avant(cycles[-1].cycle))
+        infos = self._saison_infos
+        if not infos or infos.get("season_index", -1) < 0:
+            return ""
+        # « au Printemps », mais « à l'Été » : l'article suit la saison, et une
+        # phrase qui dit « au passage à Automne » se lit comme une faute.
+        saison = {"Printemps": _("au Printemps"), "Été": _("à l'Été"),
+                  "Automne": _("à l'Automne"), "Hiver": _("à l'Hiver")}.get(
+                      infos["next_season_name"],
+                      _("à %s") % infos["next_season_name"])
+        minutes = int(round(infos["minutes_to_next"]))
+        return (_("Repop des suprêmes au passage %(saison)s, dans %(delai)s "
+                  "— %(quand)s")
+                % {"saison": saison,
+                   "delai": meteo.duree(minutes, unite=True),
+                   "quand": meteo.moment_du_changement(minutes)})
 
     def _note(self, texte: str) -> Gtk.Widget:
         label = Gtk.Label(label=texte, xalign=0.0, wrap=True)

@@ -376,32 +376,3 @@ def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]
         if groupes:
             return qualite, {f: sorted(m) for f, m in groupes.items()}
     return None, {}
-
-
-def conditions_supremes(saison: int) -> set[str]:
-    """Les conditions où au moins une zone des Primes rend du suprême.
-
-    Une vingtaine de matières par zone sortent dès que le temps est exécrable :
-    c'est la grande fenêtre. Les autres tiennent à un créneau précis de la
-    saison, et c'est ce qui fait qu'on met un réveil.
-    """
-    cle = SAISONS[saison] if 0 <= saison < len(SAISONS) else ""
-    return {condition for zone in _forage.SUPREMES.values()
-            for creneaux in zone.values()
-            for saison_creneau, condition in creneaux
-            if saison_creneau == cle}
-
-
-def prochaine_supreme(releve: "MeteoAtys") -> "Meteo | None":
-    """Le premier cycle à venir où une zone des Primes rendra du suprême.
-
-    On ne cherche que dans les cycles déjà reçus — six heures d'avance, que le
-    jeu calcule et ne devine pas. Au-delà, on ne dit rien plutôt que d'inventer
-    : la saison peut changer, et avec elle la liste des créneaux.
-    """
-    conditions = conditions_supremes(releve.saison)
-    for cycle in releve.cycles_des_primes():
-        if cycle.cycle > releve.cycle_courant \
-                and cycle.condition.upper() in conditions:
-            return cycle
-    return None

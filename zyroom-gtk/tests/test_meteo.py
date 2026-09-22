@@ -385,21 +385,6 @@ class CeQuiSort(unittest.TestCase):
                     self.assertEqual(attendu, trouve,
                                      f"{cle} / {zone} / {condition}")
 
-    def test_les_conditions_du_suprême_couvrent_ce_que_les_zones_rendent(self):
-        """Le compte à rebours et les colonnes doivent dire la même chose.
-
-        Si une condition sortait du suprême sans figurer dans la liste,
-        l'écran annoncerait « suprême dans deux heures » au moment même où il
-        en affiche une."""
-        for saison in range(4):
-            conditions = meteo.conditions_supremes(saison)
-            for condition in ("WORST", "BAD", "GOOD", "BEST"):
-                sort = any(meteo.sortie_de(saison, z, condition)[0]
-                           == meteo.SUPREME for z in meteo.ZONES)
-                self.assertEqual(sort, condition in conditions,
-                                 f"{saison} / {condition}")
-
-
 class Minuteur(unittest.TestCase):
     """Le battement qui fait avancer l'heure d'Atys.
 
