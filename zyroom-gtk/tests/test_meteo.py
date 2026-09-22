@@ -270,35 +270,91 @@ class Courbe(unittest.TestCase):
 
 
 class CeQuiSort(unittest.TestCase):
-    """Ce que la météo du moment fait sortir, d'après le relevé de la guilde.
+    """Ce que la météo du moment fait sortir, zone par zone.
 
-    L'humidité décide de la condition de gisement, et la condition décide de ce
-    qu'on trouve. C'est la seule correspondance qu'aucun site public ne donne.
+    L'humidité décide de la condition, la condition décide de la qualité, et la
+    qualité décide de ce qu'on trouve — mais **pas de la même façon dans les
+    quatre zones**. C'est ce que les deux relevés de la guilde disent, et
+    qu'aucun site public ne donne.
     """
 
     def test_les_deux_tables_nomment_les_mêmes_zones(self):
-        """Une zone du relevé de pop absente d'ici ne s'afficherait jamais."""
-        from zyroom import pop
-        self.assertEqual(set(pop.CONTINENT_DE_ZONE), set(meteo.ZONES))
+        """Une zone de la table de forage absente d'ici ne s'afficherait jamais."""
+        from zyroom import forage
+        self.assertEqual(set(forage.SUPREMES), set(meteo.ZONES))
 
     def test_chaque_saison_et_chaque_condition_rend_quelque_chose(self):
-        for saison in range(4):
-            for condition in ("worst", "bad", "good", "best"):
-                trouve = [z for z in meteo.ZONES
-                          if meteo.pop_de(saison, z, condition)]
-                self.assertTrue(trouve, f"{saison} / {condition} : aucune zone")
+        """Seize créneaux, quatre zones : une seule case reste muette.
+
+        Les Sources Interdites en hiver par temps mauvais — la guilde n'a pas
+        encore testé ce créneau-là. Partout ailleurs, il sort quelque chose."""
+        muettes = {(saison, condition, zone)
+                   for saison in range(4)
+                   for condition in ("worst", "bad", "good", "best")
+                   for zone in meteo.ZONES
+                   if meteo.sortie_de(saison, zone, condition)[0] is None}
+        self.assertEqual({(3, "bad", "Sources Interdites")}, muettes)
 
     def test_la_casse_de_la_condition_est_sans_importance(self):
-        """L'API rend « best », le relevé range sous « BEST »."""
-        self.assertEqual(meteo.pop_de(0, "Sources Interdites", "best"),
-                         meteo.pop_de(0, "Sources Interdites", "BEST"))
+        """L'API rend « best », les tables rangent sous « BEST »."""
+        self.assertEqual(meteo.sortie_de(0, "Sources Interdites", "best"),
+                         meteo.sortie_de(0, "Sources Interdites", "BEST"))
 
     def test_une_saison_hors_bornes_ne_rend_rien(self):
         """Le flux du temps peut ne pas avoir répondu : la saison vaut -1."""
-        self.assertEqual({}, meteo.pop_de(-1, "Sources Interdites", "best"))
+        self.assertEqual((None, {}),
+                         meteo.sortie_de(-1, "Sources Interdites", "best"))
+
+    def test_une_zone_inconnue_ne_rend_rien(self):
+        self.assertEqual((None, {}), meteo.sortie_de(0, "Fyros", "best"))
+
+    def test_une_zone_ne_rend_que_sa_meilleure_qualité(self):
+        """Suprême et excellente ne se mélangent pas dans une même colonne.
+
+        Le forage se choisit par la qualité : mêler les deux ferait lire comme
+        suprême une matière qui ne l'est pas."""
+        for saison in range(4):
+            for condition in ("worst", "bad", "good", "best"):
+                for zone in meteo.ZONES:
+                    qualite, groupes = meteo.sortie_de(saison, zone, condition)
+                    for famille, matieres in groupes.items():
+                        for matiere in matieres:
+                            self.assertEqual(
+                                qualite,
+                                meteo.qualite_de(zone, famille, matiere,
+                                                 saison, condition),
+                                f"{zone} / {famille} / {matiere}")
+
+    def test_les_quatre_zones_ne_disent_pas_la_même_chose(self):
+        """Le cœur de la correction : la zone change ce qui sort.
+
+        Avant, une table unique servait les quatre colonnes — c'était les
+        Sources Interdites affichées partout."""
+        differents = 0
+        for saison in range(4):
+            for condition in ("worst", "bad", "good", "best"):
+                rendus = [tuple(sorted(
+                    (f, tuple(m)) for f, m in
+                    meteo.sortie_de(saison, z, condition)[1].items()))
+                    for z in meteo.ZONES]
+                differents += len(set(rendus)) > 1
+        self.assertEqual(16, differents)
+
+    def test_les_conditions_du_suprême_couvrent_ce_que_les_zones_rendent(self):
+        """Le compte à rebours et les colonnes doivent dire la même chose.
+
+        Si une condition sortait du suprême sans figurer dans la liste,
+        l'écran annoncerait « suprême dans deux heures » au moment même où il
+        en affiche une."""
+        for saison in range(4):
+            conditions = meteo.conditions_supremes(saison)
+            for condition in ("WORST", "BAD", "GOOD", "BEST"):
+                sort = any(meteo.sortie_de(saison, z, condition)[0]
+                           == meteo.SUPREME for z in meteo.ZONES)
+                self.assertEqual(sort, condition in conditions,
+                                 f"{saison} / {condition}")
 
 
-@unittest.skipUnless(_gtk_disponible(), "GTK4 absent de cette machine")
 class Minuteur(unittest.TestCase):
     """Le battement qui fait avancer l'heure d'Atys.
 

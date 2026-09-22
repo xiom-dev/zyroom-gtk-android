@@ -20,7 +20,7 @@ import time
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
-from . import armory, pop as _pop
+from . import armory, forage as _forage
 
 #: Heures d'Atys dans un cycle météo.
 HEURES_PAR_CYCLE = 3
@@ -34,6 +34,19 @@ MINUTES_PAR_CYCLE = 9
 
 #: Les quatre saisons, dans l'ordre où l'API les numérote.
 SAISONS = ("PRINTEMPS", "ETE", "AUTOMNE", "HIVER")
+
+#: Les trois qualités qu'un gisement des Primes rend, de la meilleure à la
+#: moindre. L'ordre compte : une zone annonce la première qu'elle a à offrir.
+SUPREME, EXCELLENTE, CHOIX = "supreme", "excellente", "choix"
+QUALITES = (SUPREME, EXCELLENTE, CHOIX)
+
+#: Ces mêmes qualités telles que `gisements.py` les nomme. Le choix n'a pas de
+#: carte : ses gisements ne sont relevés nulle part.
+#:
+#: Le relevé des positions ne connaît que deux qualités, et il place les
+#: excellentes sur les **continents** — pas dans les Primes. Une excellente des
+#: Primes n'a donc pas de carte non plus, pour l'instant.
+QUALITE_GISEMENT = {SUPREME: "supreme", EXCELLENTE: "excellent", CHOIX: ""}
 
 #: Les seuils du jeu, qui découpent les quatre conditions de gisement.
 SEUILS = (0.1666, 0.5, 0.8333)
@@ -210,6 +223,16 @@ def texte_meteo(cle: str) -> str:
     return _TEMPS.get(cle, cle.removeprefix("ui"))
 
 
+def mot_qualite(qualite: str | None) -> str:
+    """La qualité d'un gisement, en français.
+
+    `None` n'est pas une qualité : c'est l'aveu que la guilde n'a pas encore
+    testé ce créneau dans cette zone. Le dire vaut mieux que laisser croire
+    qu'il ne sort rien."""
+    return {SUPREME: "Suprême", EXCELLENTE: "Excellente", CHOIX: "Choix",
+            None: "Pas encore relevé"}.get(qualite, qualite or "")
+
+
 def texte_condition(condition: str) -> str:
     """La condition de gisement, en français."""
     return {"best": "Excellente", "good": "Bonne",
@@ -298,19 +321,87 @@ def symbole(groupe: str) -> str | None:
 ZONES = list(CONTINENT_DE_ZONE)
 
 
-def pop_de(saison: int, zone: str, condition: str) -> dict[str, list[str]]:
-    """Ce qui peut sortir ici et maintenant.
+def _creneau(saison: int, condition: str) -> tuple[str, str]:
+    """Le couple (saison, condition) sous lequel les tables du tutoriel rangent.
 
-    L'humidité décide de la condition de gisement, et la condition décide de ce
-    qu'on trouve. La table est complète depuis qu'elle se déduit d'Armory et des
-    fourchettes du tracker : les quatre conditions sont remplies dans les quatre
-    zones des quatre saisons. Un vide ne peut donc plus vouloir dire « pas
-    encore relevé » — il signalerait une table mal fabriquée.
-
-    Ce qui sort est **la moitié** de ce que la saison peut donner : chaque
-    gisement occupe deux des quatre bandes d'humidité. Comparé au relevé
-    d'Armory, qui donne la saison entière sans notion de météo, il manquera
-    toujours l'autre moitié — ce n'est pas un trou.
+    La saison arrive numérotée par l'API, la condition en minuscules : les deux
+    tables, elles, sont écrites en clair et en capitales.
     """
     cle = SAISONS[saison] if 0 <= saison < len(SAISONS) else ""
-    return _pop.POP.get(cle, {}).get(zone, {}).get(condition.upper(), {})
+    return cle, condition.upper()
+
+
+def qualite_de(zone: str, famille: str, matiere: str,
+               saison: int, condition: str) -> str | None:
+    """La qualité que rend une matière dans une zone, à cet instant.
+
+    **La zone compte.** C'était l'erreur d'avant : une seule table pour les
+    quatre, alors qu'au printemps par temps mauvais la Cité Engloutie sort une
+    suprême que la Terre de la Continuité n'a pas.
+
+    Rend `None` quand aucune des trois tables ne dit rien de ce créneau : la
+    cartographie de la guilde est un chantier en cours, et un silence n'est pas
+    un « rien ne sort ». Le suprême, lui, est complet — un `None` veut donc
+    toujours dire « pas de suprême, et le reste n'a pas été relevé ».
+    """
+    creneau = _creneau(saison, condition)
+    couple = (famille, matiere)
+    for qualite, table in ((SUPREME, _forage.SUPREMES),
+                           (EXCELLENTE, _forage.EXCELLENTES),
+                           (CHOIX, _forage.CHOIX)):
+        if creneau in table.get(zone, {}).get(couple, ()):
+            return qualite
+    return None
+
+
+def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]:
+    """Ce qui sort dans une zone, et en quelle qualité.
+
+    Une zone ne rend qu'une qualité à la fois — la meilleure qu'elle ait à
+    offrir. Les quatre ne sont pas toujours d'accord, et chacune dit donc la
+    sienne plutôt que de laisser une colonne vide sous un titre qui promet
+    mieux.
+
+    Rend `(qualité, {famille: [matières]})`, ou `(None, {})` quand la guilde
+    n'a encore rien relevé pour ce créneau dans cette zone.
+    """
+    creneau = _creneau(saison, condition)
+    for qualite, table in ((SUPREME, _forage.SUPREMES),
+                           (EXCELLENTE, _forage.EXCELLENTES),
+                           (CHOIX, _forage.CHOIX)):
+        groupes: dict[str, list[str]] = {}
+        for (famille, matiere), creneaux in table.get(zone, {}).items():
+            if creneau in creneaux:
+                groupes.setdefault(famille, []).append(matiere)
+        if groupes:
+            return qualite, {f: sorted(m) for f, m in groupes.items()}
+    return None, {}
+
+
+def conditions_supremes(saison: int) -> set[str]:
+    """Les conditions où au moins une zone des Primes rend du suprême.
+
+    Une vingtaine de matières par zone sortent dès que le temps est exécrable :
+    c'est la grande fenêtre. Les autres tiennent à un créneau précis de la
+    saison, et c'est ce qui fait qu'on met un réveil.
+    """
+    cle = SAISONS[saison] if 0 <= saison < len(SAISONS) else ""
+    return {condition for zone in _forage.SUPREMES.values()
+            for creneaux in zone.values()
+            for saison_creneau, condition in creneaux
+            if saison_creneau == cle}
+
+
+def prochaine_supreme(releve: "MeteoAtys") -> "Meteo | None":
+    """Le premier cycle à venir où une zone des Primes rendra du suprême.
+
+    On ne cherche que dans les cycles déjà reçus — six heures d'avance, que le
+    jeu calcule et ne devine pas. Au-delà, on ne dit rien plutôt que d'inventer
+    : la saison peut changer, et avec elle la liste des créneaux.
+    """
+    conditions = conditions_supremes(releve.saison)
+    for cycle in releve.cycles_des_primes():
+        if cycle.cycle > releve.cycle_courant \
+                and cycle.condition.upper() in conditions:
+            return cycle
+    return None

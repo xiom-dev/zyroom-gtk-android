@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from gi.repository import GLib, Gtk
 
-from . import armory, gisements, meteo, ryzom_api
+from . import gisements, meteo, ryzom_api
 from .i18n import _
 from .ui_commun import run_async
 
@@ -104,25 +104,12 @@ class PageMeteo:
             pop.append(colonne)
         dedans.append(pop)
 
-        # Le tableau des suprêmes de la saison a été retiré : « ce qui sort »
-        # les donne déjà, et au temps qu'il fait plutôt qu'à la saison entière.
-        # Il ne reste que les excellentes : les titres, puis le jour et la nuit
-        # côte à côte, puis la note.
-        self._meteo_excellentes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
-                                          spacing=2)
-        dedans.append(self._meteo_excellentes)
-
-        # Jour à gauche, nuit à droite. L'un sous l'autre, il fallait dérouler
-        # la liste de jour pour atteindre celle de nuit — alors que le seul
-        # geste utile est de les comparer.
-        moments = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
-                          homogeneous=True)
-        self._meteo_jour = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        self._meteo_nuit = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        moments.append(self._meteo_jour)
-        moments.append(self._meteo_nuit)
-        dedans.append(moments)
-
+        # Le tableau des excellentes de la saison, jour et nuit cote a cote,
+        # a été retiré à son tour. Il disait la saison entière quand « ce qui
+        # sort » dit l'instant, et il tenait le jour et la nuit du relevé
+        # d'Armory alors que le tutoriel de la guilde, lui, range les
+        # excellentes par saison et par temps — comme les suprêmes. Les deux
+        # listes se contredisaient sur l'écorce et la résine.
         self._meteo_note = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         dedans.append(self._meteo_note)
         page.append(defilement)
@@ -250,68 +237,84 @@ class PageMeteo:
             self._meteo_entete.set_markup("".join(morceaux))
         self._meteo_courbe.queue_draw()
 
-        for colonne in (self._meteo_excellentes, self._meteo_jour,
-                        self._meteo_nuit, self._meteo_note,
-                        *self._meteo_pop_colonnes):
+        for colonne in (self._meteo_note, *self._meteo_pop_colonnes):
             while (child := colonne.get_first_child()) is not None:
                 colonne.remove(child)
-        cle = releve.saison_cle
-        saison = meteo.nom_saison(releve.saison)
 
         # Ce qui sort maintenant, une colonne par zone : l'humidité décide de la
-        # condition de gisement, la condition décide de ce qu'on trouve, et le
-        # bloc change tout seul à chaque bascule de cycle — sans rien redemander.
+        # condition, la condition décide de la qualité, et la qualité décide de
+        # ce qu'on trouve. Le bloc change tout seul à chaque bascule de cycle —
+        # sans rien redemander.
         # Les quatre zones des Primes tiennent ainsi sur une seule rangée, ce
         # qu'on demande d'un tableau qu'on lit pour choisir où aller forer.
         actuelle = releve.maintenant()
         if actuelle is None:
             self._meteo_pop_titre.set_text("")
         else:
+            sorties = [(zone,) + meteo.sortie_de(releve.saison, zone,
+                                                 actuelle.condition)
+                       for zone in meteo.ZONES]
+            # Le titre annonce la meilleure des quatre zones. Une zone qui n'a
+            # pas cette qualité-là le dit sous son nom, plutôt que de laisser
+            # une colonne vide sous un titre qui promet mieux : en automne par
+            # temps mauvais, seules les Sources Interdites sortent du suprême,
+            # et les trois autres zones de l'excellente.
+            connues = [q for _z, q, _g in sorties if q is not None]
+            meilleure = (min(connues, key=meteo.QUALITES.index)
+                         if connues else None)
             self._meteo_pop_titre.set_text(
-                _("Suprêmes — ce qui sort : %(condition)s, %(taux)d %%")
-                % {"condition": meteo.texte_condition(actuelle.condition),
-                   "taux": round(actuelle.value * 100)})
-            remplies = [(zone, meteo.pop_de(releve.saison, zone,
-                                            actuelle.condition))
-                        for zone in meteo.ZONES]
-            remplies = [(z, g) for z, g in remplies if g]
-            for rang, (zone, groupes) in enumerate(remplies):
+                self._titre_pop(releve, actuelle, meilleure))
+            for rang, (zone, qualite, groupes) in enumerate(sorties):
                 colonne = self._meteo_pop_colonnes[rang % self.COLONNES_POP]
-                # Les quatre zones des Primes sont les seules où sortent les
-                # suprêmes : c'est cette qualité-là qu'on montre en carte.
                 colonne.append(self._bloc_matieres(
                     zone, groupes, rang // self.COLONNES_POP % 2 == 0,
-                    qualite="supreme"))
+                    qualite,
+                    mention=("" if qualite == meilleure
+                             else meteo.mot_qualite(qualite))))
 
-        self._meteo_excellentes.append(self._entete_colonne(_("Cette saison")))
-        self._meteo_excellentes.append(
-            self._entete_colonne(_("Excellentes — %s") % saison))
-        for rang, (moment, groupes) in enumerate(
-                armory.EXCELLENTES.get(cle, {}).items()):
-            # Il fait nuit sur Atys de 22 h à 3 h : dire laquelle des deux
-            # listes vaut en ce moment évite d'aller forer ce qui ne sortira
-            # que dans huit heures.
-            actuel = (moment == "NUIT") == releve.nuit
-            titre = _("De jour") if moment == "JOUR" else _("De nuit")
-            if actuel:
-                titre += _("  ·  en ce moment")
-            # Les deux teintés pareil : côte à côte, un seul des deux le serait
-            # ferait croire à une différence de nature, alors qu'ils ne sont que
-            # les deux moitiés d'une même journée.
-            colonne = (self._meteo_jour if moment == "JOUR"
-                       else self._meteo_nuit)
-            colonne.append(self._bloc_matieres(titre, groupes, True, actuel,
-                                               qualite="excellent"))
+        # Deux choses qu'on ne devine pas en regardant le tableau : que les
+        # quatre zones partagent une meteo mais pas leurs pops, et qu'un spot
+        # vide ne repop pas parce que le temps est revenu.
         self._meteo_note.append(self._note(
-            _("Les Primes partagent une seule météo : celle-ci vaut pour les "
-              "quatre zones.")))
+            _("Les Primes partagent une seule météo, mais pas les mêmes pops : "
+              "chaque zone dit la sienne. Un spot suprême vidé met quinze "
+              "jours à se recharger — les bonnes conditions ne suffisent pas. "
+              "Relevés de la guilde ; positions de ballisticmystix.net.")))
 
-    def _entete_colonne(self, titre: str) -> Gtk.Widget:
-        label = Gtk.Label(label=titre, xalign=0.0)
-        label.add_css_class("title-4")
-        label.add_css_class("peuple")
-        label.props.margin_bottom = 4
-        return label
+    def _titre_pop(self, releve, actuelle, qualite: str) -> str:
+        """« Ce qui sort : Suprême · Exécrable, 91 % », et le réveil à mettre.
+
+        Tant qu'il ne sort pas de suprême, le titre dit d'abord dans combien de
+        temps il en sortira : c'est la seule chose qu'on vienne y chercher, et
+        certains mettent un réveil en pleine nuit pour y être.
+        """
+        morceaux = []
+        if qualite != meteo.SUPREME:
+            morceaux.append(_("Suprême disponible dans : %s")
+                            % self._attente_supreme(releve))
+        morceaux.append(_("Ce qui sort : %s") % meteo.mot_qualite(qualite))
+        morceaux.append(
+            _("%(condition)s, %(taux)d %%")
+            % {"condition": meteo.texte_condition(actuelle.condition),
+               "taux": round(actuelle.value * 100)})
+        return "   ·   ".join(morceaux)
+
+    @staticmethod
+    def _attente_supreme(releve) -> str:
+        """Le temps avant le prochain suprême, ou l'horizon de la prévision.
+
+        Le jeu calcule son temps, et l'API en rend six heures d'avance. Passé
+        cet horizon, on dit qu'on ne voit pas plus loin plutôt que d'inventer
+        une heure : la saison peut changer, et avec elle les créneaux.
+        """
+        prochaine = meteo.prochaine_supreme(releve)
+        if prochaine is not None:
+            return meteo.duree(releve.minutes_avant(prochaine.cycle))
+        cycles = releve.cycles_des_primes()
+        if not cycles:
+            return _("un moment indéterminé")
+        return _("plus de %s") % meteo.duree(
+            releve.minutes_avant(cycles[-1].cycle))
 
     def _note(self, texte: str) -> Gtk.Widget:
         label = Gtk.Label(label=texte, xalign=0.0, wrap=True)
@@ -320,17 +323,22 @@ class PageMeteo:
         return label
 
     def _bloc_matieres(self, titre: str, groupes: dict, zebre: bool,
-                       souligne: bool = False,
-                       qualite: str = "supreme") -> Gtk.Widget:
+                       qualite: str, mention: str = "") -> Gtk.Widget:
         boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         if zebre:
             boite.add_css_class("zebre")
         self._pad(boite)
         entete = Gtk.Label(label=titre, xalign=0.0)
         entete.add_css_class("heading")
-        if souligne:
-            entete.add_css_class("fini")
         boite.append(entete)
+        # La qualite ne s'ecrit que si la zone dement le titre : l'ecrire sur
+        # les quatre colonnes quand elles sont d'accord ne ferait que repeter
+        # ce que le titre vient de dire.
+        if mention:
+            rappel = Gtk.Label(label=mention, xalign=0.0)
+            rappel.add_css_class("dim-label")
+            rappel.add_css_class("caption")
+            boite.append(rappel)
         grille = Gtk.Grid(column_spacing=12, row_spacing=1)
         for ligne, (groupe, matieres) in enumerate(sorted(groupes.items())):
             # Le nom de la famille, et sous lui son symbole du jeu : une
@@ -372,9 +380,13 @@ class PageMeteo:
         sur ce qui ne répondrait pas.
         """
         morceaux = []
+        # Les gisements sont relevés par qualité, et sous un autre nom que
+        # celui de l'écran. Le choix, lui, n'est relevé nulle part : ses
+        # matières restent du texte.
+        qualite = meteo.QUALITE_GISEMENT.get(qualite, "")
         for matiere in matieres:
             texte = GLib.markup_escape_text(matiere)
-            if gisements.points(qualite, famille, matiere):
+            if qualite and gisements.points(qualite, famille, matiere):
                 cible = GLib.markup_escape_text(f"{qualite}|{famille}|{matiere}")
                 morceaux.append(f'<a href="{cible}">{texte}</a>')
             else:
