@@ -35,6 +35,7 @@ trop d'information tue l'information. La page dit comment cocher, et s'arrête.
 """
 import html
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -329,8 +330,11 @@ GABARIT = """<!DOCTYPE html>
                 width: 108px; }
   thead .plage { display: block; font-weight: 400; font-size: .75rem;
                  color: var(--faible); white-space: nowrap; }
+  /* Le fond de la ligne de famille est plus clair que la couleur des traits :
+     les separations de colonnes y disparaissaient, et l'oeil perdait la
+     colonne qu'il suivait en descendant. On les eclaircit juste assez. */
   .famille th { background: #1d2b30; color: var(--or); text-align: left;
-                letter-spacing: .02em; }
+                letter-spacing: .02em; border-color: #3d5560; }
   .matiere { text-align: center; white-space: nowrap; font-weight: 600;
              width: 170px; }
   .qualite { color: var(--faible); font-weight: 400; font-size: .85rem;
@@ -572,8 +576,19 @@ def main() -> int:
            .replace("__ZONES__", _liste_php(ZONES))
            .replace("__SAISONS__", _liste_php(SAISONS))
            .replace("__QUALITES__", _liste_php(QUALITES))
-           .replace("__CONDITIONS__", _liste_php(c[0] for c in CONDITIONS))
+           # Le nom court, et non le francais : c'est lui que `grille()` met
+           # dans data-cle, donc lui que la page enverra.
+           .replace("__CONDITIONS__", _liste_php(c[1] for c in CONDITIONS))
            .replace("__MATIERES__", _liste_php(matieres)))
+
+    # Les deux moitieses doivent nommer les cases pareil. L'ecart precedent --
+    # la page envoyait « Worst », le serveur attendait « Execrable » -- ne se
+    # voyait qu'a l'usage, et sous la forme d'un refus sans explication.
+    attendues = {c[1] for c in CONDITIONS}
+    ecrites = set(re.findall(r'data-cle="[^"]*\|([^"|]+)"', page))
+    if ecrites != attendues:
+        raise SystemExit(f"conditions : la page écrit {sorted(ecrites)}, "
+                         f"le serveur attend {sorted(attendues)}")
 
     dossier = os.path.dirname(CIBLE)
     os.makedirs(dossier, exist_ok=True)
