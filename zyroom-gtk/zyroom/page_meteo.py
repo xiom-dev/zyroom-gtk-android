@@ -220,10 +220,17 @@ class PageMeteo:
             # côte dont l'une était la suivante : il fallait connaître le code
             # pour la décoder. Elle se lit maintenant comme une phrase, et ce
             # qui dure passe avant ce qui décrira le décor.
+            # **« condition » et non « sort ».** Les quatre conditions de
+            # forage portent les memes mots que les qualites de matiere --
+            # Excellente en tete des deux listes -- et « sort Mauvaise »
+            # affirmait donc qu'il sortait de la mauvaise matiere. C'est faux :
+            # a soixante-trois pour cent d'humidite, la condition est mauvaise
+            # et il sort tout de meme des excellentes. Le nom de la condition
+            # ne dit rien de ce qu'on ramasse ; les quatre colonnes, si.
             morceaux = [
                 clair(_("humidité ")),
                 gras(f"{int(maintenant.value * 100)} %"),
-                clair(_(", sort ")),
+                clair(_(", condition ")),
                 gras(meteo.texte_condition(maintenant.condition)),
             ]
             if prochain is not None:
