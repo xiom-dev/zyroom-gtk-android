@@ -65,15 +65,22 @@ def catalogue() -> list:
 def grille(familles: list) -> str:
     """Le tableau d'une saison : familles, matières, trois qualités."""
     lignes = []
-    for famille, matieres in familles:
+    for rang_famille, (famille, matieres) in enumerate(familles):
         # Les quatre conditions redites sur la ligne jaune de chaque famille.
         # Le tableau fait cent quarante et une lignes : meme avec l'en-tete
         # colle en haut, on perd la colonne ou l'on vise en descendant.
-        lignes.append(
-            f'<tr class="famille"><th colspan="2">{html.escape(famille)}</th>'
-            + "".join(f'<th class="rappel">{fr}</th>'
-                      for fr, _c, _p in CONDITIONS)
-            + "</tr>")
+        # La premiere famille n'en a pas besoin : le vrai en-tete est juste
+        # au-dessus d'elle, et le redire ferait deux lignes identiques collees.
+        if rang_famille == 0:
+            lignes.append(f'<tr class="famille"><th colspan="6">'
+                          f'{html.escape(famille)}</th></tr>')
+        else:
+            lignes.append(
+                f'<tr class="famille"><th colspan="2">{html.escape(famille)}'
+                f'</th>'
+                + "".join(f'<th class="rappel">{fr}</th>'
+                          for fr, _c, _p in CONDITIONS)
+                + "</tr>")
         for matiere in matieres:
             # Le « ² » du classeur marquait les matieres a stocker en priorite
             # pour le GH. On le retire : ces listes datent de 2009 et une partie
@@ -153,7 +160,7 @@ GABARIT = """<!DOCTYPE html>
                  color: var(--faible); white-space: nowrap; }
   .famille th { background: #1d2b30; color: var(--or); text-align: left;
                 letter-spacing: .02em; }
-  .matiere { text-align: left; white-space: nowrap; font-weight: 600;
+  .matiere { text-align: center; white-space: nowrap; font-weight: 600;
              width: 170px; }
   .qualite { color: var(--faible); font-weight: 400; font-size: .85rem;
              width: 54px; }
