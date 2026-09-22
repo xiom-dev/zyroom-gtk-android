@@ -66,22 +66,20 @@ def grille(familles: list) -> str:
     """Le tableau d'une saison : familles, matières, trois qualités."""
     lignes = []
     for famille, matieres in familles:
+        # Les quatre conditions redites sur la ligne jaune de chaque famille.
+        # Le tableau fait cent quarante et une lignes : meme avec l'en-tete
+        # colle en haut, on perd la colonne ou l'on vise en descendant.
         lignes.append(
-            f'<tr class="famille"><th colspan="6">{html.escape(famille)}</th></tr>')
+            f'<tr class="famille"><th colspan="2">{html.escape(famille)}</th>'
+            + "".join(f'<th class="rappel">{fr}</th>'
+                      for fr, _c, _p in CONDITIONS)
+            + "</tr>")
         for matiere in matieres:
             # Le « ² » du classeur marquait les matieres a stocker en priorite
             # pour le GH. On le retire : ces listes datent de 2009 et une partie
             # n'est plus vraie, et de toute facon cela n'aide pas a remplir le
             # tableau -- qui est le seul but de cette page.
             propre = matiere.replace("²", "").strip()
-            # Le tableau fait cent quarante et une lignes : meme avec l'en-tete
-            # qui reste colle en haut, on perd la colonne ou l'on vise. Les
-            # quatre conditions sont donc redites au-dessus de chaque matiere,
-            # en petit -- c'est trois lignes de tableau plus loin, jamais plus.
-            lignes.append(
-                '<tr class="rappel"><td colspan="2"></td>'
-                + "".join(f'<td>{fr}</td>' for fr, _c, _p in CONDITIONS)
-                + "</tr>")
             for rang, qualite in enumerate(QUALITES):
                 cles = "".join(
                     f'<td class="case" data-cle="{html.escape(propre)}|{qualite}'
@@ -159,12 +157,10 @@ GABARIT = """<!DOCTYPE html>
              width: 170px; }
   .qualite { color: var(--faible); font-weight: 400; font-size: .85rem;
              width: 54px; }
-  /* Le rappel des conditions au-dessus de chaque matiere : assez lisible pour
-     qu'on s'y repere, assez terne pour ne pas concurrencer les cases. */
-  .rappel td { font-size: .72rem; color: var(--faible); padding: 2px 6px;
-               border-top: 2px solid #24343a; border-bottom: none;
-               letter-spacing: .02em; }
-  .rappel td:first-child { border-left: none; border-right: none; }
+  /* Le rappel des conditions sur la ligne de la famille : assez lisible pour
+     qu'on s'y repere, assez terne pour ne pas voler la vedette au nom jaune. */
+  .famille .rappel { font-size: .75rem; font-weight: 400; color: var(--clair);
+                     letter-spacing: .02em; }
   .q-supp .qualite { color: var(--or); }
 
   .case { cursor: pointer; height: 26px; font-weight: 700; user-select: none; }
