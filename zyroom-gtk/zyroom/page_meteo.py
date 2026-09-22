@@ -220,19 +220,24 @@ class PageMeteo:
             # côte dont l'une était la suivante : il fallait connaître le code
             # pour la décoder. Elle se lit maintenant comme une phrase, et ce
             # qui dure passe avant ce qui décrira le décor.
-            # **« condition » et non « sort ».** Les quatre conditions de
-            # forage portent les memes mots que les qualites de matiere --
-            # Excellente en tete des deux listes -- et « sort Mauvaise »
-            # affirmait donc qu'il sortait de la mauvaise matiere. C'est faux :
-            # a soixante-trois pour cent d'humidite, la condition est mauvaise
-            # et il sort tout de meme des excellentes. Le nom de la condition
-            # ne dit rien de ce qu'on ramasse ; les quatre colonnes, si.
+            # **La condition qualifie l'humidité, pas ce qui sort.** Les quatre
+            # conditions de forage portent les memes mots que les qualites de
+            # matiere -- Excellente en tete des deux listes -- et « sort
+            # Mauvaise » affirmait donc qu'il sortait de la mauvaise matiere.
+            # C'est faux : a soixante-trois pour cent d'humidite la condition
+            # est mauvaise, et il sort tout de meme du supreme. Le mot passe
+            # donc devant l'humidite, ou il ne peut plus qualifier que celle-ci.
             morceaux = [
                 clair(_("humidité ")),
-                gras(f"{int(maintenant.value * 100)} %"),
-                clair(_(", condition ")),
                 gras(meteo.texte_condition(maintenant.condition)),
+                gras(f" {int(maintenant.value * 100)} %"),
             ]
+            # Et apres « sort », la qualite qu'on ramasse vraiment -- la
+            # meilleure des quatre zones, celle que les colonnes detaillent.
+            qualite = self._qualite_du_moment(releve, maintenant)
+            if qualite is not None:
+                morceaux.append(clair(_(", sort ")))
+                morceaux.append(gras(meteo.mot_qualite(qualite)))
             if prochain is not None:
                 # Le temps qui reste, et non le nom de la condition d'après :
                 # « pendant 5 min » répond à « est-ce que j'ai le temps ? »,
@@ -298,6 +303,19 @@ class PageMeteo:
               "chaque zone dit la sienne. Un spot suprême vidé met quinze "
               "jours à se recharger — les bonnes conditions ne suffisent pas. "
               "Relevés de la guilde ; positions de ballisticmystix.net.")))
+
+    @staticmethod
+    @staticmethod
+    def _qualite_du_moment(releve, actuelle):
+        """La meilleure qualité que les quatre zones rendent en ce moment.
+
+        C'est ce que la première ligne annonce après « sort ». Les colonnes
+        disent ensuite le détail — laquelle sort où, et sous quel nom.
+        """
+        connues = [meteo.sortie_de(releve.saison, zone, actuelle.condition)[0]
+                   for zone in meteo.ZONES]
+        connues = [q for q in connues if q is not None]
+        return min(connues, key=meteo.QUALITES.index) if connues else None
 
     @staticmethod
     def _titre_pop(releve, actuelle, _qualite: str) -> str:
