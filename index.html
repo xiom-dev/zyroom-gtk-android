@@ -4,6 +4,20 @@
 <title>Les applications de La Lune Éternelle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+<!-- **L'icone de la page, et pourquoi elle manquait a l'appel.** Sans ces
+     lignes, le navigateur va chercher `/favicon.ico` a la racine du domaine
+     -- et non a cote de la page. Sur `xiom-dev.github.io`, cette racine est
+     partagee par tous les depots du compte : Firefox retenait donc l'icone
+     de Chat-astrophe, qui en declare une, et l'affichait dans l'historique
+     au-dessus de cette page-ci. Le chat est parti, le coffre a pris sa place.
+
+     Deux tailles : le petit pour l'onglet et l'historique, le grand pour les
+     vignettes et l'ecran d'accueil d'un telephone. Charger cinquante-six
+     kilo-octets pour seize pixels n'aurait servi personne. -->
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicon.png" sizes="512x512" type="image/png">
+<link rel="apple-touch-icon" href="favicon.png">
+
 <!-- L'apercu que Discord, Signal et les autres affichent quand on colle le
      lien. Sans ces balises, ils ne montrent rien : ils ne devinent ni le
      titre, ni l'image, ils lisent ce qu'on leur donne ici. C'est ce qui
@@ -69,6 +83,11 @@
      sous un titre qui, lui, occupe les soixante rem. */
   h1 + .sub { text-align: center; max-width: none; }
   h2 { font-size: 1.15rem; margin-top: 2.4rem; }
+  /* Les quatre noms a l'or du theme, celui du grand titre et des titres des
+     applications elles-memes. Une classe et non `h2` tout entier : « Au
+     premier demarrage » et « Mises a jour » sont des titres de section, pas
+     des noms, et les peindre pareil aurait fait six applications. */
+  h2.nom-appli { color: var(--or); }
   .sub { color: var(--texte-faible); margin-top: 0; }
   h2 + .sub { margin: -.15rem 0 .9rem; font-size: .93rem; }
   .bouton { display: inline-block; background: #3f7a68; color: #fff;
@@ -149,8 +168,13 @@
                cursor: pointer; border: 0; background: none; padding: 0; }
   .mus-creux { width: 100%; height: 4px; border-radius: 2px;
                background: rgba(226, 232, 230, .16); overflow: hidden; }
-  .mus-avance { height: 100%; width: 0; background: var(--sarcelle);
-                border-radius: 2px; }
+  /* **`display: block`, sans quoi rien ne se peint.** Les deux sont des
+     `span`. Le creux, lui, est blockifie d'office : il est element d'une
+     boite flex. L'avance, elle, restait en ligne dans un bloc ordinaire --
+     et une boite en ligne ignore `width` comme `height`. Le style portait
+     bien « width: 49.7% », le ruban vert n'occupait aucun pixel. */
+  .mus-avance { display: block; height: 100%; width: 0;
+                background: var(--sarcelle); border-radius: 2px; }
   /* Chiffres a chasse fixe : sans cela, la ligne du temps s'allonge et se
      retrecit a chaque seconde, et la piste tremble avec elle. */
   .mus-temps { flex: none; font-size: .8rem; color: var(--texte-faible);
@@ -161,11 +185,12 @@
 <p class="sub">Vos inventaires, les coffres de la guilde et vos recettes
 de craft, hors ligne.</p>
 
-<!-- La piste d'ouverture. Rien ne demarre tout seul : les navigateurs
-     refusent le son sans un geste du visiteur, et une page qui se met a
-     chanter d'elle-meme se referme aussi vite qu'elle s'est ouverte.
-     `preload="metadata"` ne va chercher que la duree -- cinq megaoctets
-     n'ont pas a descendre avant qu'on ait clique. -->
+<!-- La piste d'ouverture, qui part avec la page. Les navigateurs ne le
+     permettent pas toujours : Chrome et Firefox refusent le son tant que le
+     visiteur n'a rien fait sur la page. Le script arme alors un repli -- le
+     premier geste lance la piste -- et le bouton reste la pour l'arreter.
+     `preload="metadata"` ne va chercher que la duree ; le reste descend au
+     fil de la lecture. -->
 <figure class="musique">
   <figcaption>GAEM &amp; EEVΛ — <i>Sielu Čuovggas</i> (La lumière de l'âme)</figcaption>
   <div class="mus-ligne">
@@ -193,7 +218,7 @@ de craft, hors ligne.</p>
 </figure>
 
 
-<h2>V-RyLune <span class="version" data-paquet="net.ryzom.zyroom">…</span></h2>
+<h2 class="nom-appli">V-RyLune <span class="version" data-paquet="net.ryzom.zyroom">…</span></h2>
 <div class="appli">
 <div class="dit">
 <p class="sub">Sur un téléphone Android</p>
@@ -209,7 +234,7 @@ nouvelle version paraît.</p>
 </figure>
 </div>
 
-<h2>ZyRoom-GTK <span class="version" data-paquet="net.ryzom.zyroomgtk">…</span></h2>
+<h2 class="nom-appli">ZyRoom-GTK <span class="version" data-paquet="net.ryzom.zyroomgtk">…</span></h2>
 <div class="appli">
 <div class="dit">
 <p class="sub">Sur un PC Linux</p>
@@ -223,7 +248,7 @@ l'application saura d'elle-même quand une nouvelle version paraît.</p>
 </figure>
 </div>
 
-<h2>KipeeCraft <span class="version">version 0.1.0</span></h2>
+<h2 class="nom-appli">KipeeCraft <span class="version">version 0.1.0</span></h2>
 <div class="appli">
 <div class="dit">
 <p class="sub">Sur un PC Linux</p>
@@ -242,7 +267,7 @@ page de temps en temps.</p>
 </figure>
 </div>
 
-<h2>ZyRoom-Qt <span class="version" data-paquet="net.ryzom.zyroomqt">…</span></h2>
+<h2 class="nom-appli">ZyRoom-Qt <span class="version" data-paquet="net.ryzom.zyroomqt">…</span></h2>
 <div class="appli">
 <div class="dit">
 <p class="sub">Sur un PC Windows</p>
@@ -387,6 +412,30 @@ nouveau fichier. Vos réglages et vos clés sont conservés.</p>
     audio.addEventListener("seeking", afficher);
     audio.addEventListener("seeked", afficher);
     afficher();
+
+    // **Partir tout seul, et ce que les navigateurs en disent.** Une lecture
+    // qui commence sans que le visiteur ait rien fait est refusee par defaut
+    // sous Chrome comme sous Firefox : `play()` rend alors une promesse
+    // rejetee, et la page reste muette sans rien dire. D'ou le repli -- le
+    // premier geste sur la page, quel qu'il soit, lance la piste.
+    //
+    // Les ecouteurs se retirent des qu'ils ont servi : sans cela, mettre en
+    // pause puis faire defiler la page aurait relance le morceau.
+    var GESTES = ["pointerdown", "keydown", "wheel", "touchstart"];
+    function auPremierGeste() {
+      GESTES.forEach(function (nom) {
+        document.removeEventListener(nom, auPremierGeste);
+      });
+      audio.play().catch(function () {});
+    }
+    var depart = audio.play();
+    if (depart) {
+      depart.catch(function () {
+        GESTES.forEach(function (nom) {
+          document.addEventListener(nom, auPremierGeste, { passive: true });
+        });
+      });
+    }
   })();
 
   fetch("version.json")
