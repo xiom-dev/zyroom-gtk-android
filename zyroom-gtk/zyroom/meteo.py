@@ -399,3 +399,24 @@ def prochaine_fenetre_supreme(releve: "MeteoAtys") -> "Meteo | None":
         if cycle.cycle > releve.cycle_courant and cycle.condition.lower() == "worst":
             return cycle
     return None
+
+
+def fin_fenetre_supreme(releve: "MeteoAtys") -> float | None:
+    """Minutes réelles avant que la fenêtre en cours ne se referme.
+
+    Une fenêtre dure rarement plus d'un cycle — neuf minutes réelles —, mais
+    elle peut en enchaîner deux : on cherche donc le premier cycle à venir qui
+    ne soit pas exécrable, et non « le cycle suivant ».
+
+    Le compte part de l'instant présent, pas du début du cycle : à la sixième
+    minute d'une fenêtre de neuf, il reste trois minutes, et c'est cela qu'une
+    foreuse veut lire.
+
+    Rend `None` si la prévision s'arrête sans jamais quitter l'exécrable — on
+    ne sait alors pas dire jusqu'à quand.
+    """
+    for cycle in sorted(releve.cycles_des_primes(), key=lambda c: c.cycle):
+        if cycle.cycle > releve.cycle_courant \
+                and cycle.condition.lower() != "worst":
+            return releve.minutes_avant(cycle.cycle)
+    return None

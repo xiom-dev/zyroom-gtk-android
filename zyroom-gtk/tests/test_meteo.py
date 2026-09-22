@@ -308,6 +308,21 @@ class FenetreSupreme(unittest.TestCase):
     def test_sans_relevé_du_tout(self):
         self.assertIsNone(meteo.prochaine_fenetre_supreme(self._releve([])))
 
+    def test_la_fenêtre_d_un_seul_cycle_dure_neuf_minutes(self):
+        """Un cycle vaut neuf minutes réelles : trois heures d'Atys."""
+        r = self._releve(["worst", "good", "good"])
+        self.assertEqual(9, int(meteo.fin_fenetre_supreme(r)))
+
+    def test_deux_cycles_exécrables_ne_font_qu_une_fenêtre(self):
+        """« Le cycle suivant » serait faux : on cherche la fin, pas le pas."""
+        r = self._releve(["worst", "worst", "bad"])
+        self.assertEqual(18, int(meteo.fin_fenetre_supreme(r)))
+
+    def test_exécrable_jusqu_au_bout_de_la_prévision(self):
+        """On ne sait pas jusqu'à quand : l'écran le dit sans compter."""
+        self.assertIsNone(meteo.fin_fenetre_supreme(
+            self._releve(["worst"] * 40)))
+
 
 class CeQuiSort(unittest.TestCase):
     """Ce que la météo du moment fait sortir, zone par zone.

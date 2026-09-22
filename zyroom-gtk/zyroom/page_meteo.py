@@ -296,9 +296,20 @@ class PageMeteo:
         grande fenêtre, l'humidité au-dessus de 83,4 %. La condition et le taux
         du moment sont déjà en tête de l'écran, le repop et la saison dans la
         barre du haut ; les répéter ici ne faisait que noyer ce nombre-là.
+
+        Pendant la fenêtre, le compte **décroît** : « encore 9 min », puis six,
+        puis trois. Une durée totale figée mentirait dès la troisième minute,
+        et c'est le temps qu'il reste pour traverser les Primes qui décide si
+        l'on part ou non.
         """
         if actuelle.condition.lower() == "worst":
-            return _("Suprême maintenant")
+            restantes = meteo.fin_fenetre_supreme(releve)
+            if restantes is None:
+                return _("Suprême maintenant")
+            fin = (datetime.now()
+                   + timedelta(minutes=restantes)).strftime("%H:%M")
+            return (_("Suprême maintenant, encore %(delai)s — jusqu'à %(fin)s")
+                    % {"delai": meteo.duree(int(restantes)), "fin": fin})
         prochaine = meteo.prochaine_fenetre_supreme(releve)
         if prochaine is None:
             return _("Suprême : pas avant six heures")
