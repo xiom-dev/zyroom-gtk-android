@@ -14,12 +14,25 @@ table — aucune des deux ne suffit seule.
   très inégalement rempli, mais c'est le relevé le plus récent et il teste
   chaque saison séparément.
 
-**La règle de fusion.** Le classeur des saisons pose le suprême ; la
-cartographie corrige — un `x` ajoute, un `-` retire —, puis fournit seule
-l'excellente et le choix, que le classeur des saisons ne relève pas.
-Confrontées sur le suprême, les deux tombent d'accord sur 192 cases, la
-cartographie en ajoute 29 — surtout en Best, ce que la Note 2 annonçait : « pop
-deux saisons par an, reste à trouver lesquelles » — et en retire 16.
+**Mais la référence, c'est le tracker d'atys.us**, et non les classeurs. C'est
+lui que Ludo ouvre à côté de l'application pour vérifier, et une table qui ne
+lui répond pas est fausse, quelle que soit sa cohérence interne. La table
+affichée se déduit donc de deux relevés qui en viennent :
+
+* `armory.py` — quelle matière sort dans quelle zone, à quelle saison. Contrôlé
+  case pour case contre le tracker : pour Under Spring en été, trente-cinq
+  matières sur trente-cinq, sans un écart.
+* `donnees/humidites-gisements.json` — la fourchette d'humidité de chaque
+  gisement, relevée sur les fiches du tracker par `outils/humidites.py`.
+  Reconfrontée au tracker le 22 septembre 2026 : dix-sept fourchettes
+  identiques, dix-huit où le relevé porte une bande de plus, **aucun
+  désaccord**. La bande en plus est celle d'une autre saison : le tracker ne
+  montre que la saison en cours, le relevé garde l'année entière.
+
+**Les classeurs de la guilde ne décident plus de ce qui s'affiche.** Ils sont
+toujours lus, mais seulement pour dire où ils s'écartent du tracker — c'est une
+information utile pour les foreuses, pas une source pour l'écran. Leur lecture
+avait remplacé la référence par autre chose, et plus rien ne se recoupait.
 
 **Les six bandes se replient sur quatre.** Bad1 vaut toujours Bad2, et Good1
 toujours Good2 : huit cent trente-six paires, sans une exception. On garde donc
@@ -42,6 +55,7 @@ correspondants sont au Gouffre d'Ichor ou à la Porte des Vents. Gardées à par
 """
 import collections
 import csv
+import json
 import os
 import re
 import sys
@@ -55,6 +69,14 @@ _DEPOT = os.path.dirname(_ANDROID)
 sys.path.insert(0, os.path.join(_DEPOT, "zyroom-gtk"))
 from zyroom import armory                                        # noqa: E402
 from zyroom.gisements import LIBELLES                            # noqa: E402
+
+HUMIDITES_JSON = os.path.join(_DEPOT, "donnees", "humidites-gisements.json")
+with open(HUMIDITES_JSON, encoding="utf-8") as _fh:
+    HUMIDITES = json.load(_fh)["humidites"]
+
+#: Les quatre bandes du jeu, par humidite croissante. Sec vaut mieux qu'humide.
+SEUILS = ((0.0, 16.6, "BEST"), (16.7, 49.9, "GOOD"),
+          (50.0, 83.3, "BAD"), (83.4, 100.0, "WORST"))
 
 CLASSEUR = os.path.join(_DEPOT, "donnees", "tuto-forage-prime.xlsx")
 SAISONNIER = os.path.join(_DEPOT, "donnees", "pop-des-primes-par-saison.csv")
@@ -297,30 +319,76 @@ def continents(tout: dict) -> dict:
 
 # ---------------------------------------------------------------- la fusion
 
-def fusionne(base: dict, carto: dict) -> dict:
-    """{qualité: {zone: {(famille, matière): {(saison, condition)}}}}."""
+def bandes(qualite: str, couple: tuple) -> set:
+    """Les conditions où un gisement rend, d'après sa fourchette d'humidité.
+
+    Le jeu range l'humidité en quatre bandes, et le tracker donne pour chaque
+    gisement celles qu'il occupe. Une fourchette qui couvre une bande entière
+    la vaut ; une fourchette à cheval ne compte pour aucune — le tracker n'en
+    produit pas.
+    """
+    anglais = LIBELLES[couple]
+    plages = HUMIDITES.get(f"{qualite}|{anglais[0]}|{anglais[1]}")
+    if not plages:
+        return set()
+    return {nom for bas, haut, nom in SEUILS
+            if any(p0 <= bas and haut <= p1 for p0, p1 in plages)}
+
+
+def table_du_tracker() -> dict:
+    """{qualité: {zone: {(famille, matière): {(saison, condition)}}}}.
+
+    Armory dit *où* et *quand dans l'année*, la fourchette d'humidité dit *par
+    quel temps*. Le croisement des deux est ce que le tracker affiche, et c'est
+    donc ce que l'application doit afficher.
+
+    Le choix reste vide : le tracker ne le suit pas, et l'inventer par
+    élimination ferait dire à l'écran plus que ce qu'on sait.
+    """
     tables = {q: collections.defaultdict(lambda: collections.defaultdict(set))
               for q in ("SUPREME", "EXCELLENTE", "CHOIX")}
-    for (saison, zone, condition), couples in base.items():
-        for couple in couples:
-            tables["SUPREME"][zone][couple].add((saison, condition))
-    for (etiquette, zone), matieres in carto.items():
-        qualite = {"Supp": "SUPREME", "XL": "EXCELLENTE",
-                   "Choix": "CHOIX"}[etiquette]
-        for couple, cases in matieres.items():
-            for cle, marque in cases.items():
-                if marque == "x":
-                    tables[qualite][zone][couple].add(cle)
-                else:
-                    tables[qualite][zone][couple].discard(cle)
-    # Une matiere dont la cartographie a tout retire ne doit pas rester en
-    # clef vide : elle se lirait comme « relevee, mais nulle part ».
+    for saison, zones in armory.SUPREMES.items():
+        for zone, familles in zones.items():
+            for famille, matieres in familles.items():
+                for matiere in matieres:
+                    couple = (famille, matiere)
+                    for condition in bandes("supreme", couple):
+                        tables["SUPREME"][zone][couple].add((saison, condition))
+    # Les excellentes n'ont pas de zone chez Armory : elles valent pour les
+    # quatre, restreintes aux matieres que la zone porte.
+    for saison, moments in armory.EXCELLENTES.items():
+        pour_la_saison = {(f, m) for familles in moments.values()
+                          for f, matieres in familles.items() for m in matieres}
+        for zone in ZONES:
+            portees = {c for c in pour_la_saison
+                       if c in tables["SUPREME"][zone]}
+            for couple in portees:
+                for condition in bandes("excellent", couple):
+                    tables["EXCELLENTE"][zone][couple].add((saison, condition))
     return {q: {z: {c: k for c, k in m.items() if k}
                 for z, m in t.items()} for q, t in tables.items()}
 
 
+def ecart_des_classeurs(tables: dict, base: dict, carto: dict) -> list:
+    """Où les classeurs de la guilde s'écartent du tracker, pour mémoire."""
+    lignes = []
+    for zone in ZONES:
+        du_tracker = {(s, c) for couple, k in tables["SUPREME"][zone].items()
+                      for s, c in k}
+        de_la_guilde = set()
+        for (saison, z, condition), couples in base.items():
+            if z == zone and couples:
+                de_la_guilde.add((saison, condition))
+        lignes.append(f"  {zone:24s} tracker {len(du_tracker):2d} créneaux, "
+                      f"guilde {len(de_la_guilde):2d}")
+    return lignes
+
+
 def verifie(tables: dict, conts: dict) -> None:
     """Les contrôles qui empêchent une table muette de passer pour vraie."""
+    # Le choix n'a pas de source : le tracker ne le suit pas.
+    if tables["CHOIX"]:
+        raise SystemExit("choix : une table est apparue sans source")
     if set(tables["SUPREME"]) != set(ZONES):
         raise SystemExit(f"zones lues : {sorted(tables['SUPREME'])}")
     for zone, matieres in tables["SUPREME"].items():
@@ -369,33 +437,35 @@ def python(tables: dict, conts: dict) -> str:
         '"""Ce que rend un gisement des Primes, selon la zone, la saison et le temps.',
         "",
         "Fichier produit par ../zyroom-android/outils/table_forage.py — ne pas",
-        "modifier à la main. Il croise les deux relevés de la guilde gardés",
-        "dans `donnees/` : le classeur des saisons, complet, et la cartographie",
-        "du Tuto Forage Prime, plus récente mais inachevée.",
+        "modifier à la main. Il croise `armory.py`, qui dit quelle matière sort",
+        "dans quelle zone et à quelle saison, avec les fourchettes d'humidité",
+        "de `donnees/humidites-gisements.json`, qui disent par quel temps.",
         "",
-        "**Les quatre zones ne se ressemblent pas.** C'était l'erreur d'avant :",
-        "une seule table pour les quatre, alors que la Terre de la Continuité",
-        "ne sort pas ce que sortent les Sources Interdites au même moment.",
+        "**Les deux viennent du tracker d'atys.us**, et c'est ce qui compte :",
+        "c'est lui qu'on ouvre à côté pour vérifier. Une table qui ne lui",
+        "répond pas est fausse, si cohérente soit-elle avec elle-même.",
         "",
-        "Le suprême est complet. L'excellente et le choix ne sont relevés que",
-        "par endroits : la guilde y travaille encore, et un silence ne veut pas",
-        "dire « rien ne sort ».",
+        "Le choix reste vide : le tracker ne le suit pas, et le déduire par",
+        "élimination ferait dire à l'écran plus que ce qu'on sait.",
         '"""',
         "",
     ]
     lignes += _bloc([
         "#: {zone: {(famille, matière): {(saison, condition)}}} — le suprême.",
         "#:",
-        "#: Une vingtaine de matières par zone sortent dès que le temps est",
-        "#: exécrable, aux quatre saisons ; les autres à un créneau précis.",
+        "#: Chaque gisement occupe deux des quatre bandes d'humidité : à toute",
+        "#: heure, une moitié des matières de la zone sort.",
         "SUPREMES = {"], tables["SUPREME"])
     lignes += _bloc([
-        "#: {zone: {(famille, matière): {(saison, condition)}}} — l'excellente",
-        "#: des Primes, telle que la cartographie la donne. Clairsemée.",
+        "#: {zone: {(famille, matière): {(saison, condition)}}} — l'excellente.",
+        "#:",
+        "#: Armory ne range pas les excellentes par zone : elles valent pour",
+        "#: les quatre, restreintes aux matières que la zone porte.",
         "EXCELLENTES = {"], tables["EXCELLENTE"])
     lignes += _bloc([
-        "#: {zone: {(famille, matière): {(saison, condition)}}} — le choix,",
-        "#: là où la guilde l'a noté. Clairsemé lui aussi.",
+        "#: {zone: {(famille, matière): {(saison, condition)}}} — le choix.",
+        "#:",
+        "#: Vide, et volontairement : aucune source ne le suit.",
         "CHOIX = {"], tables["CHOIX"])
     lignes += [
         "#: {(famille, matière): {(saison, condition)}} — les excellentes des",
@@ -412,26 +482,17 @@ def python(tables: dict, conts: dict) -> str:
 
 def main() -> int:
     tout = feuilles(CLASSEUR)
-    base = par_saison()
-    carto = cartographie(tout)
-    tables = fusionne(base, carto)
+    tables = table_du_tracker()
     conts = continents(tout)
     verifie(tables, conts)
 
-    accord = ajout = retrait = 0
-    for zone in ZONES:
-        for couple, cases in carto.get(("Supp", zone), {}).items():
-            for cle, marque in cases.items():
-                dedans = couple in base.get((cle[0], zone, cle[1]), ())
-                accord += marque == "x" and dedans
-                ajout += marque == "x" and not dedans
-                retrait += marque == "-" and dedans
-    print(f"recoupement du suprême : {accord} accords, {ajout} ajouts de la "
-          f"cartographie, {retrait} retraits")
-    for qualite in ("SUPREME", "EXCELLENTE", "CHOIX"):
+    for qualite in ("SUPREME", "EXCELLENTE"):
         print(f"{qualite:11s} " + "  ".join(
             f"{z[:12]} {len(tables[qualite].get(z, {})):2d}" for z in ZONES))
-    print(f"continents  {len(conts)} matières")
+    print("écart des classeurs de la guilde, pour mémoire :")
+    for ligne in ecart_des_classeurs(tables, par_saison(),
+                                     cartographie(tout)):
+        print(ligne)
     with open(CIBLE_PY, "w", encoding="utf-8") as fh:
         fh.write(python(tables, conts))
     print("→", CIBLE_PY)

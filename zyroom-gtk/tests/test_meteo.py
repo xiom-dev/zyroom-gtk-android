@@ -284,16 +284,16 @@ class CeQuiSort(unittest.TestCase):
         self.assertEqual(set(forage.SUPREMES), set(meteo.ZONES))
 
     def test_chaque_saison_et_chaque_condition_rend_quelque_chose(self):
-        """Seize créneaux, quatre zones : une seule case reste muette.
+        """Une case vide se lirait « rien ne sort », ce qui n'arrive jamais.
 
-        Les Sources Interdites en hiver par temps mauvais — la guilde n'a pas
-        encore testé ce créneau-là. Partout ailleurs, il sort quelque chose."""
-        muettes = {(saison, condition, zone)
-                   for saison in range(4)
-                   for condition in ("worst", "bad", "good", "best")
-                   for zone in meteo.ZONES
-                   if meteo.sortie_de(saison, zone, condition)[0] is None}
-        self.assertEqual({(3, "bad", "Sources Interdites")}, muettes)
+        Chaque gisement occupe deux des quatre bandes d'humidité : quelle que
+        soit l'heure, il y a toujours une moitié des matières qui sort."""
+        for saison in range(4):
+            for condition in ("worst", "bad", "good", "best"):
+                for zone in meteo.ZONES:
+                    qualite, groupes = meteo.sortie_de(saison, zone, condition)
+                    self.assertIsNotNone(qualite, f"{saison}/{condition}/{zone}")
+                    self.assertTrue(groupes, f"{saison}/{condition}/{zone}")
 
     def test_la_casse_de_la_condition_est_sans_importance(self):
         """L'API rend « best », les tables rangent sous « BEST »."""
@@ -339,6 +339,51 @@ class CeQuiSort(unittest.TestCase):
                     for z in meteo.ZONES]
                 differents += len(set(rendus)) > 1
         self.assertEqual(16, differents)
+
+    def test_l_application_dit_ce_que_le_tracker_dit(self):
+        """Le tracker d'atys.us est la référence, et l'écran doit lui répondre.
+
+        Ses deux moitiés vivent séparément dans l'application : `armory.py`
+        dit quelle matière sort dans quelle zone à quelle saison — trente-cinq
+        sur trente-cinq pour Under Spring en été, sans un écart —, et
+        `donnees/humidites-gisements.json` porte la fourchette de chaque
+        gisement, relevée sur ses fiches. Ce contrôle refait le croisement à la
+        main et le compare à la table produite : si le générateur dérive, il le
+        dit tout de suite, et non le jour où Ludo ouvre le tracker à côté.
+        """
+        import json
+        from zyroom import armory
+        from zyroom.gisements import LIBELLES
+        # Le relevé brut, et non `gisements.humidites` : celui-ci ne connaît
+        # que les matières dont on sait aussi dessiner la position, et il lui
+        # manque la résine Fung.
+        releve = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))),
+            "donnees", "humidites-gisements.json")
+        with open(releve, encoding="utf-8") as fh:
+            fourchettes = json.load(fh)["humidites"]
+
+        def plages(famille, matiere):
+            anglais = LIBELLES[(famille, matiere)]
+            return fourchettes.get(f"supreme|{anglais[0]}|{anglais[1]}", [])
+
+        bandes = {"BEST": (0.0, 16.6), "GOOD": (16.7, 49.9),
+                  "BAD": (50.0, 83.3), "WORST": (83.4, 100.0)}
+        for saison, cle in enumerate(meteo.SAISONS):
+            for zone in meteo.ZONES:
+                for condition, (bas, haut) in bandes.items():
+                    attendu = {
+                        (famille, matiere)
+                        for famille, matieres
+                        in armory.SUPREMES[cle][zone].items()
+                        for matiere in matieres
+                        if any(p0 <= bas and haut <= p1 for p0, p1
+                               in plages(famille, matiere))}
+                    _q, groupes = meteo.sortie_de(saison, zone, condition)
+                    trouve = {(f, m) for f, ms in groupes.items() for m in ms}
+                    self.assertEqual(attendu, trouve,
+                                     f"{cle} / {zone} / {condition}")
 
     def test_les_conditions_du_suprême_couvrent_ce_que_les_zones_rendent(self):
         """Le compte à rebours et les colonnes doivent dire la même chose.
