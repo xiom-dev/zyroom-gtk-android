@@ -215,25 +215,34 @@ class PageMeteo:
             def clair(texte: str) -> str:
                 return GLib.markup_escape_text(texte)
 
+            # La ligne se lisait « Beau · 0 % → Excellente   Mauvaise dans
+            # 5 min ». Trois nombres, une flèche, et deux conditions côte à
+            # côte dont l'une était la suivante : il fallait connaître le code
+            # pour la décoder. Elle se lit maintenant comme une phrase, et ce
+            # qui dure passe avant ce qui décrira le décor.
             morceaux = [
-                gras(f"{meteo.texte_meteo(maintenant.text)} · "
-                     f"{int(maintenant.value * 100)} %"),
-                clair("  →  "),
+                clair(_("humidité ")),
+                gras(f"{int(maintenant.value * 100)} %"),
+                clair(_(", sort ")),
                 gras(meteo.texte_condition(maintenant.condition)),
             ]
             if prochain is not None:
-                morceaux.append(clair(
-                    f"   {meteo.texte_condition(prochain.condition)} dans "
-                    f"{meteo.duree(releve.minutes_avant(prochain.cycle))}"))
+                # Le temps qui reste, et non le nom de la condition d'après :
+                # « pendant 5 min » répond à « est-ce que j'ai le temps ? »,
+                # qui est la question qu'on se pose devant cet écran.
+                morceaux.append(gras(
+                    _(" pendant %s")
+                    % meteo.duree(releve.minutes_avant(prochain.cycle))))
             # La fenêtre excellente, sauf si elle est déjà annoncée juste
             # au-dessus : les deux mentions se vaudraient mot pour mot.
             if (maintenant.condition != "best" and meilleur is not None
                     and (prochain is None or meilleur.cycle != prochain.cycle)):
                 morceaux.append(clair(
-                    "   ✦ Excellente dans "
-                    f"{meteo.duree(releve.minutes_avant(meilleur.cycle))}"))
+                    "   ✦ " + _("Excellente dans %s")
+                    % meteo.duree(releve.minutes_avant(meilleur.cycle))))
             morceaux.append(clair(
-                f"   ·   {meteo.nom_saison(releve.saison)}, "
+                f"   —   {meteo.texte_meteo(maintenant.text)}, "
+                f"{meteo.nom_saison(releve.saison)}, "
                 f"{releve.heure_du_jour} h sur Atys, "
                 f"{'nuit' if releve.nuit else 'jour'}"))
             self._meteo_entete.set_markup("".join(morceaux))
