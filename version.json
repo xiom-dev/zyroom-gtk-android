@@ -33,7 +33,7 @@
     "url": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-GTK.flatpak"
   },
   "net.ryzom.zyroomgtk.dev": {
-    "versionName": "1.63",
+    "versionName": "1.64",
     "url": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-GTK-dev.flatpak"
   }
 }
