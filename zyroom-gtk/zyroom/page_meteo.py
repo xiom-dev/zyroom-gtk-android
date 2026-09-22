@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from gi.repository import GLib, Gtk
 
-from . import forage as _forage, gisements, meteo, ryzom_api
+from . import gisements, meteo, ryzom_api
 from .i18n import _
 from .ui_commun import run_async
 
@@ -313,24 +313,19 @@ class PageMeteo:
         suprême pendant 1 min » pendant que le titre annonçait le suprême pour
         dans une heure vingt, et les deux ne peuvent pas être vraies.
 
-        Hors de cette fenêtre, c'est l'excellente — la table de la page 1 du
-        tutoriel, celle qui s'accorde matière pour matière avec les fourchettes
-        du tracker — ou, à défaut, le choix par recoupement.
+        Hors de cette fenêtre, **on ne dit rien**. On a écrit « excellente »
+        un temps, mais c'était une valeur par défaut et non une mesure : elle
+        sortait de la table des continents, qui ne parle pas des Primes, et le
+        relevé de terrain de la guilde la contredit — par temps bon, elle a vu
+        quatorze choix pour trois excellentes. Tant que son tableau n'est pas
+        rempli, le silence est la seule réponse honnête.
 
         On ne passe **pas** par `sortie_de` : les colonnes se déduisent des
         fourchettes d'humidité, et une fourchette dit où l'on trouve une
         matière, pas en quelle qualité elle sort. C'est d'elle que venait la
         contradiction.
         """
-        if actuelle.condition.lower() == "worst":
-            return meteo.SUPREME
-        cle = (meteo.SAISONS[releve.saison]
-               if 0 <= releve.saison < len(meteo.SAISONS) else "")
-        creneau = (cle, actuelle.condition.upper())
-        if any(creneau in creneaux
-               for creneaux in _forage.EXCELLENTES_CONTINENTS.values()):
-            return meteo.EXCELLENTE
-        return meteo.CHOIX
+        return meteo.SUPREME if actuelle.condition.lower() == "worst" else None
 
     @staticmethod
     def _titre_pop(releve, actuelle, _qualite: str) -> str:
