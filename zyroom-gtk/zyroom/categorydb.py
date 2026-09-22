@@ -43,6 +43,30 @@ class CategoryDb:
     def _specs(value: str) -> list[tuple[int, int]]:
         return [(int(m.group(1)), int(m.group(2))) for m in _SPEC_RE.finditer(value[5:])]
 
+    def categories(self, sheet: str) -> tuple[int, int]:
+        """Les deux catégories de craft d'une matière, ou ``(0, 0)``.
+
+        Ce que le tri en attend : « résine » et « huile » n'existent nulle part
+        dans le nom de fiche, mais une résine sert d'enveloppe de munition et
+        de doublure, une huile d'explosif et de rembourrage. Le couple désigne
+        donc la sorte de matière sans passer par son nom, qui change avec la
+        langue du jeu.
+        """
+        idx = self._index.get((sheet or "")[:5])
+        if idx is None or idx >= len(self._values):
+            return (0, 0)
+        val1 = self._values[idx]
+        if len(val1) < 5:
+            return (0, 0)
+        cat2 = 0
+        # La larve de Kitin n'a pas de seconde ligne : celle qui suit est deja
+        # celle d'une autre matiere.
+        if not sheet.startswith("m0312") and idx + 1 < len(self._values):
+            val2 = self._values[idx + 1]
+            if len(val2) >= 5:
+                cat2 = int(val2[0:2])
+        return (int(val1[0:2]), cat2)
+
     def fill(self, item: ItemInfo) -> None:
         """Remplit les champs mat_* de l'item si sa fiche est répertoriée."""
         idx = self._index.get(item.sheet[:5])

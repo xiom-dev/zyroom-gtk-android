@@ -80,6 +80,61 @@ class SortKeyTest(unittest.TestCase):
             ["m0101dxajd01.sitem", "m0117dxafe01.sitem", "m0117dxajd01.sitem"],
             [it.sheet for it in objets])
 
+    def test_les_resines_ne_se_melent_plus_aux_huiles(self):
+        """Deux résines et deux huiles, prises dans quatre matières.
+
+        Le classement par matériau seul les alternait : la Colle (m0046) est
+        une résine, le Gulatch (m0049) une huile, et leurs numéros se suivent.
+        Le couple de catégories de craft les sépare — enveloppe de munition et
+        doublure pour l'une, explosif et rembourrage pour l'autre.
+        """
+        sortes = {
+            "m0046": (9, 10), "m0624": (9, 10),     # résines
+            "m0049": (11, 12), "m0103": (11, 12),   # huiles
+        }
+        objets = [
+            item(sheet, 250, ItemType.NATURAL_MAT) for sheet in
+            ("m0046dxapf01.sitem", "m0049dxapf01.sitem",
+             "m0103dxapf01.sitem", "m0624dxapf01.sitem")
+        ]
+        objets.sort(key=lambda it: sorting.sort_key(
+            it, it.sheet, lambda sheet: sortes.get(sheet[:5], (0, 0))))
+        self.assertEqual(
+            ["m0046dxapf01.sitem", "m0624dxapf01.sitem",
+             "m0049dxapf01.sitem", "m0103dxapf01.sitem"],
+            [it.sheet for it in objets])
+
+    def test_une_matiere_hors_du_fichier_ferme_la_marche(self):
+        """Les matières spéciales — larves, ronces purifiées — n'ont pas de
+        catégorie de craft. Sans rang, elles se seraient rangées en tête."""
+        objets = [
+            item("m0745dxacc01.sitem", 250, ItemType.NATURAL_MAT),
+            item("m0046dxapf01.sitem", 250, ItemType.NATURAL_MAT),
+        ]
+        objets.sort(key=lambda it: sorting.sort_key(
+            it, it.sheet, lambda sheet: (9, 10) if sheet[:5] == "m0046" else (0, 0)))
+        self.assertEqual(["m0046dxapf01.sitem", "m0745dxacc01.sitem"],
+                         [it.sheet for it in objets])
+
+    def test_les_deux_recharges_en_seve_sont_des_recharges(self):
+        """Celle qu'on gagne et celle qu'on achète au marchand. Seule la
+        première était reconnue ; l'autre tombait dans « divers »."""
+        for sheet in ("item_sap_recharge.sitem", "light_sap_recharge.sitem"):
+            self.assertEqual(sorting.Family.SAP_RECHARGE,
+                             sorting.family(item(sheet, 500, ItemType.OTHER)))
+
+    def test_deux_objets_de_meme_nom_se_rangent_par_fiche(self):
+        """Le jeu appelle les deux recharges « Recharge en Sève ». Rien ne les
+        départageait, et elles s'entremêlaient à l'écran."""
+        objets = [item(sheet, 500, ItemType.OTHER) for sheet in
+                  ("light_sap_recharge.sitem", "item_sap_recharge.sitem",
+                   "light_sap_recharge.sitem", "item_sap_recharge.sitem")]
+        objets.sort(key=lambda it: sorting.sort_key(it, "recharge en seve"))
+        self.assertEqual(
+            ["item_sap_recharge.sitem", "item_sap_recharge.sitem",
+             "light_sap_recharge.sitem", "light_sap_recharge.sitem"],
+            [it.sheet for it in objets])
+
     def test_les_armes_ne_s_intercalent_pas_entre_deux_parures(self):
         # Le défaut de la première correction : le nom d'une arme se comparait
         # à un code de fiche, si bien que la Pique tombait au milieu des bijoux

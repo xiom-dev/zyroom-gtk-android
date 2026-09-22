@@ -9,8 +9,9 @@ mêlés.
 Ce module définit un classement plus fin, à seule fin de tri et d'affichage. Il
 n'entre pas dans les calculs et ne modifie pas les objets.
 
-Les matières premières sont regroupées par matériau puis présentées du plus bas
-niveau au plus haut, ce qui met en évidence ce qu'on possède d'une même matière.
+Les matières premières sont regroupées par sorte — résines, huiles, ambres —,
+puis par matériau, et présentées du plus bas niveau au plus haut : on voit d'un
+coup ce qu'on possède d'une même matière, et sans quitter des yeux le rayon.
 """
 
 from __future__ import annotations
@@ -69,7 +70,7 @@ _LABELS = {
 # Reconnaissance par nom de fiche. L'ordre compte : le premier motif qui
 # correspond l'emporte.
 _PATTERNS: tuple[tuple[re.Pattern, Family], ...] = (
-    (re.compile(r"^item_sap_recharge"), Family.SAP_RECHARGE),
+    (re.compile(r"^[a-z]+_sap_recharge"), Family.SAP_RECHARGE),
     (re.compile(r"^conso_fireworks"), Family.FIREWORK),
     (re.compile(r"^(pvp_boost|ipoc|ipk)_?"), Family.POTION),
     (re.compile(r"^rpjobitem"), Family.JOB_ITEM),
@@ -122,6 +123,25 @@ def family(item: ItemInfo) -> Family:
     return Family.OTHER
 
 
+#: Rang donne a une matiere que `category.csv` ne repertorie pas -- au-dela de
+#: la plus haute categorie connue, pour que ces matieres-la ferment la marche.
+_NO_CATEGORY = 99
+
+
+def category_rank(item: ItemInfo, categories=None) -> tuple:
+    """Sorte de matière : les résines entre elles, les huiles entre elles.
+
+    `categories` est la fonction qui, d'un nom de fiche, tire le couple de
+    catégories de craft (voir `CategoryDb.categories`). Sans elle — ou pour une
+    matière absente du fichier —, toutes les matières partagent le même rang et
+    le classement retombe sur ce qu'il était : par matériau seul.
+    """
+    if categories is None:
+        return (_NO_CATEGORY, _NO_CATEGORY)
+    first, second = categories(item.sheet or "")
+    return (first or _NO_CATEGORY, second or _NO_CATEGORY)
+
+
 def material_key(item: ItemInfo) -> str:
     """Identifiant de matière, pour réunir les qualités d'une même matière."""
     match = _RAW_MATERIAL.match((item.sheet or "").lower())
@@ -156,10 +176,11 @@ def _piece_rank(item: ItemInfo) -> int:
     return len(order) if rank < 0 else rank
 
 
-def sort_key(item: ItemInfo, name: str = "") -> tuple:
+def sort_key(item: ItemInfo, name: str = "", categories=None) -> tuple:
     """Clé de tri par famille.
 
-    Les matières premières sont réunies par matière et classées du plus bas
+    Les matières premières sont d'abord réunies par sorte — les résines entre
+    elles, les huiles entre elles —, puis par matière, et classées du plus bas
     niveau au plus haut. Viennent ensuite les tenues et les parures, réunies
     par fiche, chacune à sa couleur et à sa qualité, et lues de la tête aux
     pieds ; puis ce qui ne fait partie d'aucun ensemble — armes, amplificateurs
@@ -170,19 +191,28 @@ def sort_key(item: ItemInfo, name: str = "") -> tuple:
     chose : mêler un code de fiche à un nom d'arme intercalait la Pique entre
     deux parures.
 
+    La fiche départage deux objets de même nom : le jeu appelle « Recharge en
+    Sève » aussi bien celle qu'on gagne que celle qu'on achète à un marchand,
+    et rien d'autre ne les séparait — elles s'entremêlaient à l'écran alors
+    qu'elles n'ont ni la même icône ni le même usage.
+
     `name` est attendu normalisé — minuscule et sans accents : le jeu écrit
     « Bracelet matis » avec une capitale et « bracelet zoraï » sans, et l'ordre
     brut des caractères mettrait toutes les minuscules après le Z.
+
+    `categories` est facultatif : voir `category_rank`.
     """
     group = family(item)
     quality = getattr(item, "quality", 0) or 0
+    sheet = item.sheet or ""
 
     if group in (Family.RAW_HARVESTED, Family.RAW_LOOTED, Family.RAW_SYSTEM):
-        return (int(group), material_key(item), quality, name)
+        return (int(group), category_rank(item, categories),
+                material_key(item), quality, name)
 
     outfit = outfit_key(item)
     if outfit is not None:
         colour = int(getattr(item, "color", 0) or 0)
         return (int(group), 0, outfit, colour, quality, _piece_rank(item), name)
 
-    return (int(group), 1, name or (item.sheet or ""), 0, quality)
+    return (int(group), 1, name or sheet, sheet, quality)
