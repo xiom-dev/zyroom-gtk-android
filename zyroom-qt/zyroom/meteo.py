@@ -20,7 +20,7 @@ import time
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
-from . import armory, forage as _forage
+from . import armory, forage as _forage, gisements as _gisements
 
 #: Heures d'Atys dans un cycle météo.
 HEURES_PAR_CYCLE = 3
@@ -43,9 +43,9 @@ QUALITES = (SUPREME, EXCELLENTE, CHOIX)
 #: Ces mêmes qualités telles que `gisements.py` les nomme. Le choix n'a pas de
 #: carte : ses gisements ne sont relevés nulle part.
 #:
-#: Le relevé des positions ne connaît que deux qualités, et il place les
-#: excellentes sur les **continents** — pas dans les Primes. Une excellente des
-#: Primes n'a donc pas de carte non plus, pour l'instant.
+#: Le relevé des positions ne connaît que deux qualités, et il place ses
+#: excellentes sur les **continents** — voir `positions_des_primes`, qui fait
+#: le tri.
 QUALITE_GISEMENT = {SUPREME: "supreme", EXCELLENTE: "excellent", CHOIX: ""}
 
 #: Les seuils du jeu, qui découpent les quatre conditions de gisement.
@@ -390,6 +390,30 @@ def qualite_de(zone: str, famille: str, matiere: str,
         if creneau in table.get(zone, {}).get(couple, ()):
             return qualite
     return None
+
+
+def positions_des_primes(qualite: str, famille: str, matiere: str) -> list:
+    """Où sort cette matière **dans les Primes**, et nulle part ailleurs.
+
+    Le relevé des positions couvre tout Atys, et il ne distingue que deux
+    qualités : « supreme » et « excellent ». Ses suprêmes sont bien celles des
+    Primes — cent quatre-vingts points, tous dans les quatre zones. Ses
+    excellentes, non : cent cinquante-sept de ses cent cinquante-huit points
+    sont au Gouffre d'Ichor, à la Porte des Vents ou à la Forêt Insaisissable,
+    sur les continents.
+
+    D'où le filtre. Cliquer « Motega » sous l'XL des Sources Interdites
+    ouvrait une carte montrant trois gisements de la Porte des Vents, de la
+    Forêt Insaisissable et de la Porte de l'Obscurité : ni la bonne zone, ni
+    même de la q250. Une matière dont on ne connaît aucune position dans les
+    Primes rend une liste vide, et son nom reste du texte — rien n'invite
+    alors à cliquer sur ce qui ne répondrait pas.
+    """
+    nom = QUALITE_GISEMENT.get(qualite, "")
+    if not nom:
+        return []
+    return [point for point in _gisements.points(nom, famille, matiere)
+            if point[2] in ZONES]
 
 
 def sorties_de(saison: int, zone: str,

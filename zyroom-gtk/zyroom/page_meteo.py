@@ -411,11 +411,11 @@ class PageMeteo:
         # Les gisements sont relevés par qualité, et sous un autre nom que
         # celui de l'écran. Le choix, lui, n'est relevé nulle part : ses
         # matières restent du texte.
-        qualite = meteo.QUALITE_GISEMENT.get(qualite, "")
+        nom = meteo.QUALITE_GISEMENT.get(qualite, "")
         for matiere in matieres:
             texte = GLib.markup_escape_text(matiere)
-            if qualite and gisements.points(qualite, famille, matiere):
-                cible = GLib.markup_escape_text(f"{qualite}|{famille}|{matiere}")
+            if meteo.positions_des_primes(qualite, famille, matiere):
+                cible = GLib.markup_escape_text(f"{nom}|{famille}|{matiere}")
                 morceaux.append(f'<a href="{cible}">{texte}</a>')
             else:
                 morceaux.append(texte)

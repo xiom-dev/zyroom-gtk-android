@@ -555,11 +555,11 @@ class PageMeteo(QWidget):
         # Les gisements sont releves par qualite, et sous un autre nom que
         # celui de l'ecran. Le choix, lui, n'est releve nulle part : ses
         # matieres restent du texte.
-        qualite = meteo.QUALITE_GISEMENT.get(qualite, qualite)
+        nom = meteo.QUALITE_GISEMENT.get(qualite, "")
         for matiere in matieres:
             texte = html.escape(matiere)
-            if qualite and gisements.points(qualite, famille, matiere):
-                cible = html.escape(f"{qualite}|{famille}|{matiere}")
+            if meteo.positions_des_primes(qualite, famille, matiere):
+                cible = html.escape(f"{nom}|{famille}|{matiere}")
                 morceaux.append(f'<a href="{cible}">{texte}</a>')
             else:
                 morceaux.append(texte)

@@ -511,6 +511,33 @@ class CeQuiSort(unittest.TestCase):
         self.assertTrue(len(avec) >= 40)
         self.assertTrue(caches, "aucune excellente n'était masquée")
 
+    def test_une_carte_ne_montre_que_les_Primes(self):
+        """Cliquer une XL ouvrait une carte de la Porte des Vents.
+
+        Le relevé des positions ne distingue que « supreme » et
+        « excellent », et il place ses excellentes sur les **continents** :
+        cent cinquante-sept de ses cent cinquante-huit points y sont. Motega
+        sous l'XL des Sources Interdites menait au Gouffre d'Ichor et à la
+        Forêt Insaisissable — ni la bonne zone, ni même de la q250."""
+        from zyroom import gisements
+        dehors = 0
+        for qualite, table in ((meteo.SUPREME, forage.SUPREMES),
+                               (meteo.EXCELLENTE, forage.EXCELLENTES)):
+            for zone, matieres in table.items():
+                for famille, matiere in matieres:
+                    for point in meteo.positions_des_primes(qualite, famille,
+                                                            matiere):
+                        self.assertIn(point[2], meteo.ZONES,
+                                      f"{qualite} / {famille} / {matiere}")
+                    brut = gisements.points(
+                        meteo.QUALITE_GISEMENT[qualite], famille, matiere)
+                    dehors += sum(1 for p in brut if p[2] not in meteo.ZONES)
+        self.assertGreater(dehors, 100, "le filtre ne servirait à rien")
+        self.assertEqual([], meteo.positions_des_primes(
+            meteo.EXCELLENTE, "Bois", "Motega"))
+        self.assertEqual(4, len(meteo.positions_des_primes(
+            meteo.SUPREME, "Bois", "Motega")))
+
     def test_les_quatre_zones_ne_disent_pas_la_même_chose(self):
         """Le cœur de la correction : la zone change ce qui sort.
 

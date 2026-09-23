@@ -230,7 +230,11 @@ class CarteGisements(CarteAtys):
 
 def montrer(parent, qualite: str, famille: str, matiere: str) -> None:
     """Ouvre la carte des gisements d'une matière."""
-    points = gisements.points(qualite, famille, matiere)
+    # Les positions des Primes, et elles seules : le releve place ses
+    # excellentes sur les continents, et la carte s'ouvrait sur la Porte des
+    # Vents pour une XL des Sources Interdites.
+    points = meteo.positions_des_primes(_QUALITE.get(qualite), famille,
+                                        matiere)
     if not points:
         return
     # Les lieux d'abord : l'en-tete en parle, et le trace les colore.
