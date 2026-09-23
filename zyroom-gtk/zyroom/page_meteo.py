@@ -357,7 +357,10 @@ class PageMeteo:
             combien = sum(len(m) for m in groupes.values())
             rappel = Gtk.Label(
                 label=f"{meteo.mot_qualite(qualite)} ({combien})", xalign=0.0)
-            rappel.add_css_class("dim-label")
+            # L'or de l'application, et non le gris attenue : c'est le mot
+            # qu'on cherche des yeux en parcourant les quatre colonnes, et il
+            # etait plus pale que les matieres qu'il annonce.
+            rappel.add_css_class("peuple")
             rappel.add_css_class("caption")
             rappel.props.margin_top = 4
             boite.append(rappel)
