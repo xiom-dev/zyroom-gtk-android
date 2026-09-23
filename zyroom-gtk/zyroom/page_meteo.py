@@ -548,11 +548,17 @@ class PageMeteo:
         on garde ainsi toujours la même avance sous les yeux, au lieu de voir
         le trait dériver vers le bord jusqu'à sortir de la vue.
 
-        Les trois traits en pointillé sont les seuils du jeu, qui découpent les
-        conditions de gisement ; les deux traits pleins à 30 et 70 % ne sont que
-        des graduations, pour situer un taux entre deux seuils écartés de trente
-        points. Les bandes sombres sont les nuits d'Atys, que le jeu compte de
-        22 h à 3 h.
+        Cinq traits horizontaux, et ils ne disent pas la même chose. Les trois
+        en pointillé — 16,7, 50 et 83,4 % — sont les seuils du jeu, ceux qui
+        décident de la condition de gisement et donc de ce qui sort. Les deux
+        traits pleins — 33,4 et 66,6 % — ne sont que des graduations : ils
+        coupent en deux les bandes « bonne » et « mauvaise », larges de
+        trente-trois points, où l'œil n'avait aucun repère. Ce sont les mêmes
+        hauteurs que le graphe de Ballistic Mystix, pour que les deux se
+        comparent d'un coup d'œil.
+
+        Les bandes sombres sont les nuits d'Atys, que le jeu compte de 22 h
+        à 3 h.
         """
         releve = self._meteo_affiche or self._meteo_releve
         if releve is None:
@@ -622,13 +628,18 @@ class PageMeteo:
         cr.set_font_size(10 * self._settings.zoom)
 
         # Deux graduations, plus discrètes que les seuils : elles ne veulent
-        # rien dire pour le jeu, elles servent seulement à situer un taux à
-        # l'œil entre deux seuils écartés de trente points. Traits pleins et
-        # non pointillés, pour qu'on ne les confonde pas avec les seuils.
-        # L'application Android les a depuis toujours ; celle-ci ne les avait
-        # pas, et les deux courbes ne se lisaient pas pareil.
+        # rien dire pour le jeu -- elles coupent en deux les bandes « bonne »
+        # et « mauvaise », qui sont larges de trente-trois points chacune.
+        # Traits pleins et non pointilles, pour qu'on ne les confonde pas avec
+        # les seuils, qui eux decident de la condition.
+        #
+        # **Trente-trois et soixante-six, et non trente et soixante-dix.** Ce
+        # sont les graduations du graphe de Ballistic Mystix, celui qu'on
+        # ouvre a cote pour verifier : deux echelles qui ne tombent pas aux
+        # memes hauteurs ne se comparent pas d'un coup d'oeil. Ce sont aussi
+        # les six bandes que les classeurs de la guilde emploient.
         cr.set_line_width(1.0)
-        for graduation, etiquette in ((0.30, "30"), (0.70, "70")):
+        for graduation, etiquette in ((0.334, "33,4"), (0.666, "66,6")):
             yy = y(graduation)
             cr.set_source_rgba(1, 1, 1, 0.18)
             cr.move_to(marge_g, yy)
@@ -640,7 +651,7 @@ class PageMeteo:
 
         # Les seuils, par-dessus la courbe, et leur étiquette dans la marge.
         cr.set_dash([4.0, 4.0])
-        for seuil, etiquette in zip(meteo.SEUILS, ("16", "50", "83")):
+        for seuil, etiquette in zip(meteo.SEUILS, ("16,7", "50", "83,4")):
             yy = y(seuil)
             cr.set_source_rgba(0.9, 0.4, 0.4, 0.55)
             cr.move_to(marge_g, yy)
