@@ -280,7 +280,12 @@ class PageMeteo:
             sorties = [(zone, meteo.sorties_de(releve.saison, zone,
                                                actuelle.condition))
                        for zone in meteo.ZONES]
-            self._meteo_pop_titre.set_text(self._titre_pop(releve, actuelle))
+            # Le titre nomme la liste, et rien d'autre. Il a porte tour a
+            # tour la qualite du moment, puis un compte a rebours vers la
+            # fenetre execrable : les deux servaient d'en-tete aux quatre
+            # colonnes et faisaient lire la liste comme une prevision. Le
+            # taux d'humidite, lui, est deja en tete de l'ecran.
+            self._meteo_pop_titre.set_text(_("MP qui pop maintenant"))
             for rang, (zone, blocs) in enumerate(sorties):
                 colonne = self._meteo_pop_colonnes[rang % self.COLONNES_POP]
                 colonne.append(self._bloc_matieres(
@@ -322,43 +327,6 @@ class PageMeteo:
                                                  actuelle.condition)]
         return min(connues, key=meteo.QUALITES.index) if connues else None
 
-    @staticmethod
-    def _titre_pop(releve, actuelle) -> str:
-        """« Grande fenêtre du suprême dans 2 h 10 — aujourd'hui à 17:09 ».
-
-        Un seul nombre, celui qu'on vient y chercher : quand l'humidité passe
-        au-dessus de 83,4 %. C'est le compte à rebours du tracker d'atys.us,
-        mesuré contre lui à la minute près.
-
-        **« Grande fenêtre » et non « Suprême ».** Le mot seul se contredisait
-        avec la ligne du haut : elle annonce ce qui sort maintenant, et le
-        relevé dit qu'une ou deux suprêmes sortent aussi hors de l'exécrable.
-        « Suprême dans 2 h 10 » pendant qu'il en sort déjà, ce sont deux sens
-        du même mot dans le même écran. Ce que ce compte annonce, c'est le
-        moment où elles passent d'une poignée à une vingtaine par zone.
-
-        Pendant la fenêtre, le compte **décroît** : « encore 9 min », puis six,
-        puis trois. Une durée totale figée mentirait dès la troisième minute,
-        et c'est le temps qu'il reste pour traverser les Primes qui décide si
-        l'on part ou non.
-        """
-        if actuelle.condition.lower() == "worst":
-            restantes = meteo.fin_fenetre_supreme(releve)
-            if restantes is None:
-                return _("Grande fenêtre du suprême maintenant")
-            fin = (datetime.now()
-                   + timedelta(minutes=restantes)).strftime("%H:%M")
-            return (_("Grande fenêtre du suprême, encore %(delai)s — "
-                      "jusqu'à %(fin)s")
-                    % {"delai": meteo.duree(int(restantes)), "fin": fin})
-        prochaine = meteo.prochaine_fenetre_supreme(releve)
-        if prochaine is None:
-            return _("Grande fenêtre du suprême : pas avant six heures")
-        minutes = releve.minutes_avant(prochaine.cycle)
-        return (_("Grande fenêtre du suprême dans %(delai)s — %(quand)s")
-                % {"delai": meteo.duree(minutes),
-                   "quand": meteo.moment_du_changement(minutes)})
-
     def _note(self, texte: str) -> Gtk.Widget:
         label = Gtk.Label(label=texte, xalign=0.0, wrap=True)
         label.add_css_class("dim-label")
@@ -382,7 +350,12 @@ class PageMeteo:
         if not blocs:
             boite.append(self._note(_("Pas encore relevé")))
         for qualite, groupes in blocs:
-            rappel = Gtk.Label(label=meteo.mot_qualite(qualite), xalign=0.0)
+            # Le compte, sans quoi un filet et un torrent s'annoncent pareil :
+            # une supreme par temps mauvais et vingt-et-une par temps
+            # execrable portent le meme mot.
+            combien = sum(len(m) for m in groupes.values())
+            rappel = Gtk.Label(
+                label=f"{meteo.mot_qualite(qualite)} ({combien})", xalign=0.0)
             rappel.add_css_class("dim-label")
             rappel.add_css_class("caption")
             rappel.props.margin_top = 4

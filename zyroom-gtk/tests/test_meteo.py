@@ -4,6 +4,7 @@ Un cycle vaut trois heures d'Atys, neuf minutes réelles ; l'API donne l'heure
 d'Atys avec ses décimales, et c'est d'elles que dépendent les comptes à rebours.
 """
 
+import inspect
 import os
 import sys
 import unittest
@@ -345,19 +346,18 @@ class FenetreSupreme(unittest.TestCase):
                       if meteo.qualite_de(z, f, m, saison, condition) == qualite]
                 self.assertTrue(ou, f"{meteo.SAISONS[saison]} / {condition}")
 
-    def test_le_titre_compte_la_grande_fenêtre_et_le_dit(self):
-        """Le mot « suprême » seul faisait deux objets dans le même écran.
+    def test_le_titre_ne_promet_plus_rien(self):
+        """Il nomme la liste, il ne compte plus vers un autre moment.
 
-        Le titre annonce l'exécrable — l'humidité au-dessus de 83,4 % — et la
-        ligne du haut ce qui sort maintenant. Or le relevé montre une à six
-        suprêmes hors de l'exécrable : « Suprême dans 1 h 20 » se lisait comme
-        un démenti de « sort suprême ». Le titre nomme donc ce qu'il compte."""
-        from zyroom.page_meteo import PageMeteo
-        for condition in ("best", "good", "bad", "worst"):
-            releve, actuelle = self._moment(0, condition)
-            titre = PageMeteo._titre_pop(releve, actuelle)
-            self.assertIn("Grande fenêtre", titre, condition)
-            self.assertNotIn("Suprême", titre, condition)
+        Le titre a porté tour à tour la qualité du moment, puis « Grande
+        fenêtre du suprême dans 19 min ». Les deux servaient d'en-tête aux
+        quatre colonnes, et faisaient lire cinquante matières du présent comme
+        la promesse d'une fenêtre à venir. Ludo : « ça correspond à rien du
+        tout et ça porte à confusion »."""
+        from zyroom import page_meteo
+        source = inspect.getsource(page_meteo)
+        self.assertIn('_("MP qui pop maintenant")', source)
+        self.assertNotIn("_titre_pop", source)
 
     def test_exécrable_jusqu_au_bout_de_la_prévision(self):
         """On ne sait pas jusqu'à quand : l'écran le dit sans compter."""
