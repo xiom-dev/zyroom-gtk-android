@@ -204,7 +204,6 @@ class PageMeteo:
                      if c.cycle > releve.cycle_courant]
             prochain = next((c for c in suite
                              if c.condition != maintenant.condition), None)
-            meilleur = next((c for c in suite if c.condition == "best"), None)
             # Chaque morceau est échappé pour lui-même, et le gras posé ensuite :
             # échapper la phrase entière puis remettre les balises à la main
             # marchait, mais aurait cédé au premier nom de matière contenant un
@@ -222,9 +221,16 @@ class PageMeteo:
             # qui dure passe avant ce qui décrira le décor.
             # La ligne, telle que Ludo la veut :
             #
-            #   humidite mauvaise 61 %, sort supreme pendant 4 min
-            #     - excellente dans 1 h 12  -  beau, ete, 22 h sur Atys, nuit
+            #   humidite mauvaise 61 %, sort supreme et XL pendant 4 min
+            #     - beau, ete, 22 h sur Atys, nuit
             #
+            # **« excellente dans 1 h 12 » a ete retiree.** Elle comptait vers
+            # le prochain cycle par temps sec -- la condition « best » du jeu.
+            # Mais « excellente » nomme aussi une qualite de matiere, et la
+            # ligne venait d'ecrire « sort supreme et XL » : le meme mot y
+            # designait deux choses, une bande d'humidite et ce qu'on fore.
+            # La courbe, juste dessous, montre de toute facon quand le taux
+            # redescend, et avec quelle avance.
             # Les conditions en minuscules : « mauvaise » qualifie l'humidite
             # qui precede, et la capitale en faisait un nom propre qu'on lisait
             # comme une qualite de matiere.
@@ -243,13 +249,6 @@ class PageMeteo:
                 morceaux.append(gras(
                     _(" pendant %s")
                     % meteo.duree(releve.minutes_avant(prochain.cycle))))
-            # La fenetre excellente, sauf si elle est deja annoncee juste
-            # au-dessus : les deux mentions se vaudraient mot pour mot.
-            if (maintenant.condition != "best" and meilleur is not None
-                    and (prochain is None or meilleur.cycle != prochain.cycle)):
-                morceaux.append(clair(
-                    "   —   " + _("excellente dans %s")
-                    % meteo.duree(releve.minutes_avant(meilleur.cycle))))
             morceaux.append(clair(
                 f"   —   {meteo.texte_meteo(maintenant.text).lower()}, "
                 f"{meteo.nom_saison(releve.saison).lower()}, "

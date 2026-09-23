@@ -223,22 +223,28 @@ def texte_meteo(cle: str) -> str:
     return _TEMPS.get(cle, cle.removeprefix("ui"))
 
 
+#: Le nom de chaque qualité de gisement, celui des foreuses.
+#:
+#: **« XL » et non « excellente ».** « Excellente » nomme aussi une bande
+#: d'humidité — le temps le plus sec, sous 16,6 % — et l'écran écrivait le mot
+#: deux fois de suite pour deux choses sans rapport : « sort suprême et
+#: excellente », puis « excellente dans 1 h 08 », qui parlait de la météo.
+#: « XL » est le mot du relevé, celui des onglets de xiom.be/forage, et il ne
+#: désigne jamais que la matière.
+MOT_QUALITE = {SUPREME: "suprême", EXCELLENTE: "XL", CHOIX: "choix"}
+
+
 def mot_qualite(qualite: str | None) -> str:
-    """La qualité d'un gisement, en français.
+    """La qualité d'un gisement, telle qu'on l'écrit en tête d'une colonne.
 
     `None` n'est pas une qualité : c'est l'aveu que la guilde n'a pas encore
     testé ce créneau dans cette zone. Le dire vaut mieux que laisser croire
     qu'il ne sort rien."""
-    return {SUPREME: "Suprême", EXCELLENTE: "Excellente", CHOIX: "Choix",
-            None: "Pas encore relevé"}.get(qualite, qualite or "")
-
-
-#: Les qualités telles qu'on les nomme au fil d'une phrase.
-#:
-#: « XL » et non « excellente » : c'est le mot des foreuses, celui des onglets
-#: du relevé, et il tient dans une ligne déjà chargée. Les colonnes, elles,
-#: gardent le mot entier — elles ont la place, et elles servent de légende.
-MOT_COURT = {SUPREME: "suprême", EXCELLENTE: "XL", CHOIX: "choix"}
+    if qualite is None:
+        return "Pas encore relevé"
+    mot = MOT_QUALITE.get(qualite, qualite or "")
+    # Et non `.capitalize()`, qui rendrait « Xl ».
+    return mot[:1].upper() + mot[1:]
 
 
 def enumere_qualites(qualites) -> str:
@@ -249,7 +255,7 @@ def enumere_qualites(qualites) -> str:
     quinze excellentes de la même zone — celles qu'on irait justement forer
     faute de mieux.
     """
-    mots = [MOT_COURT.get(q, q) for q in qualites]
+    mots = [MOT_QUALITE.get(q, q) for q in qualites]
     if len(mots) <= 1:
         return mots[0] if mots else ""
     return ", ".join(mots[:-1]) + " et " + mots[-1]

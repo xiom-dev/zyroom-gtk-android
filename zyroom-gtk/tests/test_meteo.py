@@ -363,6 +363,19 @@ class FenetreSupreme(unittest.TestCase):
                          meteo.enumere_qualites(meteo.QUALITES))
         self.assertEqual("XL", meteo.enumere_qualites([meteo.EXCELLENTE]))
 
+    def test_les_colonnes_emploient_le_même_mot(self):
+        """Une ligne qui dit « XL » et une colonne « Excellente » : deux mots
+        pour une chose, dans le même écran.
+
+        Et surtout, « excellente » nomme aussi une bande d'humidité. Le mot
+        ne désigne plus que le temps ; la matière, c'est « XL »."""
+        self.assertEqual("Suprême", meteo.mot_qualite(meteo.SUPREME))
+        self.assertEqual("XL", meteo.mot_qualite(meteo.EXCELLENTE))
+        self.assertEqual("Choix", meteo.mot_qualite(meteo.CHOIX))
+        self.assertEqual("Pas encore relevé", meteo.mot_qualite(None))
+        # « Excellente » reste le nom de la condition météo, et d'elle seule.
+        self.assertEqual("Excellente", meteo.texte_condition("best"))
+
     def test_les_deux_qualités_sortent_ensemble_la_plupart_du_temps(self):
         """Quarante-six créneaux sur soixante-quatre en portent deux."""
         from zyroom.page_meteo import PageMeteo
