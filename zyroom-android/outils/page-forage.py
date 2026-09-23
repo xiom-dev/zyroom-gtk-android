@@ -384,7 +384,14 @@ GABARIT = """<!DOCTYPE html>
                      letter-spacing: .02em; text-align: center; }
   .q-supp .qualite { color: var(--or); }
 
-  .case { cursor: pointer; height: 26px; font-weight: 700; user-select: none; }
+  /* **Chaque case dessine son propre contour.** Les bordures fusionnees d'un
+     tableau sont partagees entre voisines : a zoom fractionnaire, un trait
+     d'un pixel s'arrondit parfois a zero et la ligne disparait sur toute une
+     rangee. Une ombre interieure, elle, appartient a la cellule seule. Les
+     deux se superposent exactement a cent pour cent -- on ne voit rien de
+     plus ; c'est aux autres echelles qu'elle rattrape. */
+  .case { cursor: pointer; height: 26px; font-weight: 700; user-select: none;
+          box-shadow: inset 0 0 0 1px #24343a; }
   .case:hover { background: #1d2b30; }
   /* **La case cochee garde ses bords.** Son fond vert est plus clair que la
      couleur des traits : la bordure grise s'y noyait, et la colonne semblait
