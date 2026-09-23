@@ -14,7 +14,14 @@ table — aucune des deux ne suffit seule.
   très inégalement rempli, mais c'est le relevé le plus récent et il teste
   chaque saison séparément.
 
-**Le suprême vient désormais du relevé de terrain de la guilde**,
+**LE SUPRÊME NE SE DISCUTE PAS.** Le relevé de xiom.be/forage est la référence
+absolue : vérifié et revérifié en jeu par les foreuses, rien ne peut le
+contredire — ni Ballistic Mystix, ni le tracker d'atys.us, ni les classeurs.
+Quand une autre source s'en écarte, c'est l'autre source qui a tort. Un
+contrôle dans `verifie()` s'assure que la table produite lui est identique,
+case pour case.
+
+**Le suprême vient donc du relevé de terrain de la guilde**,
 `donnees/forage-releve-guilde.json` : quatre cent vingt-six cases cochées une à
 une sur https://xiom.be/forage/ par les foreuses, zone par zone, saison par
 saison, condition par condition. C'est la seule source qui ait été *mesurée*
@@ -392,7 +399,8 @@ def table_du_tracker() -> dict:
     """
     tables = {q: collections.defaultdict(lambda: collections.defaultdict(set))
               for q in ("SUPREME", "EXCELLENTE", "CHOIX")}
-    # Le supreme ne se deduit plus de rien : il est releve.
+    # Le supreme ne se deduit de rien : il est releve, et il fait foi. Aucune
+    # autre source n'a le droit d'y ajouter ni d'en retirer.
     for zone, matieres in supremes_de_la_guilde().items():
         for couple, creneaux in matieres.items():
             tables["SUPREME"][zone][couple] |= creneaux
@@ -436,6 +444,11 @@ def verifie(tables: dict, conts: dict) -> None:
     # Le choix n'a pas de source : le tracker ne le suit pas.
     if tables["CHOIX"]:
         raise SystemExit("choix : une table est apparue sans source")
+    # Le releve fait foi : la table doit lui etre identique. Si une ligne
+    # s'ajoutait par un chemin detourne, elle serait arretee ici.
+    releve = supremes_de_la_guilde()
+    if {z: dict(m) for z, m in tables["SUPREME"].items()} != releve:
+        raise SystemExit("suprême : la table s'écarte du relevé de la guilde")
     if set(tables["SUPREME"]) != set(ZONES):
         raise SystemExit(f"zones lues : {sorted(tables['SUPREME'])}")
     # Le releve est une mesure, pas un catalogue : une matiere qui ne sort en
