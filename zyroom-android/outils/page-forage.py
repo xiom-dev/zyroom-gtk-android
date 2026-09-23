@@ -163,6 +163,9 @@ PHP = """<?php
 // GET  : rend l'etat entier. Lecture libre.
 // POST : une case a la fois, et seulement avec la bonne clef.
 //
+// Trois valeurs : « x » vu sur place, « - » vu absent, « ? » donne par une
+// autre source et pas encore confirme en jeu.
+//
 // Pourquoi un fichier et pas une base : le releve tient en quelques dizaines
 // de kilooctets, il s'ouvre dans un editeur de texte le jour ou quelque chose
 // cloche, et il se sauvegarde en le recopiant. Une base pour cela couterait
@@ -239,7 +242,7 @@ if (count($morceaux) !== 5
     || !in_array($morceaux[4], CONDITIONS, true)) {
     repond(400, ['erreur' => 'case inconnue']);
 }
-if (!in_array($valeur, ['x', '-', ''], true)) {
+if (!in_array($valeur, ['x', '-', '?', ''], true)) {
     repond(400, ['erreur' => 'valeur inconnue']);
 }
 
@@ -321,7 +324,7 @@ GABARIT = """<!DOCTYPE html>
     color-scheme: dark;
     --fond: #10171a; --surface: #172226; --sarcelle: #3f7a68;
     --clair: #8fbfae; --or: #e8c15a; --texte: #e2e8e6; --faible: #9aa8a5;
-    --oui: #4bbf72; --non: #55605e;
+    --oui: #4bbf72; --non: #55605e; --dedu: #e8a13a;
   }
   * { box-sizing: border-box; }
   body {
@@ -405,6 +408,13 @@ GABARIT = """<!DOCTYPE html>
   .case[data-v="x"]::after { content: "x"; }
   .case[data-v="-"] { color: var(--non); }
   .case[data-v="-"]::after { content: "\\2212"; }
+  /* **L'orange, c'est ce qu'on n'a pas vu soi-meme.** Il vient des landmarks
+     des foreuses, de la cartographie du tutoriel ou de Ballistic Mystix. Un
+     clic le confirme et il passe au vert ; deux, et il devient un tiret. */
+  .case[data-v="?"] { color: var(--dedu);
+                      background: rgba(232,161,58,.10);
+                      box-shadow: inset 0 0 0 1px rgba(232,161,58,.5); }
+  .case[data-v="?"]::after { content: "x"; }
 
   #bloc-nom { color: var(--faible); font-size: .9rem; }
   #nom { background: var(--fond); color: var(--texte); font: inherit;
@@ -427,6 +437,9 @@ GABARIT = """<!DOCTYPE html>
      suprême seulement, ou excellent seulement, ou choix seulement — et lisez le
      message du jeu&nbsp;: <i>pas à cette saison</i>, <i>vidé</i>,
      <i>mauvaises conditions climatiques</i>.</p>
+  <p>Une croix <b style="color:var(--dedu)">orange</b> vient d'une autre
+     source — carnets de foreuses, tutoriel, Ballistic Mystix — et n'a pas été
+     vue en jeu. Un clic la confirme et elle passe au vert.</p>
   <p>Les conditions climatiques se lisent sur
      <a href="http://ballisticmystix.net/?p=atys_calendar#">ballistic mystix</a>
      ou dans ZyRoom. Vérifiez l'heure avant de corriger une case&nbsp;: il y a
@@ -550,7 +563,8 @@ GABARIT = """<!DOCTYPE html>
     if (!td) return;
     const k = cle(td);
     const avant = cases[k];
-    const suite = { undefined: "x", "x": "-", "-": undefined };
+    // L'orange se confirme d'un clic : il devient vert. Puis tiret, puis vide.
+    const suite = { undefined: "x", "?": "x", "x": "-", "-": undefined };
     const v = suite[avant ? avant.v : undefined];
     // On peint d'abord et on demande ensuite : le clic doit repondre tout de
     // suite. Si le serveur refuse, on remet ce qui etait la.
