@@ -1,15 +1,20 @@
 """La table de forage : ce que rend un gisement des Primes, où et quand.
 
-Elle est fabriquée par `outils/table_forage.py`, qui croise `armory.py` et les
-fourchettes d'humidité de `donnees/humidites-gisements.json`. **Les deux
-viennent du tracker d'atys.us**, et c'est tout l'enjeu : c'est le tracker qu'on
-ouvre à côté de l'application pour vérifier, et une table qui ne lui répond pas
-est fausse, si cohérente soit-elle avec elle-même.
+Elle est fabriquée par `outils/table_forage.py` à partir d'une seule source :
+le relevé de terrain des foreuses de la guilde, saisi sur `xiom.be/forage` et
+recopié dans `donnees/forage-releve-guilde.json`. **Suprême et excellente en
+viennent toutes les deux**, et rien d'autre ne les décide.
 
-Le contrôle qui refait le calcul du tracker matière pour matière est dans
-`test_meteo.py`, avec le reste de l'écran météo. Ici, on tient la forme de la
-table et la frontière qu'elle ne doit pas franchir : les excellentes des
-continents ne sont pas celles des Primes.
+Les deux tables ont été déduites, avant : le suprême d'un classeur de 2009,
+l'excellente des fourchettes d'humidité du tracker d'atys.us. Confrontées aux
+quatre cent vingt-six croix du relevé, ces fourchettes tombent juste deux cent
+cinq fois — une sur deux. Une fourchette dit **où** l'on trouve une matière,
+pas en quelle qualité elle sort, et une seule fourchette par matière ne peut de
+toute façon pas décrire quatre zones sur quatre saisons.
+
+Ici, on tient la forme de la table, sa fidélité au relevé, et la frontière
+qu'elle ne doit pas franchir : les excellentes des continents ne sont pas
+celles des Primes.
 """
 
 import os
@@ -118,6 +123,47 @@ class LeRelevéDeTerrain(unittest.TestCase):
             for b in meteo.ZONES:
                 if a != b:
                     self.assertNotEqual(vues[a], vues[b], f"{a} == {b}")
+
+
+class L_ExcellenteVientDuMêmeRelevé(unittest.TestCase):
+    """Elle ne se déduit plus des fourchettes d'humidité non plus.
+
+    Deux cent quarante-quatre créneaux, saisis sur la même page que le
+    suprême : cinquante-six vus en jeu par les foreuses — les croix vertes —
+    et cent quatre-vingt-huit rapportés par une autre source et cochés en
+    orange, en attente de confirmation. Les deux sont affichés : une
+    excellente annoncée à tort coûte un aller-retour, une excellente tue
+    coûte tout le reste.
+    """
+
+    def test_deux_cent_quarante_quatre_créneaux(self):
+        creneaux = sum(len(k) for zone in forage.EXCELLENTES.values()
+                       for k in zone.values())
+        self.assertEqual(244, creneaux)
+
+    def test_elle_sort_surtout_hors_de_l_exécrable(self):
+        """L'inverse exact du suprême, et c'est ce qui la rend utile.
+
+        Le suprême tient dans la grande fenêtre ; l'excellente remplit les
+        trois quarts du temps où celle-ci est fermée. Un écran qui se taisait
+        hors de l'exécrable laissait donc la foreuse sans rien la plupart du
+        temps."""
+        dehors = sum(1 for zone in forage.EXCELLENTES.values()
+                     for creneaux in zone.values()
+                     for _s, condition in creneaux if condition != "WORST")
+        self.assertGreater(dehors, 0.9 * 244)
+
+    def test_onze_matières_sortent_dans_les_deux_qualités(self):
+        """Deux spots distincts de la même matière, au même créneau.
+
+        `qualite_de` n'en rend qu'une — la meilleure —, mais l'écran montre
+        les deux : ce sont deux endroits différents où aller."""
+        communs = [(zone, couple, creneau)
+                   for zone, matieres in forage.SUPREMES.items()
+                   for couple, creneaux in matieres.items()
+                   for creneau in creneaux
+                   & forage.EXCELLENTES[zone].get(couple, set())]
+        self.assertEqual(11, len(communs))
 
 
 class LesContinentsRestentÀPart(unittest.TestCase):

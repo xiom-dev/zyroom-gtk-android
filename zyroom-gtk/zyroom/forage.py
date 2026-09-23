@@ -1,22 +1,24 @@
 """Ce que rend un gisement des Primes, selon la zone, la saison et le temps.
 
 Fichier produit par ../zyroom-android/outils/table_forage.py — ne pas
-modifier à la main. Il croise `armory.py`, qui dit quelle matière sort
-dans quelle zone et à quelle saison, avec les fourchettes d'humidité
-de `donnees/humidites-gisements.json`, qui disent par quel temps.
+modifier à la main.
 
-**Les deux viennent du tracker d'atys.us**, et c'est ce qui compte :
-c'est lui qu'on ouvre à côté pour vérifier. Une table qui ne lui
-répond pas est fausse, si cohérente soit-elle avec elle-même.
+**Tout vient du relevé de terrain des foreuses de la guilde**, saisi
+case par case sur https://xiom.be/forage/ : quatre cent vingt-six
+créneaux pour le suprême, deux cent quarante-quatre pour l'excellente.
+C'est la seule source qui ait été mesurée dans les Primes ; le reste —
+le tracker d'atys.us, Ballistic Mystix, les classeurs de 2009 — en
+était déduit, et se trompe une fois sur deux.
 
-Le choix reste vide : le tracker ne le suit pas, et le déduire par
+Le choix reste vide : personne ne le relève, et le déduire par
 élimination ferait dire à l'écran plus que ce qu'on sait.
 """
 
 #: {zone: {(famille, matière): {(saison, condition)}}} — le suprême.
 #:
-#: Chaque gisement occupe deux des quatre bandes d'humidité : à toute
-#: heure, une moitié des matières de la zone sort.
+#: Une vingtaine de matières par zone dès que le temps est exécrable,
+#: une poignée d'autres à un créneau précis. Rien ne peut le
+#: contredire : `verifie()` refuse d'écrire une table qui s'en écarte.
 SUPREMES = {
     "Sources Interdites": {
         ("Ambres", "Beng"): {
@@ -778,861 +780,440 @@ SUPREMES = {
 
 #: {zone: {(famille, matière): {(saison, condition)}}} — l'excellente.
 #:
-#: Armory ne range pas les excellentes par zone : elles valent pour
-#: les quatre, restreintes aux matières que la zone porte.
+#: Du même relevé que le suprême : cinquante-six créneaux vus en jeu
+#: par les foreuses, cent quatre-vingt-huit rapportés par une autre
+#: source et cochés en orange, qui restent à confirmer.
 EXCELLENTES = {
     "Sources Interdites": {
         ("Ambres", "Beng"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
-            ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Ambres", "Pha"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
+            ("HIVER", "GOOD"),
         },
         ("Ambres", "Sha"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("ETE", "WORST"),
         },
         ("Ambres", "Zun"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
-        },
-        ("Bois", "Abhaya"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-        },
-        ("Bois", "Eyota"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Bois", "Kachine"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Bois", "Motega"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
-        },
-        ("Bois", "Tama"): {
-            ("ETE", "BAD"),
-            ("ETE", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
         },
         ("Boucles", "Nita"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-        },
-        ("Boucles", "Patee"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Boucles", "Scrath"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
-            ("ETE", "BAD"),
             ("ETE", "GOOD"),
         },
-        ("Boucles", "Tansy"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
-        },
-        ("Boucles", "Yana"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "BEST"),
-            ("ETE", "BAD"),
-            ("ETE", "BEST"),
-        },
         ("Carapace", "Big"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Carapace", "Cuty"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Carapace", "Smart"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
         },
         ("Carapace", "Splinter"): {
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Fibres", "Anete"): {
-            ("ETE", "BAD"),
-            ("ETE", "BEST"),
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
         },
-        ("Fibres", "Buo"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
+        ("Fibres", "Dzao"): {
+            ("HIVER", "BEST"),
         },
         ("Fibres", "Shu"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-        },
-        ("Graines", "Caprice"): {
+            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("ETE", "BEST"),
             ("HIVER", "BAD"),
             ("HIVER", "BEST"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Graines", "Sarina"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BAD"),
         },
         ("Graines", "Silvio"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
+            ("AUTOMNE", "GOOD"),
         },
         ("Huile", "Gulatch"): {
-            ("AUTOMNE", "BAD"),
             ("AUTOMNE", "BEST"),
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
+            ("AUTOMNE", "GOOD"),
         },
         ("Huile", "Irin"): {
             ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
         },
         ("Huile", "Koorin"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "WORST"),
+            ("ETE", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Huile", "Pilan"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
+            ("ETE", "BAD"),
             ("HIVER", "BAD"),
-            ("HIVER", "WORST"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Résine", "Dung"): {
-            ("AUTOMNE", "BEST"),
             ("AUTOMNE", "GOOD"),
-            ("ETE", "BEST"),
             ("ETE", "GOOD"),
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
-            ("PRINTEMPS", "BEST"),
             ("PRINTEMPS", "GOOD"),
         },
         ("Résine", "Glue"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "WORST"),
         },
         ("Résine", "Moon"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BEST"),
+            ("AUTOMNE", "GOOD"),
+        },
+        ("Sève", "Visc"): {
+            ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Sève", "Dante"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Sève", "Redhot"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Sève", "Silverweed"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
         },
         ("Écorce", "Adriel"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Écorce", "Beckers"): {
-            ("HIVER", "BAD"),
+            ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
-            ("PRINTEMPS", "BAD"),
             ("PRINTEMPS", "GOOD"),
         },
-        ("Écorce", "Mitexi"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "WORST"),
-        },
         ("Écorce", "Oath"): {
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
-        },
-        ("Écorce", "Perfling"): {
-            ("HIVER", "BEST"),
-            ("HIVER", "WORST"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
     },
     "Terre de la Continuité": {
-        ("Ambres", "Beng"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
-            ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
-        },
         ("Ambres", "Hash"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
-            ("HIVER", "BEST"),
-            ("HIVER", "WORST"),
-        },
-        ("Ambres", "Pha"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BAD"),
         },
         ("Ambres", "Sha"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
-        },
-        ("Ambres", "Soo"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
-        },
-        ("Ambres", "Zun"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
             ("ETE", "BAD"),
-            ("ETE", "WORST"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
-        ("Bois", "Abhaya"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-        },
-        ("Bois", "Kachine"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
+        ("Bois", "Eyota"): {
+            ("HIVER", "BAD"),
         },
         ("Bois", "Motega"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
             ("HIVER", "BAD"),
-            ("HIVER", "WORST"),
         },
-        ("Boucles", "Nita"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
+        ("Bois", "Tama"): {
             ("ETE", "BEST"),
-            ("ETE", "WORST"),
-        },
-        ("Boucles", "Patee"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-        },
-        ("Boucles", "Scrath"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
+            ("PRINTEMPS", "BEST"),
         },
         ("Boucles", "Tansy"): {
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
+            ("PRINTEMPS", "GOOD"),
         },
         ("Carapace", "Big"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Carapace", "Horny"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Carapace", "Smart"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
-        },
-        ("Carapace", "Splinter"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
+            ("ETE", "BAD"),
         },
         ("Fibres", "Anete"): {
-            ("ETE", "BAD"),
-            ("ETE", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
+            ("PRINTEMPS", "GOOD"),
         },
         ("Fibres", "Shu"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
         },
         ("Graines", "Caprice"): {
-            ("ETE", "BAD"),
-            ("ETE", "BEST"),
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
         },
         ("Graines", "Sarina"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-            ("HIVER", "BEST"),
-            ("HIVER", "WORST"),
-        },
-        ("Graines", "Saurona"): {
+            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("ETE", "GOOD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Graines", "Silvio"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
-        },
-        ("Huile", "Irin"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
-        },
-        ("Huile", "Koorin"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
-            ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
         },
-        ("Huile", "Pilan"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
-            ("HIVER", "BAD"),
-            ("HIVER", "WORST"),
-        },
-        ("Résine", "Dung"): {
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
-        },
-        ("Résine", "Fung"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
-        },
-        ("Résine", "Glue"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Résine", "Moon"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Sève", "Dante"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Sève", "Enola"): {
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Sève", "Visc"): {
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Écorce", "Adriel"): {
+        ("Huile", "Gulatch"): {
             ("ETE", "BEST"),
             ("ETE", "GOOD"),
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
         },
-        ("Écorce", "Beckers"): {
+        ("Huile", "Irin"): {
+            ("ETE", "GOOD"),
+        },
+        ("Huile", "Koorin"): {
             ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
         },
-        ("Écorce", "Perfling"): {
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
+        ("Résine", "Glue"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("PRINTEMPS", "BAD"),
+        },
+        ("Résine", "Moon"): {
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
+        },
+        ("Sève", "Dante"): {
+            ("HIVER", "BAD"),
+        },
+        ("Sève", "Enola"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
+        },
+        ("Sève", "Visc"): {
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
+        },
+        ("Écorce", "Mitexi"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
     },
     "Cité Engloutie": {
         ("Ambres", "Beng"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
             ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Ambres", "Hash"): {
-            ("HIVER", "BEST"),
-            ("HIVER", "WORST"),
+            ("AUTOMNE", "BAD"),
         },
         ("Ambres", "Pha"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Ambres", "Sha"): {
-            ("AUTOMNE", "BEST"),
             ("AUTOMNE", "GOOD"),
-            ("HIVER", "BEST"),
+            ("ETE", "BAD"),
+            ("ETE", "GOOD"),
+            ("HIVER", "GOOD"),
+        },
+        ("Ambres", "Soo"): {
+            ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
         },
         ("Ambres", "Zun"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
-        },
-        ("Bois", "Abhaya"): {
-            ("AUTOMNE", "GOOD"),
+            ("AUTOMNE", "BAD"),
             ("AUTOMNE", "WORST"),
-            ("HIVER", "GOOD"),
+            ("ETE", "BAD"),
+            ("ETE", "GOOD"),
+            ("ETE", "WORST"),
+            ("HIVER", "BAD"),
             ("HIVER", "WORST"),
-        },
-        ("Bois", "Eyota"): {
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Bois", "Kachine"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-        },
-        ("Bois", "Motega"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
-        },
-        ("Bois", "Tama"): {
-            ("ETE", "BAD"),
-            ("ETE", "BEST"),
-        },
-        ("Boucles", "Nita"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-        },
-        ("Boucles", "Patee"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-        },
-        ("Boucles", "Scrath"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
-        },
-        ("Boucles", "Tansy"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Carapace", "Big"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Carapace", "Cuty"): {
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Carapace", "Horny"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Carapace", "Smart"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
         },
         ("Carapace", "Splinter"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Fibres", "Anete"): {
+            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("ETE", "BEST"),
             ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
-        },
-        ("Fibres", "Buo"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
         },
         ("Fibres", "Dzao"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Fibres", "Shu"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },
-        ("Graines", "Caprice"): {
+        ("Fibres", "Shu"): {
+            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("ETE", "BEST"),
             ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
+            ("PRINTEMPS", "BAD"),
+        },
+        ("Graines", "Caprice"): {
+            ("AUTOMNE", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Graines", "Sarina"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BEST"),
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
         },
         ("Graines", "Saurona"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
-            ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
+            ("AUTOMNE", "GOOD"),
+            ("PRINTEMPS", "GOOD"),
         },
         ("Graines", "Silvio"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
-        },
-        ("Huile", "Gulatch"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "BEST"),
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
         },
         ("Huile", "Irin"): {
             ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
         },
         ("Huile", "Koorin"): {
-            ("AUTOMNE", "BAD"),
             ("AUTOMNE", "GOOD"),
-            ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
+            ("ETE", "BEST"),
+            ("ETE", "GOOD"),
+            ("PRINTEMPS", "GOOD"),
         },
-        ("Résine", "Dung"): {
+        ("Résine", "Glue"): {
             ("AUTOMNE", "BEST"),
             ("AUTOMNE", "GOOD"),
             ("ETE", "BEST"),
             ("ETE", "GOOD"),
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Résine", "Fung"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
-        },
-        ("Résine", "Glue"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
         },
         ("Résine", "Moon"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Sève", "Dante"): {
+            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("ETE", "WORST"),
+            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Sève", "Enola"): {
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
         },
         ("Sève", "Redhot"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Sève", "Silverweed"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
-        },
-        ("Écorce", "Adriel"): {
-            ("ETE", "BEST"),
+            ("AUTOMNE", "GOOD"),
             ("ETE", "GOOD"),
         },
-        ("Écorce", "Beckers"): {
-            ("PRINTEMPS", "BAD"),
+        ("Écorce", "Oath"): {
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
-        },
-        ("Écorce", "Mitexi"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "WORST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Écorce", "Perfling"): {
-            ("HIVER", "BEST"),
-            ("HIVER", "WORST"),
         },
     },
     "Profondeurs Interdites": {
-        ("Ambres", "Beng"): {
+        ("Ambres", "Hash"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
+            ("ETE", "BAD"),
             ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Ambres", "Pha"): {
-            ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
+        },
+        ("Ambres", "Sha"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Ambres", "Soo"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
             ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Ambres", "Zun"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Bois", "Abhaya"): {
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
-        },
-        ("Bois", "Eyota"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Bois", "Kachine"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Bois", "Motega"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
+            ("AUTOMNE", "GOOD"),
+            ("PRINTEMPS", "GOOD"),
         },
         ("Bois", "Tama"): {
-            ("ETE", "BAD"),
-            ("ETE", "BEST"),
-        },
-        ("Boucles", "Nita"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "WORST"),
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-        },
-        ("Boucles", "Patee"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
+            ("HIVER", "BAD"),
         },
         ("Boucles", "Scrath"): {
-            ("AUTOMNE", "BAD"),
             ("AUTOMNE", "GOOD"),
-            ("ETE", "BAD"),
             ("ETE", "GOOD"),
+            ("HIVER", "GOOD"),
+            ("PRINTEMPS", "GOOD"),
         },
         ("Boucles", "Tansy"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
+            ("AUTOMNE", "GOOD"),
+            ("HIVER", "GOOD"),
+        },
+        ("Carapace", "Big"): {
+            ("AUTOMNE", "GOOD"),
+            ("ETE", "GOOD"),
         },
         ("Carapace", "Cuty"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Carapace", "Horny"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Carapace", "Smart"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
-        },
-        ("Carapace", "Splinter"): {
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Fibres", "Anete"): {
             ("ETE", "BAD"),
-            ("ETE", "BEST"),
+            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
         },
         ("Fibres", "Buo"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Fibres", "Dzao"): {
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Fibres", "Shu"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Graines", "Caprice"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
+            ("AUTOMNE", "BAD"),
         },
         ("Graines", "Sarina"): {
-            ("ETE", "BEST"),
-            ("ETE", "WORST"),
-            ("HIVER", "BEST"),
-            ("HIVER", "WORST"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Graines", "Saurona"): {
+            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("ETE", "GOOD"),
             ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
-        },
-        ("Graines", "Silvio"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Huile", "Gulatch"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "BEST"),
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
-        },
-        ("Huile", "Irin"): {
             ("AUTOMNE", "GOOD"),
-            ("AUTOMNE", "WORST"),
-            ("HIVER", "GOOD"),
-            ("HIVER", "WORST"),
-        },
-        ("Huile", "Koorin"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "GOOD"),
-            ("HIVER", "BAD"),
-            ("HIVER", "GOOD"),
+            ("ETE", "GOOD"),
+            ("PRINTEMPS", "GOOD"),
         },
         ("Huile", "Pilan"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
             ("HIVER", "BAD"),
-            ("HIVER", "WORST"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Résine", "Dung"): {
-            ("AUTOMNE", "BEST"),
-            ("AUTOMNE", "GOOD"),
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Résine", "Fung"): {
-            ("ETE", "BAD"),
-            ("ETE", "WORST"),
-        },
-        ("Résine", "Glue"): {
-            ("ETE", "BAD"),
-            ("ETE", "GOOD"),
+            ("AUTOMNE", "BAD"),
+            ("HIVER", "BAD"),
+            ("PRINTEMPS", "BAD"),
         },
         ("Résine", "Moon"): {
-            ("ETE", "GOOD"),
-            ("ETE", "WORST"),
-            ("PRINTEMPS", "GOOD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Sève", "Dante"): {
+            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("ETE", "WORST"),
+            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
-        },
-        ("Sève", "Enola"): {
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "GOOD"),
         },
         ("Sève", "Silverweed"): {
-            ("HIVER", "BAD"),
-            ("HIVER", "BEST"),
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "BEST"),
+            ("AUTOMNE", "GOOD"),
         },
         ("Écorce", "Adriel"): {
-            ("ETE", "BEST"),
-            ("ETE", "GOOD"),
-            ("HIVER", "BEST"),
-            ("HIVER", "GOOD"),
-        },
-        ("Écorce", "Beckers"): {
-            ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "GOOD"),
-        },
-        ("Écorce", "Mitexi"): {
+            ("AUTOMNE", "BAD"),
+            ("ETE", "BAD"),
             ("HIVER", "BAD"),
-            ("HIVER", "WORST"),
             ("PRINTEMPS", "BAD"),
-            ("PRINTEMPS", "WORST"),
         },
-        ("Écorce", "Perfling"): {
-            ("HIVER", "BEST"),
-            ("HIVER", "WORST"),
-            ("PRINTEMPS", "BEST"),
-            ("PRINTEMPS", "WORST"),
+        ("Écorce", "Oath"): {
+            ("ETE", "BAD"),
         },
     },
 }

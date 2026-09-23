@@ -29,8 +29,15 @@ dans les Primes plutôt que déduite d'ailleurs, et elle recoupe ce que le
 tutoriel annonçait : une vingtaine de matières par zone sortent dès que le
 temps est exécrable, une poignée d'autres à un créneau précis.
 
-L'excellente, elle, se déduit encore d'Armory et des fourchettes du tracker :
-son relevé est en cours.
+**L'excellente en vient aussi**, depuis le 23 septembre 2026 : deux cent
+quarante-quatre créneaux sur la même page, dont cinquante-six vus en jeu et
+cent quatre-vingt-huit rapportés d'ailleurs et cochés en orange. Elle se
+déduisait avant d'Armory et des fourchettes d'humidité du tracker ; confrontées
+aux quatre cent vingt-six croix du suprême, ces fourchettes tombent juste deux
+cent cinq fois sur quatre cent vingt-six — une fois sur deux. Une fourchette
+dit **où** l'on trouve une matière, pas en quelle qualité elle sort, et une
+seule fourchette par matière ne peut pas décrire quatre zones sur quatre
+saisons.
 
 **Pour le reste, la référence est le tracker d'atys.us**, et non les classeurs. C'est
 lui que Ludo ouvre à côté de l'application pour vérifier, et une table qui ne
@@ -362,22 +369,22 @@ def bandes(qualite: str, couple: tuple) -> set:
             if any(p0 <= bas and haut <= p1 for p0, p1 in plages)}
 
 
-def supremes_de_la_guilde() -> dict:
+def releve_de_la_guilde(qualite_page: str, valeurs=("x",)) -> dict:
     """{zone: {(famille, matière): {(saison, condition)}}} — le relevé de terrain.
 
     Une croix par case, posée par une foreuse qui avait la source sous les
-    yeux. C'est la seule mesure faite dans les Primes : tout le reste en est
-    déduit — d'Armory, du tracker, ou d'un classeur de 2009.
+    yeux. `valeurs` choisit ce qu'on retient : « x » ce qui a été vu en jeu,
+    « ? » ce qu'une autre source donne et qui reste à confirmer.
     """
     with open(RELEVE_GUILDE, encoding="utf-8") as fh:
         cases = json.load(fh)["cases"]
     trouve = collections.defaultdict(lambda: collections.defaultdict(set))
     for case, valeur in cases.items():
         morceaux = case.split("|")
-        if len(morceaux) != 5 or valeur != "x":
+        if len(morceaux) != 5 or valeur not in valeurs:
             continue
         zone, saison, matiere, qualite, condition = morceaux
-        if qualite != "Supp" or zone not in ZONES:
+        if qualite != qualite_page or zone not in ZONES:
             continue
         couple = CANON.get(normalise(matiere))
         if couple is None:
@@ -385,6 +392,11 @@ def supremes_de_la_guilde() -> dict:
         trouve[zone][couple].add((SAISONS_PAGE[saison],
                                   CONDITIONS_PAGE[condition]))
     return {z: dict(m) for z, m in trouve.items()}
+
+
+def supremes_de_la_guilde() -> dict:
+    """Le suprême, qui fait foi."""
+    return releve_de_la_guilde("Supp")
 
 
 def table_du_tracker() -> dict:
@@ -404,22 +416,15 @@ def table_du_tracker() -> dict:
     for zone, matieres in supremes_de_la_guilde().items():
         for couple, creneaux in matieres.items():
             tables["SUPREME"][zone][couple] |= creneaux
-    # Les excellentes n'ont pas de zone chez Armory : elles valent pour les
-    # quatre, restreintes aux matieres que la zone porte.
-    for saison, moments in armory.EXCELLENTES.items():
-        pour_la_saison = {(f, m) for familles in moments.values()
-                          for f, matieres in familles.items() for m in matieres}
-        for zone in ZONES:
-            # La zone se lit chez Armory, et non dans la table des supremes :
-            # depuis qu'elle vient du releve de terrain, elle ne contient que
-            # ce qui sort en supreme -- ce qui exclurait a tort les matieres
-            # qui n'y sortent qu'en excellente.
-            portees = {(f, m)
-                       for f, ms in armory.SUPREMES[saison][zone].items()
-                       for m in ms} & pour_la_saison
-            for couple in portees:
-                for condition in bandes("excellent", couple):
-                    tables["EXCELLENTE"][zone][couple].add((saison, condition))
+    # L'excellente vient du meme releve. Elle etait deduite des fourchettes
+    # d'humidite du tracker : confrontees aux 426 croix verifiees du supreme,
+    # celles-ci tombent juste 205 fois sur 426 -- une fois sur deux. Le tracker
+    # ne donne qu'une fourchette par matiere, or la condition depend de la zone
+    # et de la saison : seize situations qu'un seul couple de bandes ne peut
+    # pas decrire. On ne s'en sert donc plus dans les Primes.
+    for zone, matieres in releve_de_la_guilde("XL", ("x", "?")).items():
+        for couple, creneaux in matieres.items():
+            tables["EXCELLENTE"][zone][couple] |= creneaux
     return {q: {z: {c: k for c, k in m.items() if k}
                 for z, m in t.items()} for q, t in tables.items()}
 
@@ -500,15 +505,16 @@ def python(tables: dict, conts: dict) -> str:
         '"""Ce que rend un gisement des Primes, selon la zone, la saison et le temps.',
         "",
         "Fichier produit par ../zyroom-android/outils/table_forage.py — ne pas",
-        "modifier à la main. Il croise `armory.py`, qui dit quelle matière sort",
-        "dans quelle zone et à quelle saison, avec les fourchettes d'humidité",
-        "de `donnees/humidites-gisements.json`, qui disent par quel temps.",
+        "modifier à la main.",
         "",
-        "**Les deux viennent du tracker d'atys.us**, et c'est ce qui compte :",
-        "c'est lui qu'on ouvre à côté pour vérifier. Une table qui ne lui",
-        "répond pas est fausse, si cohérente soit-elle avec elle-même.",
+        "**Tout vient du relevé de terrain des foreuses de la guilde**, saisi",
+        "case par case sur https://xiom.be/forage/ : quatre cent vingt-six",
+        "créneaux pour le suprême, deux cent quarante-quatre pour l'excellente.",
+        "C'est la seule source qui ait été mesurée dans les Primes ; le reste —",
+        "le tracker d'atys.us, Ballistic Mystix, les classeurs de 2009 — en",
+        "était déduit, et se trompe une fois sur deux.",
         "",
-        "Le choix reste vide : le tracker ne le suit pas, et le déduire par",
+        "Le choix reste vide : personne ne le relève, et le déduire par",
         "élimination ferait dire à l'écran plus que ce qu'on sait.",
         '"""',
         "",
@@ -516,14 +522,16 @@ def python(tables: dict, conts: dict) -> str:
     lignes += _bloc([
         "#: {zone: {(famille, matière): {(saison, condition)}}} — le suprême.",
         "#:",
-        "#: Chaque gisement occupe deux des quatre bandes d'humidité : à toute",
-        "#: heure, une moitié des matières de la zone sort.",
+        "#: Une vingtaine de matières par zone dès que le temps est exécrable,",
+        "#: une poignée d'autres à un créneau précis. Rien ne peut le",
+        "#: contredire : `verifie()` refuse d'écrire une table qui s'en écarte.",
         "SUPREMES = {"], tables["SUPREME"])
     lignes += _bloc([
         "#: {zone: {(famille, matière): {(saison, condition)}}} — l'excellente.",
         "#:",
-        "#: Armory ne range pas les excellentes par zone : elles valent pour",
-        "#: les quatre, restreintes aux matières que la zone porte.",
+        "#: Du même relevé que le suprême : cinquante-six créneaux vus en jeu",
+        "#: par les foreuses, cent quatre-vingt-huit rapportés par une autre",
+        "#: source et cochés en orange, qui restent à confirmer.",
         "EXCELLENTES = {"], tables["EXCELLENTE"])
     lignes += _bloc([
         "#: {zone: {(famille, matière): {(saison, condition)}}} — le choix.",

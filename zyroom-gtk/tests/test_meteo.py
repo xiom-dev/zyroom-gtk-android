@@ -10,7 +10,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from zyroom import armory, meteo                                   # noqa: E402
+from zyroom import armory, forage, meteo                           # noqa: E402
 
 FLUX = """{"version":"1.0","hour":"104011.496","cycle":34670,
  "continents":{"terre":{
@@ -318,27 +318,46 @@ class FenetreSupreme(unittest.TestCase):
         r = self._releve(["worst", "worst", "bad"])
         self.assertEqual(18, int(meteo.fin_fenetre_supreme(r)))
 
-    def test_la_ligne_et_le_titre_ne_peuvent_plus_se_contredire(self):
-        """« sort suprême » n'apparaît qu'en même temps que « Suprême maintenant ».
+    def _moment(self, saison: int, condition: str):
+        """Un relevé posé sur une saison et une condition données."""
+        r = self._releve([condition])
+        return (meteo.MeteoAtys(cycle_courant=r.cycle_courant,
+                                heure_atys=r.heure_atys, saison=saison,
+                                continents=r.continents),
+                meteo.Meteo(cycle=1, condition=condition, value=0.5,
+                            text="uiRainy"))
 
-        La ligne a écrit « sort suprême pendant 1 min » pendant que le titre
-        annonçait le suprême pour dans une heure vingt. Les deux se déduisaient
-        de règles différentes : la ligne des fourchettes d'humidité, le titre du
-        temps exécrable. C'est le titre qui dit vrai."""
+    def test_la_ligne_ne_nomme_que_ce_qui_sort_vraiment(self):
+        """« sort suprême » veut dire qu'une suprême sort quelque part.
+
+        La ligne a écrit « sort suprême pendant 1 min » alors qu'il n'en
+        sortait pas : elle se déduisait des fourchettes d'humidité, qui disent
+        où l'on trouve une matière et non en quelle qualité elle sort. Elle
+        lit maintenant le relevé de terrain, comme les colonnes."""
         from zyroom.page_meteo import PageMeteo
         for saison in range(4):
             for condition in ("best", "good", "bad", "worst"):
-                actuelle = meteo.Meteo(cycle=1, condition=condition,
-                                       value=0.5, text="uiRainy")
-                releve = self._releve([condition])
-                releve = meteo.MeteoAtys(
-                    cycle_courant=releve.cycle_courant,
-                    heure_atys=releve.heure_atys, saison=saison,
-                    continents=releve.continents)
+                releve, actuelle = self._moment(saison, condition)
                 qualite = PageMeteo._qualite_du_moment(releve, actuelle)
-                self.assertEqual(condition == "worst",
-                                 qualite == meteo.SUPREME,
-                                 f"{meteo.SAISONS[saison]} / {condition}")
+                ou = [(z, f, m) for z in meteo.ZONES
+                      for _q, groupes in meteo.sorties_de(saison, z, condition)
+                      for f, matieres in groupes.items() for m in matieres
+                      if meteo.qualite_de(z, f, m, saison, condition) == qualite]
+                self.assertTrue(ou, f"{meteo.SAISONS[saison]} / {condition}")
+
+    def test_le_titre_compte_la_grande_fenêtre_et_le_dit(self):
+        """Le mot « suprême » seul faisait deux objets dans le même écran.
+
+        Le titre annonce l'exécrable — l'humidité au-dessus de 83,4 % — et la
+        ligne du haut ce qui sort maintenant. Or le relevé montre une à six
+        suprêmes hors de l'exécrable : « Suprême dans 1 h 20 » se lisait comme
+        un démenti de « sort suprême ». Le titre nomme donc ce qu'il compte."""
+        from zyroom.page_meteo import PageMeteo
+        for condition in ("best", "good", "bad", "worst"):
+            releve, actuelle = self._moment(0, condition)
+            titre = PageMeteo._titre_pop(releve, actuelle)
+            self.assertIn("Grande fenêtre", titre, condition)
+            self.assertNotIn("Suprême", titre, condition)
 
     def test_exécrable_jusqu_au_bout_de_la_prévision(self):
         """On ne sait pas jusqu'à quand : l'écran le dit sans compter."""
@@ -401,6 +420,56 @@ class CeQuiSort(unittest.TestCase):
                                 meteo.qualite_de(zone, famille, matiere,
                                                  saison, condition),
                                 f"{zone} / {famille} / {matiere}")
+
+    def test_une_zone_dit_tout_ce_qu_elle_sort(self):
+        """`sorties_de` rend les qualités dans l'ordre, sans en perdre une.
+
+        Aux Sources Interdites, en automne par temps mauvais, une seule
+        suprême sort pour quinze excellentes : n'annoncer que la meilleure
+        cacherait l'essentiel de ce que la guilde a relevé."""
+        for saison in range(4):
+            for condition in ("worst", "bad", "good", "best"):
+                for zone in meteo.ZONES:
+                    blocs = meteo.sorties_de(saison, zone, condition)
+                    rangs = [meteo.QUALITES.index(q) for q, _g in blocs]
+                    self.assertEqual(sorted(rangs), rangs, zone)
+                    self.assertEqual(len(set(rangs)), len(rangs), zone)
+                    for qualite, groupes in blocs:
+                        # `qualite_de` rend la meilleure des trois, et onze
+                        # matieres sont cochees Supp *et* XL au meme creneau :
+                        # deux spots distincts, que l'ecran montre tous deux.
+                        table = {meteo.SUPREME: forage.SUPREMES,
+                                 meteo.EXCELLENTE: forage.EXCELLENTES,
+                                 meteo.CHOIX: forage.CHOIX}[qualite]
+                        for famille, matieres in groupes.items():
+                            for matiere in matieres:
+                                self.assertIn(
+                                    (meteo.SAISONS[saison], condition.upper()),
+                                    table[zone][(famille, matiere)],
+                                    f"{zone} / {famille} / {matiere}")
+
+    def test_la_meilleure_qualité_est_la_première_des_sorties(self):
+        """`sortie_de` reste la réponse courte : « vaut-il mieux aller là ? »"""
+        for saison in range(4):
+            for condition in ("worst", "bad", "good", "best"):
+                for zone in meteo.ZONES:
+                    blocs = meteo.sorties_de(saison, zone, condition)
+                    self.assertEqual(blocs[0] if blocs else (None, {}),
+                                     meteo.sortie_de(saison, zone, condition))
+
+    def test_l_excellente_sort_hors_de_l_exécrable(self):
+        """Elle était invisible : la meilleure qualité la masquait.
+
+        Trente-deux créneaux sur soixante-quatre en portent, et l'écran les
+        montre maintenant sous le suprême plutôt qu'à sa place."""
+        avec = [(s, z, c) for s in range(4) for z in meteo.ZONES
+                for c in ("worst", "bad", "good", "best")
+                if any(q == meteo.EXCELLENTE
+                       for q, _g in meteo.sorties_de(s, z, c))]
+        caches = [t for t in avec
+                  if meteo.sortie_de(t[0], t[1], t[2])[0] != meteo.EXCELLENTE]
+        self.assertTrue(len(avec) >= 40)
+        self.assertTrue(caches, "aucune excellente n'était masquée")
 
     def test_les_quatre_zones_ne_disent_pas_la_même_chose(self):
         """Le cœur de la correction : la zone change ce qui sort.

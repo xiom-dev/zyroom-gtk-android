@@ -354,18 +354,24 @@ def qualite_de(zone: str, famille: str, matiere: str,
     return None
 
 
-def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]:
-    """Ce qui sort dans une zone, et en quelle qualité.
+def sorties_de(saison: int, zone: str,
+               condition: str) -> list[tuple[str, dict]]:
+    """Tout ce qui sort dans une zone à ce créneau, qualité par qualité.
 
-    Une zone ne rend qu'une qualité à la fois — la meilleure qu'elle ait à
-    offrir. Les quatre ne sont pas toujours d'accord, et chacune dit donc la
-    sienne plutôt que de laisser une colonne vide sous un titre qui promet
-    mieux.
+    Rend `[(qualité, {famille: [matières]}), …]`, la meilleure qualité
+    d'abord, et une liste vide quand la guilde n'a rien relevé là.
 
-    Rend `(qualité, {famille: [matières]})`, ou `(None, {})` quand la guilde
-    n'a encore rien relevé pour ce créneau dans cette zone.
+    **Pourquoi plusieurs et non la seule meilleure.** La fonction n'en rendait
+    qu'une, du temps où l'excellente était déduite des fourchettes d'humidité
+    et ne valait rien : la masquer derrière le suprême ne coûtait pas cher.
+    Maintenant qu'elle est relevée sur le terrain comme lui, s'en tenir à la
+    meilleure jette l'essentiel — aux Sources Interdites, en automne par temps
+    mauvais, une seule suprême cacherait quinze excellentes. Chaque bloc porte
+    le nom de sa qualité, ce qui répond à la crainte d'origine : rien ne se
+    lit comme suprême sans l'être.
     """
     creneau = _creneau(saison, condition)
+    trouve = []
     for qualite, table in ((SUPREME, _forage.SUPREMES),
                            (EXCELLENTE, _forage.EXCELLENTES),
                            (CHOIX, _forage.CHOIX)):
@@ -374,8 +380,21 @@ def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]
             if creneau in creneaux:
                 groupes.setdefault(famille, []).append(matiere)
         if groupes:
-            return qualite, {f: sorted(m) for f, m in groupes.items()}
-    return None, {}
+            trouve.append((qualite, {f: sorted(m)
+                                     for f, m in groupes.items()}))
+    return trouve
+
+
+def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]:
+    """La meilleure qualité qu'une zone ait à offrir à ce créneau.
+
+    Rend `(qualité, {famille: [matières]})`, ou `(None, {})` quand la guilde
+    n'a encore rien relevé pour ce créneau dans cette zone. C'est la réponse
+    courte — « vaut-il mieux aller là ou ailleurs ? » ; `sorties_de` donne le
+    détail que l'écran affiche.
+    """
+    sorties = sorties_de(saison, zone, condition)
+    return sorties[0] if sorties else (None, {})
 
 
 def prochaine_fenetre_supreme(releve: "MeteoAtys") -> "Meteo | None":

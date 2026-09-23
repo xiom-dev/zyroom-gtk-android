@@ -272,26 +272,19 @@ class PageMeteo:
         if actuelle is None:
             self._meteo_pop_titre.set_text("")
         else:
-            sorties = [(zone,) + meteo.sortie_de(releve.saison, zone,
-                                                 actuelle.condition)
+            # Chaque zone dit tout ce qu'elle sort, supreme puis excellente,
+            # chaque bloc sous le nom de sa qualite. N'afficher que la
+            # meilleure datait du temps ou l'excellente etait devinee ; elle
+            # est relevee maintenant, et une seule supreme masquerait quinze
+            # excellentes aux Sources Interdites, en automne par temps mauvais.
+            sorties = [(zone, meteo.sorties_de(releve.saison, zone,
+                                               actuelle.condition))
                        for zone in meteo.ZONES]
-            # Le titre annonce la meilleure des quatre zones. Une zone qui n'a
-            # pas cette qualité-là le dit sous son nom, plutôt que de laisser
-            # une colonne vide sous un titre qui promet mieux : en automne par
-            # temps mauvais, seules les Sources Interdites sortent du suprême,
-            # et les trois autres zones de l'excellente.
-            connues = [q for _z, q, _g in sorties if q is not None]
-            meilleure = (min(connues, key=meteo.QUALITES.index)
-                         if connues else None)
-            self._meteo_pop_titre.set_text(
-                self._titre_pop(releve, actuelle, meilleure))
-            for rang, (zone, qualite, groupes) in enumerate(sorties):
+            self._meteo_pop_titre.set_text(self._titre_pop(releve, actuelle))
+            for rang, (zone, blocs) in enumerate(sorties):
                 colonne = self._meteo_pop_colonnes[rang % self.COLONNES_POP]
                 colonne.append(self._bloc_matieres(
-                    zone, groupes, rang // self.COLONNES_POP % 2 == 0,
-                    qualite,
-                    mention=("" if qualite == meilleure
-                             else meteo.mot_qualite(qualite))))
+                    zone, blocs, rang // self.COLONNES_POP % 2 == 0))
 
         # Deux choses qu'on ne devine pas en regardant le tableau : que les
         # quatre zones partagent une meteo mais pas leurs pops, et qu'un spot
@@ -300,46 +293,49 @@ class PageMeteo:
             _("Les Primes partagent une seule météo, mais pas les mêmes pops : "
               "chaque zone dit la sienne. Un spot suprême vidé met quinze "
               "jours à se recharger — les bonnes conditions ne suffisent pas. "
-              "Relevés de la guilde ; positions de ballisticmystix.net.")))
+              "Le suprême a été relevé en jeu, case par case ; une partie de "
+              "l'excellente est rapportée et reste à confirmer. "
+              "Positions de ballisticmystix.net.")))
 
-    @staticmethod
     @staticmethod
     def _qualite_du_moment(releve, actuelle):
-        """La qualité qui sort en ce moment, sur la même règle que le titre.
+        """La meilleure qualité que sortent les Primes à cet instant.
 
-        **Le suprême ne sort que par temps exécrable.** C'est ce que le
-        compte à rebours du titre annonce, ce que le tracker compte, et ce que
-        la guilde relève. La ligne doit donc s'y tenir : elle a écrit « sort
-        suprême pendant 1 min » pendant que le titre annonçait le suprême pour
-        dans une heure vingt, et les deux ne peuvent pas être vraies.
+        Elle se lit dans le relevé, zone par zone, et non plus dans une règle
+        écrite à la main. La règle disait « suprême seulement par temps
+        exécrable, et sinon rien » : c'était honnête tant que l'excellente
+        était devinée à partir des fourchettes d'humidité — une fourchette dit
+        **où** l'on trouve une matière, pas en quelle qualité elle sort, et
+        c'est d'elle que venait la contradiction d'alors, « sort suprême
+        pendant 1 min » sous un titre qui annonçait le suprême pour dans une
+        heure vingt.
 
-        Hors de cette fenêtre, **on ne dit rien**. On a écrit « excellente »
-        un temps, mais c'était une valeur par défaut et non une mesure : elle
-        sortait de la table des continents, qui ne parle pas des Primes, et le
-        relevé de terrain de la guilde la contredit — par temps bon, elle a vu
-        quatorze choix pour trois excellentes. Tant que son tableau n'est pas
-        rempli, le silence est la seule réponse honnête.
-
-        On ne passe **pas** par `sortie_de` : les colonnes se déduisent des
-        fourchettes d'humidité, et une fourchette dit où l'on trouve une
-        matière, pas en quelle qualité elle sort. C'est d'elle que venait la
-        contradiction.
+        Les deux tables viennent maintenant du même relevé de terrain, et le
+        relevé dit qu'une poignée de suprêmes sort hors de l'exécrable — une à
+        six matières, contre une vingtaine pendant. Se taire reviendrait à
+        cacher ce que les foreuses ont pris la peine d'aller voir. La
+        contradiction, elle, est levée dans le titre : il ne compte plus « le
+        suprême » mais **la grande fenêtre**, ce qui n'est pas le même objet.
         """
-        return meteo.SUPREME if actuelle.condition.lower() == "worst" else None
+        connues = [q for zone in meteo.ZONES
+                   for q, _g in meteo.sorties_de(releve.saison, zone,
+                                                 actuelle.condition)]
+        return min(connues, key=meteo.QUALITES.index) if connues else None
 
     @staticmethod
-    def _titre_pop(releve, actuelle, _qualite: str) -> str:
-        """« Suprême dans 2 h 10 — aujourd'hui à 17:09 », et rien de plus.
+    def _titre_pop(releve, actuelle) -> str:
+        """« Grande fenêtre du suprême dans 2 h 10 — aujourd'hui à 17:09 ».
 
-        La ligne en disait trois fois trop, et elle se contredisait : elle
-        annonçait « ce qui sort : Suprême » — vrai, la moitié des matières
-        d'une zone est toujours dans sa fourchette — juste avant « fenêtre
-        suprême dans 2 h 10 ». Deux sens du même mot dans la même phrase.
+        Un seul nombre, celui qu'on vient y chercher : quand l'humidité passe
+        au-dessus de 83,4 %. C'est le compte à rebours du tracker d'atys.us,
+        mesuré contre lui à la minute près.
 
-        Ne reste que le seul nombre qu'on vienne y chercher : quand s'ouvre la
-        grande fenêtre, l'humidité au-dessus de 83,4 %. La condition et le taux
-        du moment sont déjà en tête de l'écran, le repop et la saison dans la
-        barre du haut ; les répéter ici ne faisait que noyer ce nombre-là.
+        **« Grande fenêtre » et non « Suprême ».** Le mot seul se contredisait
+        avec la ligne du haut : elle annonce ce qui sort maintenant, et le
+        relevé dit qu'une ou deux suprêmes sortent aussi hors de l'exécrable.
+        « Suprême dans 2 h 10 » pendant qu'il en sort déjà, ce sont deux sens
+        du même mot dans le même écran. Ce que ce compte annonce, c'est le
+        moment où elles passent d'une poignée à une vingtaine par zone.
 
         Pendant la fenêtre, le compte **décroît** : « encore 9 min », puis six,
         puis trois. Une durée totale figée mentirait dès la troisième minute,
@@ -349,16 +345,17 @@ class PageMeteo:
         if actuelle.condition.lower() == "worst":
             restantes = meteo.fin_fenetre_supreme(releve)
             if restantes is None:
-                return _("Suprême maintenant")
+                return _("Grande fenêtre du suprême maintenant")
             fin = (datetime.now()
                    + timedelta(minutes=restantes)).strftime("%H:%M")
-            return (_("Suprême maintenant, encore %(delai)s — jusqu'à %(fin)s")
+            return (_("Grande fenêtre du suprême, encore %(delai)s — "
+                      "jusqu'à %(fin)s")
                     % {"delai": meteo.duree(int(restantes)), "fin": fin})
         prochaine = meteo.prochaine_fenetre_supreme(releve)
         if prochaine is None:
-            return _("Suprême : pas avant six heures")
+            return _("Grande fenêtre du suprême : pas avant six heures")
         minutes = releve.minutes_avant(prochaine.cycle)
-        return (_("Suprême dans %(delai)s — %(quand)s")
+        return (_("Grande fenêtre du suprême dans %(delai)s — %(quand)s")
                 % {"delai": meteo.duree(minutes),
                    "quand": meteo.moment_du_changement(minutes)})
 
@@ -368,8 +365,13 @@ class PageMeteo:
         label.props.margin_top = 10
         return label
 
-    def _bloc_matieres(self, titre: str, groupes: dict, zebre: bool,
-                       qualite: str, mention: str = "") -> Gtk.Widget:
+    def _bloc_matieres(self, titre: str, blocs: list, zebre: bool) -> Gtk.Widget:
+        """Une zone : son nom, puis un sous-bloc par qualité qu'elle sort.
+
+        `blocs` est ce que rend `meteo.sorties_de` — la meilleure qualité
+        d'abord. Chacune porte son nom, sans quoi une excellente affichée sous
+        une suprême se lirait comme une suprême.
+        """
         boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         if zebre:
             boite.add_css_class("zebre")
@@ -377,14 +379,18 @@ class PageMeteo:
         entete = Gtk.Label(label=titre, xalign=0.0)
         entete.add_css_class("heading")
         boite.append(entete)
-        # La qualite ne s'ecrit que si la zone dement le titre : l'ecrire sur
-        # les quatre colonnes quand elles sont d'accord ne ferait que repeter
-        # ce que le titre vient de dire.
-        if mention:
-            rappel = Gtk.Label(label=mention, xalign=0.0)
+        if not blocs:
+            boite.append(self._note(_("Pas encore relevé")))
+        for qualite, groupes in blocs:
+            rappel = Gtk.Label(label=meteo.mot_qualite(qualite), xalign=0.0)
             rappel.add_css_class("dim-label")
             rappel.add_css_class("caption")
+            rappel.props.margin_top = 4
             boite.append(rappel)
+            boite.append(self._grille_matieres(qualite, groupes))
+        return boite
+
+    def _grille_matieres(self, qualite: str, groupes: dict) -> Gtk.Widget:
         grille = Gtk.Grid(column_spacing=12, row_spacing=1)
         for ligne, (groupe, matieres) in enumerate(sorted(groupes.items())):
             # Le nom de la famille, et sous lui son symbole du jeu : une
@@ -413,8 +419,7 @@ class PageMeteo:
             m.set_markup(self._matieres_markup(qualite, groupe, matieres))
             m.connect("activate-link", self._on_gisement)
             grille.attach(m, 1, ligne, 1, 1)
-        boite.append(grille)
-        return boite
+        return grille
 
     @staticmethod
     def _matieres_markup(qualite: str, famille: str, matieres: list) -> str:
