@@ -33,6 +33,7 @@ développement : pourquoi les colonnes ont été réunies, où sont gardées les
 croix, comment on fusionne deux relevés — ce sont des explications d'auteur, et
 trop d'information tue l'information. La page dit comment cocher, et s'arrête.
 """
+import base64
 import html
 import os
 import re
@@ -44,6 +45,11 @@ from table_forage import CLASSEUR, feuilles                      # noqa: E402
 
 _ANDROID = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _DEPOT = os.path.dirname(_ANDROID)
+
+#: Les symboles du jeu, ceux que ZyRoom affiche deja dans son ecran Meteo.
+#: Une coquille pour la carapace, une goutte pour la seve : l'oeil les
+#: reconnait plus vite qu'il ne lit « Carapace ».
+SYMBOLES = os.path.join(_DEPOT, "zyroom-gtk", "zyroom", "symboles")
 CIBLE = os.path.join(_DEPOT, "site-domaine", "forage", "index.html")
 
 #: La clef d'ecriture. Hors du depot, comme le jeton du tracker : elle finit
@@ -81,6 +87,22 @@ def clef() -> str:
         return fh.read().strip()
 
 
+def symbole(famille: str) -> str:
+    """L'image d'une famille, en data-URI — la page reste un seul fichier.
+
+    Onze fichiers à monter par FTP au lieu d'un, pour trente kilooctets
+    d'images, c'était dix occasions d'en oublier un.
+    """
+    anglais = famille.split("/")[-1].strip().lower()
+    # « Node », chez Ryzom, c'est la boucle de bois : son image porte les deux.
+    fichier = "mp_wood_node.png" if anglais == "node" else f"mp_{anglais}.png"
+    chemin = os.path.join(SYMBOLES, fichier)
+    if not os.path.isfile(chemin):
+        raise SystemExit(f"symbole introuvable : {chemin}")
+    with open(chemin, "rb") as fh:
+        return "data:image/png;base64," + base64.b64encode(fh.read()).decode()
+
+
 def catalogue() -> list:
     """[(famille, [matières])] — dans l'ordre exact de l'onglet vierge."""
     familles: list = []
@@ -103,13 +125,13 @@ def grille(familles: list) -> str:
         # colle en haut, on perd la colonne ou l'on vise en descendant.
         # La premiere famille n'en a pas besoin : le vrai en-tete est juste
         # au-dessus d'elle, et le redire ferait deux lignes identiques collees.
+        titre = (f'<img class="embleme" src="{symbole(famille)}" alt="">'
+                 f'{html.escape(famille)}')
         if rang_famille == 0:
-            lignes.append(f'<tr class="famille"><th colspan="6">'
-                          f'{html.escape(famille)}</th></tr>')
+            lignes.append(f'<tr class="famille"><th colspan="6">{titre}</th></tr>')
         else:
             lignes.append(
-                f'<tr class="famille"><th colspan="2">{html.escape(famille)}'
-                f'</th>'
+                f'<tr class="famille"><th colspan="2">{titre}</th>'
                 + "".join(f'<th class="rappel">{fr}</th>'
                           for fr, _c, _p in CONDITIONS)
                 + "</tr>")
@@ -325,7 +347,13 @@ GABARIT = """<!DOCTYPE html>
      moitie de l'ecran et les quatre conditions se serraient a droite. */
   table { border-collapse: collapse; width: auto; margin: 0 auto; }
   th, td { border: 1px solid #24343a; padding: 4px 6px; text-align: center; }
-  thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
+  /* **Les bordures d'un en-tete collant s'en vont.** Avec border-collapse,
+     elles appartiennent a la grille et non aux cellules : elles defilent donc
+     avec le tableau et l'en-tete se retrouve nu, colonnes comprises. Une ombre
+     interieure les redessine, et elle, elle colle avec lui. */
+  thead th { position: sticky; top: 0; background: var(--surface); z-index: 2;
+             border-color: transparent;
+             box-shadow: inset 0 0 0 1px #24343a, 0 2px 4px rgba(0,0,0,.45); }
   thead .cond { font-weight: 600; color: var(--clair); white-space: nowrap;
                 width: 108px; }
   thead .plage { display: block; font-weight: 400; font-size: .75rem;
@@ -333,6 +361,7 @@ GABARIT = """<!DOCTYPE html>
   /* Le fond de la ligne de famille est plus clair que la couleur des traits :
      les separations de colonnes y disparaissaient, et l'oeil perdait la
      colonne qu'il suivait en descendant. On les eclaircit juste assez. */
+  .famille .embleme { width: 22px; height: 22px; vertical-align: -5px; }
   .famille th { background: #1d2b30; color: var(--or); text-align: left;
                 letter-spacing: .02em; border-color: #3d5560; }
   .matiere { text-align: center; white-space: nowrap; font-weight: 600;
