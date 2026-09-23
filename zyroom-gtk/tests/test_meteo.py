@@ -511,16 +511,39 @@ class CeQuiSort(unittest.TestCase):
         self.assertTrue(len(avec) >= 40)
         self.assertTrue(caches, "aucune excellente n'était masquée")
 
-    def test_une_carte_ne_montre_que_les_Primes(self):
-        """Cliquer une XL ouvrait une carte de la Porte des Vents.
+    def test_un_gisement_ne_change_pas_de_place_en_changeant_de_qualité(self):
+        """Suprême et XL d'une matière sortent des **mêmes** spots.
 
-        Le relevé des positions ne distingue que « supreme » et
-        « excellent », et il place ses excellentes sur les **continents** :
-        cent cinquante-sept de ses cent cinquante-huit points y sont. Motega
-        sous l'XL des Sources Interdites menait au Gouffre d'Ichor et à la
-        Forêt Insaisissable — ni la bonne zone, ni même de la q250."""
+        Mesuré sur le tracker d'atys.us : ses fiches `nodeinfo.php` rendent,
+        pour « supreme motega wood » et pour « excellent motega wood », la
+        même carte et les mêmes trois emplacements. Seule l'étiquette change.
+        Un spot des Primes rend du suprême quand les conditions y sont, de
+        l'XL sinon — ce que le relevé de la guilde décrit case par case.
+
+        L'XL n'avait donc pas à perdre sa carte : elle avait à recevoir celle
+        du suprême."""
+        for famille, matiere in (("Bois", "Motega"), ("Boucles", "Tansy"),
+                                 ("Huile", "Gulatch")):
+            sup = meteo.positions_des_primes(meteo.SUPREME, famille, matiere)
+            xl = meteo.positions_des_primes(meteo.EXCELLENTE, famille, matiere)
+            self.assertEqual(sup, xl, f"{famille}/{matiere}")
+            self.assertTrue(sup)
+        # Le choix n'est relevé nulle part : on ne sait pas quels nœuds le
+        # rendent, donc pas de carte.
+        self.assertEqual([], meteo.positions_des_primes(
+            meteo.CHOIX, "Bois", "Motega"))
+
+    def test_la_carte_ne_sort_jamais_des_quatre_zones(self):
+        """L'autre table de positions décrit cinq **autres** régions.
+
+        Porte des Vents, Fosse aux Épreuves, Forêt Insaisissable, Gouffre
+        d'Ichor, Porte de l'Obscurité : des Primes Racines aussi, mais de la
+        q200. Cliquer « Motega » sous l'XL des Sources Interdites y ouvrait
+        la carte, à quatre régions de là et sur une autre qualité."""
         from zyroom import gisements
-        dehors = 0
+        dehors = sum(1 for (q, _f, _m), (_h, pts) in gisements.GISEMENTS.items()
+                     for p in pts if p[2] not in meteo.ZONES)
+        self.assertGreater(dehors, 100, "le filtre ne servirait à rien")
         for qualite, table in ((meteo.SUPREME, forage.SUPREMES),
                                (meteo.EXCELLENTE, forage.EXCELLENTES)):
             for zone, matieres in table.items():
@@ -529,14 +552,6 @@ class CeQuiSort(unittest.TestCase):
                                                             matiere):
                         self.assertIn(point[2], meteo.ZONES,
                                       f"{qualite} / {famille} / {matiere}")
-                    brut = gisements.points(
-                        meteo.QUALITE_GISEMENT[qualite], famille, matiere)
-                    dehors += sum(1 for p in brut if p[2] not in meteo.ZONES)
-        self.assertGreater(dehors, 100, "le filtre ne servirait à rien")
-        self.assertEqual([], meteo.positions_des_primes(
-            meteo.EXCELLENTE, "Bois", "Motega"))
-        self.assertEqual(4, len(meteo.positions_des_primes(
-            meteo.SUPREME, "Bois", "Motega")))
 
     def test_les_quatre_zones_ne_disent_pas_la_même_chose(self):
         """Le cœur de la correction : la zone change ce qui sort.

@@ -29,7 +29,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QDialog, QGridLayout, QLabel, QVBoxLayout,
                                QWidget)
 
-from . import carte, gisements, meteo
+from . import carte, meteo
 from .carte_widget import (POINT_ACTIF, POINT_INACTIF, CarteAtys, cible,
                            texte_cerne)
 from .i18n import _
@@ -251,15 +251,12 @@ def montrer(parent, qualite: str, famille: str, matiere: str) -> None:
     colonne.setContentsMargins(10, 10, 10, 10)
     colonne.setSpacing(10)
 
-    mot = _("Suprême") if qualite == "supreme" else _("Excellente")
-    fourchettes = gisements.humidites(qualite, famille, matiere)
-    # Sans espace autour du tiret, et la virgule decimale du francais : deux
-    # fourchettes doivent tenir sur la ligne du titre.
-    humidite = ", ".join(f"{bas:g}–{haut:g} %".replace(".", ",")
-                         for bas, haut in fourchettes)
+    # **La fourchette d'humidite a ete retiree de cette ligne** -- voir la
+    # version GTK : une seule fourchette par matiere pour tout Atys, fausse
+    # deux cent dix-sept fois sur quatre cent vingt-deux contre le releve.
+    mot = meteo.mot_qualite(_QUALITE.get(qualite))
     entete = QLabel(
         f"<b>{html.escape(mot)}</b>"
-        + (f"  ·  {_('humidité')} {html.escape(humidite)}" if humidite else "")
         + f"  ·  {len(points)} "
         + (_("gisements") if len(points) > 1 else _("gisement")))
     entete.setWordWrap(True)

@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from gi.repository import GLib, Gtk
 
-from . import carte, gisements, meteo
+from . import carte, meteo
 from .i18n import _
 
 #: La qualité des gisements telle que la table de forage la nomme.
@@ -173,17 +173,19 @@ class PageGisements:
         boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self._pad(boite)
 
-        mot = _("Suprême") if qualite == "supreme" else _("Excellente")
-        fourchettes = gisements.humidites(qualite, famille, matiere)
-        # Sans espace autour du tiret, et la virgule décimale du français : deux
-        # fourchettes doivent tenir sur la ligne du titre.
-        humidite = ", ".join(f"{bas:g}–{haut:g} %".replace(".", ",")
-                             for bas, haut in fourchettes)
+        # **La fourchette d'humidite a ete retiree de cette ligne.** Elle
+        # venait de la fiche du tracker : une seule fourchette par matiere,
+        # pour tout Atys. Confrontee aux quatre cent vingt-deux croix du
+        # releve de la guilde, deux cent cinq tombent dedans et deux cent
+        # dix-sept dehors -- c'est arithmetique, une fourchette unique ne peut
+        # pas decrire quatre zones sur quatre saisons. Elle se contredisait a
+        # l'ecran : "humidite 50-100 %" juste au-dessus d'une ligne qui dit
+        # "Mauvaise, 61 %" et "un gisement sur 4". La ligne du dessous, elle,
+        # vient du releve et dit l'instant.
+        mot = meteo.mot_qualite(_QUALITE.get(qualite))
         entete = Gtk.Label(xalign=0.0, wrap=True)
         entete.set_markup(
             f"<b>{GLib.markup_escape_text(mot)}</b>"
-            + (f"  ·  {_('humidité')} {GLib.markup_escape_text(humidite)}"
-               if humidite else "")
             + f"  ·  {len(points)} "
             + (_("gisements") if len(points) > 1 else _("gisement")))
         boite.append(entete)

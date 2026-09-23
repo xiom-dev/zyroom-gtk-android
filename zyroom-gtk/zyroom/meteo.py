@@ -43,9 +43,9 @@ QUALITES = (SUPREME, EXCELLENTE, CHOIX)
 #: Ces mêmes qualités telles que `gisements.py` les nomme. Le choix n'a pas de
 #: carte : ses gisements ne sont relevés nulle part.
 #:
-#: Le relevé des positions ne connaît que deux qualités, et il place ses
-#: excellentes sur les **continents** — voir `positions_des_primes`, qui fait
-#: le tri.
+#: Le relevé des positions ne connaît que deux qualités, et sa seconde décrit
+#: d'autres régions des Primes Racines — voir `positions_des_primes`, qui ne
+#: lit que la première.
 QUALITE_GISEMENT = {SUPREME: "supreme", EXCELLENTE: "excellent", CHOIX: ""}
 
 #: Les seuils du jeu, qui découpent les quatre conditions de gisement.
@@ -395,24 +395,30 @@ def qualite_de(zone: str, famille: str, matiere: str,
 def positions_des_primes(qualite: str, famille: str, matiere: str) -> list:
     """Où sort cette matière **dans les Primes**, et nulle part ailleurs.
 
-    Le relevé des positions couvre tout Atys, et il ne distingue que deux
-    qualités : « supreme » et « excellent ». Ses suprêmes sont bien celles des
-    Primes — cent quatre-vingts points, tous dans les quatre zones. Ses
-    excellentes, non : cent cinquante-sept de ses cent cinquante-huit points
-    sont au Gouffre d'Ichor, à la Porte des Vents ou à la Forêt Insaisissable,
-    sur les continents.
+    **Un gisement ne change pas de place en changeant de qualité.** C'est le
+    cœur de l'affaire, et il a fallu le tracker d'atys.us pour le voir : ses
+    fiches `nodeinfo.php` rendent, pour « supreme motega wood » et pour
+    « excellent motega wood », **exactement la même carte et les mêmes trois
+    emplacements**. Seule l'étiquette change. Un spot des Primes rend du
+    suprême quand les conditions y sont, de l'XL sinon — c'est précisément ce
+    que le relevé de la guilde décrit, case par case.
 
-    D'où le filtre. Cliquer « Motega » sous l'XL des Sources Interdites
-    ouvrait une carte montrant trois gisements de la Porte des Vents, de la
-    Forêt Insaisissable et de la Porte de l'Obscurité : ni la bonne zone, ni
-    même de la q250. Une matière dont on ne connaît aucune position dans les
-    Primes rend une liste vide, et son nom reste du texte — rien n'invite
-    alors à cliquer sur ce qui ne répondrait pas.
+    D'où la règle, valable pour les trois qualités : on lit la table des
+    positions **des Primes**, celle que `gisements.py` range sous
+    « supreme » — quarante-sept nœuds par zone, un par matière, exactement
+    ceux du relevé. L'autre table, rangée sous « excellent », décrit les
+    cinq **autres** régions des Primes Racines, celles de la q200 : Porte des
+    Vents, Fosse aux Épreuves, Forêt Insaisissable, Gouffre d'Ichor, Porte de
+    l'Obscurité. Cliquer « Motega » sous l'XL des Sources Interdites y menait,
+    et la carte s'ouvrait à quatre régions de là, sur une autre qualité de
+    matière. Le filtre sur `ZONES` les écarte.
+
+    Le choix, lui, n'a pas de carte : ses créneaux ne sont relevés nulle part,
+    donc on ne saurait pas dire lesquels de ces nœuds le rendent.
     """
-    nom = QUALITE_GISEMENT.get(qualite, "")
-    if not nom:
+    if qualite not in (SUPREME, EXCELLENTE):
         return []
-    return [point for point in _gisements.points(nom, famille, matiere)
+    return [point for point in _gisements.points("supreme", famille, matiere)
             if point[2] in ZONES]
 
 
