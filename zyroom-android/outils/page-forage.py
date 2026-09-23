@@ -379,7 +379,15 @@ GABARIT = """<!DOCTYPE html>
 
   .case { cursor: pointer; height: 26px; font-weight: 700; user-select: none; }
   .case:hover { background: #1d2b30; }
-  .case[data-v="x"] { color: var(--oui); background: rgba(75,191,114,.13); }
+  /* **La case cochee garde ses bords.** Son fond vert est plus clair que la
+     couleur des traits : la bordure grise s'y noyait, et la colonne semblait
+     se rompre a chaque croix. Un contour vert la redessine par-dessus, et il
+     ne depend pas de la grille du tableau. */
+  .case[data-v="x"] { color: var(--oui); background: rgba(75,191,114,.13);
+                      box-shadow: inset 0 0 0 1px rgba(75,191,114,.5); }
+  /* Meme soin pour le tiret, dont le fond ne change pas mais qui doit se lire
+     comme une reponse et non comme une case oubliee. */
+  .case[data-v="-"] { box-shadow: inset 0 0 0 1px rgba(150,160,158,.28); }
   .case[data-v="x"]::after { content: "x"; }
   .case[data-v="-"] { color: var(--non); }
   .case[data-v="-"]::after { content: "\\2212"; }
