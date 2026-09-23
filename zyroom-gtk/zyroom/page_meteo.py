@@ -233,10 +233,10 @@ class PageMeteo:
                 gras(f"{meteo.texte_condition(maintenant.condition).lower()} "
                      f"{int(maintenant.value * 100)} %"),
             ]
-            qualite = self._qualite_du_moment(releve, maintenant)
-            if qualite is not None:
+            qualites = self._qualites_du_moment(releve, maintenant)
+            if qualites:
                 morceaux.append(clair(_(", sort ")))
-                morceaux.append(gras(meteo.mot_qualite(qualite).lower()))
+                morceaux.append(gras(meteo.enumere_qualites(qualites)))
             if prochain is not None:
                 # Le temps qui reste, et non le nom de la condition d'apres :
                 # « pendant 4 min » repond a « est-ce que j'ai le temps ? ».
@@ -303,8 +303,8 @@ class PageMeteo:
               "Positions de ballisticmystix.net.")))
 
     @staticmethod
-    def _qualite_du_moment(releve, actuelle):
-        """La meilleure qualité que sortent les Primes à cet instant.
+    def _qualites_du_moment(releve, actuelle):
+        """Toutes les qualités que sortent les Primes à cet instant.
 
         Elle se lit dans le relevé, zone par zone, et non plus dans une règle
         écrite à la main. La règle disait « suprême seulement par temps
@@ -319,13 +319,15 @@ class PageMeteo:
         relevé dit qu'une poignée de suprêmes sort hors de l'exécrable — une à
         six matières, contre une vingtaine pendant. Se taire reviendrait à
         cacher ce que les foreuses ont pris la peine d'aller voir. La
-        contradiction, elle, est levée dans le titre : il ne compte plus « le
-        suprême » mais **la grande fenêtre**, ce qui n'est pas le même objet.
+        **Toutes, et non la meilleure.** Par temps mauvais aux Sources
+        Interdites, il sort une suprême et quinze excellentes : n'annoncer que
+        la suprême taisait les quinze, qui sont justement ce qu'on va forer
+        faute de mieux. La ligne dit donc « sort suprême et XL ».
         """
-        connues = [q for zone in meteo.ZONES
+        connues = {q for zone in meteo.ZONES
                    for q, _g in meteo.sorties_de(releve.saison, zone,
-                                                 actuelle.condition)]
-        return min(connues, key=meteo.QUALITES.index) if connues else None
+                                                 actuelle.condition)}
+        return [q for q in meteo.QUALITES if q in connues]
 
     def _note(self, texte: str) -> Gtk.Widget:
         label = Gtk.Label(label=texte, xalign=0.0, wrap=True)

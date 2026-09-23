@@ -339,12 +339,39 @@ class FenetreSupreme(unittest.TestCase):
         for saison in range(4):
             for condition in ("best", "good", "bad", "worst"):
                 releve, actuelle = self._moment(saison, condition)
-                qualite = PageMeteo._qualite_du_moment(releve, actuelle)
-                ou = [(z, f, m) for z in meteo.ZONES
-                      for _q, groupes in meteo.sorties_de(saison, z, condition)
-                      for f, matieres in groupes.items() for m in matieres
-                      if meteo.qualite_de(z, f, m, saison, condition) == qualite]
-                self.assertTrue(ou, f"{meteo.SAISONS[saison]} / {condition}")
+                dites = PageMeteo._qualites_du_moment(releve, actuelle)
+                sorties = {q for z in meteo.ZONES
+                           for q, _g in meteo.sorties_de(saison, z, condition)}
+                self.assertEqual(set(dites), sorties,
+                                 f"{meteo.SAISONS[saison]} / {condition}")
+                rangs = [meteo.QUALITES.index(q) for q in dites]
+                self.assertEqual(sorted(rangs), rangs, "la meilleure d'abord")
+
+    def test_la_ligne_les_énumère_toutes(self):
+        """« sort suprême » taisait quinze excellentes de la même zone.
+
+        Par temps mauvais aux Sources Interdites, il sort une suprême et
+        quinze excellentes ; ce sont ces dernières qu'on ira forer faute de
+        mieux. « XL » et non « excellente » : le mot des foreuses, celui des
+        onglets du relevé."""
+        self.assertEqual("", meteo.enumere_qualites([]))
+        self.assertEqual("suprême", meteo.enumere_qualites([meteo.SUPREME]))
+        self.assertEqual("suprême et XL",
+                         meteo.enumere_qualites([meteo.SUPREME,
+                                                 meteo.EXCELLENTE]))
+        self.assertEqual("suprême, XL et choix",
+                         meteo.enumere_qualites(meteo.QUALITES))
+        self.assertEqual("XL", meteo.enumere_qualites([meteo.EXCELLENTE]))
+
+    def test_les_deux_qualités_sortent_ensemble_la_plupart_du_temps(self):
+        """Quarante-six créneaux sur soixante-quatre en portent deux."""
+        from zyroom.page_meteo import PageMeteo
+        deux = 0
+        for saison in range(4):
+            for condition in ("best", "good", "bad", "worst"):
+                releve, actuelle = self._moment(saison, condition)
+                deux += len(PageMeteo._qualites_du_moment(releve, actuelle)) > 1
+        self.assertGreater(deux, 8)
 
     def test_le_titre_ne_promet_plus_rien(self):
         """Il nomme la liste, il ne compte plus vers un autre moment.

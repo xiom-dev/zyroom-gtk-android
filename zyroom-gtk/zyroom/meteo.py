@@ -233,6 +233,28 @@ def mot_qualite(qualite: str | None) -> str:
             None: "Pas encore relevé"}.get(qualite, qualite or "")
 
 
+#: Les qualités telles qu'on les nomme au fil d'une phrase.
+#:
+#: « XL » et non « excellente » : c'est le mot des foreuses, celui des onglets
+#: du relevé, et il tient dans une ligne déjà chargée. Les colonnes, elles,
+#: gardent le mot entier — elles ont la place, et elles servent de légende.
+MOT_COURT = {SUPREME: "suprême", EXCELLENTE: "XL", CHOIX: "choix"}
+
+
+def enumere_qualites(qualites) -> str:
+    """« suprême », « suprême et XL », « suprême, XL et choix ».
+
+    La ligne du haut n'annonçait que la meilleure qualité en vue. Par temps
+    mauvais, elle écrivait « sort suprême » pour une matière, en taisant les
+    quinze excellentes de la même zone — celles qu'on irait justement forer
+    faute de mieux.
+    """
+    mots = [MOT_COURT.get(q, q) for q in qualites]
+    if len(mots) <= 1:
+        return mots[0] if mots else ""
+    return ", ".join(mots[:-1]) + " et " + mots[-1]
+
+
 def texte_condition(condition: str) -> str:
     """La condition de gisement, en français."""
     return {"best": "Excellente", "good": "Bonne",
