@@ -294,6 +294,13 @@ HTACCESS = """# Le releve et ses sauvegardes ne se lisent que par releve.php, ja
 <IfModule mod_autoindex.c>
     Options -Indexes
 </IfModule>
+
+# La page se retouche souvent, et un navigateur qui garde l'ancienne fait
+# perdre un aller-retour entier : on croit corriger un defaut deja corrige.
+# Elle est legere, et son contenu vient de toute facon du serveur.
+<FilesMatch "\\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>
 """
 
 GABARIT = """<!DOCTYPE html>
