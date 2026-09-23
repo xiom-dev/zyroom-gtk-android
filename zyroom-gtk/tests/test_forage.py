@@ -68,31 +68,56 @@ class Structure(unittest.TestCase):
         self.assertEqual({zone: {} for zone in meteo.ZONES}, forage.CHOIX)
 
 
-class ChaqueGisementOccupeDeuxBandes(unittest.TestCase):
-    """La règle du jeu, mesurée sur l'API : deux bandes d'humidité sur quatre.
+class LeRelevéDeTerrain(unittest.TestCase):
+    """Le suprême ne se déduit plus : il a été relevé source par source.
 
-    C'est elle qui fait qu'il sort toujours quelque chose, et qu'il n'en sort
-    jamais tout.
+    Quatre cent vingt-six cases cochées par les foreuses sur xiom.be/forage,
+    zone par zone, saison par saison, condition par condition. C'est la seule
+    mesure faite dans les Primes — tout le reste en était déduit, d'Armory, du
+    tracker, ou d'un classeur de 2009.
     """
 
-    def test_deux_conditions_par_matière_et_par_saison(self):
-        for zone, matieres in forage.SUPREMES.items():
-            for couple, creneaux in matieres.items():
-                par_saison = {}
-                for saison, condition in creneaux:
-                    par_saison.setdefault(saison, set()).add(condition)
-                for saison, conditions in par_saison.items():
-                    self.assertEqual(2, len(conditions),
-                                     f"{zone}/{couple}/{saison}")
+    def test_les_quatre_cent_vingt_six_créneaux(self):
+        creneaux = sum(len(k) for zone in forage.SUPREMES.values()
+                       for k in zone.values())
+        self.assertEqual(426, creneaux)
 
-    def test_une_moitié_des_matières_sort_à_chaque_instant(self):
-        for saison in range(4):
-            for condition in CONDITIONS:
-                for zone in meteo.ZONES:
-                    _q, groupes = meteo.sortie_de(saison, zone, condition)
-                    n = sum(len(m) for m in groupes.values())
-                    self.assertTrue(10 <= n <= 30,
-                                    f"{zone} / {condition} : {n}")
+    def test_chaque_zone_en_porte_une_quarantaine(self):
+        """Sept matières environ ne sortent jamais en suprême dans une zone.
+
+        C'est une mesure, pas un catalogue : ce qui ne sort nulle part n'y
+        figure pas."""
+        for zone, matieres in forage.SUPREMES.items():
+            self.assertTrue(38 <= len(matieres) <= 42,
+                            f"{zone} : {len(matieres)}")
+
+    def test_la_grande_fenêtre_est_l_exécrable(self):
+        """Dix-sept à vingt-et-une matières par zone y sortent aux quatre saisons.
+
+        C'est ce que le tutoriel annonçait — Note 2, mode n°1 — et ce que le
+        compte à rebours de l'écran météo attend."""
+        toutes = {(s, "WORST") for s in meteo.SAISONS}
+        for zone, matieres in forage.SUPREMES.items():
+            partout = [c for c, k in matieres.items() if toutes <= k]
+            self.assertTrue(17 <= len(partout) <= 21,
+                            f"{zone} : {len(partout)}")
+
+    def test_et_les_autres_tiennent_à_un_créneau(self):
+        """Dix-huit à vingt-quatre par zone, hors de la grande fenêtre."""
+        toutes = {(s, "WORST") for s in meteo.SAISONS}
+        for zone, matieres in forage.SUPREMES.items():
+            creneau = [c for c, k in matieres.items() if not toutes <= k]
+            self.assertTrue(18 <= len(creneau) <= 24,
+                            f"{zone} : {len(creneau)}")
+
+    def test_les_quatre_zones_ne_se_ressemblent_pas(self):
+        """Ce pour quoi le relevé se fait zone par zone."""
+        vues = {zone: frozenset((c, frozenset(k)) for c, k in m.items())
+                for zone, m in forage.SUPREMES.items()}
+        for a in meteo.ZONES:
+            for b in meteo.ZONES:
+                if a != b:
+                    self.assertNotEqual(vues[a], vues[b], f"{a} == {b}")
 
 
 class LesContinentsRestentÀPart(unittest.TestCase):

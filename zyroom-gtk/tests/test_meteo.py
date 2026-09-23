@@ -417,50 +417,48 @@ class CeQuiSort(unittest.TestCase):
                 differents += len(set(rendus)) > 1
         self.assertEqual(16, differents)
 
-    def test_l_application_dit_ce_que_le_tracker_dit(self):
-        """Le tracker d'atys.us est la référence, et l'écran doit lui répondre.
+    def test_la_table_dit_ce_que_les_foreuses_ont_relevé(self):
+        """Le suprême vient du terrain, et rien ne doit s'y ajouter en chemin.
 
-        Ses deux moitiés vivent séparément dans l'application : `armory.py`
-        dit quelle matière sort dans quelle zone à quelle saison — trente-cinq
-        sur trente-cinq pour Under Spring en été, sans un écart —, et
-        `donnees/humidites-gisements.json` porte la fourchette de chaque
-        gisement, relevée sur ses fiches. Ce contrôle refait le croisement à la
-        main et le compare à la table produite : si le générateur dérive, il le
-        dit tout de suite, et non le jour où Ludo ouvre le tracker à côté.
+        `donnees/forage-releve-guilde.json` porte les quatre cent vingt-six
+        croix telles qu'elles ont été saisies sur xiom.be/forage. Ce contrôle
+        refait la traduction — noms de saisons, de conditions, de matières — et
+        compare case pour case à ce que l'écran affichera.
         """
         import json
-        from zyroom import armory
-        from zyroom.gisements import LIBELLES
-        # Le relevé brut, et non `gisements.humidites` : celui-ci ne connaît
-        # que les matières dont on sait aussi dessiner la position, et il lui
-        # manque la résine Fung.
+        from zyroom import armory, forage
         releve = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(
                 os.path.abspath(__file__)))),
-            "donnees", "humidites-gisements.json")
+            "donnees", "forage-releve-guilde.json")
         with open(releve, encoding="utf-8") as fh:
-            fourchettes = json.load(fh)["humidites"]
+            cases = json.load(fh)["cases"]
+        saisons = {"Printemps": "PRINTEMPS", "Été": "ETE",
+                   "Automne": "AUTOMNE", "Hiver": "HIVER"}
+        conditions = {"Worst": "WORST", "Bad": "BAD",
+                      "Good": "GOOD", "Best": "BEST"}
+        # Les noms canoniques sont ceux d'Armory : `gisements.LIBELLES` en
+        # porte jusqu'à trois par matière, et l'un d'eux ne serait pas celui
+        # que la table emploie.
+        noms = {m: (f, m)
+                for zones in armory.SUPREMES.values()
+                for familles in zones.values()
+                for f, ms in familles.items() for m in ms}
+        # Le classeur de la guilde, d'où la page tient ses noms, écrit
+        # « Scratch » là où Armory écrit « Scrath ». La faute vient de Ryzom et
+        # les deux la portent ; le générateur fait le même rapprochement.
+        noms["Scratch"] = noms["Scrath"]
+        attendu = {}
+        for case, valeur in cases.items():
+            zone, saison, matiere, qualite, condition = case.split("|")
+            if qualite != "Supp" or valeur != "x":
+                continue
+            attendu.setdefault(zone, {}).setdefault(
+                noms[matiere], set()).add(
+                    (saisons[saison], conditions[condition]))
+        self.assertEqual(attendu, {z: dict(m)
+                                   for z, m in forage.SUPREMES.items()})
 
-        def plages(famille, matiere):
-            anglais = LIBELLES[(famille, matiere)]
-            return fourchettes.get(f"supreme|{anglais[0]}|{anglais[1]}", [])
-
-        bandes = {"BEST": (0.0, 16.6), "GOOD": (16.7, 49.9),
-                  "BAD": (50.0, 83.3), "WORST": (83.4, 100.0)}
-        for saison, cle in enumerate(meteo.SAISONS):
-            for zone in meteo.ZONES:
-                for condition, (bas, haut) in bandes.items():
-                    attendu = {
-                        (famille, matiere)
-                        for famille, matieres
-                        in armory.SUPREMES[cle][zone].items()
-                        for matiere in matieres
-                        if any(p0 <= bas and haut <= p1 for p0, p1
-                               in plages(famille, matiere))}
-                    _q, groupes = meteo.sortie_de(saison, zone, condition)
-                    trouve = {(f, m) for f, ms in groupes.items() for m in ms}
-                    self.assertEqual(attendu, trouve,
-                                     f"{cle} / {zone} / {condition}")
 
 class Minuteur(unittest.TestCase):
     """Le battement qui fait avancer l'heure d'Atys.

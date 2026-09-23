@@ -188,11 +188,27 @@ class ProchaineSortie(unittest.TestCase):
         self.lieux = [lieu for _x, _y, lieu
                       in gisements.points("supreme", "Ambres", "Zun")]
 
-    def test_elle_compte_jusqu_au_seuil_de_la_matière(self):
-        """Zun sort en mauvais et en exécrable : le bon temps ne suffit pas."""
-        page = self._page(["good", "good", "bad", "worst"])
-        self.assertEqual(18, self.methode(page, "supreme", "Ambres", "Zun",
-                                          self.lieux))
+    def test_elle_compte_jusqu_au_premier_créneau_de_la_matière(self):
+        """Le compte s'arrête au premier cycle où la matière sort quelque part.
+
+        On ne fige pas le nombre de minutes : il suit le relevé de la guilde,
+        qui bouge à mesure que les foreuses remplissent le tableau. Ce qu'on
+        tient, c'est qu'il désigne bien le **premier** cycle utile."""
+        from zyroom import meteo as m
+        conditions = ["good", "good", "bad", "worst", "worst"]
+        page = self._page(conditions)
+        minutes = self.methode(page, "supreme", "Ambres", "Zun", self.lieux)
+        attendu = None
+        for rang, condition in enumerate(conditions):
+            if rang == 0:
+                continue                    # le cycle en cours ne compte pas
+            if any(m.qualite_de(lieu, "Ambres", "Zun", m.SAISONS.index("ETE"),
+                                condition) == m.SUPREME
+                   for lieu in self.lieux if lieu in m.ZONES):
+                attendu = rang * m.MINUTES_PAR_CYCLE
+                break
+        self.assertEqual(attendu, minutes)
+        self.assertIsNotNone(attendu, "aucun créneau dans la prévision d'essai")
 
     def test_rien_dans_la_prévision_ne_s_invente_pas(self):
         page = self._page(["good"] * 40)

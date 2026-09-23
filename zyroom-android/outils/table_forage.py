@@ -14,7 +14,18 @@ table — aucune des deux ne suffit seule.
   très inégalement rempli, mais c'est le relevé le plus récent et il teste
   chaque saison séparément.
 
-**Mais la référence, c'est le tracker d'atys.us**, et non les classeurs. C'est
+**Le suprême vient désormais du relevé de terrain de la guilde**,
+`donnees/forage-releve-guilde.json` : quatre cent vingt-six cases cochées une à
+une sur https://xiom.be/forage/ par les foreuses, zone par zone, saison par
+saison, condition par condition. C'est la seule source qui ait été *mesurée*
+dans les Primes plutôt que déduite d'ailleurs, et elle recoupe ce que le
+tutoriel annonçait : une vingtaine de matières par zone sortent dès que le
+temps est exécrable, une poignée d'autres à un créneau précis.
+
+L'excellente, elle, se déduit encore d'Armory et des fourchettes du tracker :
+son relevé est en cours.
+
+**Pour le reste, la référence est le tracker d'atys.us**, et non les classeurs. C'est
 lui que Ludo ouvre à côté de l'application pour vérifier, et une table qui ne
 lui répond pas est fausse, quelle que soit sa cohérence interne. La table
 affichée se déduit donc de deux relevés qui en viennent :
@@ -77,6 +88,15 @@ with open(HUMIDITES_JSON, encoding="utf-8") as _fh:
 #: Les quatre bandes du jeu, par humidite croissante. Sec vaut mieux qu'humide.
 SEUILS = ((0.0, 16.6, "BEST"), (16.7, 49.9, "GOOD"),
           (50.0, 83.3, "BAD"), (83.4, 100.0, "WORST"))
+
+#: Le releve de terrain des foreuses, saisi sur xiom.be/forage.
+RELEVE_GUILDE = os.path.join(_DEPOT, "donnees", "forage-releve-guilde.json")
+
+#: Les noms que la page du releve emploie, vers ceux de l'application.
+SAISONS_PAGE = {"Printemps": "PRINTEMPS", "Été": "ETE",
+                "Automne": "AUTOMNE", "Hiver": "HIVER"}
+CONDITIONS_PAGE = {"Worst": "WORST", "Bad": "BAD",
+                   "Good": "GOOD", "Best": "BEST"}
 
 CLASSEUR = os.path.join(_DEPOT, "donnees", "tuto-forage-prime.xlsx")
 SAISONNIER = os.path.join(_DEPOT, "donnees", "pop-des-primes-par-saison.csv")
@@ -335,6 +355,31 @@ def bandes(qualite: str, couple: tuple) -> set:
             if any(p0 <= bas and haut <= p1 for p0, p1 in plages)}
 
 
+def supremes_de_la_guilde() -> dict:
+    """{zone: {(famille, matière): {(saison, condition)}}} — le relevé de terrain.
+
+    Une croix par case, posée par une foreuse qui avait la source sous les
+    yeux. C'est la seule mesure faite dans les Primes : tout le reste en est
+    déduit — d'Armory, du tracker, ou d'un classeur de 2009.
+    """
+    with open(RELEVE_GUILDE, encoding="utf-8") as fh:
+        cases = json.load(fh)["cases"]
+    trouve = collections.defaultdict(lambda: collections.defaultdict(set))
+    for case, valeur in cases.items():
+        morceaux = case.split("|")
+        if len(morceaux) != 5 or valeur != "x":
+            continue
+        zone, saison, matiere, qualite, condition = morceaux
+        if qualite != "Supp" or zone not in ZONES:
+            continue
+        couple = CANON.get(normalise(matiere))
+        if couple is None:
+            raise SystemExit(f"relevé : matière inconnue « {matiere} »")
+        trouve[zone][couple].add((SAISONS_PAGE[saison],
+                                  CONDITIONS_PAGE[condition]))
+    return {z: dict(m) for z, m in trouve.items()}
+
+
 def table_du_tracker() -> dict:
     """{qualité: {zone: {(famille, matière): {(saison, condition)}}}}.
 
@@ -347,21 +392,23 @@ def table_du_tracker() -> dict:
     """
     tables = {q: collections.defaultdict(lambda: collections.defaultdict(set))
               for q in ("SUPREME", "EXCELLENTE", "CHOIX")}
-    for saison, zones in armory.SUPREMES.items():
-        for zone, familles in zones.items():
-            for famille, matieres in familles.items():
-                for matiere in matieres:
-                    couple = (famille, matiere)
-                    for condition in bandes("supreme", couple):
-                        tables["SUPREME"][zone][couple].add((saison, condition))
+    # Le supreme ne se deduit plus de rien : il est releve.
+    for zone, matieres in supremes_de_la_guilde().items():
+        for couple, creneaux in matieres.items():
+            tables["SUPREME"][zone][couple] |= creneaux
     # Les excellentes n'ont pas de zone chez Armory : elles valent pour les
     # quatre, restreintes aux matieres que la zone porte.
     for saison, moments in armory.EXCELLENTES.items():
         pour_la_saison = {(f, m) for familles in moments.values()
                           for f, matieres in familles.items() for m in matieres}
         for zone in ZONES:
-            portees = {c for c in pour_la_saison
-                       if c in tables["SUPREME"][zone]}
+            # La zone se lit chez Armory, et non dans la table des supremes :
+            # depuis qu'elle vient du releve de terrain, elle ne contient que
+            # ce qui sort en supreme -- ce qui exclurait a tort les matieres
+            # qui n'y sortent qu'en excellente.
+            portees = {(f, m)
+                       for f, ms in armory.SUPREMES[saison][zone].items()
+                       for m in ms} & pour_la_saison
             for couple in portees:
                 for condition in bandes("excellent", couple):
                     tables["EXCELLENTE"][zone][couple].add((saison, condition))
@@ -391,8 +438,11 @@ def verifie(tables: dict, conts: dict) -> None:
         raise SystemExit("choix : une table est apparue sans source")
     if set(tables["SUPREME"]) != set(ZONES):
         raise SystemExit(f"zones lues : {sorted(tables['SUPREME'])}")
+    # Le releve est une mesure, pas un catalogue : une matiere qui ne sort en
+    # supreme nulle part n'y figure pas. On verifie l'ordre de grandeur, et
+    # qu'aucune zone ne soit restee vide.
     for zone, matieres in tables["SUPREME"].items():
-        if not 45 <= len(matieres) <= 47:
+        if not 30 <= len(matieres) <= 47:
             raise SystemExit(f"{zone} : {len(matieres)} matières suprêmes")
     for qualite, table in tables.items():
         for zone, matieres in table.items():
@@ -489,6 +539,15 @@ def main() -> int:
     for qualite in ("SUPREME", "EXCELLENTE"):
         print(f"{qualite:11s} " + "  ".join(
             f"{z[:12]} {len(tables[qualite].get(z, {})):2d}" for z in ZONES))
+    creneaux = sum(len(k) for z in tables["SUPREME"].values()
+                   for k in z.values())
+    print(f"suprême : {creneaux} créneaux relevés sur le terrain")
+    for zone in ZONES:
+        absentes = {(f, m) for familles in armory.SUPREMES["PRINTEMPS"][zone].items()
+                    for f, ms in [familles] for m in ms} - set(tables["SUPREME"][zone])
+        if absentes:
+            print(f"  {zone} : {len(absentes)} matière(s) qu'Armory place là "
+                  f"et que le relevé ne donne jamais en suprême")
     print("écart des classeurs de la guilde, pour mémoire :")
     for ligne in ecart_des_classeurs(tables, par_saison(),
                                      cartographie(tout)):
