@@ -83,12 +83,25 @@ class Duree(unittest.TestCase):
     def test_l_unite_leve_le_doute_des_grandes_attentes(self):
         # « 83 h 23 » se lit comme une heure de la journee ; « 83 h 23 min »
         # non. La forme courte reste celle de l'ecran meteo.
-        self.assertEqual("83 h 23", meteo.duree(5003))
-        self.assertEqual("83 h 23 min", meteo.duree(5003, unite=True))
+        self.assertEqual("3 j 11 h 23", meteo.duree(5003))
+        self.assertEqual("3 j 11 h 23 min", meteo.duree(5003, unite=True))
 
     def test_sous_l_heure_rien_ne_change(self):
         self.assertEqual("27 min", meteo.duree(27))
         self.assertEqual("27 min", meteo.duree(27, unite=True))
+
+    def test_les_jours_se_comptent_à_part(self):
+        """« Hiver dans 100 h 43 min » demandait une division pour savoir
+        s'il fallait s'y préparer ce soir ou la semaine prochaine.
+
+        Une saison d'Atys dure quatre jours et demi réels : la barre du haut
+        passe donc le plus clair de son temps au-dessus des vingt-quatre
+        heures. Ce n'est pas une extrémité, c'est le cas courant."""
+        self.assertEqual("23 h 59", meteo.duree(24 * 60 - 1))
+        self.assertEqual("1 j 0 h 00", meteo.duree(24 * 60))
+        self.assertEqual("4 j 4 h 43", meteo.duree(100 * 60 + 43))
+        self.assertEqual("4 j 4 h 43 min",
+                         meteo.duree(100 * 60 + 43, unite=True))
 
 
 if __name__ == "__main__":

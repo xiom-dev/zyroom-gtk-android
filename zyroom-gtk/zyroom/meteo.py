@@ -268,7 +268,13 @@ def texte_condition(condition: str) -> str:
 
 
 def duree(minutes: int, unite: bool = False) -> str:
-    """« 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule.
+    """« 27 min », « 1 h 12 », « 4 j 4 h 43 » — un compte à rebours se lit.
+
+    **Les jours se comptent à part passé vingt-quatre heures.** « Hiver dans
+    100 h 43 min » oblige à poser une division pour savoir s'il faut s'y
+    préparer ce soir ou la semaine prochaine ; « 4 j 4 h 43 min » se lit. Une
+    saison d'Atys dure quatre jours et demi réels, c'est donc le cas courant
+    de la barre du haut, pas une extrémité.
 
     `unite` écrit « 1 h 12 min » plutôt que « 1 h 12 ». La forme courte va bien
     aux petites attentes de l'écran météo, où l'heure est rare et le contexte
@@ -282,7 +288,11 @@ def duree(minutes: int, unite: bool = False) -> str:
     if minutes < 60:
         return f"{minutes} min"
     fin = " min" if unite else ""
-    return f"{minutes // 60} h {minutes % 60:02d}{fin}"
+    heures, reste = divmod(minutes, 60)
+    if heures < 24:
+        return f"{heures} h {reste:02d}{fin}"
+    jours, heures = divmod(heures, 24)
+    return f"{jours} j {heures} h {reste:02d}{fin}"
 
 
 def moment_du_changement(minutes: float, maintenant=None) -> str:
