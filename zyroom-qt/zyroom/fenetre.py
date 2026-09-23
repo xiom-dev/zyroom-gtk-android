@@ -2566,11 +2566,15 @@ class FenetrePrincipale(QMainWindow):
         # Voir `window.py` du cote GTK : la minute et la date plutot que
         # l'heure seule, a la demande des joueurs de la guilde.
         minutes = int(round(saison["minutes_to_next"]))
+        # **Sans la saison en cours.** "Ete · Automne dans 16 h 06" posait deux
+        # saisons cote a cote sans dire laquelle etait laquelle : on pouvait
+        # aussi bien lire que l'ete arrivait. Ne reste que celle qui vient,
+        # avec son delai -- la saison du moment se lit sur l'ecran Meteo, qui
+        # l'ecrit dans sa premiere ligne.
         self._lbl_saison.setText(
-            f"{saison['season_name']} · "
-            + _("{} dans {} — {}").format(saison["next_season_name"],
-                                          meteo.duree(minutes, unite=True),
-                                          meteo.moment_du_changement(minutes)))
+            _("{} dans {} — {}").format(saison["next_season_name"],
+                                        meteo.duree(minutes, unite=True),
+                                        meteo.moment_du_changement(minutes)))
 
     # --------------------------------------------------------- Contenants
     def _remplir_contenants(self) -> None:

@@ -20,7 +20,7 @@ import time
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
-from . import armory, pop as _pop
+from . import armory, forage as _forage
 
 #: Heures d'Atys dans un cycle météo.
 HEURES_PAR_CYCLE = 3
@@ -34,6 +34,19 @@ MINUTES_PAR_CYCLE = 9
 
 #: Les quatre saisons, dans l'ordre où l'API les numérote.
 SAISONS = ("PRINTEMPS", "ETE", "AUTOMNE", "HIVER")
+
+#: Les trois qualités qu'un gisement des Primes rend, de la meilleure à la
+#: moindre. L'ordre compte : une zone annonce la première qu'elle a à offrir.
+SUPREME, EXCELLENTE, CHOIX = "supreme", "excellente", "choix"
+QUALITES = (SUPREME, EXCELLENTE, CHOIX)
+
+#: Ces mêmes qualités telles que `gisements.py` les nomme. Le choix n'a pas de
+#: carte : ses gisements ne sont relevés nulle part.
+#:
+#: Le relevé des positions ne connaît que deux qualités, et il place les
+#: excellentes sur les **continents** — pas dans les Primes. Une excellente des
+#: Primes n'a donc pas de carte non plus, pour l'instant.
+QUALITE_GISEMENT = {SUPREME: "supreme", EXCELLENTE: "excellent", CHOIX: ""}
 
 #: Les seuils du jeu, qui découpent les quatre conditions de gisement.
 SEUILS = (0.1666, 0.5, 0.8333)
@@ -210,6 +223,44 @@ def texte_meteo(cle: str) -> str:
     return _TEMPS.get(cle, cle.removeprefix("ui"))
 
 
+#: Le nom de chaque qualité de gisement, celui des foreuses.
+#:
+#: **« XL » et non « excellente ».** « Excellente » nomme aussi une bande
+#: d'humidité — le temps le plus sec, sous 16,6 % — et l'écran écrivait le mot
+#: deux fois de suite pour deux choses sans rapport : « sort suprême et
+#: excellente », puis « excellente dans 1 h 08 », qui parlait de la météo.
+#: « XL » est le mot du relevé, celui des onglets de xiom.be/forage, et il ne
+#: désigne jamais que la matière.
+MOT_QUALITE = {SUPREME: "suprême", EXCELLENTE: "XL", CHOIX: "choix"}
+
+
+def mot_qualite(qualite: str | None) -> str:
+    """La qualité d'un gisement, telle qu'on l'écrit en tête d'une colonne.
+
+    `None` n'est pas une qualité : c'est l'aveu que la guilde n'a pas encore
+    testé ce créneau dans cette zone. Le dire vaut mieux que laisser croire
+    qu'il ne sort rien."""
+    if qualite is None:
+        return "Pas encore relevé"
+    mot = MOT_QUALITE.get(qualite, qualite or "")
+    # Et non `.capitalize()`, qui rendrait « Xl ».
+    return mot[:1].upper() + mot[1:]
+
+
+def enumere_qualites(qualites) -> str:
+    """« suprême », « suprême et XL », « suprême, XL et choix ».
+
+    La ligne du haut n'annonçait que la meilleure qualité en vue. Par temps
+    mauvais, elle écrivait « sort suprême » pour une matière, en taisant les
+    quinze excellentes de la même zone — celles qu'on irait justement forer
+    faute de mieux.
+    """
+    mots = [MOT_QUALITE.get(q, q) for q in qualites]
+    if len(mots) <= 1:
+        return mots[0] if mots else ""
+    return ", ".join(mots[:-1]) + " et " + mots[-1]
+
+
 def texte_condition(condition: str) -> str:
     """La condition de gisement, en français."""
     return {"best": "Excellente", "good": "Bonne",
@@ -217,7 +268,13 @@ def texte_condition(condition: str) -> str:
 
 
 def duree(minutes: int, unite: bool = False) -> str:
-    """« 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule.
+    """« 27 min », « 1 h 12 », « 4 j 4 h 43 » — un compte à rebours se lit.
+
+    **Les jours se comptent à part passé vingt-quatre heures.** « Hiver dans
+    100 h 43 min » oblige à poser une division pour savoir s'il faut s'y
+    préparer ce soir ou la semaine prochaine ; « 4 j 4 h 43 min » se lit. Une
+    saison d'Atys dure quatre jours et demi réels, c'est donc le cas courant
+    de la barre du haut, pas une extrémité.
 
     `unite` écrit « 1 h 12 min » plutôt que « 1 h 12 ». La forme courte va bien
     aux petites attentes de l'écran météo, où l'heure est rare et le contexte
@@ -231,7 +288,11 @@ def duree(minutes: int, unite: bool = False) -> str:
     if minutes < 60:
         return f"{minutes} min"
     fin = " min" if unite else ""
-    return f"{minutes // 60} h {minutes % 60:02d}{fin}"
+    heures, reste = divmod(minutes, 60)
+    if heures < 24:
+        return f"{heures} h {reste:02d}{fin}"
+    jours, heures = divmod(heures, 24)
+    return f"{jours} j {heures} h {reste:02d}{fin}"
 
 
 def moment_du_changement(minutes: float, maintenant=None) -> str:
@@ -298,19 +359,121 @@ def symbole(groupe: str) -> str | None:
 ZONES = list(CONTINENT_DE_ZONE)
 
 
-def pop_de(saison: int, zone: str, condition: str) -> dict[str, list[str]]:
-    """Ce qui peut sortir ici et maintenant.
+def _creneau(saison: int, condition: str) -> tuple[str, str]:
+    """Le couple (saison, condition) sous lequel les tables du tutoriel rangent.
 
-    L'humidité décide de la condition de gisement, et la condition décide de ce
-    qu'on trouve. La table est complète depuis qu'elle se déduit d'Armory et des
-    fourchettes du tracker : les quatre conditions sont remplies dans les quatre
-    zones des quatre saisons. Un vide ne peut donc plus vouloir dire « pas
-    encore relevé » — il signalerait une table mal fabriquée.
-
-    Ce qui sort est **la moitié** de ce que la saison peut donner : chaque
-    gisement occupe deux des quatre bandes d'humidité. Comparé au relevé
-    d'Armory, qui donne la saison entière sans notion de météo, il manquera
-    toujours l'autre moitié — ce n'est pas un trou.
+    La saison arrive numérotée par l'API, la condition en minuscules : les deux
+    tables, elles, sont écrites en clair et en capitales.
     """
     cle = SAISONS[saison] if 0 <= saison < len(SAISONS) else ""
-    return _pop.POP.get(cle, {}).get(zone, {}).get(condition.upper(), {})
+    return cle, condition.upper()
+
+
+def qualite_de(zone: str, famille: str, matiere: str,
+               saison: int, condition: str) -> str | None:
+    """La qualité que rend une matière dans une zone, à cet instant.
+
+    **La zone compte.** C'était l'erreur d'avant : une seule table pour les
+    quatre, alors qu'au printemps par temps mauvais la Cité Engloutie sort une
+    suprême que la Terre de la Continuité n'a pas.
+
+    Rend `None` quand aucune des trois tables ne dit rien de ce créneau : la
+    cartographie de la guilde est un chantier en cours, et un silence n'est pas
+    un « rien ne sort ». Le suprême, lui, est complet — un `None` veut donc
+    toujours dire « pas de suprême, et le reste n'a pas été relevé ».
+    """
+    creneau = _creneau(saison, condition)
+    couple = (famille, matiere)
+    for qualite, table in ((SUPREME, _forage.SUPREMES),
+                           (EXCELLENTE, _forage.EXCELLENTES),
+                           (CHOIX, _forage.CHOIX)):
+        if creneau in table.get(zone, {}).get(couple, ()):
+            return qualite
+    return None
+
+
+def sorties_de(saison: int, zone: str,
+               condition: str) -> list[tuple[str, dict]]:
+    """Tout ce qui sort dans une zone à ce créneau, qualité par qualité.
+
+    Rend `[(qualité, {famille: [matières]}), …]`, la meilleure qualité
+    d'abord, et une liste vide quand la guilde n'a rien relevé là.
+
+    **Pourquoi plusieurs et non la seule meilleure.** La fonction n'en rendait
+    qu'une, du temps où l'excellente était déduite des fourchettes d'humidité
+    et ne valait rien : la masquer derrière le suprême ne coûtait pas cher.
+    Maintenant qu'elle est relevée sur le terrain comme lui, s'en tenir à la
+    meilleure jette l'essentiel — aux Sources Interdites, en automne par temps
+    mauvais, une seule suprême cacherait quinze excellentes. Chaque bloc porte
+    le nom de sa qualité, ce qui répond à la crainte d'origine : rien ne se
+    lit comme suprême sans l'être.
+    """
+    creneau = _creneau(saison, condition)
+    trouve = []
+    for qualite, table in ((SUPREME, _forage.SUPREMES),
+                           (EXCELLENTE, _forage.EXCELLENTES),
+                           (CHOIX, _forage.CHOIX)):
+        groupes: dict[str, list[str]] = {}
+        for (famille, matiere), creneaux in table.get(zone, {}).items():
+            if creneau in creneaux:
+                groupes.setdefault(famille, []).append(matiere)
+        if groupes:
+            trouve.append((qualite, {f: sorted(m)
+                                     for f, m in groupes.items()}))
+    return trouve
+
+
+def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]:
+    """La meilleure qualité qu'une zone ait à offrir à ce créneau.
+
+    Rend `(qualité, {famille: [matières]})`, ou `(None, {})` quand la guilde
+    n'a encore rien relevé pour ce créneau dans cette zone. C'est la réponse
+    courte — « vaut-il mieux aller là ou ailleurs ? » ; `sorties_de` donne le
+    détail que l'écran affiche.
+    """
+    sorties = sorties_de(saison, zone, condition)
+    return sorties[0] if sorties else (None, {})
+
+
+def prochaine_fenetre_supreme(releve: "MeteoAtys") -> "Meteo | None":
+    """Le prochain cycle par temps exécrable — la fenêtre de forage du suprême.
+
+    **Mesuré contre le tracker d'atys.us**, qui affiche le même compte à
+    rebours : le 22 septembre 2026 à 14 h 22, il annonçait « Supremes Available
+    in 2h 48m », et la prévision du jeu plaçait le prochain cycle exécrable à
+    17 h 09 — la même minute. Son « bonnes conditions pour le suprême », c'est
+    donc l'humidité au-dessus de 83,4 %, et rien d'autre.
+
+    Ce n'est pas la même chose que la fourchette d'un gisement, qui dit où on
+    le trouve : à tout instant la moitié des matières d'une zone est dans sa
+    fourchette, et un compte à rebours bâti là-dessus ne s'allumerait jamais.
+    La grande fenêtre, celle qu'on attend, c'est l'exécrable.
+
+    Rend `None` si aucun cycle exécrable n'est en vue : la prévision du jeu ne
+    porte que six heures, et on ne devine pas au-delà.
+    """
+    for cycle in releve.cycles_des_primes():
+        if cycle.cycle > releve.cycle_courant and cycle.condition.lower() == "worst":
+            return cycle
+    return None
+
+
+def fin_fenetre_supreme(releve: "MeteoAtys") -> float | None:
+    """Minutes réelles avant que la fenêtre en cours ne se referme.
+
+    Une fenêtre dure rarement plus d'un cycle — neuf minutes réelles —, mais
+    elle peut en enchaîner deux : on cherche donc le premier cycle à venir qui
+    ne soit pas exécrable, et non « le cycle suivant ».
+
+    Le compte part de l'instant présent, pas du début du cycle : à la sixième
+    minute d'une fenêtre de neuf, il reste trois minutes, et c'est cela qu'une
+    foreuse veut lire.
+
+    Rend `None` si la prévision s'arrête sans jamais quitter l'exécrable — on
+    ne sait alors pas dire jusqu'à quand.
+    """
+    for cycle in sorted(releve.cycles_des_primes(), key=lambda c: c.cycle):
+        if cycle.cycle > releve.cycle_courant \
+                and cycle.condition.lower() != "worst":
+            return releve.minutes_avant(cycle.cycle)
+    return None

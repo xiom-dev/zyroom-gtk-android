@@ -24,7 +24,7 @@ fi
 # passent d'une interface a l'autre sans une ligne de changement.
 NOYAU=(
     alerts.py armory.py backup.py carte.py categorydb.py enchantements.py
-    gisements.py i18n.py meteo.py models.py movements.py namedb.py
+    forage.py gisements.py i18n.py meteo.py models.py movements.py namedb.py
     noms_avant_postes.py outposts.py partage.py pop.py roster.py
     ryzom_api.py sheetdb.py skills.py sorting.py volume.py watch.py
 )

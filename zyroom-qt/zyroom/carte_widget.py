@@ -41,6 +41,20 @@ POINT = QColor(255, 46, 46)
 #: Le bleu du repere du joueur, distinct du rouge des betes.
 POINT_JOUEUR = QColor(59, 156, 255)
 
+#: Le vert d'un gisement qui sort en ce moment.
+#:
+#: Vert et non rouge : le rouge se lit comme un refus, alors qu'il marque
+#: justement ce qu'on cherche. La carte des betes garde le sien -- la, le
+#: point ne dit pas "vas-y", il dit "c'est la".
+POINT_ACTIF = QColor(71, 209, 92)
+
+#: Le gris d'un gisement qui ne sort pas en ce moment.
+#:
+#: Gris et non efface : le montrer dit "ici, mais pas maintenant", ce qu'une
+#: carte amputee ne dirait pas. Assez clair pour rester visible sur les zones
+#: sombres d'Atys, assez terne pour qu'on ne le confonde jamais avec le vert.
+POINT_INACTIF = QColor(148, 148, 153)
+
 BLANC = QColor(255, 255, 255)
 
 
