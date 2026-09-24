@@ -99,7 +99,10 @@ CONDITIONS = (("Médiocre", "Worst", "83,4 – 100 %"),
               ("Bonne", "Good", "16,7 – 49,9 %"),
               ("Excellente", "Best", "0 – 16,6 %"))
 
-QUALITES = ("Supp", "XL", "Choix")
+#: Les qualites relevees. **Pas de choix** : Ludo n'en veut nulle part, ni
+#: sur cette page ni dans les applications. Le classeur, lui, garde sa ligne
+#: « Choix » : c'est elle qui donne le nom des matieres (voir `catalogue`).
+QUALITES = ("Supp", "XL")
 
 
 def clef() -> str:
@@ -223,7 +226,7 @@ def grille(familles: list) -> str:
                     f'|{court}"></td>'
                     for _fr, court, _plage in CONDITIONS)
                 if rang == 0:
-                    debut = (f'<th class="matiere" rowspan="3">'
+                    debut = (f'<th class="matiere" rowspan="{len(QUALITES)}">'
                              f'{html.escape(propre)}</th>')
                 else:
                     debut = ""
@@ -792,7 +795,7 @@ GABARIT = """<!DOCTYPE html>
   <p>Quand on fore une source dans les Primes, on coche ici. Un clic&nbsp;:
      <b style="color:var(--oui)">x</b> ça sort, <b style="color:var(--non)">−</b>
      ça ne sort pas, un clic de plus efface. Utilisez une stanza précise —
-     suprême seulement, ou excellent seulement, ou choix seulement — et lisez le
+     suprême seulement, ou excellent seulement — et lisez le
      message du jeu&nbsp;: <i>pas à cette saison</i>, <i>vidé</i>,
      <i>mauvaises conditions climatiques</i>.</p>
   <p>Une croix <b style="color:var(--dedu)">orange</b> vient d'une autre
