@@ -402,6 +402,28 @@ def qualite_de(zone: str, famille: str, matiere: str,
     return None
 
 
+#: La table des « à confirmer » réellement employée par l'écran.
+#:
+#: Celle de `forage.py` est un **instantané**, figé le jour où la table a été
+#: fabriquée. Les croix se cochent ensuite, et l'écran continuait d'envoyer
+#: Ludo vérifier des cases déjà vertes. `forage_releve` remplace donc cette
+#: table par l'état réel du relevé dès qu'il a pu le lire.
+_A_CONFIRMER = [None]
+
+
+def poser_a_confirmer(table) -> None:
+    """Remplace l'instantané embarqué par ce que le relevé dit vraiment.
+
+    `None` remet l'instantané : c'est ce qui vaut tant qu'on n'a pas pu
+    joindre le site, et mieux vaut une liste un peu vieille que pas de liste.
+    """
+    _A_CONFIRMER[0] = table
+
+
+def a_confirmer() -> dict:
+    return _A_CONFIRMER[0] if _A_CONFIRMER[0] is not None else _forage.A_CONFIRMER
+
+
 def positions_des_primes(qualite: str, famille: str, matiere: str) -> list:
     """Où sort cette matière **dans les Primes**, et nulle part ailleurs.
 
@@ -460,7 +482,7 @@ def sorties_de(saison: int, zone: str,
     #: La XL se coupe en deux : ce qu'on a vu sortir, et ce qu'on nous a
     #: rapporté sans l'avoir vérifié. Les secondes portent le même nom de
     #: matière, mais c'est vers elles qu'il faut aller forer.
-    a_verifier = groupes_de(_forage.A_CONFIRMER)
+    a_verifier = groupes_de(a_confirmer())
     excellentes = {f: [m for m in ms if m not in a_verifier.get(f, ())]
                    for f, ms in groupes_de(_forage.EXCELLENTES).items()}
 

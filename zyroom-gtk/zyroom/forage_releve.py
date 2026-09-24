@@ -90,6 +90,14 @@ CONDITIONS_PAGE = {"worst": "Worst", "bad": "Bad",
 #: Ce que le jeu écrit dans le nom d'une matière, vers la colonne de la page.
 QUALITES_PAGE = (("supr", "Supp"), ("excellent", "XL"), ("choix", "Choix"))
 
+#: La coquille de Ryzom, portée des deux côtés mais pas de la même façon.
+#:
+#: Le jeu et Armory écrivent « Scrath », le relevé de la guilde « Scratch ».
+#: Sans ce pont, cinq croix oranges restaient invisibles à l'écran, et une
+#: prise de Scrath se serait fait refuser par le site — « case inconnue ».
+NOM_PAGE = {"Scrath": "Scratch"}
+NOM_TABLE = {v: k for k, v in NOM_PAGE.items()}
+
 
 def dossier() -> str:
     chemin = os.path.join(data_dir(), "forage")
@@ -262,7 +270,8 @@ def prises() -> list:
         condition, saison = conditions.get(cycle), saison_pres_de(cycle)
         if condition is None or not 0 <= saison < 4:
             continue            # hors du carnet : on n'approxime pas
-        sortie.append("|".join((zone, SAISONS_PAGE[saison], matiere, qualite,
+        sortie.append("|".join((zone, SAISONS_PAGE[saison],
+                                NOM_PAGE.get(matiere, matiere), qualite,
                                 CONDITIONS_PAGE[condition])))
     if zone:
         _ecrire("zone.json", zone)
@@ -286,6 +295,65 @@ def _poste(corps: dict) -> dict:
         return {"erreur": f"HTTP {souci.code}"}
 
 
+def _familles() -> dict:
+    """{matiere: famille} — pour relire les clefs du relevé commun."""
+    sortie = {}
+    for t in (forage.SUPREMES, forage.EXCELLENTES):
+        for zone in t.values():
+            for f, m in zone:
+                sortie[m] = f
+                # Le relevé écrit « Scratch » là où le jeu écrit « Scrath ».
+                if m in NOM_PAGE:
+                    sortie[NOM_PAGE[m]] = f
+    return sortie
+
+
+def _depuis_le_site(cases: dict) -> dict:
+    """Les cases encore oranges, rangées comme `forage.A_CONFIRMER`."""
+    familles = _familles()
+    saisons = {nom: meteo.SAISONS[i] for i, nom in enumerate(SAISONS_PAGE)}
+    conditions = {v: k.upper() for k, v in CONDITIONS_PAGE.items()}
+    table = {zone: {} for zone in meteo.ZONES}
+    for cle, valeur in cases.items():
+        v = valeur.get("v") if isinstance(valeur, dict) else valeur
+        if v != "?":
+            continue
+        morceaux = cle.split("|")
+        if len(morceaux) != 5:
+            continue
+        zone, saison, matiere, qualite, condition = morceaux
+        if zone not in table or qualite != "XL" or matiere not in familles:
+            continue
+        couple = (familles[matiere], NOM_TABLE.get(matiere, matiere))
+        table[zone].setdefault(couple, set()).add(
+            (saisons[saison], conditions[condition]))
+    return table
+
+
+def appliquer_a_confirmer() -> int:
+    """Remet l'écran sur l'état réel du relevé. Rend le nombre de créneaux.
+
+    La table de `forage.py` est un instantané : les croix se cochent ensuite,
+    et l'écran continuait d'envoyer vérifier des cases déjà vertes.
+    """
+    table = _lire("a_confirmer.json", None)
+    if not table:
+        return 0
+    vivant = {zone: {tuple(c.split("\x1f")): {tuple(k.split("\x1f"))
+                                              for k in creneaux}
+                     for c, creneaux in matieres.items()}
+              for zone, matieres in table.items()}
+    meteo.poser_a_confirmer(vivant)
+    return sum(len(k) for z in vivant.values() for k in z.values())
+
+
+def _garder_a_confirmer(table: dict) -> None:
+    _ecrire("a_confirmer.json",
+            {zone: {"\x1f".join(couple): ["\x1f".join(k) for k in sorted(creneaux)]
+                    for couple, creneaux in matieres.items()}
+             for zone, matieres in table.items()})
+
+
 def envoyer() -> dict:
     """Coche sur le relevé commun ce que le journal confirme.
 
@@ -299,8 +367,6 @@ def envoyer() -> dict:
     neuves = [c for c in cases if c not in connues]
     bilan = {"lignes": lues, "prises": len(cases), "posees": 0,
              "deja": len(cases) - len(neuves), "erreur": ""}
-    if not neuves:
-        return bilan
     try:
         jeton = _poste({"action": "entrer",
                         "mdp": _secret(MDP_FICHIER)}).get("jeton", "")
@@ -314,6 +380,14 @@ def envoyer() -> dict:
     except (OSError, ValueError) as souci:
         bilan["erreur"] = str(souci)
         return bilan
+
+    # L'etat des oranges, relu au passage : une case cochee depuis la
+    # fabrication de la table ne doit plus etre proposee a la verification.
+    try:
+        _garder_a_confirmer(_depuis_le_site(tableau))
+        appliquer_a_confirmer()
+    except (OSError, ValueError, KeyError):
+        pass
 
     vues = set(connues)
     for case in neuves:

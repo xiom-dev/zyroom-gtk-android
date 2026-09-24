@@ -199,7 +199,11 @@ class PageMeteo:
             # présent et six heures d'avance.
             try:
                 forage_releve.noter_meteo(res)
-            except OSError:
+                # Et l'état réel des « à confirmer », gardé du dernier relevé :
+                # la table embarquée est un instantané, et l'écran envoyait
+                # vérifier des cases cochées depuis.
+                forage_releve.appliquer_a_confirmer()
+            except (OSError, ValueError):
                 pass            # un carnet qui ne s'écrit pas ne doit rien casser
             self._meteo_affiche = res
             self._refresh_meteo()
@@ -342,6 +346,9 @@ class PageMeteo:
                 return
             # On dit ce qui a été fait, y compris quand rien n'a bougé : un
             # bouton muet laisse croire qu'il n'a pas marché.
+            # Le relevé vient d'être relu : les oranges cochées depuis la
+            # fabrication de la table ne doivent plus s'afficher.
+            self._refresh_meteo()
             if bilan["posees"]:
                 self._set_status(
                     _("%(n)d croix posée(s) sur le relevé — %(p)d prise(s) lue(s)")
