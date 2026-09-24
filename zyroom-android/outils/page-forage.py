@@ -69,6 +69,13 @@ MOT_DE_PASSE_FICHIER = os.path.expanduser("~/.config/zyroom/forage.motdepasse")
 SEL_FICHIER = os.path.expanduser("~/.config/zyroom/forage.sel")
 
 ONGLET = "Original vierge"
+
+#: Les noms du classeur qui ne sont pas ceux du jeu.
+#:
+#: Le classeur ecrit « Scratch » ; le jeu, lui, ecrit « Scrath », et c'est
+#: son nom que la foreuse lit a l'ecran. Le serveur renomme au passage les
+#: cases deja cochees sous l'ancien nom (voir `RENOMMEES` dans le PHP).
+RENOMMEES = {"Scratch": "Scrath"}
 SAISONS = ("Printemps", "Été", "Automne", "Hiver")
 
 #: Les quatre zones des Primes. Le classeur leur donne un onglet chacune, et
@@ -166,7 +173,7 @@ def catalogue() -> list:
         if nom and "/" in nom and not qualite:
             familles.append((nom, []))
         elif qualite == "Choix" and nom and familles:
-            familles[-1][1].append(nom)
+            familles[-1][1].append(RENOMMEES.get(nom, nom))
     return familles
 
 
@@ -264,6 +271,39 @@ const QUALITES = __QUALITES__;
 const CONDITIONS = __CONDITIONS__;
 const MATIERES = __MATIERES__;
 
+// Les noms que le releve a portes avant d'etre corriges, et leur nom juste.
+//
+// **Pourquoi ici et pas une fois pour toutes dans le fichier.** Le fichier
+// vit sur le serveur, hors de portee de l'outil qui fabrique la page. Les
+// cases deja cochees sous l'ancien nom sont donc renommees au passage, a
+// chaque lecture et a chaque ecriture ; la premiere ecriture fixe le
+// renommage dans le fichier. Et une case envoyee sous l'ancien nom -- par
+// une application pas encore mise a jour -- est acceptee et rangee sous le
+// nouveau.
+const RENOMMEES = __RENOMMEES__;
+
+function a_jour(string $case): string
+{
+    $morceaux = explode('|', $case);
+    if (count($morceaux) === 5 && isset(RENOMMEES[$morceaux[2]])) {
+        $morceaux[2] = RENOMMEES[$morceaux[2]];
+    }
+    return implode('|', $morceaux);
+}
+
+function a_jour_toutes(array $cases): array
+{
+    $sortie = [];
+    foreach ($cases as $case => $valeur) {
+        $juste = a_jour((string) $case);
+        // Si les deux noms coexistent, la case sous le nom juste l'emporte.
+        if ($juste === $case || !isset($cases[$juste])) {
+            $sortie[$juste] = $valeur;
+        }
+    }
+    return $sortie;
+}
+
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -340,7 +380,8 @@ function etat(): array
     if (!is_array($lu) || !isset($lu['cases']) || !is_array($lu['cases'])) {
         return ['cases' => (object) [], 'maj' => null];
     }
-    return ['cases' => (object) $lu['cases'], 'maj' => $lu['maj'] ?? null];
+    return ['cases' => (object) a_jour_toutes($lu['cases']),
+            'maj' => $lu['maj'] ?? null];
 }
 
 function repond(int $code, array $corps): never
@@ -419,7 +460,7 @@ if (($demande['action'] ?? '') === 'signer') {
     $contenu = stream_get_contents($fh);
     $lu = json_decode((string) $contenu, true);
     $cases = (is_array($lu) && isset($lu['cases']) && is_array($lu['cases']))
-        ? $lu['cases'] : [];
+        ? a_jour_toutes($lu['cases']) : [];
     if ($contenu !== '') {
         @mkdir(SAUVEGARDES, 0775, true);
         @file_put_contents(
@@ -456,6 +497,7 @@ $foreuse = trim((string) ($demande['foreuse'] ?? ''));
 $foreuse = (string) preg_replace('/[^\\p{L}\\p{N} \\-\\']/u', '', $foreuse);
 $foreuse = (string) preg_replace('/^(.{0,24}).*$/us', '$1', $foreuse);
 
+$case = a_jour($case);
 $morceaux = explode('|', $case);
 if (count($morceaux) !== 5
     || !in_array($morceaux[0], ZONES, true)
@@ -478,7 +520,7 @@ if ($fh === false || !flock($fh, LOCK_EX)) {
 $contenu = stream_get_contents($fh);
 $lu = json_decode((string) $contenu, true);
 $cases = (is_array($lu) && isset($lu['cases']) && is_array($lu['cases']))
-    ? $lu['cases'] : [];
+    ? a_jour_toutes($lu['cases']) : [];
 
 // Une sauvegarde avant chaque ecriture : un tableau rempli sur des mois par
 // plusieurs foreuses ne doit pas pouvoir disparaitre sur une fausse manoeuvre.
@@ -1060,7 +1102,9 @@ def main() -> int:
            # Le nom court, et non le francais : c'est lui que `grille()` met
            # dans data-cle, donc lui que la page enverra.
            .replace("__CONDITIONS__", _liste_php(c[1] for c in CONDITIONS))
-           .replace("__MATIERES__", _liste_php(matieres)))
+           .replace("__MATIERES__", _liste_php(matieres))
+           .replace("__RENOMMEES__", "[" + ", ".join(
+               f"'{a}' => '{b}'" for a, b in RENOMMEES.items()) + "]"))
 
     # Les deux moitieses doivent nommer les cases pareil. L'ecart precedent --
     # la page envoyait « Worst », le serveur attendait « Execrable » -- ne se
