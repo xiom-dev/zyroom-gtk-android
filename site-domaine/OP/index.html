@@ -111,6 +111,36 @@
            padding: 6px 12px; cursor: pointer; }
   button:hover { border-color: var(--clair); }
 
+  /* Les statistiques, sous les colonnes : une carte par question. */
+  #stats { max-width: 1100px; margin: 28px auto 0; }
+  #stats > h2 { color: var(--or); font-size: 1.2rem; margin: 0 0 8px;
+                display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  #guerre { background: var(--fond); color: var(--texte); font: inherit;
+            font-size: .9rem; border: 1px solid var(--trait); border-radius: 7px;
+            padding: 5px 8px; }
+  #stats-resume { color: var(--faible); font-size: .85rem; margin: 0 0 12px; }
+  #cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 12px; }
+  .carte { background: var(--surface); border: 1px solid var(--trait);
+           border-radius: 10px; padding: 10px 12px; }
+  .carte h3 { margin: 0 0 8px; font-size: .95rem; color: var(--clair); }
+  .carte h4 { margin: 8px 0 4px; font-size: .78rem; font-weight: 400;
+              color: var(--faible); text-transform: uppercase; letter-spacing: .04em; }
+  .carte .note { color: var(--faible); font-size: .78rem; margin: 8px 0 0; }
+  .carte .vide { margin: 0; padding: 0; }
+  /* Une barre : le nom, la jauge, la valeur. Trois colonnes fixes, pour que
+     les jauges d'une meme carte partent toutes du meme bord. */
+  .barre-ligne { display: grid; grid-template-columns: minmax(0, 11em) 1fr auto;
+                 gap: 8px; align-items: center; font-size: .85rem; padding: 2px 0; }
+  .barre-nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barre-fond { height: 8px; background: #0f1a1d; border-radius: 4px; overflow: hidden; }
+  .barre-plein { display: block; height: 100%; border-radius: 4px; background: var(--clair); }
+  .barre-plein.nous { background: var(--nous); }
+  .barre-plein.eux { background: var(--eux); }
+  .barre-plein.pnj { background: var(--or); }
+  .barre-val { color: var(--faible); font-variant-numeric: tabular-nums;
+               white-space: nowrap; }
+
   @media (max-width: 700px) {
     .colonnes { grid-template-columns: 1fr; }
     .colonne { min-height: 140px; }
@@ -180,6 +210,12 @@
   <button id="oublier">Oublier le tri</button>
 </div>
 
+<section id="stats">
+  <h2>Statistiques <select id="guerre" aria-label="Guerre"></select></h2>
+  <p id="stats-resume"></p>
+  <div id="cartes"></div>
+</section>
+
 <script>
   "use strict";
 
@@ -242,6 +278,7 @@
     camps = d.camps || {};
     whos = d.whos || [];
     peindre();
+    if (d.guerres) recevoirGuerres(d.guerres);
     const n = Object.keys(camps).length;
     signaler("à jour · " + n + " joueur" + (n > 1 ? "s" : "") + " trié"
              + (n > 1 ? "s" : "") + " · " + new Date().toLocaleTimeString("fr-FR"));
@@ -361,15 +398,496 @@
   }
 
   async function charger(fichiers) {
-    const liste = [];
-    for (const f of fichiers) liste.push(...lireJournal(await f.text()));
-    if (!liste.length) {
-      signaler("aucun /who dans ce journal", true);
+    const liste = [], resumes = [];
+    for (const f of fichiers) {
+      const texte = await f.text();
+      liste.push(...lireJournal(texte));
+      resumes.push(...analyserGuerres(texte, f.name).filter(r => r.proprio));
+    }
+    if (!liste.length && !resumes.length) {
+      signaler("ni /who ni guerre d'OP dans ce journal", true);
       return;
     }
-    // Seuls les /who partent : l'heure, la region, les noms. Rien d'autre du
-    // journal ne quitte ce navigateur.
-    await ecrire({ action: "whos", liste });
+    // Ce qui part : les /who (heure, region, noms) et le resume chiffre de
+    // chaque guerre. Rien d'autre du journal ne quitte ce navigateur.
+    if (liste.length) await ecrire({ action: "whos", liste });
+    if (resumes.length) {
+      // La guerre deposee devient celle qu'on regarde.
+      guerreChoisie = resumes[resumes.length - 1].guerre;
+      local.ecrire("op-guerre", guerreChoisie);
+      majChargee = null;
+      await ecrire({ action: "combats", resumes });
+    }
+  }
+
+  // ------------------------------------------------------------ les combats
+  //
+  // **Un journal ne voit que son proprietaire** : les coups qu'il recoit, ses
+  // soins, ses morts, ses parades. Les statistiques de la guilde sont donc la
+  // somme des journaux deposes, chacun resume ici -- dans le navigateur -- en
+  // quelques chiffres. Seul ce resume monte au serveur, jamais les lignes.
+  //
+  // **La guerre se reconnait a ses rounds.** Pendant un OP, le jeu ecrit
+  // « Vous avez gagne le round » ou « perdu » toutes les cinq minutes. Une
+  // guerre, c'est une suite de rounds ; on n'en garde que les lignes, depuis
+  // cinq minutes avant le premier round -- la duree d'un round -- jusqu'a une
+  // minute apres le dernier. Sans cela, les morts d'une chasse de l'apres-midi
+  // entreraient dans les statistiques de la soiree.
+
+  const ROUND_S = 300;
+  // Deux rounds plus eloignes que cela appartiennent a deux guerres.
+  const ENTRE_GUERRES_S = 1800;
+  // La mort revient a celui qui a frappe en dernier, s'il l'a fait depuis
+  // moins que cela.
+  const TUEUR_S = 20;
+  // Les gardes d'avant-poste : un seul mot, comme un joueur, mais des PNJ.
+  const PNJ_CONNUS = ["Guerrier", "Artilleur", "Archer", "Mage", "Soigneur", "Gu\u00e9risseur",
+                      "Garde", "Tireur", "Sentinelle"];
+  const PARTIES = ["tête", "poitrine", "bras", "main", "jambe", "pied"];
+
+  // Un nom est un PNJ s'il porte un article (« le Kincher epouvantable »),
+  // plusieurs mots (« Guerrier Chef d'Escouade »), ou s'il est l'un des
+  // gardes connus. Un joueur de Ryzom a un nom d'un seul mot.
+  function estPnj(nom) {
+    return /^(le|la|les|l')\s?/i.test(nom) || /\s/.test(nom)
+           || PNJ_CONNUS.includes(nom);
+  }
+  function sansArticle(nom) {
+    return nom.replace(/^(le|la|les) /i, "").replace(/^l' ?/i, "");
+  }
+
+  const RE = {
+    ligne: /^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2}) \(([^)]*)\) \* (.*)$/,
+    round: /^Vous avez (gagné|perdu) le round\.$/,
+    coup: /^(.+?) atteint (?:la |le |l'|les )?(tête|poitrine|bras|main|jambe|pied), infligeant (\d+)(?: \((\d+)\))? dégâts\.$/,
+    sansDegats: /^(.+?) vous atteint mais n'inflige pas de dégâts\.$/,
+    magie: /^(.+?) a lancé un sort qui vous inflige (\d+)\((\d+)\) points de dommages magiques\.$/,
+    magie2: /^(.+?) vous lance un sort, vous infligeant des dégâts à hauteur de (\d+) point/,
+    donne: /^Vous atteignez (?:la |le |l'|les )?(.+?) (?:du |de la |de l'|des |de |d')(.+?), infligeant (\d+)(?: \((\d+)\))? points de dégâts\.$/,
+    donneMagie: /^Votre sort inflige (\d+)\((\d+)\) points de dommages magiques à (.+)\.$/,
+    mort: /^Vous avez été tué\.$/,
+    tue: /^Vous avez tué (.+)\.$/,
+    attaque: /^(.+?) vous attaque\.$/,
+    parade: /^Vous parez l'attaque (?:du |de la |de l'|des |de |d')?(.+)\.$/,
+    esquive: /^Vous avez esquivé l'attaque (?:du |de la |de l'|des |de |d')?(.+)\.$/,
+    rate: /^(.+?) vous rate\.$/,
+    resiste: /^Vous résistez aux effets du sort jeté par (.+)\.$/,
+    insensible: /^(.+?) est insensible à la magie\.$/,
+    rompue: /^Votre incantation est rompue\.$/,
+    soigne: /^Vous soignez (.+?) avec (\d+) points de vie\.$/,
+    soigneSoi: /^Vous vous soignez (\d+) points de vie\.$/,
+    soigneMoi: /^(.+?) vous soigne avec (\d+) points de vie\.$/,
+  };
+
+  function proprioDuFichier(nomFichier, texte) {
+    const m = /log_([^./\\]+)\.txt$/i.exec(nomFichier || "");
+    let nom = m ? m[1] : "";
+    if (!nom) {
+      const s = /\* "([^"]+)" a été sauvegardé\./.exec(texte);
+      nom = s ? s[1] : "";
+    }
+    return nom ? nom.charAt(0).toUpperCase() + nom.slice(1) : "";
+  }
+
+  // Les lignes utiles, datees en secondes. La date du journal est celle du
+  // PC du joueur : elle ne sert qu'a ordonner ses propres lignes.
+  function lignesDatees(texte) {
+    const sortie = [];
+    for (const brute of texte.split(/\r?\n/)) {
+      const m = RE.ligne.exec(brute.replace(COULEUR, ""));
+      if (!m) continue;
+      const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000;
+      sortie.push({ t, jour: m[1] + "-" + m[2] + "-" + m[3],
+                    heure: m[4] + ":" + m[5], canal: m[7], texte: m[8] });
+    }
+    return sortie;
+  }
+
+  function periodes(lignes) {
+    const rounds = lignes.filter(l => l.canal === "SYSTEM/OSM" && RE.round.test(l.texte));
+    const groupes = [];
+    for (const r of rounds) {
+      const dernier = groupes[groupes.length - 1];
+      if (dernier && r.t - dernier.fin.t <= ENTRE_GUERRES_S) {
+        dernier.fin = r;
+        dernier.rounds.push(r);
+      } else {
+        groupes.push({ debut: r, fin: r, rounds: [r] });
+      }
+    }
+    // L'identifiant : le jour du premier round, et un rang si le meme jour
+    // en porte plusieurs.
+    const parJour = {};
+    return groupes.map(g => {
+      const n = parJour[g.debut.jour] = (parJour[g.debut.jour] || 0) + 1;
+      return { id: g.debut.jour + (n > 1 ? "-" + n : ""),
+               de: g.debut.t - ROUND_S, a: g.fin.t + 60,
+               heure: g.debut.heure, rounds: g.rounds };
+    });
+  }
+
+  function ajoute(objet, cle, champ, valeur) {
+    const o = objet[cle] = objet[cle] || {};
+    o[champ] = (o[champ] || 0) + valeur;
+    return o;
+  }
+
+  function resumer(lignes, periode, proprio) {
+    const r = {
+      proprio, guerre: periode.id, heure: periode.heure,
+      rounds: { gagnes: 0, perdus: 0 },
+      morts: [], tues: [],
+      recus: {},        // attaquant -> {coups, degats, max, magie, sans, parties}
+      donnes: {},       // cible -> {coups, degats, max, parties}
+      evites: { parade: 0, esquive: 0, rate: 0, sans: 0 },
+      evitesPar: {},    // attaquant -> nombre de coups evites
+      attaques: {},     // attaquant -> « X vous attaque »
+      resistes: {},     // lanceur -> sorts resistes
+      insensibles: {},  // cible -> sorts sans effet
+      rompues: 0,
+      soinsDonnes: {},  // cible -> {n, pv}
+      soinsRecus: {},   // soigneur -> {n, pv}
+    };
+    let dernierFrappeur = null, dernierCoup = 0;
+    const frappe = (qui, t) => { dernierFrappeur = qui; dernierCoup = t; };
+    for (const l of lignes) {
+      if (l.t < periode.de || l.t > periode.a) continue;
+      const x = l.texte;
+      let m;
+      if (l.canal === "SYSTEM/OSM" && (m = RE.round.exec(x))) {
+        r.rounds[m[1] === "perdu" ? "perdus" : "gagnes"]++;
+      } else if ((m = RE.coup.exec(x))) {
+        const o = ajoute(r.recus, m[1], "coups", 1);
+        o.degats = (o.degats || 0) + +m[3];
+        o.max = Math.max(o.max || 0, +m[3]);
+        o.parties = o.parties || {};
+        o.parties[m[2]] = (o.parties[m[2]] || 0) + 1;
+        frappe(m[1], l.t);
+      } else if ((m = RE.sansDegats.exec(x))) {
+        ajoute(r.recus, m[1], "sans", 1);
+        r.evites.sans++;
+        ajoute(r.evitesPar, m[1], "n", 1);
+      } else if ((m = RE.magie.exec(x)) || (m = RE.magie2.exec(x))) {
+        const o = ajoute(r.recus, m[1], "magie", 1);
+        o.degats = (o.degats || 0) + +m[2];
+        o.max = Math.max(o.max || 0, +m[2]);
+        frappe(m[1], l.t);
+      } else if ((m = RE.donne.exec(x))) {
+        const o = ajoute(r.donnes, sansArticle(m[2]), "coups", 1);
+        o.degats = (o.degats || 0) + +m[3];
+        o.max = Math.max(o.max || 0, +m[3]);
+        if (PARTIES.includes(m[1])) {
+          o.parties = o.parties || {};
+          o.parties[m[1]] = (o.parties[m[1]] || 0) + 1;
+        }
+      } else if ((m = RE.donneMagie.exec(x))) {
+        const o = ajoute(r.donnes, sansArticle(m[3]), "coups", 1);
+        o.degats = (o.degats || 0) + +m[1];
+        o.max = Math.max(o.max || 0, +m[1]);
+      } else if (RE.mort.test(x)) {
+        r.morts.push({ heure: lignesHeure(l),
+                       tueur: dernierFrappeur && l.t - dernierCoup <= TUEUR_S
+                              ? dernierFrappeur : "" });
+      } else if ((m = RE.tue.exec(x))) {
+        r.tues.push({ heure: lignesHeure(l), victime: m[1] });
+      } else if (l.canal === "SYSTEM" && (m = RE.attaque.exec(x))) {
+        ajoute(r.attaques, m[1], "n", 1);
+      } else if ((m = RE.parade.exec(x))) {
+        r.evites.parade++;
+        ajoute(r.evitesPar, m[1], "n", 1);
+      } else if ((m = RE.esquive.exec(x))) {
+        r.evites.esquive++;
+        ajoute(r.evitesPar, m[1], "n", 1);
+      } else if ((m = RE.rate.exec(x))) {
+        r.evites.rate++;
+        ajoute(r.evitesPar, m[1], "n", 1);
+      } else if ((m = RE.resiste.exec(x))) {
+        ajoute(r.resistes, m[1], "n", 1);
+      } else if ((m = RE.insensible.exec(x))) {
+        ajoute(r.insensibles, m[1], "n", 1);
+      } else if (RE.rompue.test(x)) {
+        r.rompues++;
+      } else if ((m = RE.soigne.exec(x))) {
+        ajoute(r.soinsDonnes, m[1], "n", 1).pv = (r.soinsDonnes[m[1]].pv || 0) + +m[2];
+      } else if ((m = RE.soigneSoi.exec(x))) {
+        ajoute(r.soinsDonnes, proprio, "n", 1).pv = (r.soinsDonnes[proprio].pv || 0) + +m[1];
+      } else if ((m = RE.soigneMoi.exec(x))) {
+        ajoute(r.soinsRecus, m[1], "n", 1).pv = (r.soinsRecus[m[1]].pv || 0) + +m[2];
+      }
+    }
+    return r;
+  }
+
+  function lignesHeure(l) {
+    const d = new Date(l.t * 1000);
+    const z = n => String(n).padStart(2, "0");
+    return z(d.getUTCHours()) + ":" + z(d.getUTCMinutes()) + ":" + z(d.getUTCSeconds());
+  }
+
+  function analyserGuerres(texte, nomFichier) {
+    const proprio = proprioDuFichier(nomFichier, texte);
+    const lignes = lignesDatees(texte);
+    return periodes(lignes).map(p => resumer(lignes, p, proprio));
+  }
+
+  // ------------------------------------------------------------ les stats
+  //
+  // Les resumes d'une guerre, un par journal depose, additionnes ici. Chaque
+  // chiffre vient du journal de celui a qui la chose est arrivee : un coup
+  // recu se lit chez celui qui le recoit, une mort chez celui qui meurt. Le
+  // meme evenement n'est donc jamais compte deux fois -- sauf les soins, vus
+  // des deux cotes, dont on ne garde que celui du soigneur quand il a depose.
+
+  let guerres = [];             // [{id, maj, proprios}]
+  let guerreChoisie = local.lire("op-guerre", "");
+  let journaux = {};            // proprio -> resume, pour la guerre choisie
+  let majChargee = null;
+
+  const choixGuerre = document.getElementById("guerre");
+  choixGuerre.addEventListener("change", () => {
+    guerreChoisie = choixGuerre.value;
+    local.ecrire("op-guerre", guerreChoisie);
+    majChargee = null;
+    chargerGuerre();
+  });
+
+  function recevoirGuerres(liste) {
+    guerres = liste || [];
+    if (!guerres.some(g => g.id === guerreChoisie)) {
+      guerreChoisie = guerres.length ? guerres[0].id : "";
+    }
+    choixGuerre.textContent = "";
+    for (const g of guerres) {
+      const o = document.createElement("option");
+      o.value = g.id;
+      o.textContent = "Guerre du " + g.id.slice(8, 10) + "/" + g.id.slice(5, 7)
+                      + "/" + g.id.slice(0, 4) + (g.id.length > 10 ? " (" + g.id.slice(11) + ")" : "")
+                      + " — " + g.proprios.length + (g.proprios.length > 1 ? " journaux" : " journal");
+      choixGuerre.append(o);
+    }
+    choixGuerre.value = guerreChoisie;
+    const g = guerres.find(x => x.id === guerreChoisie);
+    // On ne retelecharge une guerre que si quelqu'un y a depose un journal.
+    if (g && g.maj !== majChargee) chargerGuerre();
+    if (!g) peindreStats();
+  }
+
+  async function chargerGuerre() {
+    if (!guerreChoisie) { journaux = {}; peindreStats(); return; }
+    try {
+      const r = await fetch(SERVEUR + "?guerre=" + encodeURIComponent(guerreChoisie),
+                            { cache: "no-store", headers: entetes() });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      journaux = d.journaux || {};
+      const g = guerres.find(x => x.id === guerreChoisie);
+      majChargee = g ? g.maj : null;
+    } catch (e) {
+      journaux = {};
+    }
+    peindreStats();
+  }
+
+  // Petits outils d'addition.
+  const somme = (o, f) => Object.values(o || {}).reduce((s, v) => s + (v[f] || 0), 0);
+  function cumul(cible, cle, champs) {
+    const o = cible[cle] = cible[cle] || {};
+    for (const [k, v] of Object.entries(champs)) {
+      o[k] = k === "max" ? Math.max(o[k] || 0, v || 0) : (o[k] || 0) + (v || 0);
+    }
+    return o;
+  }
+  const nf = n => Math.round(n).toLocaleString("fr-FR");
+
+  function calculer() {
+    const res = {
+      proprios: Object.keys(journaux).sort((a, b) => a.localeCompare(b, "fr")),
+      rounds: { gagnes: 0, perdus: 0 },
+      meurtres: {}, morts: {}, tues: {},
+      parties: {}, partiesDonnees: {},
+      attaquants: {}, pnj: {},
+      resistes: {}, insensibles: {},
+      cibles: {}, soins: {}, evites: {}, rompues: {},
+    };
+    for (const [proprio, j] of Object.entries(journaux)) {
+      res.rounds.gagnes = Math.max(res.rounds.gagnes, j.rounds?.gagnes || 0);
+      res.rounds.perdus = Math.max(res.rounds.perdus, j.rounds?.perdus || 0);
+      // Qui a tue qui : nos morts, vues de notre cote...
+      for (const m of j.morts || []) {
+        const cle = (m.tueur || "inconnu") + " → " + proprio;
+        cumul(res.meurtres, cle, { n: 1 });
+        cumul(res.morts, proprio, { n: 1 });
+      }
+      // ... et les leurs, vues du cote de celui qui a porte le coup.
+      for (const t of j.tues || []) {
+        if (estPnj(t.victime)) continue;
+        cumul(res.meurtres, proprio + " → " + t.victime, { n: 1 });
+        cumul(res.tues, t.victime, { n: 1 });
+      }
+      for (const [qui, v] of Object.entries(j.recus || {})) {
+        const cle = sansArticle(qui);
+        const vers = estPnj(qui) ? res.pnj : res.attaquants;
+        cumul(vers, cle, { coups: (v.coups || 0) + (v.magie || 0),
+                           degats: v.degats || 0, max: v.max || 0 });
+        for (const [p, n] of Object.entries(v.parties || {})) cumul(res.parties, p, { n });
+      }
+      for (const m of j.morts || []) {
+        if (m.tueur && estPnj(m.tueur)) cumul(res.pnj, sansArticle(m.tueur), { tues: 1 });
+      }
+      for (const v of Object.values(j.donnes || {})) {
+        for (const [p, n] of Object.entries(v.parties || {})) cumul(res.partiesDonnees, p, { n });
+      }
+      for (const [qui, v] of Object.entries(j.resistes || {})) cumul(res.resistes, qui, { n: v.n });
+      for (const [qui, v] of Object.entries(j.insensibles || {})) cumul(res.insensibles, qui, { n: v.n });
+      const e = j.evites || {};
+      cumul(res.cibles, proprio, { n: somme(j.recus, "coups") + somme(j.recus, "magie")
+                                      + (e.parade || 0) + (e.esquive || 0) + (e.rate || 0) });
+      cumul(res.evites, proprio, { parade: e.parade, esquive: e.esquive,
+                                   rate: e.rate, sans: e.sans,
+                                   n: (e.parade || 0) + (e.esquive || 0) + (e.rate || 0) + (e.sans || 0) });
+      cumul(res.rompues, proprio, { n: j.rompues || 0 });
+      // Les soins : ceux que le soigneur a donnes...
+      for (const [qui, v] of Object.entries(j.soinsDonnes || {})) cumul(res.soins, qui, { pv: v.pv, n: v.n });
+    }
+    // ... et, pour les soigneurs qui n'ont pas depose, ceux que la cible a
+    // recus d'eux -- sans quoi leurs soins manqueraient.
+    for (const [proprio, j] of Object.entries(journaux)) {
+      for (const [soigneur, v] of Object.entries(j.soinsRecus || {})) {
+        if (!journaux[soigneur]) cumul(res.soins, proprio, { pv: v.pv, n: v.n });
+      }
+    }
+    // Les Kamis tries qui n'ont recu aucun soin comptent aussi : c'est
+    // justement eux que « le moins soigne » doit montrer.
+    for (const [nom, c] of Object.entries(camps)) {
+      if (c.c === "kamis" && !res.soins[nom]) res.soins[nom] = { pv: 0, n: 0 };
+    }
+    return res;
+  }
+
+  // Une liste de barres : nom, valeur, et le detail en petit.
+  function barres(entrees, classe, vide) {
+    const bloc = document.createElement("div");
+    bloc.className = "barres";
+    if (!entrees.length) {
+      const p = document.createElement("p");
+      p.className = "vide";
+      p.textContent = vide || "Rien dans les journaux déposés.";
+      bloc.append(p);
+      return bloc;
+    }
+    const max = Math.max(...entrees.map(e => e.valeur), 1);
+    for (const e of entrees) {
+      const ligne = document.createElement("div");
+      ligne.className = "barre-ligne";
+      const nom = document.createElement("span");
+      nom.className = "barre-nom";
+      nom.textContent = e.nom;
+      const fond = document.createElement("span");
+      fond.className = "barre-fond";
+      const plein = document.createElement("span");
+      plein.className = "barre-plein " + (e.classe || classe || "");
+      plein.style.width = (100 * e.valeur / max) + "%";
+      fond.append(plein);
+      const val = document.createElement("span");
+      val.className = "barre-val";
+      val.textContent = e.texte || nf(e.valeur);
+      ligne.append(nom, fond, val);
+      // Le nom entier au survol : les plus longs sont coupes a l'ecran.
+      ligne.title = e.nom + (e.detail ? " — " + e.detail : "");
+      bloc.append(ligne);
+    }
+    return bloc;
+  }
+
+  function carte(titre, contenu, note) {
+    const c = document.createElement("article");
+    c.className = "carte";
+    const h = document.createElement("h3");
+    h.textContent = titre;
+    c.append(h);
+    for (const x of [].concat(contenu)) c.append(x);
+    if (note) {
+      const p = document.createElement("p");
+      p.className = "note";
+      p.textContent = note;
+      c.append(p);
+    }
+    return c;
+  }
+
+  const trie = (o, f) => Object.entries(o).map(([nom, v]) => ({ nom, v, valeur: v[f] || 0 }))
+                                          .sort((a, b) => b.valeur - a.valeur);
+  const campDe = nom => camps[nom] ? camps[nom].c : "";
+
+  function peindreStats() {
+    const zone = document.getElementById("cartes");
+    const resume = document.getElementById("stats-resume");
+    zone.textContent = "";
+    const ids = Object.keys(journaux);
+    if (!guerreChoisie || !ids.length) {
+      resume.textContent = "Aucune guerre : dépose le journal d'un OP. La guerre se "
+                         + "repère aux « round gagné / perdu » que le jeu écrit toutes "
+                         + "les cinq minutes.";
+      return;
+    }
+    const r = calculer();
+    resume.textContent = "Journaux : " + r.proprios.join(", ") + " · rounds "
+                       + r.rounds.gagnes + " gagnés, " + r.rounds.perdus + " perdus"
+                       + " · survole une barre pour le détail.";
+
+    const partiesOrdre = p => PARTIES.indexOf(p);
+    const enParties = o => Object.entries(o).sort((a, b) => partiesOrdre(a[0]) - partiesOrdre(b[0]))
+                                 .map(([p, v]) => ({ nom: p, valeur: v.n }));
+
+    zone.append(
+      // Rouge quand l'un des notres tombe, vert quand c'est nous qui tuons.
+      carte("Qui a tué qui", barres(trie(r.meurtres, "n").map(e => ({
+        nom: e.nom, valeur: e.valeur,
+        classe: journaux[e.nom.split(" → ")[0]] ? "nous" : "eux" })), "eux")),
+      carte("Nos morts", barres(trie(r.morts, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "eux",
+            "Aucune mort dans les journaux déposés."),
+            "Total : " + nf(somme(r.morts, "n")) + " · seuls les joueurs qui ont déposé leur journal sont comptés."),
+      carte("Tués en face", barres(trie(r.tues, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "nous",
+            "Aucune mise à mort dans les journaux déposés."),
+            "Lu dans le journal de celui qui porte le coup fatal (« Vous avez tué … »)."),
+      carte("Où sont portés les coups", [
+        (() => { const d = document.createElement("h4"); d.textContent = "reçus par nous"; return d; })(),
+        barres(enParties(r.parties), "eux"),
+        (() => { const d = document.createElement("h4"); d.textContent = "portés par nous"; return d; })(),
+        barres(enParties(r.partiesDonnees), "nous", "Aucun coup porté à un joueur dans les journaux déposés."),
+      ]),
+      carte("Puissance des coups (joueurs)", barres(trie(r.attaquants, "degats").slice(0, 12).map(e => ({
+        nom: e.nom + (campDe(e.nom) === "kamis" ? " (Kami)" : ""),
+        valeur: e.valeur,
+        texte: nf(e.valeur) + " · max " + nf(e.v.max),
+        detail: e.v.coups + " coups, moyenne " + nf(e.v.degats / Math.max(1, e.v.coups)) + ", plus gros " + nf(e.v.max),
+      })), "eux"), "Dégâts infligés à ceux qui ont déposé leur journal ; « max » est le plus gros coup."),
+      carte("Dégâts des PNJ, par type", barres(trie(r.pnj, "degats").map(e => ({
+        nom: e.nom, valeur: e.valeur,
+        texte: nf(e.valeur) + (e.v.tues ? " · " + e.v.tues + " mort" + (e.v.tues > 1 ? "s" : "") : ""),
+        detail: e.v.coups + " coups, plus gros " + nf(e.v.max),
+      })), "pnj", "Aucun PNJ dans les journaux déposés."),
+        "Total : " + nf(somme(r.pnj, "degats")) + " points de vie."),
+      carte("Sorts bloqués", [
+        (() => { const d = document.createElement("h4"); d.textContent = "résistés par nous (lanceur)"; return d; })(),
+        barres(trie(r.resistes, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "nous"),
+        (() => { const d = document.createElement("h4"); d.textContent = "sans effet : cible insensible à la magie"; return d; })(),
+        barres(trie(r.insensibles, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "eux"),
+      ]),
+      carte("Les plus ciblés", barres(trie(r.cibles, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "eux"),
+            "Coups reçus, évités compris. En haut le plus ciblé, en bas le moins."),
+      carte("Soins reçus", barres(trie(r.soins, "pv").map(e => ({
+        nom: e.nom, valeur: e.valeur,
+        texte: nf(e.valeur),
+        detail: e.v.n + " soins",
+      })), "nous"), "En haut le plus soigné, en bas le moins. Compté chez le soigneur s'il a déposé, sinon chez le soigné."),
+      carte("Dégâts évités", barres(trie(r.evites, "n").map(e => ({
+        nom: e.nom, valeur: e.valeur,
+        detail: (e.v.parade || 0) + " parades, " + (e.v.esquive || 0) + " esquives, "
+              + (e.v.rate || 0) + " ratés, " + (e.v.sans || 0) + " coups sans dégâts",
+      })), "nous"), "Parades, esquives, coups ratés et coups sans dégâts."),
+      carte("Incantations rompues", barres(trie(r.rompues, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "eux")),
+    );
   }
 
   // ------------------------------------------------------------ l'affichage

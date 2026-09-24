@@ -29,6 +29,11 @@ const MAX_CORPS = 512 * 1024;
 const MAX_WHOS = 5000;
 const MAX_NOMS_PAR_WHO = 500;
 const CAMPS = ['kamis', 'opposants', 'neutres'];
+// Les statistiques : un resume chiffre par journal et par guerre, calcule
+// dans le navigateur de celui qui depose. Un fichier par guerre, pour que la
+// page ne telecharge que celle qu'on regarde.
+const COMBATS = __DIR__ . '/combats';
+const MAX_RESUME = 200 * 1024;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -204,12 +209,51 @@ function ajouter_whos(array $etat, array $liste): array
 
 // ------------------------------------------------------------- les requetes
 
+// ------------------------------------------------------------- les guerres
+
+function guerre_valide($id): bool
+{
+    return is_string($id) && preg_match('/^\d{4}-\d{2}-\d{2}(-\d{1,2})?$/', $id) === 1;
+}
+
+/** Les guerres connues : de quoi remplir la liste, sans leur contenu. */
+function guerres(): array
+{
+    $liste = [];
+    foreach (glob(COMBATS . '/*.json') ?: [] as $f) {
+        $id = basename($f, '.json');
+        if (!guerre_valide($id)) {
+            continue;
+        }
+        $lu = json_decode((string) file_get_contents($f), true);
+        $liste[] = ['id' => $id, 'maj' => filemtime($f),
+                    'proprios' => array_keys($lu['journaux'] ?? [])];
+    }
+    usort($liste, fn($a, $b) => strcmp($b['id'], $a['id']));
+    return $liste;
+}
+
+/** L'etat du tri, et la liste des guerres a cote. */
+function reponse(array $etat): array
+{
+    return pour_json($etat) + ['guerres' => guerres()];
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if (!connecte()) {
         repond(401, ['erreur' => 'mot de passe']);
     }
+    if (isset($_GET['guerre'])) {
+        $id = (string) $_GET['guerre'];
+        $f = COMBATS . '/' . $id . '.json';
+        if (!guerre_valide($id) || !is_file($f)) {
+            repond(404, ['erreur' => 'guerre inconnue']);
+        }
+        $lu = json_decode((string) file_get_contents($f), true);
+        repond(200, ['id' => $id, 'journaux' => (object) ($lu['journaux'] ?? [])]);
+    }
     $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
-    repond(200, pour_json(lu($contenu)));
+    repond(200, reponse(lu($contenu)));
 }
 
 $demande = json_decode(
@@ -260,7 +304,7 @@ switch ($action) {
             }
             return $etat;
         });
-        repond(200, pour_json($etat));
+        repond(200, reponse($etat));
 
     case 'whos':
         $liste = $demande['liste'] ?? null;
@@ -268,7 +312,7 @@ switch ($action) {
             repond(400, ['erreur' => 'liste absente']);
         }
         $etat = modifier(fn(array $etat) => ajouter_whos($etat, $liste));
-        repond(200, pour_json($etat));
+        repond(200, reponse($etat));
 
     case 'restaurer':
         // Une sauvegarde de la page : son tri remplace le tri commun -- ou
@@ -294,14 +338,52 @@ switch ($action) {
             $etat['camps'] = $fusion ? $etat['camps'] + $neufs : $neufs;
             return ajouter_whos($etat, $whos);
         });
-        repond(200, pour_json($etat));
+        repond(200, reponse($etat));
+
+    case 'combats':
+        // Un resume par journal et par guerre. Deposer a nouveau le meme
+        // journal -- plus long, la guerre suivante -- remplace le resume de
+        // son proprietaire pour cette guerre : rien ne se compte deux fois.
+        $resumes = $demande['resumes'] ?? null;
+        if (!is_array($resumes)) {
+            repond(400, ['erreur' => 'resumes absents']);
+        }
+        @mkdir(COMBATS, 0775, true);
+        $gardes = 0;
+        foreach ($resumes as $r) {
+            if (!is_array($r) || !nom_valide($r['proprio'] ?? null)
+                || !guerre_valide($r['guerre'] ?? null)
+                || strlen((string) json_encode($r)) > MAX_RESUME) {
+                continue;
+            }
+            $f = COMBATS . '/' . $r['guerre'] . '.json';
+            $fh = fopen($f, 'c+');
+            if ($fh === false || !flock($fh, LOCK_EX)) {
+                repond(500, ['erreur' => 'fichier verrouille']);
+            }
+            $lu = json_decode((string) stream_get_contents($fh), true);
+            $journaux = is_array($lu['journaux'] ?? null) ? $lu['journaux'] : [];
+            $r['depose_par'] = $qui;
+            $r['depose_le'] = $quand;
+            $journaux[$r['proprio']] = $r;
+            ftruncate($fh, 0);
+            rewind($fh);
+            fwrite($fh, (string) json_encode(['journaux' => $journaux],
+                                             JSON_UNESCAPED_UNICODE));
+            fflush($fh);
+            flock($fh, LOCK_UN);
+            fclose($fh);
+            $gardes++;
+        }
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)) + ['resumes_gardes' => $gardes]);
 
     case 'oublier':
         $etat = modifier(function (array $etat) {
             $etat['camps'] = [];
             return $etat;
         });
-        repond(200, pour_json($etat));
+        repond(200, reponse($etat));
 }
 
 repond(400, ['erreur' => 'action inconnue']);
