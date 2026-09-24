@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guerre d'OP</title>
-<meta name="description" content="Trier les participants d'un OP à partir des /who du journal de Ryzom.">
+<meta name="description" content="Trier ensemble les participants des guerres d'OP, à partir des /who du journal de Ryzom.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233f7a68'/><circle cx='20' cy='12' r='11' fill='%2310171a'/></svg>">
 <style>
@@ -19,10 +19,35 @@
   body { margin: 0; padding: 20px 16px 40px; background: var(--fond);
          color: var(--texte); font-family: system-ui, sans-serif;
          font-size: 15px; }
-  header, .source, .colonnes { max-width: 1100px; margin: 0 auto; }
+  header, .source, .colonnes, .barre { max-width: 1100px; margin: 0 auto; }
   h1 { color: var(--or); font-size: 1.5rem; margin: 0 0 6px; }
   header p { color: var(--faible); margin: 0 0 14px; line-height: 1.45; }
   code { color: var(--clair); }
+
+  /* Le voile : tant que le mot de passe n'est pas donne, rien ne s'affiche.
+     La regle [hidden] est redite ici : sans elle, le display: flex de #voile
+     (specificite 1-0-0) l'emporterait sur celle du navigateur, et le voile
+     ne se fermerait jamais -- l'erreur deja faite sur la page du forage. */
+  #voile { position: fixed; inset: 0; background: rgba(8,12,14,.92);
+           display: flex; align-items: center; justify-content: center;
+           z-index: 10; padding: 16px; }
+  #voile[hidden] { display: none; }
+  #porte { background: var(--surface); border: 1px solid var(--trait);
+           border-radius: 12px; padding: 22px; max-width: 380px; width: 100%; }
+  #porte h2 { color: var(--or); margin: 0 0 8px; font-size: 1.2rem; }
+  #porte p { color: var(--faible); margin: 0 0 14px; line-height: 1.4; }
+  #porte input { width: 100%; margin-bottom: 10px; }
+  #refus { color: var(--eux); display: block; margin-top: 8px; min-height: 1.2em; }
+
+  input[type=password], input[type=text] {
+    background: var(--fond); color: var(--texte); font: inherit;
+    border: 1px solid var(--trait); border-radius: 7px; padding: 7px 9px; }
+
+  /* La barre : qui je suis, et l'etat de la liaison avec le serveur. */
+  .barre { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+           margin-bottom: 12px; color: var(--faible); font-size: .9rem; }
+  #etat { margin-left: auto; }
+  #etat.souci { color: var(--eux); }
 
   /* La zone ou l'on depose le journal. Un clic ouvre aussi le selecteur de
      fichiers : sur un ecran tactile, glisser un fichier n'existe pas. */
@@ -33,8 +58,9 @@
   .source b { color: var(--texte); }
   #fichier { display: none; }
 
-  /* Les /who trouves, chacun decochable : un journal couvre souvent la
-     soiree entiere, et seuls ceux de l'OP comptent. */
+  /* Les /who connus, chacun decochable : ils couvrent plusieurs guerres, et
+     l'on ne veut parfois voir que ceux d'une soiree. Cocher est personnel :
+     ce que je decoche ne disparait pas chez les autres. */
   #whos { max-width: 1100px; margin: 12px auto 0; display: flex;
           flex-wrap: wrap; gap: 6px 14px; color: var(--faible);
           font-size: .85rem; }
@@ -69,8 +95,8 @@
   #kamis .nom { border-color: rgba(75,191,114,.5); }
   #opposants .nom { border-color: rgba(224,100,90,.5); }
 
-  .actions { max-width: 1100px; margin: 14px auto 0; display: flex; gap: 8px;
-             justify-content: flex-end; }
+  .actions { max-width: 1100px; margin: 14px auto 0; display: flex;
+             flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
   button { background: #1f2e33; color: var(--texte); font: inherit;
            border: 1px solid var(--trait); border-radius: 7px;
            padding: 6px 12px; cursor: pointer; }
@@ -79,17 +105,39 @@
   @media (max-width: 700px) {
     .colonnes { grid-template-columns: 1fr; }
     .colonne { min-height: 140px; }
+    #etat { margin-left: 0; }
   }
 </style>
 </head>
 <body>
+<div id="voile" hidden>
+  <form id="porte">
+    <h2>Guerre d'OP</h2>
+    <p>Le tri est commun à la guilde et n'est pas public. Demande le mot de
+       passe à un officier.</p>
+    <input type="password" id="mdp" autocomplete="current-password"
+           placeholder="mot de passe" required>
+    <button type="submit">Entrer</button>
+    <span id="refus"></span>
+  </form>
+</div>
+
 <header>
   <h1>Guerre d'OP</h1>
   <p>En jeu, tape <code>/chatLog</code>, puis des <code>/who</code> pendant l'OP.
-     Dépose ensuite ton journal (<code>save/log_…txt</code>) ci-dessous :
-     tous les noms vus arrivent au centre, et tu les glisses à gauche ou à
-     droite. Le journal reste sur ton ordinateur — rien n'est envoyé.</p>
+     Dépose ensuite ton journal (<code>save/log_…txt</code>) ci-dessous : les
+     noms vus arrivent au centre, et chacun les glisse à gauche ou à droite.
+     Tout le monde voit le même tri. Du journal, seuls les <code>/who</code>
+     sont envoyés — jamais les tells ni le canal de guilde.</p>
 </header>
+
+<div class="barre">
+  <label>Ton nom&nbsp;:
+    <input type="text" id="nom" maxlength="24" size="12" placeholder="Xiom"
+           spellcheck="false">
+  </label>
+  <span id="etat">connexion…</span>
+</div>
 
 <label class="source" id="source">
   <b>Déposer le journal ici</b> ou cliquer pour le choisir
@@ -131,24 +179,144 @@
   const COULEUR = /@\{[0-9A-Fa-f]{4}\}/g;
   // Au-dela de ce delai apres l'en-tete, une ligne n'appartient plus au /who.
   const DELAI_S = 5;
+  const SERVEUR = "releve.php";
+  // Tous les combien on relit le tri commun, pour voir les gestes des autres.
+  const RELECTURE_MS = 5000;
 
-  let whos = [];            // [{quand, region, noms: [..], actif}]
-  let camps = {};           // nom -> "kamis" | "opposants"
+  // L'etat commun, tel que le serveur le rend.
+  let camps = {};           // nom -> {c: "kamis"|"opposants", qui, quand}
+  let whos = [];            // [{quand, region, noms: [..]}]
+  let enVol = 0;            // ecritures en cours : on ne relit pas pendant
 
-  // Le tri **et les /who** survivent a la fermeture de la page : le but est
-  // de lister les participants sur plusieurs guerres, et chaque journal
-  // depose vient s'ajouter aux precedents. Tout reste dans ce navigateur --
-  // d'ou le bouton « Sauvegarder », pour en garder une copie a soi.
-  try { camps = JSON.parse(localStorage.getItem("op-camps") || "{}"); }
-  catch (e) { camps = {}; }
-  try { whos = JSON.parse(localStorage.getItem("op-whos") || "[]"); }
-  catch (e) { whos = []; }
-  function garder() {
-    try {
-      localStorage.setItem("op-camps", JSON.stringify(camps));
-      localStorage.setItem("op-whos", JSON.stringify(whos));
-    } catch (e) { /* navigation privee : tout vit le temps de la page */ }
+  // Ce qui reste a chacun : son nom, son jeton, et les /who qu'il a decoches.
+  const local = {
+    lire(cle, defaut) {
+      try { const v = localStorage.getItem(cle); return v === null ? defaut : JSON.parse(v); }
+      catch (e) { return defaut; }
+    },
+    ecrire(cle, valeur) {
+      try { localStorage.setItem(cle, JSON.stringify(valeur)); }
+      catch (e) { /* navigation privee : tant pis, le temps de la page */ }
+    },
+  };
+  let decoches = new Set(local.lire("op-decoches", []));
+  const cleWho = w => w.quand + "|" + w.region;
+
+  const champNom = document.getElementById("nom");
+  champNom.value = local.lire("op-nom", "");
+  champNom.addEventListener("change", () => local.ecrire("op-nom", champNom.value.trim()));
+
+  const etat = document.getElementById("etat");
+  function signaler(texte, souci) {
+    etat.textContent = texte;
+    etat.classList.toggle("souci", !!souci);
   }
+
+  // ------------------------------------------------------------ le serveur
+
+  function entetes(base) {
+    const h = Object.assign({}, base || {});
+    const j = local.lire("op-jeton", "");
+    if (j) h["X-Op"] = j;
+    return h;
+  }
+
+  const voile = document.getElementById("voile");
+
+  function recevoir(d) {
+    camps = d.camps || {};
+    whos = d.whos || [];
+    peindre();
+    const n = Object.keys(camps).length;
+    signaler("à jour · " + n + " joueur" + (n > 1 ? "s" : "") + " trié"
+             + (n > 1 ? "s" : "") + " · " + new Date().toLocaleTimeString("fr-FR"));
+  }
+
+  async function relire() {
+    try {
+      const r = await fetch(SERVEUR, { cache: "no-store", headers: entetes() });
+      if (r.status === 401) {
+        voile.hidden = false;
+        document.getElementById("mdp").focus();
+        signaler("mot de passe demandé", true);
+        return false;
+      }
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      // Une ecriture partie pendant la lecture rendrait un etat deja perime.
+      if (enVol === 0) recevoir(d);
+      voile.hidden = true;
+      return true;
+    } catch (e) {
+      signaler("serveur injoignable — nouvel essai dans 5 s", true);
+      return false;
+    }
+  }
+
+  async function ecrire(corps) {
+    enVol++;
+    try {
+      corps.qui = champNom.value.trim();
+      const r = await fetch(SERVEUR, {
+        method: "POST",
+        headers: entetes({ "Content-Type": "application/json" }),
+        body: JSON.stringify(corps),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 401) { voile.hidden = false; throw new Error("mot de passe"); }
+      if (!r.ok) throw new Error(d.erreur || ("HTTP " + r.status));
+      // Le serveur rend l'etat entier apres chaque geste : on le prend tel
+      // quel, gestes des autres compris.
+      enVol--;
+      recevoir(d);
+      return true;
+    } catch (e) {
+      enVol = Math.max(0, enVol - 1);
+      signaler("refusé : " + e.message, true);
+      await relire();       // revenir a ce qui est vraiment enregistre
+      return false;
+    }
+  }
+
+  document.getElementById("porte").addEventListener("submit", async e => {
+    e.preventDefault();
+    const champ = document.getElementById("mdp");
+    const refus = document.getElementById("refus");
+    const bouton = e.target.querySelector("button");
+    refus.textContent = "";
+    bouton.disabled = true;
+    try {
+      const r = await fetch(SERVEUR, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "entrer", mdp: champ.value }),
+      });
+      if (!r.ok) { refus.textContent = "Mot de passe refusé."; champ.select(); return; }
+      const d = await r.json();
+      if (d.jeton) local.ecrire("op-jeton", d.jeton);
+      champ.value = "";
+      if (await relire()) await reprendreAncienTri();
+    } catch (err) {
+      refus.textContent = "Serveur injoignable.";
+    } finally {
+      bouton.disabled = false;
+    }
+  });
+
+  // La premiere version gardait tout dans le navigateur. Ce qui y a ete trie
+  // rejoint le tri commun une fois, sans rien ecraser de ce qui y est deja.
+  async function reprendreAncienTri() {
+    const anciens = local.lire("op-camps", null);
+    const anciensWhos = local.lire("op-whos", null);
+    if (!anciens && !anciensWhos) return;
+    if (await ecrire({ action: "restaurer", fusion: true,
+                       camps: anciens || {}, whos: anciensWhos || [] })) {
+      try { localStorage.removeItem("op-camps"); localStorage.removeItem("op-whos"); }
+      catch (e) { /* rien */ }
+    }
+  }
+
+  // ------------------------------------------------------------ le journal
 
   function secondes(quand) {
     return Date.parse(quand.replace(/\//g, "-").replace(" ", "T")) / 1000;
@@ -163,7 +331,7 @@
       const [, quand, canal, message] = m;
       const entete = canal === "SYSTEM" && ENTETE.exec(message);
       if (entete) {
-        courant = { quand, region: entete[1], noms: [], actif: true };
+        courant = { quand, region: entete[1], noms: [] };
         trouves.push(courant);
         continue;
       }
@@ -178,22 +346,22 @@
   }
 
   async function charger(fichiers) {
-    for (const f of fichiers) {
-      for (const w of lireJournal(await f.text())) {
-        // Deux journaux de la meme soiree portent souvent les memes /who.
-        if (!whos.some(v => v.quand === w.quand && v.region === w.region)) {
-          whos.push(w);
-        }
-      }
+    const liste = [];
+    for (const f of fichiers) liste.push(...lireJournal(await f.text()));
+    if (!liste.length) {
+      signaler("aucun /who dans ce journal", true);
+      return;
     }
-    whos.sort((a, b) => a.quand.localeCompare(b.quand));
-    garder();
-    peindre();
+    // Seuls les /who partent : l'heure, la region, les noms. Rien d'autre du
+    // journal ne quitte ce navigateur.
+    await ecrire({ action: "whos", liste });
   }
+
+  // ------------------------------------------------------------ l'affichage
 
   function nomsVus() {
     const vus = new Set();
-    for (const w of whos) if (w.actif) w.noms.forEach(n => vus.add(n));
+    for (const w of whos) if (!decoches.has(cleWho(w))) w.noms.forEach(n => vus.add(n));
     return [...vus].sort((a, b) => a.localeCompare(b, "fr"));
   }
 
@@ -204,8 +372,12 @@
       const l = document.createElement("label");
       const c = document.createElement("input");
       c.type = "checkbox";
-      c.checked = w.actif;
-      c.addEventListener("change", () => { w.actif = c.checked; garder(); peindre(); });
+      c.checked = !decoches.has(cleWho(w));
+      c.addEventListener("change", () => {
+        if (c.checked) decoches.delete(cleWho(w)); else decoches.add(cleWho(w));
+        local.ecrire("op-decoches", [...decoches]);
+        peindre();
+      });
       // La date avec l'heure : les /who de plusieurs guerres se suivent.
       l.append(c, " " + w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7) + " "
                + w.quand.slice(11, 16) + " · " + w.region
@@ -217,21 +389,25 @@
   function peindre() {
     peindreWhos();
     const noms = nomsVus();
+    const tries = camp => Object.keys(camps).filter(n => camps[n].c === camp)
+                                .sort((a, b) => a.localeCompare(b, "fr"));
     for (const colonne of document.querySelectorAll(".colonne")) {
       const camp = colonne.dataset.camp;
       const liste = colonne.querySelector(".liste");
       liste.textContent = "";
       // Les colonnes de cote gardent tout le tri, meme les noms absents des
-      // /who coches : c'est la liste des camps, pas celle de la soiree.
-      const ici = camp
-        ? Object.keys(camps).filter(n => camps[n] === camp)
-                            .sort((a, b) => a.localeCompare(b, "fr"))
-        : noms.filter(n => !camps[n]);
+      // /who coches : c'est la liste des camps, pas celle d'une soiree.
+      const ici = camp ? tries(camp) : noms.filter(n => !camps[n]);
       for (const n of ici) {
         const puce = document.createElement("span");
         puce.className = "nom";
         puce.textContent = n;
         puce.draggable = true;
+        // Qui l'a range, et quand : a plusieurs, c'est a qui demander quand
+        // un classement surprend.
+        const c = camps[n];
+        if (c) puce.title = (c.qui || "quelqu'un") + " — "
+                            + new Date(c.quand).toLocaleString("fr-FR");
         puce.addEventListener("dragstart", e => {
           e.dataTransfer.setData("text/plain", n);
           puce.classList.add("saisi");
@@ -266,10 +442,15 @@
       colonne.classList.remove("cible");
       const n = e.dataTransfer.getData("text/plain");
       if (!n) return;
-      if (colonne.dataset.camp) camps[n] = colonne.dataset.camp;
+      const camp = colonne.dataset.camp;
+      if ((camps[n] ? camps[n].c : "") === camp) return;
+      // On peint d'abord : le geste doit repondre tout de suite. Si le
+      // serveur refuse, `ecrire` revient a ce qui est enregistre.
+      if (camp) camps[n] = { c: camp, qui: champNom.value.trim(),
+                             quand: new Date().toISOString() };
       else delete camps[n];
-      garder();
       peindre();
+      ecrire({ action: "ranger", nom: n, camp });
     });
   }
 
@@ -291,17 +472,17 @@
     charger(e.dataTransfer.files);
   });
 
-  // **La sauvegarde, un fichier a soi.** Le tri vit dans le navigateur :
-  // un cache vide, un autre PC, une fausse manoeuvre sur « Oublier le tri »,
-  // et il est perdu. Le fichier telecharge porte le tri et les /who charges,
-  // de quoi tout retrouver en le rechargeant.
+  // ------------------------------------------------------------ les boutons
+
+  // **La sauvegarde, un fichier a soi.** Le serveur garde ses propres copies,
+  // mais un fichier chez soi survit a tout, meme a une panne d'hebergement.
   function horodatage() {
     const d = new Date(), z = n => String(n).padStart(2, "0");
     return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate())
            + "_" + z(d.getHours()) + "h" + z(d.getMinutes());
   }
   document.getElementById("sauver").addEventListener("click", () => {
-    const contenu = JSON.stringify({ page: "guerre-op", version: 1,
+    const contenu = JSON.stringify({ page: "guerre-op", version: 2,
                                      le: new Date().toISOString(),
                                      camps, whos }, null, 1);
     const lien = document.createElement("a");
@@ -327,33 +508,34 @@
       alert("Ce fichier n'est pas une sauvegarde de Guerre d'OP.");
       return;
     }
-    if (!confirm("Remplacer le tri actuel par celui de la sauvegarde ?")) return;
-    camps = lu.camps;
-    // Les /who de la sauvegarde s'ajoutent a ceux deja charges, sans doublon.
-    for (const w of lu.whos || []) {
-      if (!whos.some(v => v.quand === w.quand && v.region === w.region)) {
-        whos.push(w);
-      }
-    }
-    whos.sort((a, b) => a.quand.localeCompare(b.quand));
-    garder();
-    peindre();
+    if (!confirm("Remplacer le tri commun, pour toute la guilde, par celui "
+                 + "de la sauvegarde ?")) return;
+    await ecrire({ action: "restaurer", camps: lu.camps, whos: lu.whos || [] });
   });
 
   document.getElementById("copier").addEventListener("click", () => {
-    const liste = camp => Object.keys(camps).filter(n => camps[n] === camp)
+    const liste = camp => Object.keys(camps).filter(n => camps[n].c === camp)
                                 .sort((a, b) => a.localeCompare(b, "fr")).join(", ");
     const texte = "Kamis : " + liste("kamis") + "\nOpposants : " + liste("opposants");
     navigator.clipboard.writeText(texte).catch(() => prompt("À copier :", texte));
   });
   document.getElementById("oublier").addEventListener("click", () => {
-    if (!confirm("Remettre tous les noms au centre ?")) return;
-    camps = {};
-    garder();
-    peindre();
+    if (!confirm("Remettre tous les noms au centre, pour toute la guilde ?\n"
+                 + "Pense à « Sauvegarder » d'abord.")) return;
+    ecrire({ action: "oublier" });
+  });
+
+  // On relit regulierement, pour voir les gestes des autres -- jamais pendant
+  // une ecriture, ni quand l'onglet est cache.
+  setInterval(() => {
+    if (enVol === 0 && !document.hidden && voile.hidden) relire();
+  }, RELECTURE_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && voile.hidden) relire();
   });
 
   peindre();
+  relire().then(ok => { if (ok) reprendreAncienTri(); });
 </script>
 </body>
 </html>

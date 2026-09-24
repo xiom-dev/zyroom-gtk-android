@@ -1,0 +1,20 @@
+# Le tri et ses sauvegardes ne se lisent que par releve.php, jamais en
+# direct : le fichier porte les noms des joueurs, et les sauvegardes
+# s'enumereraient une a une. Meme regle que le releve du forage.
+<FilesMatch "\.json$">
+    Require all denied
+</FilesMatch>
+# Le modele du PHP n'a rien a faire en ligne ; s'il y etait depose par
+# megarde, il ne doit ni s'executer ni se lire.
+<Files "releve.modele.php">
+    Require all denied
+</Files>
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# La page se retouche souvent : un navigateur qui garde l'ancienne fait
+# croire qu'une correction n'a pas pris.
+<FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>

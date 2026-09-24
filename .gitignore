@@ -35,3 +35,8 @@ site-domaine/*
 !site-domaine/carte/
 # `OP/` aussi : le tri des participants d'un OP, ecrit a la main.
 !site-domaine/OP/
+# ... sauf ce qui porte un secret ou des donnees : le PHP produit par
+# outils/page-op.py, et le tri qu'il ecrit quand on l'essaie en local.
+site-domaine/OP/releve.php
+site-domaine/OP/releve.json
+site-domaine/OP/sauvegardes/
