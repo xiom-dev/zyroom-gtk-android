@@ -135,13 +135,19 @@
   let whos = [];            // [{quand, region, noms: [..], actif}]
   let camps = {};           // nom -> "kamis" | "opposants"
 
-  // Le tri survit a la fermeture de la page : un opposant d'un soir est
-  // souvent celui du suivant. Il reste dans ce navigateur seulement.
+  // Le tri **et les /who** survivent a la fermeture de la page : le but est
+  // de lister les participants sur plusieurs guerres, et chaque journal
+  // depose vient s'ajouter aux precedents. Tout reste dans ce navigateur --
+  // d'ou le bouton « Sauvegarder », pour en garder une copie a soi.
   try { camps = JSON.parse(localStorage.getItem("op-camps") || "{}"); }
   catch (e) { camps = {}; }
+  try { whos = JSON.parse(localStorage.getItem("op-whos") || "[]"); }
+  catch (e) { whos = []; }
   function garder() {
-    try { localStorage.setItem("op-camps", JSON.stringify(camps)); }
-    catch (e) { /* navigation privee : le tri vit le temps de la page */ }
+    try {
+      localStorage.setItem("op-camps", JSON.stringify(camps));
+      localStorage.setItem("op-whos", JSON.stringify(whos));
+    } catch (e) { /* navigation privee : tout vit le temps de la page */ }
   }
 
   function secondes(quand) {
@@ -181,6 +187,7 @@
       }
     }
     whos.sort((a, b) => a.quand.localeCompare(b.quand));
+    garder();
     peindre();
   }
 
@@ -198,8 +205,10 @@
       const c = document.createElement("input");
       c.type = "checkbox";
       c.checked = w.actif;
-      c.addEventListener("change", () => { w.actif = c.checked; peindre(); });
-      l.append(c, " " + w.quand.slice(11, 16) + " · " + w.region
+      c.addEventListener("change", () => { w.actif = c.checked; garder(); peindre(); });
+      // La date avec l'heure : les /who de plusieurs guerres se suivent.
+      l.append(c, " " + w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7) + " "
+               + w.quand.slice(11, 16) + " · " + w.region
                + " (" + w.noms.length + ")");
       boite.append(l);
     }
