@@ -185,6 +185,14 @@ class PageMeteo:
                     ryzom_api.fetch_time_xml())["season_index"]
             except Exception:                           # noqa: BLE001
                 saison = -1
+            # gtk-dev relit aussi le relevé : une croix cochée à la main sur
+            # le site entre ainsi dans l'écran sans passer par le bouton. Une
+            # panne du site ne doit pas priver de météo.
+            if forage_releve.ACTIF:
+                try:
+                    forage_releve.relire()
+                except (OSError, ValueError):
+                    pass
             return meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys,
                                    saison, releve.continents, releve.pris_a)
 

@@ -398,6 +398,29 @@ def appliquer_tables() -> int:
                for k in z.values())
 
 
+def _lire_le_site() -> dict:
+    """Le relevé commun tel qu'il est sur le site : {case: {v, qui, quand}}."""
+    jeton = _poste({"action": "entrer",
+                    "mdp": _secret(MDP_FICHIER)}).get("jeton", "")
+    if not jeton:
+        raise ValueError("mot de passe refusé")
+    requete = urllib.request.Request(SITE, headers={"X-Forage": jeton})
+    with urllib.request.urlopen(requete, timeout=30) as reponse:
+        return json.load(reponse).get("cases", {})
+
+
+def relire() -> None:
+    """Relit le site et garde ses tables, sans rien y écrire.
+
+    **Pourquoi en plus du bouton.** Le bouton ne relisait le site qu'au clic :
+    une croix posée à la main sur la page -- une source trouvée mais pas
+    finie, donc absente du journal du jeu -- n'arrivait dans l'écran qu'au
+    relevé suivant. Appelée à chaque lecture de la météo, hors du fil de
+    l'interface ; `appliquer_tables` pose ensuite le résultat.
+    """
+    _garder_tables(_depuis_le_site(_lire_le_site()))
+
+
 def envoyer() -> dict:
     """Coche sur le relevé commun ce que le journal confirme.
 
@@ -412,14 +435,7 @@ def envoyer() -> dict:
     bilan = {"lignes": lues, "prises": len(cases), "posees": 0,
              "deja": len(cases) - len(neuves), "erreur": ""}
     try:
-        jeton = _poste({"action": "entrer",
-                        "mdp": _secret(MDP_FICHIER)}).get("jeton", "")
-        if not jeton:
-            bilan["erreur"] = "mot de passe refusé"
-            return bilan
-        requete = urllib.request.Request(SITE, headers={"X-Forage": jeton})
-        with urllib.request.urlopen(requete, timeout=30) as reponse:
-            tableau = json.load(reponse).get("cases", {})
+        tableau = _lire_le_site()
         cle = _secret(CLE_FICHIER)
     except (OSError, ValueError) as souci:
         bilan["erreur"] = str(souci)
