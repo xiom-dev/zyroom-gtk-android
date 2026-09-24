@@ -508,7 +508,11 @@ class CeQuiSort(unittest.TestCase):
         """Elle était invisible : la meilleure qualité la masquait.
 
         Trente-deux créneaux sur soixante-quatre en portent, et l'écran les
-        montre maintenant sous le suprême plutôt qu'à sa place."""
+        montre maintenant sous le suprême plutôt qu'à sa place.
+
+        Compté dans gtk-dev, qui voit aussi les XL à vérifier."""
+        meteo.voir_a_verifier(True)
+        self.addCleanup(meteo.voir_a_verifier, False)
         avec = [(s, z, c) for s in range(4) for z in meteo.ZONES
                 for c in ("worst", "bad", "good", "best")
                 if any(q in (meteo.EXCELLENTE, meteo.A_CONFIRMER)
@@ -809,6 +813,38 @@ class ColonnesDesBetes(unittest.TestCase):
         # emplacements du jeu : la numerotation court sur les deux.
         self.assertEqual(["Monture 1", "Mektoub 2"],
                          [b.etiquette for b in betes if not b.zig])
+
+class LesJoueursNeVoientPasLesMPAVerifier(unittest.TestCase):
+    """Les croix oranges sont des pistes pour les foreuses : seule gtk-dev les
+    montre. La GTK des joueurs et Qt ne les voient nulle part — ni en bloc à
+    part, ni fondues dans la XL, ni sur les cartes."""
+
+    def tearDown(self):
+        meteo.voir_a_verifier(False)
+
+    def test_par_défaut_rien_à_vérifier(self):
+        self.assertEqual({}, meteo.table_de(meteo.A_CONFIRMER))
+        for s in range(4):
+            for z in meteo.ZONES:
+                for c in ("worst", "bad", "good", "best"):
+                    qualites = [q for q, _g in meteo.sorties_de(s, z, c)]
+                    self.assertNotIn(meteo.A_CONFIRMER, qualites)
+
+    def test_une_orange_ne_revient_pas_en_xl(self):
+        meteo.voir_a_verifier(True)
+        oranges = meteo.table_de(meteo.A_CONFIRMER)
+        self.assertTrue(any(oranges.values()), "plus aucune orange à tester")
+        meteo.voir_a_verifier(False)
+        xl = meteo.table_de(meteo.EXCELLENTE)
+        for zone, matieres in oranges.items():
+            for couple, creneaux in matieres.items():
+                self.assertFalse(set(creneaux) & xl.get(zone, {}).get(couple, set()),
+                                 (zone, couple))
+
+    def test_gtk_dev_les_voit(self):
+        meteo.voir_a_verifier(True)
+        self.assertTrue(any(meteo.table_de(meteo.A_CONFIRMER).values()))
+
 
 if __name__ == "__main__":
     unittest.main()

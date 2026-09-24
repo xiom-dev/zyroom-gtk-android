@@ -66,12 +66,14 @@ class PageMeteo:
         # Ce que le forage a rendu, relevé dans le journal du jeu et envoyé au
         # relevé commun. Un bouton plutôt qu'un service qui tourne en fond :
         # on sait quand on l'a fait, et rien ne part sans qu'on l'ait demandé.
+        # Dans gtk-dev seulement : voir `forage_releve.ACTIF`.
         self._forage_btn = Gtk.Button(label=_("Relever mon forage"))
         self._forage_btn.set_tooltip_text(_(
             "Lit le journal du jeu — tape /chatLog en jeu pour l'activer — et "
             "coche sur xiom.be/forage ce que tes prises confirment."))
         self._forage_btn.connect("clicked", self._on_relever_forage)
-        bar.append(self._forage_btn)
+        if forage_releve.ACTIF:
+            bar.append(self._forage_btn)
 
         self._meteo_refresh = Gtk.Button(label=_("Actualiser"))
         self._meteo_refresh.connect("clicked", lambda *a: self._load_meteo(force=True))
@@ -197,14 +199,16 @@ class PageMeteo:
             # plus, il garde la condition de chaque cycle. C'est ce qui permet
             # de dater une prise après coup — l'API, elle, ne sait dire que le
             # présent et six heures d'avance.
-            try:
-                forage_releve.noter_meteo(res)
-                # Et l'état réel du relevé, gardé du dernier passage : la
-                # table embarquée est un instantané figé à la livraison, et
-                # les croix se cochent tous les soirs.
-                forage_releve.appliquer_tables()
-            except (OSError, ValueError):
-                pass            # un carnet qui ne s'écrit pas ne doit rien casser
+            # Dans gtk-dev seulement : voir `forage_releve.ACTIF`.
+            if forage_releve.ACTIF:
+                try:
+                    forage_releve.noter_meteo(res)
+                    # Et l'état réel du relevé, gardé du dernier passage : la
+                    # table embarquée est un instantané figé à la livraison, et
+                    # les croix se cochent tous les soirs.
+                    forage_releve.appliquer_tables()
+                except (OSError, ValueError):
+                    pass        # un carnet qui ne s'écrit pas ne doit rien casser
             self._meteo_affiche = res
             self._refresh_meteo()
             # Le temps d'Atys avance tout seul : on ne redemande rien, on

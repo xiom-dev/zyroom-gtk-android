@@ -44,6 +44,11 @@ from .config import data_dir
 #: L'adresse du relevé commun de la guilde.
 SITE = "https://xiom.be/forage/releve.php"
 
+#: **Le relevé n'existe que dans gtk-dev**, l'application du développement et
+#: du chef. La GTK des joueurs n'a ni le bouton ni le carnet, et ne parle
+#: jamais au site ; Qt n'embarque même pas ce module.
+ACTIF = (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
+
 #: Les secrets, hors de l'application : la clef d'écriture et le mot de passe
 #: de lecture, ceux-là mêmes que la page emploie.
 #:

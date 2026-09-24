@@ -442,12 +442,53 @@ def poser_tables(tables) -> bool:
     return True
 
 
-def table_de(qualite: str) -> dict:
+#: Montrer les MP à vérifier — les croix oranges du relevé.
+#:
+#: **Faux par défaut, et seule gtk-dev le passe à vrai.** Ces croix sont des
+#: pistes pour les foreuses de la guilde, pas des certitudes : les applications
+#: des joueurs (GTK des joueurs, Qt, et donc Windows) ne les montrent nulle
+#: part. Coupées ici, dans la table, elles disparaissent d'un seul geste du
+#: tableau « ce qui pop », de la ligne du haut et des cartes des gisements.
+_VOIR_A_VERIFIER = [False]
+
+
+def voir_a_verifier(oui: bool) -> None:
+    _VOIR_A_VERIFIER[0] = bool(oui)
+
+
+def _table_brute(qualite: str) -> dict:
     """La table d'une qualité : celle du relevé, sinon celle de l'instantané."""
     if _TABLES[0] is not None and qualite in _TABLES[0]:
         return _TABLES[0][qualite]
     return {SUPREME: _forage.SUPREMES, EXCELLENTE: _forage.EXCELLENTES,
             CHOIX: _forage.CHOIX, A_CONFIRMER: _forage.A_CONFIRMER}[qualite]
+
+
+#: La XL privée de ses croix oranges, calculée une fois par jeu de tables.
+_XL_VERIFIEE: dict = {}
+
+
+def table_de(qualite: str) -> dict:
+    """La table d'une qualité, telle que cette application a le droit de la
+    montrer : sans les MP à vérifier, sauf dans gtk-dev."""
+    if _VOIR_A_VERIFIER[0] or qualite not in (EXCELLENTE, A_CONFIRMER):
+        return _table_brute(qualite)
+    if qualite == A_CONFIRMER:
+        return {}
+    # Une croix orange compte aussi dans la XL : on l'y retire, sans quoi
+    # elle reviendrait sous le nom d'une XL vue en jeu.
+    xl, orange = _table_brute(EXCELLENTE), _table_brute(A_CONFIRMER)
+    cle = (id(xl), id(orange))
+    if cle not in _XL_VERIFIEE:
+        _XL_VERIFIEE.clear()
+        verifiee = {}
+        for zone, matieres in xl.items():
+            douteux = orange.get(zone, {})
+            gardees = {couple: set(creneaux) - set(douteux.get(couple, ()))
+                       for couple, creneaux in matieres.items()}
+            verifiee[zone] = {c: k for c, k in gardees.items() if k}
+        _XL_VERIFIEE[cle] = verifiee
+    return _XL_VERIFIEE[cle]
 
 
 def a_confirmer() -> dict:

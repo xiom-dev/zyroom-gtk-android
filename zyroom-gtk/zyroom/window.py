@@ -56,6 +56,10 @@ MAJ_INTERVALLE = 15 * 60
 #: Vrai dans la variante du mainteneur, qui montre les coffres masqués.
 _DEV = (os.environ.get("FLATPAK_ID") or "").endswith(".dev")
 
+# Les MP a verifier -- les croix oranges du releve -- ne se montrent que dans
+# gtk-dev. Voir `meteo.voir_a_verifier`.
+meteo.voir_a_verifier(_DEV)
+
 # Nom affiché, tenu identique à celui des fichiers .desktop des deux variantes.
 # Il ne paraît plus dans la barre de titre, occupée par la bascule d'onglets,
 # mais bien dans la liste des fenêtres et l'alternateur de tâches.
