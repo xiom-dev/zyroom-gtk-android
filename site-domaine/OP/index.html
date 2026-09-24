@@ -252,6 +252,10 @@
      carte a la page suivante -- elle restait coupee en deux. */
   html.mode-pdf #cartes { display: block; }
   html.mode-pdf .carte { margin-bottom: 12px; }
+  /* Les noms plus serres : une longue colonne « A trier » tient mieux sur
+     une page. */
+  html.mode-pdf .nom { padding: 1px 6px; font-size: .85em; }
+  html.mode-pdf .liste { gap: 4px; }
 
   @media (max-width: 1000px) {
     .page { grid-template-columns: 1fr; }
@@ -295,7 +299,7 @@
     <button id="pdf" aria-haspopup="true" aria-expanded="false"
             title="Imprimer le bilan de la guerre ouverte, ou le télécharger en PDF">PDF ▾</button>
     <div id="pdf-choix" hidden>
-      <button id="imprimer" title="Ouvrir la fenêtre d'impression du navigateur (on peut y choisir « Enregistrer en PDF »)">Imprimer</button>
+      <button id="imprimer" title="Ouvrir le PDF du bilan dans un onglet, prêt à imprimer">Imprimer</button>
       <button id="telecharger" title="Télécharger directement le fichier PDF du bilan de la guerre ouverte">Télécharger le PDF</button>
     </div>
   </div>
@@ -1157,7 +1161,27 @@
   }
   boutonPdf.addEventListener("click", e => { e.stopPropagation(); menuPdf(choixPdf.hidden); });
   document.addEventListener("click", () => menuPdf(false));
-  document.getElementById("imprimer").addEventListener("click", () => { menuPdf(false); print(); });
+  // **Imprimer passe par le meme PDF compose.** L'impression du navigateur
+  // ne sait pas reduire un tableau plus haut qu'une page : elle le coupait.
+  // Le PDF compose s'ouvre dans un onglet, fenetre d'impression comprise --
+  // imprime et telecharge sont ainsi le meme document. L'onglet s'ouvre des
+  // le clic : ouvert apres l'attente, le navigateur le bloquerait.
+  document.getElementById("imprimer").addEventListener("click", async () => {
+    menuPdf(false);
+    const onglet = window.open("", "_blank");
+    if (onglet) onglet.document.write("<p style='font-family:sans-serif'>Préparation du PDF…</p>");
+    signaler("préparation du PDF…");
+    try {
+      const pdf = await pdfCompose();
+      pdf.autoPrint();
+      const url = pdf.output("bloburl");
+      if (onglet) onglet.location.href = url; else window.open(url, "_blank");
+      signaler("PDF ouvert pour l'impression");
+    } catch (e) {
+      if (onglet) onglet.close();
+      signaler("PDF impossible : " + e.message, true);
+    }
+  });
 
   let html2pdfPret = null;
   function chargerHtml2pdf() {
@@ -1176,27 +1200,75 @@
     return html2pdfPret;
   }
 
+  // **Le PDF compose tableau par tableau.** Laisser la bibliotheque decouper
+  // la page entiere en tranches A4 coupait les tableaux au hasard des fins
+  // de page, et la consigne « ne pas couper » n'etait pas tenue partout. Ici
+  // chaque bloc -- le titre, les colonnes du tri, le bilan, l'en-tete des
+  // statistiques, chaque carte -- est dessine a part, puis pose sur la page :
+  // s'il ne tient plus, il passe entier a la suivante ; s'il est plus haut
+  // qu'une page, il est reduit pour y tenir. Aucun ne peut plus etre coupe.
+  const A4 = { marge: 10, largeur: 190, hauteur: 277, ecart: 4 };   // en mm
+
+  function dessinerBloc(html2pdf, element) {
+    return html2pdf().set({
+      margin: 0,
+      html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    }).from(element).toCanvas().get("canvas");
+  }
+
+  async function composerPdf(html2pdf) {
+    const blocs = [document.querySelector("#contenu > header"),
+                   document.querySelector(".colonnes"),
+                   document.getElementById("bilan")];
+    const entete = document.querySelector(".entete-stats");
+    const cartes = [...document.querySelectorAll("#cartes .carte")];
+    if (cartes.length) blocs.push(entete, ...cartes);
+    const images = [];
+    for (const el of blocs) {
+      const c = await dessinerBloc(html2pdf, el);
+      let l = A4.largeur, h = c.height * l / c.width;
+      if (h > A4.hauteur) { h = A4.hauteur; l = c.width * h / c.height; }
+      images.push({ el, c, l, h });
+    }
+    // Le document lui-meme vient de la bibliotheque, qui n'expose pas jsPDF :
+    // on lui en fait creer un a partir d'un bloc vide -- une page A4 blanche
+    // -- et on y pose les tableaux.
+    const pdf = await html2pdf().set({
+      margin: 0, jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    }).from(document.createElement("div")).toPdf().get("pdf");
+    let y = A4.marge;
+    images.forEach((im, i) => {
+      // Un titre ne reste jamais seul en bas de page : celui de la guerre
+      // part avec les colonnes, celui des statistiques avec leur premiere carte.
+      const titre = im.el === entete || im.el === blocs[0];
+      const suite = titre && images[i + 1] ? A4.ecart + images[i + 1].h : 0;
+      if (y > A4.marge && y + im.h + suite > A4.marge + A4.hauteur) {
+        pdf.addPage();
+        y = A4.marge;
+      }
+      pdf.addImage(im.c.toDataURL("image/jpeg", 0.92), "JPEG",
+                   A4.marge + (A4.largeur - im.l) / 2, y, im.l, im.h);
+      y += im.h + A4.ecart;
+    });
+    return pdf;
+  }
+
+  // Composer, dans la mise en page claire, puis la remettre comme avant.
+  async function pdfCompose() {
+    const html2pdf = await chargerHtml2pdf();
+    preparerPdf();
+    try { return await composerPdf(html2pdf); } finally { finirPdf(); }
+  }
+
   document.getElementById("telecharger").addEventListener("click", async () => {
     menuPdf(false);
     signaler("préparation du PDF…");
     try {
-      const html2pdf = await chargerHtml2pdf();
-      preparerPdf();
-
-      await html2pdf().set({
-        margin: [10, 10, 10, 10],
-        filename: nomDeFichier() + ".pdf",
-        image: { type: "jpeg", quality: 0.95 },
-        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        // Une carte, une colonne ou le bilan ne se coupent jamais en deux.
-        pagebreak: { mode: ["css", "legacy"], avoid: [".carte", ".colonnes", "#bilan", ".entete-stats"] },
-      }).from(document.getElementById("contenu")).save();
+      (await pdfCompose()).save(nomDeFichier() + ".pdf");
       signaler("PDF téléchargé");
     } catch (e) {
       signaler("PDF impossible : " + e.message, true);
-    } finally {
-      finirPdf();
     }
   });
 
