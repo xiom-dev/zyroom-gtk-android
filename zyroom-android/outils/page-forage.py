@@ -510,19 +510,33 @@ GABARIT = """<!DOCTYPE html>
   header { max-width: 900px; margin: 0 auto; padding: 24px 0 8px; }
   h1 { font-size: 1.4rem; margin: 0 0 8px; color: var(--or); }
   p { margin: 0 0 10px; color: var(--faible); line-height: 1.5; }
-  header { max-width: 900px; margin: 0 auto; padding: 0 12px; }
+  header { max-width: 1180px; margin: 0 auto; padding: 12px 12px 0; }
   a { color: var(--clair); }
 
-  /* Le plan : le panneau de commandes, puis le tableau. Les deux se
-     partagent la largeur, et le panneau ne grandit pas. */
+  /* **La page defile normalement ; le panneau, lui, ne bouge pas.**
+     Deux barres de defilement imbriquees -- une pour la page, une pour la
+     zone de droite -- donnaient une page entierement figee, ou l'on ne savait
+     plus laquelle on tenait.
+     Le panneau s'accroche a douze pixels du haut. Comme il commence deja la,
+     a cote du titre, il n'a rien au-dessus de lui pour le faire remonter : il
+     s'accroche des le premier pixel de defilement. C'est ce qui manquait
+     quand l'en-tete etait au-dessus de lui plutot qu'a cote. */
   .plan { display: flex; gap: 16px; align-items: flex-start;
-          max-width: 1180px; margin: 12px auto; padding: 0 12px; }
+          max-width: 1180px; margin: 0 auto; padding: 12px;
+          box-sizing: border-box; }
 
-  /* **Colle en haut, et n'en bouge plus.** Le tableau fait cent quarante et
-     une lignes : sans cela il fallait remonter jusqu'en haut de la page pour
-     changer de zone ou de saison, puis redescendre chercher sa ligne. */
-  .cote { position: sticky; top: 8px; flex: 0 0 auto;
+  /* **Centre sur la hauteur de la fenetre, et immobile.** `top: 50%` accroche
+     le panneau au milieu, la translation le recentre sur cette ligne plutot
+     que de l'y faire commencer. `sticky` plutot que `fixed` : l'element reste
+     dans le flux, et sa colonne garde donc sa largeur -- en `fixed`, le
+     tableau passait dessous. */
+  .cote { position: sticky; top: 50%; transform: translateY(-50%);
+          flex: 0 0 auto; max-width: 340px;
           display: flex; flex-direction: column; gap: 10px; }
+
+  /* L'en-tete d'explication defile avec le tableau : elle est dans la meme
+     colonne que lui. */
+  .defilant { flex: 1 1 auto; min-width: 0; }
   /* Deux colonnes : les quatre zones a gauche, les quatre saisons a droite. */
   .choix { display: flex; gap: 8px; align-items: flex-start; }
   .pile { display: flex; flex-direction: column; gap: 6px; }
@@ -542,15 +556,17 @@ GABARIT = """<!DOCTYPE html>
   }
   .compte { color: var(--faible); font-size: .9rem; }
 
-  /* Le tableau deborde volontiers : il defile seul, sans pousser la page. */
-  .cadre { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+  /* Le tableau deborde volontiers en largeur : il defile seul de ce cote-la
+     aussi, sans pousser le reste. */
+  .cadre { overflow-x: auto; }
 
   /* Sous mille pixels, deux panneaux cote a cote ne tiennent plus : le
      panneau repasse au-dessus du tableau, en ligne, comme avant. */
   @media (max-width: 1000px) {
     .plan { display: block; }
-    .cote { position: static; flex-direction: row; flex-wrap: wrap;
-            align-items: center; margin-bottom: 12px; }
+    .cote { position: static; transform: none; max-width: none;
+            flex-direction: row;
+            flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
     .choix { flex-wrap: wrap; }
     .pile { flex-direction: row; flex-wrap: wrap; }
     .pile button { text-align: center; }
@@ -659,6 +675,10 @@ GABARIT = """<!DOCTYPE html>
   </form>
 </div>
 
+<!-- L'en-tete coiffe les deux colonnes et defile avec la page. Le panneau,
+     lui, est accroche au milieu de la fenetre : il ne remonte donc pas avec
+     elle, contrairement a un panneau accroche en haut, qui devait attendre
+     que l'en-tete soit passee. -->
 <header>
   <h1>Relevé de forage des Primes</h1>
   <p>Quand on fore une source dans les Primes, on coche ici. Un clic&nbsp;:
@@ -676,10 +696,6 @@ GABARIT = """<!DOCTYPE html>
      parfois plusieurs heures de décalage.</p>
 </header>
 
-<!-- Le plan : un panneau de commandes a gauche, le tableau a droite.
-     Le panneau se colle en haut des qu'on a depasse l'en-tete et n'en bouge
-     plus : le tableau fait cent quarante et une lignes, et il fallait
-     remonter tout en haut pour changer de zone ou de saison. -->
 <div class="plan">
 
 <aside class="cote">
@@ -695,6 +711,10 @@ GABARIT = """<!DOCTYPE html>
      le canal de guilde pour pouvoir cocher.</p>
 </aside>
 
+<div class="defilant">
+
+
+
 <div class="cadre">
   <table>
     <thead>
@@ -707,6 +727,7 @@ GABARIT = """<!DOCTYPE html>
   </table>
 </div>
 
+</div>
 </div>
 
 <style>
