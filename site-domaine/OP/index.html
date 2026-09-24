@@ -1784,11 +1784,14 @@
   //
   // Deux secondes de souris immobile sur un de ces noms -- dans une colonne
   // comme dans les statistiques -- et Samara surgit. Quitter le nom avant
-  // annule tout. Un clic ou Echap la renvoie ; elle repart seule a la fin du
-  // cri. Le cri suit le premier geste fait sur la page (le mot de passe, un
+  // annule tout. Elle repart seule au bout de trois secondes, cri compris ;
+  // un clic ou Echap la renvoie plus tot. Bouger la souris pendant ce temps
+  // ne l'interrompt pas. Le cri suit le premier geste fait sur la page (le mot de passe, un
   // clic) : sans lui, le navigateur refuse de jouer un son.
   const CIBLES_SAMARA = ["Raza"];
   const DELAI_SAMARA_MS = 2000;
+  const DUREE_SAMARA_MS = 3000;
+  let finSamara = null;
   const samara = document.getElementById("samara");
   const imageSamara = samara.querySelector("img");
   let criSamara = null, attenteSamara = null, surSamara = null;
@@ -1805,12 +1808,14 @@
       criSamara = criSamara || new Audio("scream.mp3");
       criSamara.currentTime = 0;
       criSamara.play().catch(() => { /* son refuse : l'image suffit */ });
-      criSamara.onended = () => setTimeout(cacherSamara, 500);
     } catch (e) { /* pas de son sur ce navigateur */ }
+    clearTimeout(finSamara);
+    finSamara = setTimeout(cacherSamara, DUREE_SAMARA_MS);
   }
   function cacherSamara() {
+    clearTimeout(finSamara);
     samara.classList.remove("ouvert");
-    if (criSamara) { criSamara.pause(); criSamara.onended = null; }
+    if (criSamara) criSamara.pause();
   }
   samara.addEventListener("click", cacherSamara);
   document.addEventListener("keydown", e => { if (e.key === "Escape") cacherSamara(); });
