@@ -402,34 +402,56 @@ def qualite_de(zone: str, famille: str, matiere: str,
     """
     creneau = _creneau(saison, condition)
     couple = (famille, matiere)
-    for qualite, table in ((SUPREME, _forage.SUPREMES),
-                           (EXCELLENTE, _forage.EXCELLENTES),
-                           (CHOIX, _forage.CHOIX)):
-        if creneau in table.get(zone, {}).get(couple, ()):
+    for qualite in (SUPREME, EXCELLENTE, CHOIX):
+        if creneau in table_de(qualite).get(zone, {}).get(couple, ()):
             return qualite
     return None
 
 
-#: La table des « à confirmer » réellement employée par l'écran.
+#: Les tables réellement employées par l'écran, ou `None` pour l'instantané.
 #:
-#: Celle de `forage.py` est un **instantané**, figé le jour où la table a été
-#: fabriquée. Les croix se cochent ensuite, et l'écran continuait d'envoyer
-#: Ludo vérifier des cases déjà vertes. `forage_releve` remplace donc cette
-#: table par l'état réel du relevé dès qu'il a pu le lire.
-_A_CONFIRMER = [None]
+#: **`forage.py` est un instantané**, figé le jour de la livraison. Le relevé
+#: de la guilde, lui, se remplit tous les soirs : sans ce relais, il aurait
+#: fallu une livraison pour que chaque croix apparaisse. `forage_releve` pose
+#: ici l'état réel dès qu'il a pu lire le site, et l'instantané ne sert plus
+#: que de filet hors ligne.
+_TABLES = [None]
+
+#: Combien de créneaux suprêmes au minimum pour croire une lecture.
+#:
+#: Une réponse tronquée ou un relevé vidé par accident ne doivent pas effacer
+#: l'affichage : en deçà, on garde l'instantané. Le relevé en porte quatre
+#: cent vingt-six.
+PLANCHER_SUPREMES = 300
 
 
-def poser_a_confirmer(table) -> None:
+def poser_tables(tables) -> bool:
     """Remplace l'instantané embarqué par ce que le relevé dit vraiment.
 
-    `None` remet l'instantané : c'est ce qui vaut tant qu'on n'a pas pu
-    joindre le site, et mieux vaut une liste un peu vieille que pas de liste.
+    Rend `False` et ne change rien si la lecture paraît incomplète. `None`
+    remet l'instantané.
     """
-    _A_CONFIRMER[0] = table
+    if tables is None:
+        _TABLES[0] = None
+        return True
+    supremes = sum(len(k) for z in tables.get(SUPREME, {}).values()
+                   for k in z.values())
+    if supremes < PLANCHER_SUPREMES:
+        return False
+    _TABLES[0] = tables
+    return True
+
+
+def table_de(qualite: str) -> dict:
+    """La table d'une qualité : celle du relevé, sinon celle de l'instantané."""
+    if _TABLES[0] is not None and qualite in _TABLES[0]:
+        return _TABLES[0][qualite]
+    return {SUPREME: _forage.SUPREMES, EXCELLENTE: _forage.EXCELLENTES,
+            CHOIX: _forage.CHOIX, A_CONFIRMER: _forage.A_CONFIRMER}[qualite]
 
 
 def a_confirmer() -> dict:
-    return _A_CONFIRMER[0] if _A_CONFIRMER[0] is not None else _forage.A_CONFIRMER
+    return table_de(A_CONFIRMER)
 
 
 def positions_des_primes(qualite: str, famille: str, matiere: str) -> list:
@@ -490,15 +512,15 @@ def sorties_de(saison: int, zone: str,
     #: La XL se coupe en deux : ce qu'on a vu sortir, et ce qu'on nous a
     #: rapporté sans l'avoir vérifié. Les secondes portent le même nom de
     #: matière, mais c'est vers elles qu'il faut aller forer.
-    a_verifier = groupes_de(a_confirmer())
+    a_verifier = groupes_de(table_de(A_CONFIRMER))
     excellentes = {f: [m for m in ms if m not in a_verifier.get(f, ())]
-                   for f, ms in groupes_de(_forage.EXCELLENTES).items()}
+                   for f, ms in groupes_de(table_de(EXCELLENTE)).items()}
 
     trouve = []
-    for qualite, groupes in ((SUPREME, groupes_de(_forage.SUPREMES)),
+    for qualite, groupes in ((SUPREME, groupes_de(table_de(SUPREME))),
                              (EXCELLENTE, {f: m for f, m in excellentes.items() if m}),
                              (A_CONFIRMER, a_verifier),
-                             (CHOIX, groupes_de(_forage.CHOIX))):
+                             (CHOIX, groupes_de(table_de(CHOIX)))):
         if groupes:
             trouve.append((qualite, groupes))
     return trouve

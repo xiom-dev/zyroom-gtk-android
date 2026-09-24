@@ -309,49 +309,71 @@ def _familles() -> dict:
 
 
 def _depuis_le_site(cases: dict) -> dict:
-    """Les cases encore oranges, rangées comme `forage.A_CONFIRMER`."""
+    """Le relevé commun, rangé comme les tables de `forage.py`.
+
+    Quatre tables : le suprême, la XL, le choix, et parmi la XL celles qui
+    restent à confirmer — les croix oranges. La page les nomme « Supp », « XL »
+    et « Choix », et range les conditions sous leurs noms anglais.
+    """
     familles = _familles()
     saisons = {nom: meteo.SAISONS[i] for i, nom in enumerate(SAISONS_PAGE)}
     conditions = {v: k.upper() for k, v in CONDITIONS_PAGE.items()}
-    table = {zone: {} for zone in meteo.ZONES}
+    colonnes = {"Supp": meteo.SUPREME, "XL": meteo.EXCELLENTE,
+                "Choix": meteo.CHOIX}
+    tables = {q: {zone: {} for zone in meteo.ZONES}
+              for q in (meteo.SUPREME, meteo.EXCELLENTE, meteo.CHOIX,
+                        meteo.A_CONFIRMER)}
     for cle, valeur in cases.items():
         v = valeur.get("v") if isinstance(valeur, dict) else valeur
-        if v != "?":
-            continue
+        if v not in ("x", "?"):
+            continue            # « − » dit « vu absent » : ce n'est pas un pop
         morceaux = cle.split("|")
         if len(morceaux) != 5:
             continue
         zone, saison, matiere, qualite, condition = morceaux
-        if zone not in table or qualite != "XL" or matiere not in familles:
+        if (zone not in tables[meteo.SUPREME] or qualite not in colonnes
+                or matiere not in familles or saison not in saisons
+                or condition not in conditions):
             continue
         couple = (familles[matiere], NOM_TABLE.get(matiere, matiere))
-        table[zone].setdefault(couple, set()).add(
-            (saisons[saison], conditions[condition]))
-    return table
+        creneau = (saisons[saison], conditions[condition])
+        tables[colonnes[qualite]][zone].setdefault(couple, set()).add(creneau)
+        # Une orange est de la XL qu'on n'a pas encore vue : elle compte dans
+        # les deux, l'écran la montrant à part pour dire où aller la vérifier.
+        if v == "?" and qualite == "XL":
+            tables[meteo.A_CONFIRMER][zone].setdefault(couple, set()).add(creneau)
+    return tables
 
 
-def appliquer_a_confirmer() -> int:
+def _garder_tables(tables: dict) -> None:
+    """Range les tables sur le disque, en clefs de texte."""
+    _ecrire("tables.json",
+            {qualite: {zone: {"\x1f".join(couple):
+                              ["\x1f".join(k) for k in sorted(creneaux)]
+                              for couple, creneaux in matieres.items()}
+                       for zone, matieres in table.items()}
+             for qualite, table in tables.items()})
+
+
+def appliquer_tables() -> int:
     """Remet l'écran sur l'état réel du relevé. Rend le nombre de créneaux.
 
-    La table de `forage.py` est un instantané : les croix se cochent ensuite,
-    et l'écran continuait d'envoyer vérifier des cases déjà vertes.
+    Rend zéro — et ne change rien — tant qu'on n'a pas lu le site une fois,
+    ou si la lecture gardée paraît incomplète : l'instantané de `forage.py`
+    sert alors de filet.
     """
-    table = _lire("a_confirmer.json", None)
-    if not table:
+    gardees = _lire("tables.json", None)
+    if not gardees:
         return 0
-    vivant = {zone: {tuple(c.split("\x1f")): {tuple(k.split("\x1f"))
-                                              for k in creneaux}
-                     for c, creneaux in matieres.items()}
-              for zone, matieres in table.items()}
-    meteo.poser_a_confirmer(vivant)
-    return sum(len(k) for z in vivant.values() for k in z.values())
-
-
-def _garder_a_confirmer(table: dict) -> None:
-    _ecrire("a_confirmer.json",
-            {zone: {"\x1f".join(couple): ["\x1f".join(k) for k in sorted(creneaux)]
-                    for couple, creneaux in matieres.items()}
-             for zone, matieres in table.items()})
+    vivant = {qualite: {zone: {tuple(c.split("\x1f")):
+                               {tuple(k.split("\x1f")) for k in creneaux}
+                               for c, creneaux in matieres.items()}
+                        for zone, matieres in table.items()}
+              for qualite, table in gardees.items()}
+    if not meteo.poser_tables(vivant):
+        return 0
+    return sum(len(k) for t in vivant.values() for z in t.values()
+               for k in z.values())
 
 
 def envoyer() -> dict:
@@ -381,11 +403,11 @@ def envoyer() -> dict:
         bilan["erreur"] = str(souci)
         return bilan
 
-    # L'etat des oranges, relu au passage : une case cochee depuis la
-    # fabrication de la table ne doit plus etre proposee a la verification.
+    # Le relevé entier, relu au passage. C'est lui qui fait foi : sans cela,
+    # il aurait fallu une livraison pour que chaque croix cochée apparaisse.
     try:
-        _garder_a_confirmer(_depuis_le_site(tableau))
-        appliquer_a_confirmer()
+        _garder_tables(_depuis_le_site(tableau))
+        bilan["creneaux"] = appliquer_tables()
     except (OSError, ValueError, KeyError):
         pass
 

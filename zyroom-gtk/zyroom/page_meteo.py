@@ -199,10 +199,10 @@ class PageMeteo:
             # présent et six heures d'avance.
             try:
                 forage_releve.noter_meteo(res)
-                # Et l'état réel des « à confirmer », gardé du dernier relevé :
-                # la table embarquée est un instantané, et l'écran envoyait
-                # vérifier des cases cochées depuis.
-                forage_releve.appliquer_a_confirmer()
+                # Et l'état réel du relevé, gardé du dernier passage : la
+                # table embarquée est un instantané figé à la livraison, et
+                # les croix se cochent tous les soirs.
+                forage_releve.appliquer_tables()
             except (OSError, ValueError):
                 pass            # un carnet qui ne s'écrit pas ne doit rien casser
             self._meteo_affiche = res

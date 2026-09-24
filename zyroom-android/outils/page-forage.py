@@ -395,6 +395,58 @@ if (!hash_equals(CLE, (string) ($demande['cle'] ?? ''))) {
     repond(403, ['erreur' => 'clef']);
 }
 
+// Reattribuer des cases sans toucher a leur date.
+//
+// **Pourquoi une action a part.** L'ecriture ordinaire remet `quand` a
+// l'instant present : repasser sur quatre cents cases pour n'en changer que
+// la signature aurait efface la date a laquelle elles ont ete relevees. Ici
+// on ne touche qu'a `qui`.
+if (($demande['action'] ?? '') === 'signer') {
+    if (!hash_equals(CLE, (string) ($demande['cle'] ?? ''))) {
+        repond(403, ['erreur' => 'clef']);
+    }
+    $de = (string) ($demande['de'] ?? '');
+    $vers = trim((string) ($demande['vers'] ?? ''));
+    $vers = (string) preg_replace('/[^\\p{L}\\p{N} \\-\\']/u', '', $vers);
+    $vers = (string) preg_replace('/^(.{0,24}).*$/us', '$1', $vers);
+    if ($vers === '') {
+        repond(400, ['erreur' => 'nom vide']);
+    }
+    $fh = fopen(FICHIER, 'c+');
+    if ($fh === false || !flock($fh, LOCK_EX)) {
+        repond(500, ['erreur' => 'fichier verrouille']);
+    }
+    $contenu = stream_get_contents($fh);
+    $lu = json_decode((string) $contenu, true);
+    $cases = (is_array($lu) && isset($lu['cases']) && is_array($lu['cases']))
+        ? $lu['cases'] : [];
+    if ($contenu !== '') {
+        @mkdir(SAUVEGARDES, 0775, true);
+        @file_put_contents(
+            SAUVEGARDES . '/releve-' . gmdate('Ymd-His') . '.json', $contenu);
+    }
+    $touchees = 0;
+    foreach ($cases as $cle => $valeur) {
+        if (!is_array($valeur) || ($valeur['v'] ?? '') !== 'x') {
+            continue;
+        }
+        if ((string) ($valeur['qui'] ?? '') !== $de) {
+            continue;
+        }
+        $cases[$cle]['qui'] = $vers;   // la date, elle, ne bouge pas
+        $touchees++;
+    }
+    $sortie = json_encode(['cases' => (object) $cases, 'maj' => gmdate('c')],
+                          JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    ftruncate($fh, 0);
+    rewind($fh);
+    fwrite($fh, (string) $sortie);
+    fflush($fh);
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    repond(200, ['ok' => true, 'signees' => $touchees]);
+}
+
 $case = (string) ($demande['case'] ?? '');
 $valeur = (string) ($demande['valeur'] ?? '');
 $foreuse = trim((string) ($demande['foreuse'] ?? ''));
