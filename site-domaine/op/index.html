@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tri des participants</title>
+<meta name="description" content="Trier les participants d'un OP à partir des /who du journal de Ryzom.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233f7a68'/><circle cx='20' cy='12' r='11' fill='%2310171a'/></svg>">
+<style>
+  /* Memes couleurs que la page du releve du forage : les deux vivent sur
+     xiom.be et doivent se lire comme un seul site. */
+  :root {
+    --fond: #10171a; --surface: #172226; --sarcelle: #3f7a68;
+    --clair: #8fbfae; --or: #e8c15a; --texte: #e2e8e6; --faible: #9aa8a5;
+    --nous: #4bbf72; --eux: #e0645a; --trait: #24343a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px 16px 40px; background: var(--fond);
+         color: var(--texte); font-family: system-ui, sans-serif;
+         font-size: 15px; }
+  header, .source, .colonnes { max-width: 1100px; margin: 0 auto; }
+  h1 { color: var(--or); font-size: 1.5rem; margin: 0 0 6px; }
+  header p { color: var(--faible); margin: 0 0 14px; line-height: 1.45; }
+  code { color: var(--clair); }
+
+  /* La zone ou l'on depose le journal. Un clic ouvre aussi le selecteur de
+     fichiers : sur un ecran tactile, glisser un fichier n'existe pas. */
+  .source { display: block; border: 2px dashed var(--trait); border-radius: 10px;
+            padding: 16px; text-align: center; color: var(--faible);
+            cursor: pointer; }
+  .source.survol { border-color: var(--clair); color: var(--texte); }
+  .source b { color: var(--texte); }
+  #fichier { display: none; }
+
+  /* Les /who trouves, chacun decochable : un journal couvre souvent la
+     soiree entiere, et seuls ceux de l'OP comptent. */
+  #whos { max-width: 1100px; margin: 12px auto 0; display: flex;
+          flex-wrap: wrap; gap: 6px 14px; color: var(--faible);
+          font-size: .85rem; }
+  #whos label { cursor: pointer; white-space: nowrap; }
+  #whos input { accent-color: var(--sarcelle); }
+
+  .colonnes { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+              margin-top: 16px; }
+  .colonne { background: var(--surface); border-radius: 10px;
+             border: 1px solid var(--trait); min-height: 320px;
+             display: flex; flex-direction: column; }
+  .colonne h2 { margin: 0; padding: 10px 12px; font-size: 1rem;
+                border-bottom: 1px solid var(--trait);
+                display: flex; justify-content: space-between; }
+  .colonne h2 span { color: var(--faible); font-weight: 400; }
+  #kamis h2 { color: var(--nous); }
+  #tous h2 { color: var(--or); }
+  #opposants h2 { color: var(--eux); }
+  /* La liste occupe toute la hauteur de la colonne : on peut lacher un nom
+     n'importe ou dedans, pas seulement sur les noms deja poses. */
+  .liste { flex: 1; padding: 8px; display: flex; flex-wrap: wrap;
+           align-content: flex-start; gap: 6px; border-radius: 0 0 10px 10px; }
+  .colonne.cible .liste { background: rgba(143,191,174,.08);
+                          outline: 2px dashed var(--clair);
+                          outline-offset: -4px; }
+  .vide { color: var(--faible); font-size: .85rem; padding: 4px; }
+
+  .nom { padding: 4px 9px; border-radius: 6px; background: #1f2e33;
+         border: 1px solid var(--trait); cursor: grab; user-select: none; }
+  .nom:active { cursor: grabbing; }
+  .nom.saisi { opacity: .4; }
+  #kamis .nom { border-color: rgba(75,191,114,.5); }
+  #opposants .nom { border-color: rgba(224,100,90,.5); }
+
+  .actions { max-width: 1100px; margin: 14px auto 0; display: flex; gap: 8px;
+             justify-content: flex-end; }
+  button { background: #1f2e33; color: var(--texte); font: inherit;
+           border: 1px solid var(--trait); border-radius: 7px;
+           padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: var(--clair); }
+
+  @media (max-width: 700px) {
+    .colonnes { grid-template-columns: 1fr; }
+    .colonne { min-height: 140px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tri des participants</h1>
+  <p>En jeu, tape <code>/chatLog</code>, puis des <code>/who</code> pendant l'OP.
+     Dépose ensuite ton journal (<code>save/log_…txt</code>) ci-dessous :
+     tous les noms vus arrivent au centre, et tu les glisses à gauche ou à
+     droite. Le journal reste sur ton ordinateur — rien n'est envoyé.</p>
+</header>
+
+<label class="source" id="source">
+  <b>Déposer le journal ici</b> ou cliquer pour le choisir
+  <input type="file" id="fichier" accept=".txt,text/plain" multiple>
+</label>
+<div id="whos"></div>
+
+<div class="colonnes">
+  <section class="colonne" id="kamis" data-camp="kamis">
+    <h2>Kamis <span></span></h2><div class="liste"></div>
+  </section>
+  <section class="colonne" id="tous" data-camp="">
+    <h2>À trier <span></span></h2><div class="liste"></div>
+  </section>
+  <section class="colonne" id="opposants" data-camp="opposants">
+    <h2>Opposants <span></span></h2><div class="liste"></div>
+  </section>
+</div>
+
+<div class="actions">
+  <button id="copier">Copier les listes</button>
+  <button id="oublier">Oublier le tri</button>
+</div>
+
+<script>
+  "use strict";
+
+  // Le /who du jeu, tel qu'il s'ecrit dans le journal : une ligne d'en-tete,
+  // puis un nom par ligne, a la meme seconde ou presque.
+  //   2026/09/24 22:57:46 (SYSTEM) * Affichage des personnages en ligne dans la region "Lac de la Liberte".
+  //   2026/09/24 22:57:46 (SYSTEM) * Deborat.
+  const LIGNE = /^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}) \(([^)]*)\) \* (.*)$/;
+  const ENTETE = /^Affichage des personnages en ligne dans la région "(.*)"\.$/;
+  const NOM = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'-]*)\.$/;
+  // Les codes couleur du jeu, @{F80F}, glisses au milieu du texte.
+  const COULEUR = /@\{[0-9A-Fa-f]{4}\}/g;
+  // Au-dela de ce delai apres l'en-tete, une ligne n'appartient plus au /who.
+  const DELAI_S = 5;
+
+  let whos = [];            // [{quand, region, noms: [..], actif}]
+  let camps = {};           // nom -> "kamis" | "opposants"
+
+  // Le tri survit a la fermeture de la page : un opposant d'un soir est
+  // souvent celui du suivant. Il reste dans ce navigateur seulement.
+  try { camps = JSON.parse(localStorage.getItem("op-camps") || "{}"); }
+  catch (e) { camps = {}; }
+  function garder() {
+    try { localStorage.setItem("op-camps", JSON.stringify(camps)); }
+    catch (e) { /* navigation privee : le tri vit le temps de la page */ }
+  }
+
+  function secondes(quand) {
+    return Date.parse(quand.replace(/\//g, "-").replace(" ", "T")) / 1000;
+  }
+
+  function lireJournal(texte) {
+    const trouves = [];
+    let courant = null;
+    for (const brute of texte.split(/\r?\n/)) {
+      const m = LIGNE.exec(brute.replace(COULEUR, ""));
+      if (!m) { courant = null; continue; }
+      const [, quand, canal, message] = m;
+      const entete = canal === "SYSTEM" && ENTETE.exec(message);
+      if (entete) {
+        courant = { quand, region: entete[1], noms: [], actif: true };
+        trouves.push(courant);
+        continue;
+      }
+      const nom = canal === "SYSTEM" && NOM.exec(message);
+      if (courant && nom && secondes(quand) - secondes(courant.quand) <= DELAI_S) {
+        courant.noms.push(nom[1]);
+      } else {
+        courant = null;
+      }
+    }
+    return trouves.filter(w => w.noms.length);
+  }
+
+  async function charger(fichiers) {
+    for (const f of fichiers) {
+      for (const w of lireJournal(await f.text())) {
+        // Deux journaux de la meme soiree portent souvent les memes /who.
+        if (!whos.some(v => v.quand === w.quand && v.region === w.region)) {
+          whos.push(w);
+        }
+      }
+    }
+    whos.sort((a, b) => a.quand.localeCompare(b.quand));
+    peindre();
+  }
+
+  function nomsVus() {
+    const vus = new Set();
+    for (const w of whos) if (w.actif) w.noms.forEach(n => vus.add(n));
+    return [...vus].sort((a, b) => a.localeCompare(b, "fr"));
+  }
+
+  function peindreWhos() {
+    const boite = document.getElementById("whos");
+    boite.textContent = "";
+    for (const w of whos) {
+      const l = document.createElement("label");
+      const c = document.createElement("input");
+      c.type = "checkbox";
+      c.checked = w.actif;
+      c.addEventListener("change", () => { w.actif = c.checked; peindre(); });
+      l.append(c, " " + w.quand.slice(11, 16) + " · " + w.region
+               + " (" + w.noms.length + ")");
+      boite.append(l);
+    }
+  }
+
+  function peindre() {
+    peindreWhos();
+    const noms = nomsVus();
+    for (const colonne of document.querySelectorAll(".colonne")) {
+      const camp = colonne.dataset.camp;
+      const liste = colonne.querySelector(".liste");
+      liste.textContent = "";
+      // Les colonnes de cote gardent tout le tri, meme les noms absents des
+      // /who coches : c'est la liste des camps, pas celle de la soiree.
+      const ici = camp
+        ? Object.keys(camps).filter(n => camps[n] === camp)
+                            .sort((a, b) => a.localeCompare(b, "fr"))
+        : noms.filter(n => !camps[n]);
+      for (const n of ici) {
+        const puce = document.createElement("span");
+        puce.className = "nom";
+        puce.textContent = n;
+        puce.draggable = true;
+        puce.addEventListener("dragstart", e => {
+          e.dataTransfer.setData("text/plain", n);
+          puce.classList.add("saisi");
+        });
+        puce.addEventListener("dragend", () => puce.classList.remove("saisi"));
+        liste.append(puce);
+      }
+      if (!ici.length) {
+        const v = document.createElement("span");
+        v.className = "vide";
+        v.textContent = camp ? "Glisse un nom ici."
+                             : (whos.length ? "Tout est trié." : "Aucun /who chargé.");
+        liste.append(v);
+      }
+      colonne.querySelector("h2 span").textContent = ici.length;
+    }
+  }
+
+  // Chaque colonne accepte un nom, d'ou qu'il vienne : on trie depuis le
+  // centre, mais une erreur doit pouvoir se reprendre.
+  for (const colonne of document.querySelectorAll(".colonne")) {
+    colonne.addEventListener("dragover", e => {
+      if (!e.dataTransfer.types.includes("text/plain")) return;
+      e.preventDefault();
+      colonne.classList.add("cible");
+    });
+    colonne.addEventListener("dragleave", e => {
+      if (!colonne.contains(e.relatedTarget)) colonne.classList.remove("cible");
+    });
+    colonne.addEventListener("drop", e => {
+      e.preventDefault();
+      colonne.classList.remove("cible");
+      const n = e.dataTransfer.getData("text/plain");
+      if (!n) return;
+      if (colonne.dataset.camp) camps[n] = colonne.dataset.camp;
+      else delete camps[n];
+      garder();
+      peindre();
+    });
+  }
+
+  // Le journal : par le selecteur, ou lache sur la zone prevue.
+  const source = document.getElementById("source");
+  document.getElementById("fichier").addEventListener("change", e => {
+    charger(e.target.files);
+    e.target.value = "";
+  });
+  source.addEventListener("dragover", e => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    source.classList.add("survol");
+  });
+  source.addEventListener("dragleave", () => source.classList.remove("survol"));
+  source.addEventListener("drop", e => {
+    e.preventDefault();
+    source.classList.remove("survol");
+    charger(e.dataTransfer.files);
+  });
+
+  document.getElementById("copier").addEventListener("click", () => {
+    const liste = camp => Object.keys(camps).filter(n => camps[n] === camp)
+                                .sort((a, b) => a.localeCompare(b, "fr")).join(", ");
+    const texte = "Kamis : " + liste("kamis") + "\nOpposants : " + liste("opposants");
+    navigator.clipboard.writeText(texte).catch(() => prompt("À copier :", texte));
+  });
+  document.getElementById("oublier").addEventListener("click", () => {
+    if (!confirm("Remettre tous les noms au centre ?")) return;
+    camps = {};
+    garder();
+    peindre();
+  });
+
+  peindre();
+</script>
+</body>
+</html>
