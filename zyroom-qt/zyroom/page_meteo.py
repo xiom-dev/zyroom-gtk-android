@@ -622,7 +622,11 @@ class PageMeteo(QWidget):
             # qu'on a sous les yeux en forant, et l'oeil les reconnait plus
             # vite qu'il ne lit "Carapace".
             cellule = QWidget()
-            cellule.setFixedWidth(theme.largeur(cellule, 4.7))
+            # Un minimum, et non une largeur fixe -- comme `set_size_request`
+            # cote GTK. Fixee, la colonne se calculait sur la police du widget
+            # a sa creation, avant que le theme ne l'agrandisse : « Carapace »
+            # et « Ambres » s'y faisaient couper par la liste des matieres.
+            cellule.setMinimumWidth(theme.largeur(cellule, 4.7))
             pile = QVBoxLayout(cellule)
             pile.setContentsMargins(0, 0, 0, 0)
             pile.setSpacing(0)
