@@ -210,11 +210,24 @@ def moissonner() -> int:
     return gardees
 
 
+#: Les matières que le jeu, en français, nomme autrement que le relevé.
+#:
+#: « Vous obtenez 3 Fragments de carapace Mignonne excellente » : le mot
+#: « Cuty » n'apparaît nulle part dans la phrase. Sans ce pont, la prise était
+#: lue puis jetée en silence — ni croix, ni erreur.
+NOM_JEU = {"mignonne": "Cuty", "grosse": "Big", "cornée": "Horny",
+           "intelligente": "Smart", "inteligente": "Smart",
+           "colle": "Glue", "lune": "Moon", "ardente": "Redhot"}
+
+
 def _matieres() -> dict:
-    """{nom en minuscules: Nom} — les quarante-sept noms du relevé."""
+    """{nom en minuscules: Nom} — les quarante-sept noms du relevé, et leurs
+    noms français tels que le jeu les écrit."""
     noms = {m for t in (forage.SUPREMES, forage.EXCELLENTES)
             for z in t.values() for _f_, m in z}
-    return {n.lower(): n for n in noms}
+    sortie = {n.lower(): n for n in noms}
+    sortie.update({fr: en for fr, en in NOM_JEU.items() if en in noms})
+    return sortie
 
 
 def prises() -> list:

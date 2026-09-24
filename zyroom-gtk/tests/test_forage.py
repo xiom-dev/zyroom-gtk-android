@@ -193,5 +193,23 @@ class LesContinentsRestentÀPart(unittest.TestCase):
                     self.assertLessEqual(trouve, dans_la_table, zone)
 
 
+class LesNomsFrançaisDuJeu(unittest.TestCase):
+    """Le journal du jeu écrit « Mignonne » ou « Colle », le relevé « Cuty »
+    ou « Glue ». Une prise dont le nom ne se reconnaît pas est jetée sans
+    bruit : elle ne devient jamais une croix."""
+
+    def test_la_carapace_mignonne_est_la_cuty(self):
+        from zyroom import forage_releve
+        mats = forage_releve._matieres()
+        texte = "fragments de carapace mignonne excellente / primes racines"
+        self.assertEqual("Cuty", next(n for b, n in mats.items() if b in texte))
+
+    def test_la_colle_est_la_glue(self):
+        from zyroom import forage_releve
+        mats = forage_releve._matieres()
+        texte = "résines de choix de colle / primes racines"
+        self.assertEqual("Glue", next(n for b, n in mats.items() if b in texte))
+
+
 if __name__ == "__main__":
     unittest.main()
