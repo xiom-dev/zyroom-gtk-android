@@ -17,6 +17,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk
 
 from . import alerts, movements
 from .config import movements_path, outposts_path, snapshot_path
+from .i18n import _
 from .watch import KIND_DURABILITY, watch_kind
 
 
