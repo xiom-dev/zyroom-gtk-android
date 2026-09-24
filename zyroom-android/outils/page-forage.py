@@ -669,6 +669,20 @@ GABARIT = """<!DOCTYPE html>
   /* Largeurs posees : laissee libre, la colonne des noms s'etirait sur la
      moitie de l'ecran et les quatre conditions se serraient a droite. */
   table { border-collapse: collapse; width: auto; margin: 0 auto; }
+  /* **Quatre conditions, quatre colonnes egales.** En disposition
+     automatique, la largeur posee n'est qu'un minimum : chaque colonne
+     s'elargissait a la mesure de sa plage (« Worst · 83,4 – 100 % » plus
+     longue que « Best · 0 – 16,6 % »), soit 114 a 138 pixels selon la
+     colonne. En disposition fixe, seules les largeurs du <colgroup> comptent.
+     150 pixels : la plage la plus longue en demande 138 sous Chromium, la
+     marge couvre les polices plus larges d'un autre systeme.
+     La disposition fixe ne s'applique qu'a un tableau de largeur explicite :
+     laissee a auto, le navigateur revient au calcul automatique. D'ou la
+     somme des colonnes, 170 + 54 + 4 x 150. */
+  table { table-layout: fixed; width: 824px; }
+  .col-matiere { width: 170px; }
+  .col-qualite { width: 54px; }
+  .col-cond { width: 150px; }
   th, td { border: 1px solid #24343a; padding: 4px 6px; text-align: center; }
   /* **Les bordures d'un en-tete collant s'en vont.** Avec border-collapse,
      elles appartiennent a la grille et non aux cellules : elles defilent donc
@@ -811,6 +825,12 @@ GABARIT = """<!DOCTYPE html>
 
 <div class="cadre">
   <table>
+    <!-- Les largeurs sont posees ici, colonne par colonne : c'est ce que
+         lit table-layout: fixed, et le texte ne les fait plus varier. -->
+    <colgroup>
+      <col class="col-matiere"><col class="col-qualite">
+      <col class="col-cond"><col class="col-cond"><col class="col-cond"><col class="col-cond">
+    </colgroup>
     <thead>
       <tr>
         <th colspan="2" id="titre-saison"></th>
