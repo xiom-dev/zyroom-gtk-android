@@ -402,7 +402,8 @@ def qualite_de(zone: str, famille: str, matiere: str,
     """
     creneau = _creneau(saison, condition)
     couple = (famille, matiere)
-    for qualite in (SUPREME, EXCELLENTE, CHOIX):
+    # Le choix ne s'affiche nulle part : voir `sorties_de`.
+    for qualite in (SUPREME, EXCELLENTE):
         if creneau in table_de(qualite).get(zone, {}).get(couple, ()):
             return qualite
     return None
@@ -557,11 +558,15 @@ def sorties_de(saison: int, zone: str,
     excellentes = {f: [m for m in ms if m not in a_verifier.get(f, ())]
                    for f, ms in groupes_de(table_de(EXCELLENTE)).items()}
 
+    # **Pas de choix.** Le relevé en porte -- une foreuse peut cocher la
+    # colonne, et le relevé automatique y verse les prises de choix --, mais
+    # aucune application ne l'affiche : Ludo ne l'a jamais demandé, et une
+    # seule case cochée suffisait à faire surgir un bloc « Choix » dans
+    # gtk-dev, seule à lire le relevé en direct.
     trouve = []
     for qualite, groupes in ((SUPREME, groupes_de(table_de(SUPREME))),
                              (EXCELLENTE, {f: m for f, m in excellentes.items() if m}),
-                             (A_CONFIRMER, a_verifier),
-                             (CHOIX, groupes_de(table_de(CHOIX)))):
+                             (A_CONFIRMER, a_verifier)):
         if groupes:
             trouve.append((qualite, groupes))
     return trouve
