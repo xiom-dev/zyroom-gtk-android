@@ -44,15 +44,14 @@ private const val ANCRE = 0.15
 /**
  * Durée de la bascule d'un palier au suivant, en heures d'Atys.
  *
- * L'API ne donne qu'une valeur par cycle : le palier, lui, est exact, et c'est
- * lui qui décide de la condition de gisement. Le temps que met le taux à passer
- * d'un palier au suivant, en revanche, **n'est pas mesuré** — l'API n'en dit
- * rien. Une heure d'Atys, soit trois minutes réelles, est un choix de tracé : le
- * trait vertical laissait croire à une bascule instantanée, alors que le taux
- * monte et descend graduellement.
+ * **C'est le code du jeu qui la donne**, `CPredictWeather::predictWeather`
+ * (ryzomcore, `weather_predict.cpp`) : la **dernière** heure de chaque cycle,
+ * le taux glisse en ligne droite vers celui du cycle suivant, et l'atteint pile
+ * au changement de cycle. Les deux premières heures, il tient son palier.
  *
- * Rien d'autre n'en dépend : les comptes à rebours (« Excellente dans 22 min »)
- * se calculent sur les cycles, pas sur ce tracé.
+ * Centrée sur le changement de cycle, la bascule avait une minute et demie de
+ * retard sur le jeu : mesuré le 24 septembre 2026, le jeu affichait 53 %, la
+ * courbe 20 %.
  */
 private const val TRANSITION_HEURES = 1.0
 
@@ -151,14 +150,14 @@ fun CourbeMeteo(
 
                 // La courbe en marches et son aire : l'aire fait lire d'un coup
                 // les creux, qui sont justement les bonnes fenêtres. Un cycle
-                // couvre trois heures : son palier va de `cycle * 3` à
-                // `(cycle + 1) * 3`.
+                // couvre trois heures : son palier tient les deux premières, et
+                // la dernière rejoint le palier suivant en oblique.
                 val trace = Path()
                 val aire = Path()
                 aire.moveTo(x(cycles.first().cycle * HEURES_PAR_CYCLE.toDouble()), haut)
                 cycles.forEachIndexed { i, m ->
-                    val debut = x(m.cycle * HEURES_PAR_CYCLE + TRANSITION_HEURES / 2)
-                    val fin = x((m.cycle + 1) * HEURES_PAR_CYCLE - TRANSITION_HEURES / 2)
+                    val debut = x(m.cycle * HEURES_PAR_CYCLE.toDouble())
+                    val fin = x((m.cycle + 1) * HEURES_PAR_CYCLE - TRANSITION_HEURES)
                     val py = y(m.value)
                     if (i == 0) trace.moveTo(debut, py) else trace.lineTo(debut, py)
                     trace.lineTo(fin, py)

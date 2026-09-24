@@ -32,9 +32,11 @@ from .i18n import _
 FENETRE_HEURES = 24.0
 ANCRE = 0.15
 
-#: La duree de la bascule d'un palier au suivant, en heures d'Atys. Le taux
-#: monte et descend graduellement ; un trait vertical laisserait croire le
-#: contraire.
+#: La duree de la bascule d'un palier au suivant, en heures d'Atys. C'est le
+#: code du jeu qui la donne (`CPredictWeather::predictWeather`, ryzomcore) :
+#: la derniere heure de chaque cycle, le taux glisse en ligne droite vers celui
+#: du cycle suivant et l'atteint pile au changement de cycle. Centree sur ce
+#: changement, la bascule avait une minute et demie de retard sur le jeu.
 TRANSITION_HEURES = 1.0
 
 #: Les reperes d'heure reelle sous l'axe.
@@ -147,15 +149,14 @@ class CourbeMeteo(QWidget):
                 peintre.drawRect(QRectF(x(heure), 0,
                                         large / FENETRE_HEURES, haut))
 
-        # La courbe et son aire. Un cycle couvre trois heures ; le palier
-        # occupe le milieu, et la demi-heure de part et d'autre sert a
-        # rejoindre le palier voisin en oblique.
+        # La courbe et son aire. Un cycle couvre trois heures : le palier
+        # tient les deux premieres, et la derniere rejoint le palier suivant
+        # en oblique -- comme le fait le jeu.
         def paliers():
-            demi = TRANSITION_HEURES / 2
             for m in cycles:
                 debut = m.cycle * meteo.HEURES_PAR_CYCLE
-                yield (x(debut + demi),
-                       x(debut + meteo.HEURES_PAR_CYCLE - demi),
+                yield (x(debut),
+                       x(debut + meteo.HEURES_PAR_CYCLE - TRANSITION_HEURES),
                        y(m.value))
 
         from PySide6.QtGui import QPainterPath

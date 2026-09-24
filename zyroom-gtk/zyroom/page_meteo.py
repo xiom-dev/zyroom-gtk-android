@@ -565,16 +565,16 @@ class PageMeteo:
 
     #: Durée de la bascule d'un palier au suivant, en heures d'Atys.
     #:
-    #: L'API ne donne qu'une valeur par cycle : le palier, lui, est exact, et
-    #: c'est lui qui décide de la condition de gisement. Le temps que met le
-    #: taux à passer d'un palier au suivant, en revanche, **n'est pas mesuré**
-    #: — l'API n'en dit rien. Une heure d'Atys, soit trois minutes réelles, est
-    #: un choix de tracé : le trait vertical laissait croire à une bascule
-    #: instantanée, alors que le taux monte et descend graduellement.
+    #: **C'est le code du jeu qui la donne**, `CPredictWeather::predictWeather`
+    #: (ryzomcore, `weather_predict.cpp`) : la **dernière** heure de chaque
+    #: cycle, le taux glisse en ligne droite vers celui du cycle suivant, et
+    #: l'atteint pile au changement de cycle. Les deux premières heures, il
+    #: tient son palier.
     #:
-    #: Rien d'autre n'en dépend : les comptes à rebours (« Excellente dans
-    #: 22 min ») se calculent sur les cycles, pas sur ce tracé. Même valeur que
-    #: dans le portage Android, pour que les deux courbes se ressemblent.
+    #: La bascule a d'abord été centrée sur le changement de cycle, une
+    #: demi-heure de chaque côté : la courbe avait alors une minute et demie
+    #: de retard sur le jeu. Mesuré le 24 septembre 2026, de 6,7 % vers
+    #: 71,1 % : le jeu affichait 53 %, la courbe 20 %.
     TRANSITION_HEURES = 1.0
 
     def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
@@ -645,15 +645,15 @@ class PageMeteo:
                 cr.rectangle(x(h), 0, large / self.FENETRE_HEURES, haut)
                 cr.fill()
 
-        # La courbe et son aire. Un cycle couvre trois heures ; le palier occupe
-        # le milieu, et la demi-heure de part et d'autre sert à rejoindre le
-        # palier voisin en oblique.
+        # La courbe et son aire. Un cycle couvre trois heures : le palier tient
+        # les deux premieres, et la derniere rejoint le palier suivant en
+        # oblique -- comme le fait le jeu.
         def parcourir():
-            demi = self.TRANSITION_HEURES / 2
             for m in cycles:
                 debut = m.cycle * meteo.HEURES_PAR_CYCLE
-                yield (x(debut + demi),
-                       x(debut + meteo.HEURES_PAR_CYCLE - demi),
+                yield (x(debut),
+                       x(debut + meteo.HEURES_PAR_CYCLE
+                         - self.TRANSITION_HEURES),
                        y(m.value))
 
         cr.set_source_rgba(0.25, 0.48, 0.41, 0.35)
