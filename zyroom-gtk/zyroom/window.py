@@ -74,7 +74,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.82" if _DEV else "1.21"
+VERSION = "1.83" if _DEV else "1.21"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -212,6 +212,14 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         # qui le fait défiler.
         GLib.idle_add(lambda: (self._load_meteo(), False)[1])
         GLib.timeout_add_seconds(180, self._refresh_season_tick)
+        # **Le carnet météo se tient, quel que soit l'écran affiché.**
+        # La lecture du démarrage, juste au-dessus, couvre six heures ; passé
+        # ce délai le carnet ne se remplissait plus qu'en ouvrant l'écran
+        # Météo. Une soirée de forage plus longue perdait donc ses conditions,
+        # et les prises de cette session n'avaient plus rien à quoi se
+        # rattacher. On relit toutes les quatre heures — deux de marge sur les
+        # six que porte le flux.
+        GLib.timeout_add_seconds(4 * 3600, self._carnet_meteo_tick)
         self._schedule_sync()
         self.connect("close-request", self._on_close)
 
@@ -2979,6 +2987,16 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
                 f'{GLib.markup_escape_text(text)}</span>')
 
         run_async(work, done)
+
+    def _carnet_meteo_tick(self) -> bool:
+        """Relève la météo en fond, pour que le carnet du forage se tienne.
+
+        Rien n'est affiché : c'est `_load_meteo` qui écrit dans les étiquettes
+        de son écran, visible ou non, et qui note au passage les cycles dans
+        le carnet — voir `forage_releve.noter_meteo`.
+        """
+        self._load_meteo(force=True)
+        return True         # et on recommence dans quatre heures
 
     def _refresh_season_tick(self) -> bool:
         self._refresh_season()
