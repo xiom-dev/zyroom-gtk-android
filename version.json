@@ -11,8 +11,8 @@
     "url": "https://xiom-dev.github.io/zyroom-gtk-android/V-RyLune-Android-dev.apk"
   },
   "net.ryzom.zyroomqt": {
-    "versionCode": 114,
-    "versionName": "1.11.84",
+    "versionCode": 115,
+    "versionName": "1.11.85",
     "urls": {
       "linux": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Qt-linux.zip",
       "windows": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-Qt-windows.zip"
@@ -23,13 +23,13 @@
         "versionName": "1.11.84"
       },
       "linux": {
-        "versionCode": 114,
-        "versionName": "1.11.84"
+        "versionCode": 115,
+        "versionName": "1.11.85"
       }
     }
   },
   "net.ryzom.zyroomgtk": {
-    "versionName": "1.23",
+    "versionName": "1.24",
     "url": "https://xiom-dev.github.io/zyroom-gtk-android/ZyRoom-GTK.flatpak"
   },
   "net.ryzom.zyroomgtk.dev": {
