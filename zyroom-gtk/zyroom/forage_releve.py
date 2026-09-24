@@ -433,7 +433,7 @@ def envoyer() -> dict:
     connues = set(_lire("posees.json", []))
     neuves = [c for c in cases if c not in connues]
     bilan = {"lignes": lues, "prises": len(cases), "posees": 0,
-             "deja": len(cases) - len(neuves), "erreur": ""}
+             "deja": len(cases) - len(neuves), "erreur": "", "cochees": []}
     try:
         tableau = _lire_le_site()
         cle = _secret(CLE_FICHIER)
@@ -451,6 +451,7 @@ def envoyer() -> dict:
         if _poste({"cle": cle, "case": case, "valeur": "x",
                    "foreuse": "relevé auto"}).get("ok"):
             bilan["posees"] += 1
+            bilan["cochees"].append(case)
             vues.add(case)
             # Ce qu'on vient de cocher entre dans la lecture : sans quoi
             # l'écran la gardait telle qu'elle était **avant** l'envoi, et une

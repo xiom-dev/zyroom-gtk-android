@@ -72,8 +72,15 @@ class PageMeteo:
             "Lit le journal du jeu — tape /chatLog en jeu pour l'activer — et "
             "coche sur xiom.be/forage ce que tes prises confirment."))
         self._forage_btn.connect("clicked", self._on_relever_forage)
+        # Le resultat du bouton, juste a cote de lui. Il s'ecrivait dans la
+        # ligne d'etat en bas de la fenetre : trop loin, tronque a deux lignes,
+        # et vite recouvert par la synchronisation -- le clic semblait ne rien
+        # faire, alors que la croix etait posee.
+        self._forage_bilan = Gtk.Label(xalign=0.0, wrap=True, use_markup=True)
+        self._forage_bilan.set_max_width_chars(46)
         if forage_releve.ACTIF:
             bar.append(self._forage_btn)
+            bar.append(self._forage_bilan)
 
         self._meteo_refresh = Gtk.Button(label=_("Actualiser"))
         self._meteo_refresh.connect("clicked", lambda *a: self._load_meteo(force=True))
@@ -345,16 +352,22 @@ class PageMeteo:
         """
         self._forage_btn.set_sensitive(False)
         self._forage_btn.set_label(_("Relevé en cours…"))
+        self._forage_bilan.set_markup("")
 
         def travail():
             return forage_releve.envoyer()
+
+        def dire(texte: str, couleur: str) -> None:
+            heure = datetime.now().strftime("%H:%M")
+            self._forage_bilan.set_markup(
+                f'<span foreground="{couleur}">{GLib.markup_escape_text(heure + " — " + texte)}</span>')
+            self._set_status(texte)
 
         def apres(bilan, erreur):
             self._forage_btn.set_sensitive(True)
             self._forage_btn.set_label(_("Relever mon forage"))
             if erreur or (bilan and bilan.get("erreur")):
-                self._set_status(_("Relevé impossible : %s")
-                                 % (erreur or bilan["erreur"]))
+                dire(_("Relevé impossible : %s") % (erreur or bilan["erreur"]), "#e0645a")
                 return
             # On dit ce qui a été fait, y compris quand rien n'a bougé : un
             # bouton muet laisse croire qu'il n'a pas marché.
@@ -362,18 +375,17 @@ class PageMeteo:
             # fabrication de la table ne doivent plus s'afficher.
             self._refresh_meteo()
             if bilan["posees"]:
-                self._set_status(
-                    _("%(n)d croix posée(s) sur le relevé — %(p)d prise(s) lue(s)")
-                    % {"n": bilan["posees"], "p": bilan["prises"]})
+                # « Sources Interdites|Automne|Glue|XL|Worst » -> « Glue XL (Worst) »
+                noms = ", ".join("%s %s (%s)" % tuple(c.split("|")[2:5])
+                                 for c in bilan.get("cochees", []))
+                dire("✓ " + _("cochée(s) sur le relevé : %s") % noms, "#4bbf72")
             elif bilan["prises"]:
-                self._set_status(
-                    _("Rien de neuf : les %d prise(s) du journal sont déjà "
-                      "cochées") % bilan["prises"])
+                dire(_("Rien de neuf : les %d prise(s) du journal sont déjà "
+                       "cochées") % bilan["prises"], "#9aa8a5")
             else:
-                self._set_status(_(
-                    "Aucune prise dans le journal. En jeu, « /chatLog » "
-                    "l'allume — et l'écran météo doit rester ouvert pour "
-                    "noter le temps qu'il fait."))
+                dire(_("Aucune prise dans le journal. En jeu, « /chatLog » "
+                       "l'allume — et l'écran météo doit rester ouvert pour "
+                       "noter le temps qu'il fait."), "#e8c15a")
 
         run_async(travail, apres)
 
