@@ -253,6 +253,10 @@ def feuilles(chemin: str) -> dict:
 
 # --------------------------------------------------- le classeur des saisons
 
+#: Les libelles du classeur des saisons qu'on n'a pas su rattacher.
+INCONNUS: set = set()
+
+
 def par_saison() -> dict:
     """{(saison, zone, condition): {(famille, matière)}} — la base du suprême.
 
@@ -289,7 +293,12 @@ def par_saison() -> dict:
                 anglais = LIBELLES.get((famille, nom))
                 couple = PAR_ANGLAIS.get(anglais)
                 if couple is None:
-                    raise SystemExit(f"nom inconnu : {famille} / {nom}")
+                    # **Signale, ne bloque pas.** Ce classeur ne sert qu'a la
+                    # comparaison « pour memoire » : un libelle annote a la
+                    # main (« Yana ? », « Migno Omg AGGRO ») arretait la
+                    # fabrication de la table entiere, qui ne lui doit rien.
+                    INCONNUS.add(f"{famille} / {nom}")
+                    continue
                 # Le Worst n'est ecrit qu'au printemps : Note 2, mode n°1, il
                 # vaut pour les quatre saisons.
                 saisons = SAISONS if condition == "WORST" else (saison,)
@@ -592,6 +601,9 @@ def main() -> int:
     for ligne in ecart_des_classeurs(tables, par_saison(),
                                      cartographie(tout)):
         print(ligne)
+    if INCONNUS:
+        print("  libellés du classeur non rattachés, laissés de côté :",
+              ", ".join(sorted(INCONNUS)))
     with open(CIBLE_PY, "w", encoding="utf-8") as fh:
         fh.write(python(tables, conts))
     print("→", CIBLE_PY)

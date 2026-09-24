@@ -828,6 +828,9 @@ EXCELLENTES = {
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
+        ("Fibres", "Anete"): {
+            ("AUTOMNE", "BEST"),
+        },
         ("Fibres", "Dzao"): {
             ("HIVER", "BEST"),
         },
@@ -849,7 +852,7 @@ EXCELLENTES = {
             ("AUTOMNE", "GOOD"),
         },
         ("Huile", "Irin"): {
-            ("AUTOMNE", "GOOD"),
+            ("AUTOMNE", "BAD"),
         },
         ("Huile", "Koorin"): {
             ("AUTOMNE", "BAD"),
@@ -1233,37 +1236,29 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BAD"),
         },
         ("Ambres", "Sha"): {
-            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
             ("ETE", "WORST"),
-        },
-        ("Ambres", "Zun"): {
-            ("AUTOMNE", "BAD"),
         },
         ("Bois", "Motega"): {
             ("AUTOMNE", "BAD"),
         },
         ("Boucles", "Nita"): {
-            ("AUTOMNE", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Boucles", "Scrath"): {
             ("ETE", "GOOD"),
         },
         ("Carapace", "Big"): {
-            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Carapace", "Cuty"): {
-            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Carapace", "Splinter"): {
-            ("AUTOMNE", "BAD"),
             ("HIVER", "BAD"),
         },
         ("Fibres", "Shu"): {
@@ -1271,19 +1266,12 @@ A_CONFIRMER = {
             ("HIVER", "BEST"),
             ("PRINTEMPS", "BAD"),
         },
-        ("Graines", "Sarina"): {
-            ("AUTOMNE", "BAD"),
-        },
-        ("Huile", "Irin"): {
-            ("AUTOMNE", "GOOD"),
-        },
         ("Huile", "Koorin"): {
             ("AUTOMNE", "BAD"),
             ("AUTOMNE", "WORST"),
             ("PRINTEMPS", "BAD"),
         },
         ("Huile", "Pilan"): {
-            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
@@ -1294,11 +1282,9 @@ A_CONFIRMER = {
             ("PRINTEMPS", "GOOD"),
         },
         ("Résine", "Glue"): {
-            ("AUTOMNE", "BAD"),
             ("AUTOMNE", "WORST"),
         },
         ("Sève", "Visc"): {
-            ("AUTOMNE", "BAD"),
             ("HIVER", "GOOD"),
         },
         ("Écorce", "Adriel"): {
@@ -1308,7 +1294,6 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BAD"),
         },
         ("Écorce", "Beckers"): {
-            ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },

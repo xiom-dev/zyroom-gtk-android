@@ -136,10 +136,20 @@ class L_ExcellenteVientDuMêmeRelevé(unittest.TestCase):
     coûte tout le reste.
     """
 
-    def test_deux_cent_quarante_quatre_créneaux(self):
+    def test_autant_de_créneaux_que_de_croix_xl_au_relevé(self):
+        """Deux cent quarante-quatre à l'origine ; le relevé grandit chaque
+        soir, donc on compte ses croix XL plutôt qu'un nombre figé."""
+        import json
+        chemin = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))),
+            "donnees", "forage-releve-guilde.json")
+        with open(chemin, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        attendues = sum(1 for cle, v in cases.items()
+                        if cle.split("|")[3] == "XL" and v in ("x", "?"))
         creneaux = sum(len(k) for zone in forage.EXCELLENTES.values()
                        for k in zone.values())
-        self.assertEqual(244, creneaux)
+        self.assertEqual(attendues, creneaux)
 
     def test_elle_sort_surtout_hors_de_l_exécrable(self):
         """L'inverse exact du suprême, et c'est ce qui la rend utile.
