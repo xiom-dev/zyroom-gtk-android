@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from gi.repository import GLib, Gtk
 
-from . import gisements, meteo, ryzom_api
+from . import forage_releve, gisements, meteo, ryzom_api
 from .i18n import _
 from .ui_commun import run_async
 
@@ -62,6 +62,16 @@ class PageMeteo:
         self._meteo_entete = Gtk.Label(xalign=0.0, use_markup=True)
         self._meteo_entete.set_hexpand(True)
         bar.append(self._meteo_entete)
+
+        # Ce que le forage a rendu, relevé dans le journal du jeu et envoyé au
+        # relevé commun. Un bouton plutôt qu'un service qui tourne en fond :
+        # on sait quand on l'a fait, et rien ne part sans qu'on l'ait demandé.
+        self._forage_btn = Gtk.Button(label=_("Relever mon forage"))
+        self._forage_btn.set_tooltip_text(_(
+            "Lit le journal du jeu — tape /chatLog en jeu pour l'activer — et "
+            "coche sur xiom.be/forage ce que tes prises confirment."))
+        self._forage_btn.connect("clicked", self._on_relever_forage)
+        bar.append(self._forage_btn)
 
         self._meteo_refresh = Gtk.Button(label=_("Actualiser"))
         self._meteo_refresh.connect("clicked", lambda *a: self._load_meteo(force=True))
@@ -183,6 +193,14 @@ class PageMeteo:
                 self._meteo_entete.set_text(_("Météo indisponible : %s") % err)
                 return
             self._meteo_releve = res
+            # Le carnet météo, tenu au fil des lectures : sans requête de
+            # plus, il garde la condition de chaque cycle. C'est ce qui permet
+            # de dater une prise après coup — l'API, elle, ne sait dire que le
+            # présent et six heures d'avance.
+            try:
+                forage_releve.noter_meteo(res)
+            except OSError:
+                pass            # un carnet qui ne s'écrit pas ne doit rien casser
             self._meteo_affiche = res
             self._refresh_meteo()
             # Le temps d'Atys avance tout seul : on ne redemande rien, on
@@ -300,6 +318,45 @@ class PageMeteo:
               "Le suprême a été relevé en jeu, case par case ; une partie de "
               "l'excellente est rapportée et reste à confirmer. "
               "Positions de ballisticmystix.net.")))
+
+    def _on_relever_forage(self, _bouton) -> None:
+        """Le bouton : lire le journal du jeu, cocher ce qu'il confirme.
+
+        Tout se fait à la demande. Le relevé tournait en service systemd, et
+        Ludo l'a fait retirer — avec raison : une application qu'on ouvre déjà
+        à côté du jeu n'a pas besoin d'un démon pour l'accompagner, et un
+        bouton dit quand la chose a eu lieu.
+        """
+        self._forage_btn.set_sensitive(False)
+        self._forage_btn.set_label(_("Relevé en cours…"))
+
+        def travail():
+            return forage_releve.envoyer()
+
+        def apres(bilan, erreur):
+            self._forage_btn.set_sensitive(True)
+            self._forage_btn.set_label(_("Relever mon forage"))
+            if erreur or (bilan and bilan.get("erreur")):
+                self._set_status(_("Relevé impossible : %s")
+                                 % (erreur or bilan["erreur"]))
+                return
+            # On dit ce qui a été fait, y compris quand rien n'a bougé : un
+            # bouton muet laisse croire qu'il n'a pas marché.
+            if bilan["posees"]:
+                self._set_status(
+                    _("%(n)d croix posée(s) sur le relevé — %(p)d prise(s) lue(s)")
+                    % {"n": bilan["posees"], "p": bilan["prises"]})
+            elif bilan["prises"]:
+                self._set_status(
+                    _("Rien de neuf : les %d prise(s) du journal sont déjà "
+                      "cochées") % bilan["prises"])
+            else:
+                self._set_status(_(
+                    "Aucune prise dans le journal. En jeu, « /chatLog » "
+                    "l'allume — et l'écran météo doit rester ouvert pour "
+                    "noter le temps qu'il fait."))
+
+        run_async(travail, apres)
 
     @staticmethod
     def _qualites_du_moment(releve, actuelle):
