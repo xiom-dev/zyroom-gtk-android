@@ -226,6 +226,15 @@
   }
   html.mode-pdf #samara { display: none; }
 
+  /* Le bandeau « nouvelle version » : en haut, impossible a manquer. */
+  #nouvelle-version { position: fixed; top: 0; left: 0; right: 0; z-index: 15;
+                      display: flex; gap: 12px; justify-content: center; align-items: center;
+                      padding: 10px 16px; background: var(--or); color: #10171a;
+                      font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  #nouvelle-version[hidden] { display: none; }
+  #nouvelle-version button { background: #10171a; color: var(--or); border-color: #10171a; }
+  html.mode-pdf #nouvelle-version { display: none; }
+
   #titre-imprime, #bilan-imprime, .pdf-seul { display: none; }
 
   /* **L'impression et le PDF : le bilan d'une soiree, a lire ou a envoyer.**
@@ -411,6 +420,10 @@
 </div>
 
 <div id="samara" aria-hidden="true"><img alt=""></div>
+<div id="nouvelle-version" hidden>
+  Une nouvelle version de la page a été déposée.
+  <button id="recharger" title="Recharger la page pour prendre la nouvelle version">Recharger</button>
+</div>
 
 <script>
   "use strict";
@@ -1823,6 +1836,43 @@
   });
   // Saisir le nom pour le glisser n'est pas s'y attarder.
   document.addEventListener("dragstart", () => clearTimeout(attenteSamara));
+
+  // ------------------------------------------------------------ la page elle-meme
+  //
+  // **Un onglet ouvert garde le code qu'il a charge.** La relecture ramene
+  // les donnees toutes les cinq secondes, jamais la page : deposer une
+  // nouvelle version ne changeait rien dans un onglet deja ouvert -- Samara
+  // n'y existait pas. Chaque minute, on compare l'empreinte (ETag) de la
+  // page sur le serveur a celle du chargement ; si elle a change, un bandeau
+  // le dit. Pas de rechargement d'office : un bilan en cours serait perdu.
+  let versionChargee = null;
+  async function versionDuServeur() {
+    try {
+      const r = await fetch(location.pathname.replace(/[^/]*$/, "") + "index.html",
+                            { method: "HEAD", cache: "no-store" });
+      // L'empreinte si le serveur en donne une (Apache, chez Infomaniak),
+      // sinon la date, sinon la taille du fichier.
+      return r.headers.get("ETag") || r.headers.get("Last-Modified")
+             || r.headers.get("Content-Length");
+    } catch (e) { return null; }
+  }
+  versionDuServeur().then(v => { versionChargee = v; });
+  async function verifierVersion() {
+    const v = await versionDuServeur();
+    if (v && versionChargee && v !== versionChargee) {
+      document.getElementById("nouvelle-version").hidden = false;
+    }
+  }
+  // Chaque minute, et surtout a chaque retour sur l'onglet : Firefox espace
+  // fortement les minuteries d'un onglet en arriere-plan -- celui qui attend
+  // pendant qu'on depose les fichiers -- et la minute pouvait durer bien plus.
+  setInterval(verifierVersion, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) verifierVersion(); });
+  addEventListener("focus", verifierVersion);
+  document.getElementById("recharger").addEventListener("click", async () => {
+    if (bilanModifie) await enregistrerBilan();
+    location.reload();
+  });
 
   peindre();
   peindreCalendrier();
