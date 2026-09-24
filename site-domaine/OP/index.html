@@ -127,7 +127,7 @@
   #bilan-etat.souci { color: var(--eux); }
 
   #stats { max-width: 1100px; margin: 28px auto 0; }
-  #stats > h2 { color: var(--or); font-size: 1.2rem; margin: 0 0 8px;
+  .entete-stats h2 { color: var(--or); font-size: 1.2rem; margin: 0 0 8px;
                 display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
   #guerre { background: var(--fond); color: var(--texte); font: inherit;
             font-size: .9rem; border: 1px solid var(--trait); border-radius: 7px;
@@ -204,7 +204,7 @@
   #pdf-choix[hidden] { display: none; }
   #pdf-choix button { white-space: nowrap; text-align: left; }
 
-  #titre-imprime, #bilan-imprime { display: none; }
+  #titre-imprime, #bilan-imprime, .pdf-seul { display: none; }
 
   /* **L'impression et le PDF : le bilan d'une soiree, a lire ou a envoyer.**
      Une seule mise en page pour les deux, posee par la classe « mode-pdf » :
@@ -218,11 +218,24 @@
   html.mode-pdf body { padding: 0; font-size: 11pt; background: #fff; }
   html.mode-pdf .page { display: block; max-width: none; }
   html.mode-pdf :is(#calendrier, #fiche, header p, .barre, .source, #whos,
-                    .actions, #voile, #tous, #bilan-texte, #bilan-etat) { display: none !important; }
-  html.mode-pdf :is(#titre-imprime, #bilan-imprime) { display: inline; }
+                    .actions, #voile, #bilan-texte, #bilan-etat) { display: none !important; }
+  html.mode-pdf :is(#titre-imprime, #bilan-imprime, .pdf-seul) { display: inline; }
+  html.mode-pdf .pdf-seul { font-weight: 400; font-size: .8em; color: var(--faible); }
+  /* La precision « inconnus ou pas encore tries » sur sa propre ligne : la
+     colonne est etroite, et elle s'ecrasait contre le titre. */
+  html.mode-pdf #tous h2 { flex-wrap: wrap; }
+  html.mode-pdf #tous h2 .pdf-seul { order: 3; flex-basis: 100%; }
   html.mode-pdf #bilan-imprime { display: block; white-space: pre-wrap; line-height: 1.45; }
   html.mode-pdf .colonnes { grid-template-columns: 1fr 1fr 1fr; }
-  html.mode-pdf :is(.colonne, .carte, #bilan) { min-height: 0; break-inside: avoid; }
+  /* **Un tableau ne se coupe jamais entre deux pages.** Le bloc des colonnes,
+     le bilan et chaque carte sont insecables ; ce qui ne tient plus en bas
+     d'une page passe entier a la suivante. */
+  html.mode-pdf :is(.colonnes, .colonne, .carte, #bilan) { min-height: 0; break-inside: avoid;
+                                                           page-break-inside: avoid; }
+  /* Le titre des statistiques reste avec sa ligne de resume, et avec la
+     premiere carte. */
+  html.mode-pdf .entete-stats { break-inside: avoid; page-break-inside: avoid;
+                                break-after: avoid; page-break-after: avoid; }
   html.mode-pdf .liste { flex: none; }
   html.mode-pdf .nom { cursor: default; background: #fff; }
   /* Ce qui ne sert qu'a l'ecran : les aides au survol, les invites a
@@ -233,13 +246,12 @@
   html.mode-pdf :is(.barre-fond, .barre-plein) { -webkit-print-color-adjust: exact;
                                                  print-color-adjust: exact; }
   html.mode-pdf .barre-fond { background: #e6ecea; }
-  html.mode-pdf #cartes { grid-template-columns: 1fr 1fr; }
   html.mode-pdf #stats { margin-top: 16px; }
-  /* Le fichier telecharge : les cartes l'une sous l'autre. html2pdf.js
-     repousse une carte a la page suivante en inserant un blanc devant elle,
-     ce qui ne marche pas dans une grille -- la carte restait coupee. */
-  html.pdf-fichier #cartes { display: block; }
-  html.pdf-fichier .carte { margin-bottom: 12px; }
+  /* Les cartes l'une sous l'autre, a l'impression comme au telechargement :
+     dans une grille, ni le navigateur ni html2pdf.js ne savent repousser une
+     carte a la page suivante -- elle restait coupee en deux. */
+  html.mode-pdf #cartes { display: block; }
+  html.mode-pdf .carte { margin-bottom: 12px; }
 
   @media (max-width: 1000px) {
     .page { grid-template-columns: 1fr; }
@@ -332,7 +344,7 @@
   </section>
   <div class="milieu">
     <section class="colonne" id="tous" data-camp="">
-      <h2>À trier <span></span></h2><div class="liste"></div>
+      <h2>À trier<small class="pdf-seul"> (inconnus ou pas encore triés)</small> <span></span></h2><div class="liste"></div>
     </section>
     <section class="colonne" id="neutres" data-camp="neutres">
       <h2>Neutres <span></span></h2><div class="liste"></div>
@@ -363,8 +375,10 @@
 </div>
 
 <section id="stats">
-  <h2>Statistiques</h2>
-  <p id="stats-resume"></p>
+  <div class="entete-stats">
+    <h2>Statistiques</h2>
+    <p id="stats-resume"></p>
+  </div>
   <div id="cartes"></div>
 </section>
 </main>
@@ -1168,7 +1182,7 @@
     try {
       const html2pdf = await chargerHtml2pdf();
       preparerPdf();
-      document.documentElement.classList.add("pdf-fichier");
+
       await html2pdf().set({
         margin: [10, 10, 10, 10],
         filename: nomDeFichier() + ".pdf",
@@ -1176,13 +1190,12 @@
         html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         // Une carte, une colonne ou le bilan ne se coupent jamais en deux.
-        pagebreak: { mode: ["css", "legacy"], avoid: [".carte", ".colonnes", "#bilan"] },
+        pagebreak: { mode: ["css", "legacy"], avoid: [".carte", ".colonnes", "#bilan", ".entete-stats"] },
       }).from(document.getElementById("contenu")).save();
       signaler("PDF téléchargé");
     } catch (e) {
       signaler("PDF impossible : " + e.message, true);
     } finally {
-      document.documentElement.classList.remove("pdf-fichier");
       finirPdf();
     }
   });
