@@ -1,0 +1,4 @@
+* La courbe de la météo suit enfin le jeu à la minute. Le passage d'un taux
+  d'humidité au suivant se fait, dans Ryzom, pendant la dernière heure d'Atys
+  du cycle ; la courbe le centrait sur le changement de cycle, et avait une
+  minute et demie de retard — 20 % à l'écran quand le jeu affichait 53 %.
