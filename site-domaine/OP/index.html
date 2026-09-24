@@ -111,20 +111,6 @@
            padding: 6px 12px; cursor: pointer; }
   button:hover { border-color: var(--clair); }
 
-  /* Les deux reserves de noms tires des journaux : meme allure que les
-     colonnes, mais on n'y depose rien -- on y puise. */
-  .sources { max-width: 1100px; margin: 12px auto 0; display: grid;
-             grid-template-columns: 1fr 1fr; gap: 12px; }
-  .source-noms { background: var(--surface); border-radius: 10px;
-                 border: 1px dashed var(--trait); }
-  .source-noms h2 { margin: 0; padding: 8px 12px; font-size: .95rem;
-                    border-bottom: 1px solid var(--trait);
-                    display: flex; justify-content: space-between; }
-  .source-noms h2 span { color: var(--faible); font-weight: 400; }
-  #src-attaquants h2 { color: var(--eux); }
-  #src-soigneurs h2 { color: var(--nous); }
-  .source-noms .liste { min-height: 44px; }
-
   /* Les statistiques, sous les colonnes : une carte par question. */
   #stats { max-width: 1100px; margin: 28px auto 0; }
   #stats > h2 { color: var(--or); font-size: 1.2rem; margin: 0 0 8px;
@@ -156,7 +142,7 @@
                white-space: nowrap; }
 
   @media (max-width: 700px) {
-    .colonnes, .sources { grid-template-columns: 1fr; }
+    .colonnes { grid-template-columns: 1fr; }
     .colonne { min-height: 140px; }
     #etat { margin-left: 0; }
   }
@@ -213,19 +199,6 @@
   </div>
   <section class="colonne" id="opposants" data-camp="opposants">
     <h2>Opposants <span></span></h2><div class="liste"></div>
-  </section>
-</div>
-
-<!-- Les noms que les /who n'ont pas vus, mais que les journaux de la guerre
-     choisie portent : ceux qui nous ont frappes, ceux qui nous ont soignes. -->
-<div class="sources">
-  <section class="source-noms" id="src-attaquants">
-    <h2>Attaquants et cibles à trier <span></span></h2>
-    <div class="liste"></div>
-  </section>
-  <section class="source-noms" id="src-soigneurs">
-    <h2>Soigneurs et soignés à trier <span></span></h2>
-    <div class="liste"></div>
   </section>
 </div>
 
@@ -849,7 +822,8 @@
   const campDe = nom => camps[nom] ? camps[nom].c : "";
 
   function peindreStats() {
-    peindreSources();
+    // Les noms de la guerre choisie rejoignent le centre.
+    peindre();
     const zone = document.getElementById("cartes");
     const resume = document.getElementById("stats-resume");
     zone.textContent = "";
@@ -922,8 +896,10 @@
 
   // ------------------------------------------------------------ l'affichage
 
+  // Le centre : les noms des /who coches, et ceux des statistiques de la
+  // guerre choisie.
   function nomsVus() {
-    const vus = new Set();
+    const vus = new Set(Object.keys(nomsDesStats()));
     for (const w of whos) if (!decoches.has(cleWho(w))) w.noms.forEach(n => vus.add(n));
     return [...vus].sort((a, b) => a.localeCompare(b, "fr"));
   }
@@ -962,23 +938,24 @@
       // Les colonnes de cote gardent tout le tri, meme les noms absents des
       // /who coches : c'est la liste des camps, pas celle d'une soiree.
       const ici = camp ? tries(camp) : noms.filter(n => !camps[n]);
+      // Au survol : qui l'a range et quand, ou, au centre, d'ou vient le
+      // nom -- un /who, ou ce qu'il a fait pendant la guerre.
+      const dit = camp ? {} : nomsDesStats();
       for (const n of ici) {
-        // Qui l'a range, et quand : a plusieurs, c'est a qui demander quand
-        // un classement surprend.
         const c = camps[n];
         liste.append(puce(n, c ? (c.qui || "quelqu'un") + " — "
-                                 + new Date(c.quand).toLocaleString("fr-FR") : ""));
+                                 + new Date(c.quand).toLocaleString("fr-FR")
+                               : dit[n] || "vu dans un /who"));
       }
       if (!ici.length) {
         const v = document.createElement("span");
         v.className = "vide";
         v.textContent = camp ? "Glisse un nom ici."
-                             : (whos.length ? "Tout est trié." : "Aucun /who chargé.");
+                             : (noms.length ? "Tout est trié." : "Aucun journal chargé.");
         liste.append(v);
       }
       colonne.querySelector("h2 span").textContent = ici.length;
     }
-    peindreSources();
   }
 
   function puce(n, titre) {
@@ -996,13 +973,11 @@
   }
 
   // **Les noms que les /who ont manques.** Un /who ne voit que la region ou
-  // l'on se tient ; les journaux, eux, nomment tous ceux que les statistiques
-  // comptent. On les propose ici, ranges d'apres ce qu'ils ont fait -- frapper
-  // ou soigner -- tant qu'ils ne sont ni tries, ni deja au centre, et jamais
-  // un PNJ. Le camp, lui, reste a decider : on soigne parfois un neutre.
-  function peindreSources() {
-    const auCentre = new Set(nomsVus());
-    const aTrier = nom => nom && !estPnj(nom) && !camps[nom] && !auCentre.has(nom)
+  // l'on se tient ; les journaux de la guerre choisie, eux, nomment tous ceux
+  // que les statistiques comptent. Ils rejoignent le centre avec ceux des
+  // /who -- jamais un PNJ. Rend {nom: ce qu'il a fait}, pour le survol.
+  function nomsDesStats() {
+    const joueur = nom => nom && !estPnj(nom)
                           && /^[A-Za-z\u00c0-\u00ff][A-Za-z\u00c0-\u00ff'-]*$/.test(nom);
     const attaquants = {}, soigneurs = {};
     for (const [proprio, j] of Object.entries(journaux)) {
@@ -1022,38 +997,19 @@
       for (const qui of Object.keys(j.insensibles || {})) cumul(soigneurs, qui, {});
       cumul(soigneurs, proprio, {});
     }
-    // Un nom vu des deux cotes -- frappe et soigne -- ne s'affiche qu'une
-    // fois : la ou il pese le plus.
-    for (const nom of Object.keys(soigneurs)) {
-      if (attaquants[nom] && (attaquants[nom].degats || 0) > (soigneurs[nom].pv || 0)) delete soigneurs[nom];
-      else if (attaquants[nom]) delete attaquants[nom];
+    const dit = {};
+    for (const [nom, v] of Object.entries(attaquants)) {
+      if (joueur(nom)) dit[nom] = v.coups ? v.coups + " coups sur nous, " + nf(v.degats || 0) + " dégâts"
+                                          : "nommé dans les combats";
     }
-    const guerre = guerreChoisie ? " · guerre du " + guerreChoisie.slice(8, 10)
-                                   + "/" + guerreChoisie.slice(5, 7) : "";
-    for (const [id, tous, champ, dire] of [
-      ["src-attaquants", attaquants, "degats",
-       v => v.coups ? v.coups + " coups sur nous, " + nf(v.degats || 0) + " dégâts"
-                    : "nommé dans les statistiques"],
-      ["src-soigneurs", soigneurs, "pv",
-       v => v.pv ? nf(v.pv) + " points de vie de soins, donnés ou reçus"
-                 : "nommé dans les statistiques"],
-    ]) {
-      const bloc = document.getElementById(id);
-      const liste = bloc.querySelector(".liste");
-      liste.textContent = "";
-      const noms = Object.keys(tous).filter(aTrier)
-                         .sort((a, b) => (tous[b][champ] || 0) - (tous[a][champ] || 0));
-      for (const n of noms) liste.append(puce(n, dire(tous[n])));
-      if (!noms.length) {
-        const v = document.createElement("span");
-        v.className = "vide";
-        v.textContent = Object.keys(journaux).length ? "Tout est trié."
-                        : "Dépose le journal d'une guerre.";
-        liste.append(v);
-      }
-      bloc.querySelector("h2 span").textContent = noms.length + guerre;
+    for (const [nom, v] of Object.entries(soigneurs)) {
+      if (!joueur(nom)) continue;
+      const soin = v.pv ? nf(v.pv) + " points de vie de soins, donnés ou reçus" : "nommé dans les soins";
+      dit[nom] = dit[nom] ? dit[nom] + " ; " + soin : soin;
     }
+    return dit;
   }
+
 
   // Chaque colonne accepte un nom, d'ou qu'il vienne : on trie depuis le
   // centre, mais une erreur doit pouvoir se reprendre.
