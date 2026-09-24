@@ -421,14 +421,6 @@ def envoyer() -> dict:
         bilan["erreur"] = str(souci)
         return bilan
 
-    # Le relevé entier, relu au passage. C'est lui qui fait foi : sans cela,
-    # il aurait fallu une livraison pour que chaque croix cochée apparaisse.
-    try:
-        _garder_tables(_depuis_le_site(tableau))
-        bilan["creneaux"] = appliquer_tables()
-    except (OSError, ValueError, KeyError):
-        pass
-
     vues = set(connues)
     for case in neuves:
         actuel = tableau.get(case)
@@ -440,5 +432,19 @@ def envoyer() -> dict:
                    "foreuse": "relevé auto"}).get("ok"):
             bilan["posees"] += 1
             vues.add(case)
+            # Ce qu'on vient de cocher entre dans la lecture : sans quoi
+            # l'écran la gardait telle qu'elle était **avant** l'envoi, et une
+            # orange confirmée à l'instant restait orange jusqu'au clic
+            # suivant.
+            tableau[case] = {"v": "x", "qui": "relevé auto"}
     _ecrire("posees.json", sorted(vues))
+
+    # Le relevé entier, relu au passage et complété de nos croix. C'est lui
+    # qui fait foi : sans cela, il aurait fallu une livraison pour que chaque
+    # croix cochée apparaisse.
+    try:
+        _garder_tables(_depuis_le_site(tableau))
+        bilan["creneaux"] = appliquer_tables()
+    except (OSError, ValueError, KeyError):
+        pass
     return bilan
