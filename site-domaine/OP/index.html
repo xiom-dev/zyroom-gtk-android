@@ -110,6 +110,9 @@
 </div>
 
 <div class="actions">
+  <button id="sauver">Sauvegarder</button>
+  <button id="restaurer">Restaurer</button>
+  <input type="file" id="sauvegarde" accept=".json,application/json" hidden>
   <button id="copier">Copier les listes</button>
   <button id="oublier">Oublier le tri</button>
 </div>
@@ -277,6 +280,55 @@
     e.preventDefault();
     source.classList.remove("survol");
     charger(e.dataTransfer.files);
+  });
+
+  // **La sauvegarde, un fichier a soi.** Le tri vit dans le navigateur :
+  // un cache vide, un autre PC, une fausse manoeuvre sur « Oublier le tri »,
+  // et il est perdu. Le fichier telecharge porte le tri et les /who charges,
+  // de quoi tout retrouver en le rechargeant.
+  function horodatage() {
+    const d = new Date(), z = n => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate())
+           + "_" + z(d.getHours()) + "h" + z(d.getMinutes());
+  }
+  document.getElementById("sauver").addEventListener("click", () => {
+    const contenu = JSON.stringify({ page: "guerre-op", version: 1,
+                                     le: new Date().toISOString(),
+                                     camps, whos }, null, 1);
+    const lien = document.createElement("a");
+    lien.href = URL.createObjectURL(new Blob([contenu],
+                                             { type: "application/json" }));
+    lien.download = "guerre-op_" + horodatage() + ".json";
+    document.body.append(lien);
+    lien.click();
+    lien.remove();
+    setTimeout(() => URL.revokeObjectURL(lien.href), 1000);
+  });
+
+  const choixSauvegarde = document.getElementById("sauvegarde");
+  document.getElementById("restaurer").addEventListener("click",
+    () => choixSauvegarde.click());
+  choixSauvegarde.addEventListener("change", async () => {
+    const f = choixSauvegarde.files[0];
+    choixSauvegarde.value = "";
+    if (!f) return;
+    let lu;
+    try { lu = JSON.parse(await f.text()); } catch (e) { lu = null; }
+    if (!lu || lu.page !== "guerre-op" || typeof lu.camps !== "object") {
+      alert("Ce fichier n'est pas une sauvegarde de Guerre d'OP.");
+      return;
+    }
+    if (!confirm("Remplacer le tri actuel par celui de la sauvegarde ?")) return;
+    camps = lu.camps;
+    // Les /who de la sauvegarde s'ajoutent a ceux deja charges, sans doublon.
+    for (const w of lu.whos || []) {
+      if (!whos.some(v => v.quand === w.quand && v.region === w.region)) {
+        whos.push(w);
+      }
+    }
+    whos.sort((a, b) => a.quand.localeCompare(b.quand));
+    garder();
+    peindre();
   });
 
   document.getElementById("copier").addEventListener("click", () => {
