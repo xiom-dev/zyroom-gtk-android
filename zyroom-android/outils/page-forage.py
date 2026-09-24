@@ -56,6 +56,18 @@ CIBLE = os.path.join(_DEPOT, "site-domaine", "forage", "index.html")
 #: recopiee dans `releve.php`, que le serveur execute et ne montre jamais.
 CLE_FICHIER = os.path.expanduser("~/.config/zyroom/forage.cle")
 
+#: Le mot de passe de lecture, et le sel du jeton de session.
+#:
+#: **Pourquoi un mot de passe.** Le relevé dit où et quand sortent les
+#: suprêmes des Primes : c'est le travail de plusieurs mois de foreuses, et
+#: les guildes concurrentes forent les mêmes spots. La grille vide reste
+#: publique — elle n'apprend rien — mais les croix passent derrière un mot
+#: de passe partagé.
+#:
+#: Les deux fichiers restent hors du dépôt, comme la clef d'écriture.
+MOT_DE_PASSE_FICHIER = os.path.expanduser("~/.config/zyroom/forage.motdepasse")
+SEL_FICHIER = os.path.expanduser("~/.config/zyroom/forage.sel")
+
 ONGLET = "Original vierge"
 SAISONS = ("Printemps", "Été", "Automne", "Hiver")
 
@@ -84,6 +96,41 @@ def clef() -> str:
             "En tirer une : python3 -c \"import secrets; "
             "print('forage-' + secrets.token_hex(6))\" > " + CLE_FICHIER)
     with open(CLE_FICHIER, encoding="utf-8") as fh:
+        return fh.read().strip()
+
+
+def empreinte_mot_de_passe() -> str:
+    """L'empreinte bcrypt du mot de passe de lecture.
+
+    Le mot de passe en clair ne quitte jamais la machine : c'est son empreinte
+    qui part sur le serveur, et `password_verify` fait le reste. Douze tours,
+    de quoi rendre une attaque hors ligne coûteuse si le fichier PHP fuyait.
+    """
+    if not os.path.isfile(MOT_DE_PASSE_FICHIER):
+        raise SystemExit(
+            f"Mot de passe absent : {MOT_DE_PASSE_FICHIER}\n"
+            "En poser un : echo 'ma-phrase' > " + MOT_DE_PASSE_FICHIER)
+    import bcrypt
+    with open(MOT_DE_PASSE_FICHIER, encoding="utf-8") as fh:
+        phrase = fh.read().strip()
+    # PHP attend le prefixe « $2y$ » ; c'est le meme algorithme que « $2b$ ».
+    return "$2y$" + bcrypt.hashpw(phrase.encode(),
+                                  bcrypt.gensalt(12)).decode()[4:]
+
+
+def sel() -> str:
+    """Le secret qui signe le jeton de session.
+
+    Pas de session PHP : le serveur ne garde rien. Le cookie porte sa propre
+    date d'expiration et une signature HMAC — le serveur la revérifie, et
+    n'a donc aucun fichier de session à écrire ni à nettoyer.
+    """
+    if not os.path.isfile(SEL_FICHIER):
+        raise SystemExit(
+            f"Sel absent : {SEL_FICHIER}\n"
+            "En tirer un : python3 -c \"import secrets; "
+            "print(secrets.token_hex(24))\" > " + SEL_FICHIER)
+    with open(SEL_FICHIER, encoding="utf-8") as fh:
         return fh.read().strip()
 
 
@@ -173,6 +220,14 @@ PHP = """<?php
 declare(strict_types=1);
 
 const CLE = '__CLE__';
+// L'empreinte du mot de passe de lecture, et le secret qui signe le jeton.
+// Le mot de passe en clair n'est jamais monte ici.
+const EMPREINTE = '__EMPREINTE__';
+const SEL = '__SEL__';
+const COOKIE = 'forage';
+// Trente jours : assez pour ne pas le retaper a chaque session, assez court
+// pour qu'un depart de la guilde finisse par fermer la porte.
+const DUREE = 30 * 24 * 3600;
 const FICHIER = __DIR__ . '/releve.json';
 const SAUVEGARDES = __DIR__ . '/sauvegardes';
 const MAX_SAUVEGARDES = 60;
@@ -189,6 +244,70 @@ const MATIERES = __MATIERES__;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
+
+// ------------------------------------------------------------- le garde
+//
+// **Pourquoi.** Le releve dit ou et quand sortent les supremes des Primes :
+// des mois de forage, et les guildes concurrentes visent les memes spots.
+// La grille vide reste publique -- elle n'apprend rien, elle ne contient pas
+// une seule croix -- mais les donnees passent derriere un mot de passe.
+//
+// Deux facons d'entrer : la clef d'ecriture, qui ouvre tout comme avant, ou
+// le mot de passe de lecture, qui ne donne que la lecture.
+//
+// **Pas de session PHP.** Le serveur ne garde rien : le cookie porte sa date
+// d'expiration et une signature HMAC, que le serveur revalide. Rien a ecrire,
+// rien a nettoyer, et deux hebergements se comportent pareil.
+
+function jeton(int $expire): string
+{
+    return $expire . '.' . hash_hmac('sha256', (string) $expire, SEL);
+}
+
+function jeton_valide(string $recu): bool
+{
+    $morceaux = explode('.', $recu, 2);
+    if (count($morceaux) !== 2 || !ctype_digit($morceaux[0])) {
+        return false;
+    }
+    $expire = (int) $morceaux[0];
+    if ($expire < time()) {
+        return false;
+    }
+    // hash_equals : la comparaison ne doit pas fuir la signature par le temps
+    // qu'elle met a echouer.
+    return hash_equals(jeton($expire), $recu);
+}
+
+function connecte(): bool
+{
+    // Trois endroits ou le jeton peut se trouver, dans cet ordre.
+    //
+    // **Pourquoi pas le cookie seul.** Un navigateur regle pour effacer les
+    // cookies a la fermeture, ou en navigation privee permanente, pose le
+    // cookie puis ne le renvoie jamais : la connexion reussit, la lecture
+    // suivante echoue, et le formulaire revient sans un mot d'explication.
+    // La page garde donc aussi le jeton de son cote et le presente dans un
+    // en-tete -- ce qui ne depend d'aucun reglage de cookies.
+    //
+    // L'en-tete plutot que l'adresse : un jeton dans une URL finit dans les
+    // journaux du serveur et dans l'historique du navigateur.
+    foreach ([
+        $_SERVER['HTTP_X_FORAGE'] ?? '',
+        $_COOKIE[COOKIE] ?? '',
+    ] as $candidat) {
+        if ($candidat !== '' && jeton_valide((string) $candidat)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function porte_la_clef(array $demande = []): bool
+{
+    $fournie = (string) ($demande['cle'] ?? ($_GET['k'] ?? ''));
+    return $fournie !== '' && hash_equals(CLE, $fournie);
+}
 
 function etat(): array
 {
@@ -210,6 +329,12 @@ function repond(int $code, array $corps): never
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    // **La clef n'ouvre plus la porte, elle ne donne que le droit d'ecrire.**
+    // Le but de cette page est d'encoder le tableau, pas de l'admirer : les
+    // deux adresses -- avec clef ou sans -- demandent donc le mot de passe.
+    if (!connecte()) {
+        repond(401, ['erreur' => 'mot de passe']);
+    }
     repond(200, etat());
 }
 
@@ -217,6 +342,30 @@ $brut = (string) file_get_contents('php://input', false, null, 0, MAX_CORPS);
 $demande = json_decode($brut, true);
 if (!is_array($demande)) {
     repond(400, ['erreur' => 'requete illisible']);
+}
+
+// L'ouverture de porte : un mot de passe contre un cookie signe. Le cookie
+// est httponly (le JavaScript de la page ne le lit jamais), samesite strict
+// (il ne part pas depuis un autre site) et secure (jamais en clair).
+if (($demande['action'] ?? '') === 'entrer') {
+    $mdp = (string) ($demande['mdp'] ?? '');
+    // Une seconde de retard : une attaque par essais successifs devient
+    // interminable, et une foreuse qui se trompe ne le remarque pas.
+    usleep(1000000);
+    if (!password_verify($mdp, EMPREINTE)) {
+        repond(403, ['erreur' => 'mot de passe']);
+    }
+    $expire = time() + DUREE;
+    setcookie(COOKIE, jeton($expire), [
+        'expires' => $expire,
+        'path' => dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/')),
+        'secure' => true,
+        'httponly' => true,
+        'samesite' => 'Strict',
+    ]);
+    // Le jeton est rendu en clair : la page le garde de son cote, pour les
+    // navigateurs qui ne conservent pas les cookies.
+    repond(200, ['ok' => true, 'jeton' => jeton($expire)]);
 }
 // hash_equals plutot que == : la comparaison ne doit pas fuir la clef par le
 // temps qu'elle met a echouer.
@@ -314,6 +463,10 @@ GABARIT = """<!DOCTYPE html>
 <title>Relevé de forage des Primes</title>
 <meta name="description" content="Où et quand sortent les matières des Primes : le relevé de la guilde La Lune Éternelle, à remplir en forant.">
 <meta name="theme-color" content="#10171a">
+<!-- L'hébergeur ne relaie pas le Cache-Control du .htaccess : vérifié, la
+     réponse arrive sans lui. La page se retouche souvent, et un navigateur
+     qui garde l'ancienne fait perdre un aller-retour entier. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233f7a68'/><circle cx='20' cy='12' r='11' fill='%2310171a'/></svg>">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Relevé de forage des Primes">
@@ -428,6 +581,21 @@ GABARIT = """<!DOCTYPE html>
 </style>
 </head>
 <body>
+<!-- Le voile : tant que le relevé n'est pas ouvert, la grille reste vide
+     derrière. Elle ne contient aucune croix, donc rien ne fuit. -->
+<div id="voile" hidden>
+  <form id="porte">
+    <h2>Relevé de la guilde</h2>
+    <p>Le relevé des Primes n'est pas public. Demande le mot de passe à un
+       officier de <b>La Lune Éternelle</b>.</p>
+    <p id="rappel-clef" hidden>Ta clef d'écriture est reconnue : une fois
+       entrée, tu pourras cocher.</p>
+    <input type="password" id="mdp" autocomplete="current-password"
+           placeholder="mot de passe" required>
+    <button type="submit">Entrer</button>
+    <span id="refus"></span>
+  </form>
+</div>
 
 <header>
   <h1>Relevé de forage des Primes</h1>
@@ -473,6 +641,43 @@ GABARIT = """<!DOCTYPE html>
   </table>
 </div>
 
+<style>
+  #voile {
+    position: fixed; inset: 0; z-index: 50;
+    background: #10171a;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  /* **Sans cette ligne, le voile ne se ferme jamais.** L'attribut `hidden`
+     agit par la regle `[hidden] { display: none }` de la feuille du
+     navigateur, de specificite 0-1-0 ; `#voile { display: flex }` vaut
+     1-0-0 et l'emporte. Le voile restait donc affiche par-dessus un tableau
+     pourtant charge : la clef ouvrait bien, le mot de passe etait accepte,
+     et rien ne bougeait a l'ecran. Il a fallu deux soirees pour le voir,
+     parce que les essais lisaient la propriete `.hidden` -- vraie -- au lieu
+     de regarder ce qui etait peint. */
+  #voile[hidden] { display: none; }
+  #porte {
+    max-width: 22rem; width: 100%;
+    display: flex; flex-direction: column; gap: .7rem;
+  }
+  #porte h2 { margin: 0; color: #d8b35a; font-size: 1.3rem; }
+  #porte p { margin: 0; color: #9fb0ad; line-height: 1.5; font-size: .95rem; }
+  #porte p#rappel-clef { color: #6fae9c; }
+  /* Meme piege que pour #voile : une regle d'identifiant ecrase le
+     `[hidden] { display: none }` du navigateur. */
+  #porte p[hidden] { display: none; }
+  #porte input, #porte button {
+    font: inherit; padding: .6rem .8rem; border-radius: 6px;
+    border: 1px solid #2d3f42; background: #16232a; color: #e6efec;
+  }
+  #porte button {
+    background: #2f5d52; border-color: #3f7a68; cursor: pointer;
+    font-weight: 600;
+  }
+  #porte button:hover { background: #3f7a68; }
+  #refus { color: #d97a6c; min-height: 1.2em; font-size: .9rem; }
+</style>
 <script>
   "use strict";
   const SAISONS = __SAISONS__;
@@ -524,23 +729,91 @@ GABARIT = """<!DOCTYPE html>
                          + (n > 1 ? "s" : "") + (CLE ? "" : " · lecture seule");
   }
 
+  // Le jeton de lecture, garde en second recours : certains navigateurs
+  // n'ecrivent pas les cookies (effacement a la fermeture, navigation privee),
+  // et la connexion reussissait sans que la lecture suivante passe.
+  function jeton() {
+    try { return localStorage.getItem("forage") || ""; } catch (e) { return ""; }
+  }
+  function garderJeton(v) {
+    try { localStorage.setItem("forage", v); } catch (e) { /* tant pis */ }
+  }
+  function entetes(base) {
+    const h = Object.assign({}, base || {});
+    const j = jeton();
+    if (j) h["X-Forage"] = j;
+    return h;
+  }
+
+  const voile = document.getElementById("voile");
+  if (CLE) {
+    const rappel = document.getElementById("rappel-clef");
+    if (rappel) { rappel.hidden = false; }
+  }
+  const porte = document.getElementById("porte");
+  const refus = document.getElementById("refus");
+
   async function charger() {
     try {
-      const r = await fetch("releve.php", { cache: "no-store" });
+      // La clef ne sert plus a entrer : elle donne le droit d'ecrire, et
+      // le mot de passe ouvre la porte -- sur les deux adresses.
+      const r = await fetch("releve.php", { cache: "no-store",
+                                            headers: entetes() });
+      if (r.status === 401) {
+        voile.hidden = false;
+        document.getElementById("mdp").focus();
+        return;
+      }
       const d = await r.json();
       cases = d.cases || {};
+      voile.hidden = true;
       peindre();
     } catch (e) {
       compte.textContent = "relevé injoignable";
     }
   }
 
+  porte.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const champ = document.getElementById("mdp");
+    refus.textContent = "";
+    const bouton = porte.querySelector("button");
+    bouton.disabled = true;
+    bouton.textContent = "…";
+    try {
+      const r = await fetch("releve.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "entrer", mdp: champ.value })
+      });
+      if (!r.ok) {
+        refus.textContent = "Mot de passe refusé.";
+        champ.select();
+        return;
+      }
+      const d = await r.json().catch(() => ({}));
+      if (d.jeton) {
+        garderJeton(d.jeton);
+      }
+      await charger();
+      if (!voile.hidden) {
+        refus.textContent =
+          "Mot de passe accepté, mais ce navigateur n'en garde pas la trace.";
+      }
+    } catch (err) {
+      refus.textContent = "Serveur injoignable.";
+    } finally {
+      bouton.disabled = false;
+      bouton.textContent = "Entrer";
+    }
+  });
+
   async function envoyer(k, v) {
     enVol++;
     try {
       const r = await fetch("releve.php", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: entetes({ "Content-Type": "application/json" }),
         body: JSON.stringify({ cle: CLE, case: k, valeur: v,
                                foreuse: nom.value.trim() })
       });
@@ -638,6 +911,8 @@ def main() -> int:
             .replace("__SAISONS__", repr(list(SAISONS)).replace("'", '"')))
     php = (PHP
            .replace("__CLE__", clef())
+           .replace("__EMPREINTE__", empreinte_mot_de_passe())
+           .replace("__SEL__", sel())
            .replace("__ZONES__", _liste_php(ZONES))
            .replace("__SAISONS__", _liste_php(SAISONS))
            .replace("__QUALITES__", _liste_php(QUALITES))

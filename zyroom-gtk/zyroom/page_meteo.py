@@ -323,7 +323,10 @@ class PageMeteo:
         la suprême taisait les quinze, qui sont justement ce qu'on va forer
         faute de mieux. La ligne dit donc « sort suprême et XL ».
         """
-        connues = {q for zone in meteo.ZONES
+        # « à confirmer » n'est pas une qualité : c'est de la XL qu'on n'a pas
+        # encore vue sortir. La ligne du haut annonce des qualités.
+        connues = {meteo.EXCELLENTE if q == meteo.A_CONFIRMER else q
+                   for zone in meteo.ZONES
                    for q, _g in meteo.sorties_de(releve.saison, zone,
                                                  actuelle.condition)}
         return [q for q in meteo.QUALITES if q in connues]
@@ -360,7 +363,12 @@ class PageMeteo:
             # L'or de l'application, et non le gris attenue : c'est le mot
             # qu'on cherche des yeux en parcourant les quatre colonnes, et il
             # etait plus pale que les matieres qu'il annonce.
-            rappel.add_css_class("peuple")
+            # L'or pour ce qui est etabli, l'orange du releve pour ce qui
+            # reste a verifier : la meme couleur que les croix de
+            # xiom.be/forage, pour que l'oeil s'y retrouve d'un ecran a
+            # l'autre.
+            rappel.add_css_class("a-confirmer" if qualite == meteo.A_CONFIRMER
+                                 else "peuple")
             rappel.add_css_class("caption")
             rappel.props.margin_top = 4
             boite.append(rappel)

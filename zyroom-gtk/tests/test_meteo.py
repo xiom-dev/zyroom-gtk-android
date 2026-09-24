@@ -340,7 +340,8 @@ class FenetreSupreme(unittest.TestCase):
             for condition in ("best", "good", "bad", "worst"):
                 releve, actuelle = self._moment(saison, condition)
                 dites = PageMeteo._qualites_du_moment(releve, actuelle)
-                sorties = {q for z in meteo.ZONES
+                sorties = {meteo.EXCELLENTE if q == meteo.A_CONFIRMER else q
+                           for z in meteo.ZONES
                            for q, _g in meteo.sorties_de(saison, z, condition)}
                 self.assertEqual(set(dites), sorties,
                                  f"{meteo.SAISONS[saison]} / {condition}")
@@ -471,7 +472,9 @@ class CeQuiSort(unittest.TestCase):
             for condition in ("worst", "bad", "good", "best"):
                 for zone in meteo.ZONES:
                     blocs = meteo.sorties_de(saison, zone, condition)
-                    rangs = [meteo.QUALITES.index(q) for q, _g in blocs]
+                    ordre = (meteo.SUPREME, meteo.EXCELLENTE,
+                             meteo.A_CONFIRMER, meteo.CHOIX)
+                    rangs = [ordre.index(q) for q, _g in blocs]
                     self.assertEqual(sorted(rangs), rangs, zone)
                     self.assertEqual(len(set(rangs)), len(rangs), zone)
                     for qualite, groupes in blocs:
@@ -480,6 +483,7 @@ class CeQuiSort(unittest.TestCase):
                         # deux spots distincts, que l'ecran montre tous deux.
                         table = {meteo.SUPREME: forage.SUPREMES,
                                  meteo.EXCELLENTE: forage.EXCELLENTES,
+                                 meteo.A_CONFIRMER: forage.A_CONFIRMER,
                                  meteo.CHOIX: forage.CHOIX}[qualite]
                         for famille, matieres in groupes.items():
                             for matiere in matieres:
@@ -504,7 +508,7 @@ class CeQuiSort(unittest.TestCase):
         montre maintenant sous le suprême plutôt qu'à sa place."""
         avec = [(s, z, c) for s in range(4) for z in meteo.ZONES
                 for c in ("worst", "bad", "good", "best")
-                if any(q == meteo.EXCELLENTE
+                if any(q in (meteo.EXCELLENTE, meteo.A_CONFIRMER)
                        for q, _g in meteo.sorties_de(s, z, c))]
         caches = [t for t in avec
                   if meteo.sortie_de(t[0], t[1], t[2])[0] != meteo.EXCELLENTE]

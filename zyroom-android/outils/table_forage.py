@@ -410,7 +410,7 @@ def table_du_tracker() -> dict:
     élimination ferait dire à l'écran plus que ce qu'on sait.
     """
     tables = {q: collections.defaultdict(lambda: collections.defaultdict(set))
-              for q in ("SUPREME", "EXCELLENTE", "CHOIX")}
+              for q in ("SUPREME", "EXCELLENTE", "CHOIX", "A_CONFIRMER")}
     # Le supreme ne se deduit de rien : il est releve, et il fait foi. Aucune
     # autre source n'a le droit d'y ajouter ni d'en retirer.
     for zone, matieres in supremes_de_la_guilde().items():
@@ -425,6 +425,14 @@ def table_du_tracker() -> dict:
     for zone, matieres in releve_de_la_guilde("XL", ("x", "?")).items():
         for couple, creneaux in matieres.items():
             tables["EXCELLENTE"][zone][couple] |= creneaux
+    # Ce qui reste a verifier en jeu : les croix oranges du releve, cochees
+    # d'apres une autre source et jamais vues sur place. Elles sont deja dans
+    # EXCELLENTE -- on les affiche, une XL annoncee a tort coute un
+    # aller-retour, une XL tue coute tout le reste -- mais l'ecran doit
+    # pouvoir les distinguer pour dire ou aller les confirmer.
+    for zone, matieres in releve_de_la_guilde("XL", ("?",)).items():
+        for couple, creneaux in matieres.items():
+            tables["A_CONFIRMER"][zone][couple] |= creneaux
     return {q: {z: {c: k for c, k in m.items() if k}
                 for z, m in t.items()} for q, t in tables.items()}
 
@@ -533,6 +541,17 @@ def python(tables: dict, conts: dict) -> str:
         "#: par les foreuses, cent quatre-vingt-huit rapportés par une autre",
         "#: source et cochés en orange, qui restent à confirmer.",
         "EXCELLENTES = {"], tables["EXCELLENTE"])
+    lignes += _bloc([
+        "#: {zone: {(famille, matière): {(saison, condition)}}} — ce qui reste",
+        "#: à vérifier en jeu.",
+        "#:",
+        "#: Les croix oranges du relevé : cochées d'après une autre source, et",
+        "#: jamais vues sur place. Elles font partie d'EXCELLENTES -- l'écran",
+        "#: les affiche, une XL annoncée à tort coûte un aller-retour, une XL",
+        "#: tue coûte tout le reste -- mais on les distingue pour dire où aller",
+        "#: les confirmer, et pour qu'une croix qui ne sort jamais finisse par",
+        "#: se démasquer.",
+        "A_CONFIRMER = {"], tables["A_CONFIRMER"])
     lignes += _bloc([
         "#: {zone: {(famille, matière): {(saison, condition)}}} — le choix.",
         "#:",

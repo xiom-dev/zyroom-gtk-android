@@ -40,13 +40,22 @@ SAISONS = ("PRINTEMPS", "ETE", "AUTOMNE", "HIVER")
 SUPREME, EXCELLENTE, CHOIX = "supreme", "excellente", "choix"
 QUALITES = (SUPREME, EXCELLENTE, CHOIX)
 
+#: Non pas une quatrième qualité, mais une XL **qu'on n'a pas encore vue**.
+#:
+#: Les croix oranges du relevé : cochées d'après une autre source, jamais
+#: vérifiées sur place. L'écran les montre à part pour qu'on sache où aller
+#: les confirmer — et une croix annoncée qui ne sort jamais finit ainsi par
+#: se démasquer. Le jeu, lui, ne connaît pas cette distinction.
+A_CONFIRMER = "à confirmer"
+
 #: Ces mêmes qualités telles que `gisements.py` les nomme. Le choix n'a pas de
 #: carte : ses gisements ne sont relevés nulle part.
 #:
 #: Le relevé des positions ne connaît que deux qualités, et sa seconde décrit
 #: d'autres régions des Primes Racines — voir `positions_des_primes`, qui ne
 #: lit que la première.
-QUALITE_GISEMENT = {SUPREME: "supreme", EXCELLENTE: "excellent", CHOIX: ""}
+QUALITE_GISEMENT = {SUPREME: "supreme", EXCELLENTE: "excellent", CHOIX: "",
+                    A_CONFIRMER: "excellent"}
 
 #: Les seuils du jeu, qui découpent les quatre conditions de gisement.
 SEUILS = (0.1666, 0.5, 0.8333)
@@ -231,7 +240,8 @@ def texte_meteo(cle: str) -> str:
 #: excellente », puis « excellente dans 1 h 08 », qui parlait de la météo.
 #: « XL » est le mot du relevé, celui des onglets de xiom.be/forage, et il ne
 #: désigne jamais que la matière.
-MOT_QUALITE = {SUPREME: "suprême", EXCELLENTE: "XL", CHOIX: "choix"}
+MOT_QUALITE = {SUPREME: "suprême", EXCELLENTE: "XL", CHOIX: "choix",
+               A_CONFIRMER: "à confirmer"}
 
 
 def mot_qualite(qualite: str | None) -> str:
@@ -416,7 +426,7 @@ def positions_des_primes(qualite: str, famille: str, matiere: str) -> list:
     Le choix, lui, n'a pas de carte : ses créneaux ne sont relevés nulle part,
     donc on ne saurait pas dire lesquels de ces nœuds le rendent.
     """
-    if qualite not in (SUPREME, EXCELLENTE):
+    if qualite not in (SUPREME, EXCELLENTE, A_CONFIRMER):
         return []
     return [point for point in _gisements.points("supreme", famille, matiere)
             if point[2] in ZONES]
@@ -439,17 +449,28 @@ def sorties_de(saison: int, zone: str,
     lit comme suprême sans l'être.
     """
     creneau = _creneau(saison, condition)
-    trouve = []
-    for qualite, table in ((SUPREME, _forage.SUPREMES),
-                           (EXCELLENTE, _forage.EXCELLENTES),
-                           (CHOIX, _forage.CHOIX)):
-        groupes: dict[str, list[str]] = {}
+
+    def groupes_de(table) -> dict:
+        trouve: dict[str, list[str]] = {}
         for (famille, matiere), creneaux in table.get(zone, {}).items():
             if creneau in creneaux:
-                groupes.setdefault(famille, []).append(matiere)
+                trouve.setdefault(famille, []).append(matiere)
+        return {f: sorted(m) for f, m in trouve.items()}
+
+    #: La XL se coupe en deux : ce qu'on a vu sortir, et ce qu'on nous a
+    #: rapporté sans l'avoir vérifié. Les secondes portent le même nom de
+    #: matière, mais c'est vers elles qu'il faut aller forer.
+    a_verifier = groupes_de(_forage.A_CONFIRMER)
+    excellentes = {f: [m for m in ms if m not in a_verifier.get(f, ())]
+                   for f, ms in groupes_de(_forage.EXCELLENTES).items()}
+
+    trouve = []
+    for qualite, groupes in ((SUPREME, groupes_de(_forage.SUPREMES)),
+                             (EXCELLENTE, {f: m for f, m in excellentes.items() if m}),
+                             (A_CONFIRMER, a_verifier),
+                             (CHOIX, groupes_de(_forage.CHOIX))):
         if groupes:
-            trouve.append((qualite, {f: sorted(m)
-                                     for f, m in groupes.items()}))
+            trouve.append((qualite, groupes))
     return trouve
 
 
@@ -461,8 +482,11 @@ def sortie_de(saison: int, zone: str, condition: str) -> tuple[str | None, dict]
     courte — « vaut-il mieux aller là ou ailleurs ? » ; `sorties_de` donne le
     détail que l'écran affiche.
     """
-    sorties = sorties_de(saison, zone, condition)
-    return sorties[0] if sorties else (None, {})
+    # `A_CONFIRMER` n'est pas une qualité : une zone qui ne sort que des XL
+    # non vérifiées sort quand même de la XL.
+    for qualite, groupes in sorties_de(saison, zone, condition):
+        return (EXCELLENTE if qualite == A_CONFIRMER else qualite), groupes
+    return None, {}
 
 
 def prochaine_fenetre_supreme(releve: "MeteoAtys") -> "Meteo | None":

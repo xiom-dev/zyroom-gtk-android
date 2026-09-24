@@ -74,7 +74,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "1.74" if _DEV else "1.20"
+VERSION = "1.75" if _DEV else "1.20"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -2751,6 +2751,10 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             .fini { color: mix(@zy_sarcelle, white, 0.35); }
             /* L'or du titre et du logo, pour les intitulés de section. */
             .peuple { color: @zy_or; }
+            /* L'orange du releve de la guilde, pour ce qui reste a verifier
+               en jeu : la page xiom.be/forage coche ces cases-la en orange,
+               et l'oeil doit retrouver la meme couleur d'un ecran a l'autre. */
+            .a-confirmer { color: #e8a13a; }
             /* Un cran sous le corps courant : trois colonnes doivent tenir
                dans une moitié de fenêtre, et un nom d'avant-poste va jusqu'à
                quarante signes. */
