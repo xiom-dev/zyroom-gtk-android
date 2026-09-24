@@ -155,6 +155,38 @@
   .barre-val { color: var(--faible); font-variant-numeric: tabular-nums;
                white-space: nowrap; }
 
+  #titre-imprime, #bilan-imprime { display: none; }
+
+  /* **L'impression : le bilan d'une soiree, a lire ou a envoyer.** Fond
+     blanc -- l'encre --, ni boutons, ni zone de depot, ni la colonne « A
+     trier » : ce qui reste est ce qu'on a decide. « Enregistrer en PDF » dans
+     la fenetre d'impression en fait un fichier, sans rien installer. */
+  @media print {
+    @page { margin: 12mm; }
+    :root { --fond: #fff; --surface: #fff; --texte: #111; --faible: #555;
+            --trait: #bbb; --clair: #245e4f; --or: #7a5a00; }
+    body { padding: 0; font-size: 11pt; }
+    header p, .barre, .source, #whos, .actions, #voile, #tous,
+    #bilan-texte, #bilan-etat, #guerre { display: none !important; }
+    #titre-imprime, #bilan-imprime { display: inline; }
+    #bilan-imprime { display: block; white-space: pre-wrap; line-height: 1.45; }
+    .colonnes { grid-template-columns: 1fr 1fr 1fr; }
+    .milieu #tous { display: none; }
+    .colonne, .carte, #bilan { min-height: 0; break-inside: avoid; }
+    .liste { flex: none; }
+    .nom { cursor: default; background: #fff; }
+    /* Ce qui ne sert qu'a l'ecran : les aides au survol, les invites a
+       glisser un nom dans une colonne vide. */
+    .ecran, .colonne .vide { display: none; }
+    /* Les jauges gardent leurs couleurs : sans cela, le navigateur les
+       efface pour economiser l'encre, et les barres disparaissent. */
+    .barre-fond, .barre-plein { -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact; }
+    .barre-fond { background: #e6ecea; }
+    #cartes { grid-template-columns: 1fr 1fr; }
+    #stats { margin-top: 16px; }
+  }
+
   @media (max-width: 700px) {
     .colonnes { grid-template-columns: 1fr; }
     .colonne { min-height: 140px; }
@@ -176,7 +208,7 @@
 </div>
 
 <header>
-  <h1>Guerre d'OP</h1>
+  <h1>Guerre d'OP <span id="titre-imprime"></span></h1>
   <p>En jeu, tape <code>/chatLog</code>, puis des <code>/who</code> pendant l'OP.
      Dépose ensuite ton journal (<code>save/log_…txt</code>) ci-dessous : les
      noms vus arrivent au centre, et chacun les glisse à gauche, à droite, ou
@@ -222,6 +254,9 @@
   <textarea id="bilan-texte" rows="8" spellcheck="true" disabled
             placeholder="Ce qu'il faut retenir de la guerre : déroulé, erreurs, ce qui a marché, ce qu'on change la prochaine fois…"></textarea>
   <p id="bilan-etat"></p>
+  <!-- La copie imprimable : une zone de texte s'imprime a sa hauteur, et
+       coupe ce qui depasse. Ce bloc, lui, prend toute la place du texte. -->
+  <div id="bilan-imprime"></div>
 </section>
 
 <div class="actions">
@@ -230,6 +265,7 @@
   <input type="file" id="sauvegarde" accept=".json,application/json" hidden>
   <button id="copier">Copier les listes</button>
   <button id="oublier">Oublier le tri</button>
+  <button id="imprimer">Imprimer / PDF</button>
 </div>
 
 <section id="stats">
@@ -737,11 +773,18 @@
 
   function peindreBilan(message, souci) {
     const g = guerreChoisie;
-    document.getElementById("bilan-guerre").textContent = g
-      ? "— guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7) + "/" + g.slice(0, 4)
-        + " (choix dans les statistiques)"
-      : "";
+    const titre = document.getElementById("bilan-guerre");
+    titre.textContent = g ? "— guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7)
+                            + "/" + g.slice(0, 4) + " " : "";
+    if (g) {
+      const aide = document.createElement("span");
+      aide.className = "ecran";
+      aide.textContent = "(choix dans les statistiques)";
+      titre.append(aide);
+    }
     zoneBilan.disabled = !g;
+    document.getElementById("titre-imprime").textContent = g
+      ? "— bilan de la guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7) + "/" + g.slice(0, 4) : "";
     etatBilan.classList.toggle("souci", !!souci);
     etatBilan.textContent = message
       || (!g ? "Dépose le journal d'une guerre pour ouvrir son bilan."
@@ -754,6 +797,7 @@
   function recevoirBilan(b) {
     bilanRecu = b;
     if (!bilanModifie) zoneBilan.value = b ? b.texte : "";
+    document.getElementById("bilan-imprime").textContent = zoneBilan.value;
     peindreBilan(bilanModifie ? "Modifications en cours…" : "");
   }
 
@@ -783,8 +827,23 @@
     }
   }
 
+  // Imprimer : le titre porte la guerre, et devient le nom propose pour le
+  // PDF (« Guerre d'OP 2026-09-24.pdf »). Le texte du bilan est recopie tel
+  // qu'il est a l'ecran, meme pas encore enregistre.
+  const titreOrigine = document.title;
+  addEventListener("beforeprint", () => {
+    const g = guerreChoisie;
+    document.getElementById("titre-imprime").textContent = g
+      ? "— bilan de la guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7) + "/" + g.slice(0, 4) : "";
+    document.getElementById("bilan-imprime").textContent = zoneBilan.value || "(pas de bilan écrit)";
+    if (g) document.title = "Guerre d'OP " + g;
+  });
+  addEventListener("afterprint", () => { document.title = titreOrigine; });
+  document.getElementById("imprimer").addEventListener("click", () => print());
+
   zoneBilan.addEventListener("input", () => {
     bilanModifie = true;
+    document.getElementById("bilan-imprime").textContent = zoneBilan.value;
     peindreBilan("Modifications en cours…");
     clearTimeout(minuterieBilan);
     minuterieBilan = setTimeout(enregistrerBilan, 2000);
@@ -939,8 +998,11 @@
     }
     const r = calculer();
     resume.textContent = "Journaux : " + r.proprios.join(", ") + " · rounds "
-                       + r.rounds.gagnes + " gagnés, " + r.rounds.perdus + " perdus"
-                       + " · survole une barre pour le détail.";
+                       + r.rounds.gagnes + " gagnés, " + r.rounds.perdus + " perdus";
+    const aide = document.createElement("span");
+    aide.className = "ecran";
+    aide.textContent = " · survole une barre pour le détail.";
+    resume.append(aide);
 
     const partiesOrdre = p => PARTIES.indexOf(p);
     const enParties = o => Object.entries(o).sort((a, b) => partiesOrdre(a[0]) - partiesOrdre(b[0]))
