@@ -204,6 +204,28 @@
   #pdf-choix[hidden] { display: none; }
   #pdf-choix button { white-space: nowrap; text-align: left; }
 
+  /* **Samara.** Le pop-up du site WRC, porte ici : voile sombre, image aux
+     coins arrondis dans un halo rouge, qui se met a trembler au bout de
+     0,3 s -- pendant que le cri part. */
+  #samara { position: fixed; inset: 0; z-index: 20; display: flex;
+            align-items: center; justify-content: center; cursor: pointer;
+            background: rgba(0,0,0,.5); opacity: 0; visibility: hidden;
+            transition: opacity .35s ease, visibility 0s linear .35s; }
+  #samara.ouvert { opacity: 1; visibility: visible; transition: opacity .35s ease; }
+  #samara img { max-width: 85vw; max-height: 80vh; border-radius: 20px;
+                border: 4px solid rgba(255,0,0,.9);
+                box-shadow: 0 0 6px 2px rgba(255,0,0,.55), 0 0 22px 8px rgba(255,0,0,.35),
+                            0 0 48px 16px rgba(255,0,0,.18); }
+  #samara.ouvert img { animation: tremble .09s steps(1) .3s infinite; }
+  @keyframes tremble {
+    0%   { transform: translate(-4px, 3px); }
+    20%  { transform: translate(5px, -2px); }
+    40%  { transform: translate(-3px, -5px); }
+    60%  { transform: translate(4px, 4px); }
+    80%  { transform: translate(-5px, -1px); }
+  }
+  html.mode-pdf #samara { display: none; }
+
   #titre-imprime, #bilan-imprime, .pdf-seul { display: none; }
 
   /* **L'impression et le PDF : le bilan d'une soiree, a lire ou a envoyer.**
@@ -387,6 +409,8 @@
 </section>
 </main>
 </div>
+
+<div id="samara" aria-hidden="true"><img alt=""></div>
 
 <script>
   "use strict";
@@ -909,7 +933,7 @@
       const detail = document.createElement("small");
       detail.textContent = (g.enregistree_le ? "enregistrée le " + dateCourte(g.enregistree_le)
                                              : "brouillon")
-                           + " · " + g.proprios.length + " journal" + (g.proprios.length > 1 ? "x" : "");
+                           + " · " + g.proprios.length + (g.proprios.length > 1 ? " journaux" : " journal");
       if (!g.enregistree_le) detail.className = "brouillon";
       b.append(detail);
       if (g.id === guerreChoisie) b.setAttribute("aria-current", "true");
@@ -1742,6 +1766,63 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && voile.hidden) relire();
   });
+
+  // ------------------------------------------------------------ samara
+  //
+  // Deux secondes de souris immobile sur un de ces noms -- dans une colonne
+  // comme dans les statistiques -- et Samara surgit. Quitter le nom avant
+  // annule tout. Un clic ou Echap la renvoie ; elle repart seule a la fin du
+  // cri. Le cri suit le premier geste fait sur la page (le mot de passe, un
+  // clic) : sans lui, le navigateur refuse de jouer un son.
+  const CIBLES_SAMARA = ["Raza"];
+  const DELAI_SAMARA_MS = 2000;
+  const samara = document.getElementById("samara");
+  const imageSamara = samara.querySelector("img");
+  let criSamara = null, attenteSamara = null, surSamara = null;
+
+  function estCible(el) {
+    const texte = el.textContent || "";
+    return CIBLES_SAMARA.some(n => new RegExp("(^|[^\\p{L}])" + n + "($|[^\\p{L}])", "u").test(texte));
+  }
+
+  function montrerSamara() {
+    if (!imageSamara.src) imageSamara.src = "samara.webp";
+    samara.classList.add("ouvert");
+    try {
+      criSamara = criSamara || new Audio("scream.mp3");
+      criSamara.currentTime = 0;
+      criSamara.play().catch(() => { /* son refuse : l'image suffit */ });
+      criSamara.onended = () => setTimeout(cacherSamara, 500);
+    } catch (e) { /* pas de son sur ce navigateur */ }
+  }
+  function cacherSamara() {
+    samara.classList.remove("ouvert");
+    if (criSamara) { criSamara.pause(); criSamara.onended = null; }
+  }
+  samara.addEventListener("click", cacherSamara);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") cacherSamara(); });
+
+  // On suit le nom survole, et non l'element : la page redessine ses noms a
+  // chaque relecture, toutes les cinq secondes, et l'attente ne doit pas
+  // repartir de zero parce que le meme nom a ete repeint sous la souris.
+  const survole = e => e && e.closest && e.closest(".nom, .barre-nom, .barre-ligne");
+  document.addEventListener("mouseover", e => {
+    const el = survole(e.target);
+    const texte = el ? el.textContent : null;
+    if (texte === surSamara) return;
+    clearTimeout(attenteSamara);
+    surSamara = texte;
+    if (el && estCible(el)) attenteSamara = setTimeout(montrerSamara, DELAI_SAMARA_MS);
+  });
+  document.addEventListener("mouseout", e => {
+    const vers = survole(e.relatedTarget);
+    if (surSamara !== null && (!vers || vers.textContent !== surSamara)) {
+      clearTimeout(attenteSamara);
+      surSamara = null;
+    }
+  });
+  // Saisir le nom pour le glisser n'est pas s'y attarder.
+  document.addEventListener("dragstart", () => clearTimeout(attenteSamara));
 
   peindre();
   peindreCalendrier();
