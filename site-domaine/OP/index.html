@@ -112,6 +112,20 @@
   button:hover { border-color: var(--clair); }
 
   /* Les statistiques, sous les colonnes : une carte par question. */
+  /* Le bilan : toute la largeur, sous les quatre colonnes. */
+  #bilan { max-width: 1100px; margin: 12px auto 0; background: var(--surface);
+           border: 1px solid var(--trait); border-radius: 10px; padding: 10px 12px; }
+  #bilan h2 { margin: 0 0 8px; font-size: 1rem; color: var(--or); }
+  #bilan h2 span { color: var(--faible); font-weight: 400; font-size: .85rem; }
+  #bilan-texte { width: 100%; resize: vertical; min-height: 120px;
+                 background: var(--fond); color: var(--texte); font: inherit;
+                 line-height: 1.45; border: 1px solid var(--trait);
+                 border-radius: 7px; padding: 8px 10px; }
+  #bilan-texte:focus { outline: none; border-color: var(--clair); }
+  #bilan-texte:disabled { opacity: .5; }
+  #bilan-etat { margin: 6px 0 0; color: var(--faible); font-size: .8rem; }
+  #bilan-etat.souci { color: var(--eux); }
+
   #stats { max-width: 1100px; margin: 28px auto 0; }
   #stats > h2 { color: var(--or); font-size: 1.2rem; margin: 0 0 8px;
                 display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
@@ -201,6 +215,14 @@
     <h2>Opposants <span></span></h2><div class="liste"></div>
   </section>
 </div>
+
+<!-- Le bilan de la soiree, ecrit a la main : une zone par guerre, partagee. -->
+<section id="bilan">
+  <h2>Bilan <span id="bilan-guerre"></span></h2>
+  <textarea id="bilan-texte" rows="8" spellcheck="true" disabled
+            placeholder="Ce qu'il faut retenir de la guerre : déroulé, erreurs, ce qui a marché, ce qu'on change la prochaine fois…"></textarea>
+  <p id="bilan-etat"></p>
+</section>
 
 <div class="actions">
   <button id="sauver">Sauvegarder</button>
@@ -646,7 +668,9 @@
   let majChargee = null;
 
   const choixGuerre = document.getElementById("guerre");
-  choixGuerre.addEventListener("change", () => {
+  choixGuerre.addEventListener("change", async () => {
+    // Un bilan en cours d'ecriture part avant qu'on change de guerre.
+    if (bilanModifie) await enregistrerBilan();
     guerreChoisie = choixGuerre.value;
     local.ecrire("op-guerre", guerreChoisie);
     majChargee = null;
@@ -671,7 +695,7 @@
     const g = guerres.find(x => x.id === guerreChoisie);
     // On ne retelecharge une guerre que si quelqu'un y a depose un journal.
     if (g && g.maj !== majChargee) chargerGuerre();
-    if (!g) peindreStats();
+    if (!g) { journaux = {}; recevoirBilan(null); peindreStats(); }
   }
 
   async function chargerGuerre() {
@@ -682,13 +706,92 @@
       if (!r.ok) throw new Error("HTTP " + r.status);
       const d = await r.json();
       journaux = d.journaux || {};
+      recevoirBilan(d.bilan || null);
       const g = guerres.find(x => x.id === guerreChoisie);
       majChargee = g ? g.maj : null;
     } catch (e) {
       journaux = {};
+      recevoirBilan(null);
     }
     peindreStats();
   }
+
+  // ------------------------------------------------------------ le bilan
+  //
+  // Un texte libre par guerre, partage : ce que les chiffres ne disent pas.
+  // Il s'enregistre seul, deux secondes apres la derniere frappe, et quand
+  // on quitte la zone. Le dernier qui ecrit l'emporte ; la ligne du dessous
+  // dit qui l'a touche en dernier. Tant qu'on ecrit, un bilan venu d'ailleurs
+  // n'ecrase pas le texte en cours.
+
+  const zoneBilan = document.getElementById("bilan-texte");
+  const etatBilan = document.getElementById("bilan-etat");
+  let bilanRecu = null;
+  let bilanModifie = false;
+  let minuterieBilan = null;
+
+  function dateCourte(iso) {
+    return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit",
+                                                   hour: "2-digit", minute: "2-digit" });
+  }
+
+  function peindreBilan(message, souci) {
+    const g = guerreChoisie;
+    document.getElementById("bilan-guerre").textContent = g
+      ? "— guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7) + "/" + g.slice(0, 4)
+        + " (choix dans les statistiques)"
+      : "";
+    zoneBilan.disabled = !g;
+    etatBilan.classList.toggle("souci", !!souci);
+    etatBilan.textContent = message
+      || (!g ? "Dépose le journal d'une guerre pour ouvrir son bilan."
+          : bilanRecu && bilanRecu.quand
+            ? "Enregistré · dernière modification par " + (bilanRecu.qui || "quelqu'un")
+              + " le " + dateCourte(bilanRecu.quand)
+            : "Pas encore de bilan pour cette guerre.");
+  }
+
+  function recevoirBilan(b) {
+    bilanRecu = b;
+    if (!bilanModifie) zoneBilan.value = b ? b.texte : "";
+    peindreBilan(bilanModifie ? "Modifications en cours…" : "");
+  }
+
+  async function enregistrerBilan() {
+    clearTimeout(minuterieBilan);
+    if (!guerreChoisie) return;
+    const texte = zoneBilan.value, guerre = guerreChoisie;
+    try {
+      const r = await fetch(SERVEUR, {
+        method: "POST",
+        headers: entetes({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ action: "bilan", guerre, texte, qui: champNom.value.trim() }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erreur || ("HTTP " + r.status));
+      // Seulement si rien n'a ete tape pendant l'envoi.
+      if (zoneBilan.value === texte) bilanModifie = false;
+      bilanRecu = d.bilan;
+      // Notre propre ecriture ne doit pas faire recharger la guerre.
+      const g = (d.guerres || []).find(x => x.id === guerre);
+      if (g && guerre === guerreChoisie) majChargee = g.maj;
+      if (d.guerres) recevoirGuerres(d.guerres);
+      peindreBilan(bilanModifie ? "Modifications en cours…" : "");
+    } catch (e) {
+      peindreBilan("Bilan non enregistré : " + e.message + " — ton texte est toujours là, "
+                   + "il repartira à la prochaine frappe.", true);
+    }
+  }
+
+  zoneBilan.addEventListener("input", () => {
+    bilanModifie = true;
+    peindreBilan("Modifications en cours…");
+    clearTimeout(minuterieBilan);
+    minuterieBilan = setTimeout(enregistrerBilan, 2000);
+  });
+  zoneBilan.addEventListener("blur", () => { if (bilanModifie) enregistrerBilan(); });
+  // Fermer la page avec un bilan pas encore parti : le navigateur demande.
+  addEventListener("beforeunload", e => { if (bilanModifie) e.preventDefault(); });
 
   // Petits outils d'addition.
   const somme = (o, f) => Object.values(o || {}).reduce((s, v) => s + (v[f] || 0), 0);

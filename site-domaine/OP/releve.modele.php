@@ -34,6 +34,10 @@ const CAMPS = ['kamis', 'opposants', 'neutres'];
 // page ne telecharge que celle qu'on regarde.
 const COMBATS = __DIR__ . '/combats';
 const MAX_RESUME = 200 * 1024;
+// Le bilan ecrit a la main : un texte par guerre, range avec ses resumes.
+// Compte en octets -- mbstring n'est pas garanti sur tous les hebergements :
+// soixante kilooctets, une vingtaine de pages de texte accentue.
+const MAX_BILAN = 60 * 1024;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -250,7 +254,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             repond(404, ['erreur' => 'guerre inconnue']);
         }
         $lu = json_decode((string) file_get_contents($f), true);
-        repond(200, ['id' => $id, 'journaux' => (object) ($lu['journaux'] ?? [])]);
+        repond(200, ['id' => $id, 'journaux' => (object) ($lu['journaux'] ?? []),
+                     'bilan' => $lu['bilan'] ?? null]);
     }
     $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
     repond(200, reponse(lu($contenu)));
@@ -368,7 +373,10 @@ switch ($action) {
             $journaux[$r['proprio']] = $r;
             ftruncate($fh, 0);
             rewind($fh);
-            fwrite($fh, (string) json_encode(['journaux' => $journaux],
+            // Le bilan de la guerre reste tel quel : deposer un journal ne
+            // doit pas effacer ce que quelqu'un a ecrit a la main.
+            fwrite($fh, (string) json_encode(['journaux' => $journaux,
+                                              'bilan' => $lu['bilan'] ?? null],
                                              JSON_UNESCAPED_UNICODE));
             fflush($fh);
             flock($fh, LOCK_UN);
@@ -377,6 +385,36 @@ switch ($action) {
         }
         $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
         repond(200, reponse(lu($contenu)) + ['resumes_gardes' => $gardes]);
+
+    case 'bilan':
+        // Le dernier qui ecrit l'emporte : c'est un bloc-notes de guilde, en
+        // general tenu par une seule personne. La page dit qui l'a touche en
+        // dernier, et quand.
+        $id = $demande['guerre'] ?? null;
+        $texte = $demande['texte'] ?? null;
+        if (!guerre_valide($id) || !is_string($texte)
+            || strlen($texte) > MAX_BILAN) {
+            repond(400, ['erreur' => 'bilan illisible ou trop long']);
+        }
+        $f = COMBATS . '/' . $id . '.json';
+        if (!is_file($f)) {
+            repond(404, ['erreur' => 'guerre inconnue']);
+        }
+        $fh = fopen($f, 'c+');
+        if ($fh === false || !flock($fh, LOCK_EX)) {
+            repond(500, ['erreur' => 'fichier verrouille']);
+        }
+        $lu = json_decode((string) stream_get_contents($fh), true);
+        $bilan = ['texte' => $texte, 'qui' => $qui, 'quand' => $quand];
+        ftruncate($fh, 0);
+        rewind($fh);
+        fwrite($fh, (string) json_encode(['journaux' => $lu['journaux'] ?? [],
+                                          'bilan' => $bilan],
+                                         JSON_UNESCAPED_UNICODE));
+        fflush($fh);
+        flock($fh, LOCK_UN);
+        fclose($fh);
+        repond(200, ['ok' => true, 'bilan' => $bilan, 'guerres' => guerres()]);
 
     case 'oublier':
         $etat = modifier(function (array $etat) {
