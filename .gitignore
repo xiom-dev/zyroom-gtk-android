@@ -33,5 +33,5 @@
 # entre pas et la reinclusion ne serait jamais lue.
 site-domaine/*
 !site-domaine/carte/
-# `op/` aussi : le tri des participants d'un OP, ecrit a la main.
-!site-domaine/op/
+# `OP/` aussi : le tri des participants d'un OP, ecrit a la main.
+!site-domaine/OP/
