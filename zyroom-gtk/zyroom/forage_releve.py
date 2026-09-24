@@ -38,7 +38,7 @@ import re
 import urllib.error
 import urllib.request
 
-from . import forage, meteo
+from . import forage, gisements, meteo
 from .config import data_dir
 
 #: L'adresse du relevé commun de la guilde.
@@ -222,7 +222,11 @@ def prises() -> list:
         # cycles : n'importe quel relevé de la même soirée la donne juste.
         return min(reperes, key=lambda r: abs(r[0] - cycle))[1] if reperes else -1
 
-    zone, sortie = None, []
+    # La zone de depart : celle ou l'on etait la derniere fois. Le jeu ne cite
+    # une region qu'en franchissant sa frontiere, ce qui peut ne pas arriver
+    # d'une soiree entiere -- sans memoire, les premieres prises d'un journal
+    # se perdaient faute de savoir ou elles avaient eu lieu.
+    zone, sortie = _lire("zone.json", None), []
     try:
         lignes = open(_f("journal.log"), encoding="utf-8").read().splitlines()
     except OSError:
@@ -232,8 +236,15 @@ def prises() -> list:
             continue
         ligne = brut.split("\t", 1)[1]
         lieu = _LIEU.search(ligne)
-        if lieu and lieu.group(1) in meteo.ZONES:
-            zone = lieu.group(1)
+        if lieu:
+            # Le jeu ecrit le plus souvent un lieu-dit -- « Pre Lancinant »,
+            # « Gorge Hantee » -- et rarement la region. `LIEUX_DITS` rattache
+            # les trente-quatre lieux-dits des Primes a la leur.
+            nom = lieu.group(1)
+            trouve = (nom if nom in meteo.ZONES
+                      else gisements.LIEUX_DITS.get(nom))
+            if trouve:
+                zone = trouve
         prise = _PRISE.search(ligne)
         if not prise or zone is None:
             continue
@@ -253,6 +264,8 @@ def prises() -> list:
             continue            # hors du carnet : on n'approxime pas
         sortie.append("|".join((zone, SAISONS_PAGE[saison], matiere, qualite,
                                 CONDITIONS_PAGE[condition])))
+    if zone:
+        _ecrire("zone.json", zone)
     return list(dict.fromkeys(sortie))
 
 

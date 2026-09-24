@@ -45,6 +45,10 @@ SOURCE_LIEUX = ("https://raw.githubusercontent.com/nimetu/ryzom_maps/"
 ZONES_SUPREMES = ("region_forbidden_depths", "region_the_land_of_continuty",
                   "region_the_sunken_city", "region_the_under_spring")
 
+#: Les memes, en francais : ce sont les noms que porte le releve de la guilde.
+ZONES_FR = ("Sources Interdites", "Terre de la Continuité",
+            "Cité Engloutie", "Profondeurs Interdites")
+
 #: Ce que le jeu met devant le nom d'une matière selon sa famille — « Bundle of
 #: … Wood », « Portion of … Resin ». Rien à en tirer, on l'enlève.
 CONTENANTS = ("Bundle", "Portion", "Fragment", "Phial", "Handful")
@@ -211,6 +215,43 @@ def lieux() -> dict:
             if nom and not nom.startswith(("region_", "continent_", "place_")):
                 noms[cle] = nom
     return noms
+
+
+def lieux_dits(table: dict) -> dict:
+    """{lieu-dit: région} pour les quatre zones des Primes.
+
+    **Pourquoi c'est nécessaire.** Quand on entre quelque part, le jeu écrit
+    dans son canal `ZON` le nom du **lieu-dit** — « Pré Lancinant », « Gorge
+    Hantée » — et non celui de la région. Il ne cite la région qu'en franchissant
+    sa frontière, ce qui peut ne pas arriver d'une soirée entière. Sans cette
+    table, une prise relevée dans le journal ne sait pas dans quelle colonne
+    du relevé aller, et se perd.
+
+    **Comment on rattache.** Par le gisement étiqueté le plus proche : on en a
+    cent quatre-vingt-neuf dans les quatre zones, avec leur région. Le contrôle
+    qui valide la méthode est que les libellés de région retombent chacun sur
+    sa propre région — ils le font tous les quatre.
+    """
+    with urllib.request.urlopen(SOURCE_LIEUX, timeout=180) as reponse:
+        libelle = json.loads(reponse.read())
+    reperes = [(x, y, lieu) for pts in table.values()
+               for x, y, lieu in pts if lieu in ZONES_FR]
+    sortie = {}
+    for continent, places in libelle.items():
+        for cle, valeur in places.items():
+            if not cle.startswith(("place_", "region_")):
+                continue
+            nom = valeur.get("text", {}).get("fr") or ""
+            if not nom or nom.startswith(("place_", "region_")):
+                continue
+            x, y = valeur["pos"]
+            proche = min(reperes, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)
+            ecart = ((proche[0] - x) ** 2 + (proche[1] - y) ** 2) ** 0.5
+            # Au-dela, on n'est plus dans les Primes : le lieu appartient a une
+            # autre region, et deviner serait pire que se taire.
+            if ecart <= 400:
+                sortie[nom] = proche[2]
+    return dict(sorted(sortie.items()))
 
 
 def releve(dump: dict, noms: dict) -> dict:
@@ -390,7 +431,7 @@ object Gisements {{
 """
 
 
-def python(table: dict, taux: dict) -> str:
+def python(table: dict, taux: dict, lieux: dict) -> str:
     lignes = []
     for (qualite, famille, matiere), points in table.items():
         h = "[" + ", ".join(
@@ -414,6 +455,21 @@ La clé est en français, comme ce qu'affiche l'écran.
 #: (qualité, famille, matière) -> ([fourchettes d'humidité], [positions de jeu])
 GISEMENTS = {{
 {chr(10).join(lignes)}
+}}
+
+#: Lieu-dit -> région, pour les quatre zones des Primes.
+#:
+#: Quand on entre quelque part, le jeu écrit dans son canal `ZON` le nom du
+#: **lieu-dit** — « Pré Lancinant », « Gorge Hantée » — et non celui de la
+#: région. Il ne cite la région qu'en franchissant sa frontière, ce qui peut
+#: ne pas arriver d'une soirée entière. Sans cette table, une prise relevée
+#: dans le journal du jeu ne sait pas dans quelle colonne du relevé aller.
+#:
+#: Rattachement par le gisement étiqueté le plus proche — cent quatre-vingt-neuf
+#: points de référence. Le contrôle qui valide la méthode : les libellés de
+#: région retombent chacun sur sa propre région, tous les quatre.
+LIEUX_DITS = {{
+{chr(10).join(f'    "{lieu}": "{zone}",' for lieu, zone in lieux.items())}
 }}
 
 #: (famille, libellé affiché) -> (famille, matière) du jeu.
@@ -467,6 +523,10 @@ def main() -> int:
 
     android = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     depot = os.path.dirname(android)
+    # Les lieux-dits des Primes, rattaches a leur region : c'est ce que le jeu
+    # ecrit dans son canal ZON quand on entre quelque part.
+    lieux_des_primes = lieux_dits(table)
+    print(f"  {len(lieux_des_primes)} lieux-dits rattachés à leur région")
     sorties = (
         (os.path.join(android,
                       "app/src/main/kotlin/net/ryzom/zyroom/model/Gisements.kt"),
@@ -474,7 +534,7 @@ def main() -> int:
          "\n".join(f'        ("{f}" to "{b}") to ("{cf}" to "{cm}"),'
                    for (f, b), (cf, cm) in sorted(noms.items()))),
         (os.path.join(depot, "zyroom-gtk/zyroom/gisements.py"),
-         python(table, taux),
+         python(table, taux, lieux_des_primes),
          "\n".join(f'    ("{f}", "{b}"): ("{cf}", "{cm}"),'
                    for (f, b), (cf, cm) in sorted(noms.items()))),
     )

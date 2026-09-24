@@ -138,11 +138,24 @@ class DeuxNomsUneMatiere(unittest.TestCase):
                                 1, len(matiere.split()),
                                 f"{famille} / « {matiere} » porte une note")
 
-    def test_enola_est_une_seve_meme_classee_en_huile(self):
-        """Le classeur la range en Huile, le jeu en Sève."""
-        points = gisements.points("supreme", "Huile", "Enola")
-        self.assertTrue(points)
-        self.assertEqual(gisements.points("supreme", "Sève", "Enola"), points)
+    def test_enola_est_une_seve(self):
+        """Et elle l'est partout, depuis que le relevé a remplacé le classeur.
+
+        Le classeur de la guilde la rangeait en Huile quand le jeu la range en
+        Sève, et la table portait les deux libellés pour que les deux écrans
+        se rejoignent. Le relevé de xiom.be/forage l'a remplacé : plus aucune
+        table ne dit « Huile / Enola », et trois libellés du classeur ont
+        disparu avec lui — celui-ci, « Ardente ? » et « Visc agro KKT ».
+        """
+        from zyroom import armory, forage
+        for quoi in (forage.SUPREMES, forage.EXCELLENTES):
+            for zone in quoi.values():
+                self.assertNotIn(("Huile", "Enola"), zone)
+        rangees = {f for zones in armory.SUPREMES.values()
+                   for familles in zones.values()
+                   for f, ms in familles.items() if "Enola" in ms}
+        self.assertEqual({"Sève"}, rangees)
+        self.assertTrue(gisements.points("supreme", "Sève", "Enola"))
 
 
 class Inconnues(unittest.TestCase):
