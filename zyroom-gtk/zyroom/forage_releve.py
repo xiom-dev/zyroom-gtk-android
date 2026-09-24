@@ -93,7 +93,11 @@ CONDITIONS_PAGE = {"worst": "Worst", "bad": "Bad",
                    "good": "Good", "best": "Best"}
 
 #: Ce que le jeu écrit dans le nom d'une matière, vers la colonne de la page.
-QUALITES_PAGE = (("supr", "Supp"), ("excellent", "XL"), ("choix", "Choix"))
+#:
+#: **Pas de choix.** Ludo ne veut du choix nulle part : ni à l'écran, ni sur le
+#: relevé. Une prise de choix n'est donc reconnue sous aucune qualité, et elle
+#: est laissée de côté comme une prise illisible.
+QUALITES_PAGE = (("supr", "Supp"), ("excellent", "XL"))
 
 #: La coquille de Ryzom, portée des deux côtés mais pas de la même façon.
 #:
@@ -336,8 +340,8 @@ def _depuis_le_site(cases: dict) -> dict:
     familles = _familles()
     saisons = {nom: meteo.SAISONS[i] for i, nom in enumerate(SAISONS_PAGE)}
     conditions = {v: k.upper() for k, v in CONDITIONS_PAGE.items()}
-    colonnes = {"Supp": meteo.SUPREME, "XL": meteo.EXCELLENTE,
-                "Choix": meteo.CHOIX}
+    # La colonne Choix du site n'est pas lue : voir `QUALITES_PAGE`.
+    colonnes = {"Supp": meteo.SUPREME, "XL": meteo.EXCELLENTE}
     tables = {q: {zone: {} for zone in meteo.ZONES}
               for q in (meteo.SUPREME, meteo.EXCELLENTE, meteo.CHOIX,
                         meteo.A_CONFIRMER)}
