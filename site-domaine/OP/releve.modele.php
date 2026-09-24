@@ -28,7 +28,7 @@ const MAX_SAUVEGARDES = 60;
 const MAX_CORPS = 512 * 1024;
 const MAX_WHOS = 5000;
 const MAX_NOMS_PAR_WHO = 500;
-const CAMPS = ['kamis', 'opposants'];
+const CAMPS = ['kamis', 'opposants', 'neutres'];
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

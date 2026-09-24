@@ -79,6 +79,15 @@
   #kamis h2 { color: var(--nous); }
   #tous h2 { color: var(--or); }
   #opposants h2 { color: var(--eux); }
+  #neutres h2 { color: var(--faible); }
+  /* **Les neutres sous le centre.** Des spectateurs, peu nombreux : une
+     pleine colonne serait vide aux trois quarts. Places sous « A trier »,
+     ils restent entre les deux camps -- la ou ils sont -- et Kamis comme
+     Opposants gardent leur largeur. */
+  .milieu { display: flex; flex-direction: column; gap: 12px; }
+  .milieu #tous { flex: 1; }
+  #neutres { min-height: 110px; flex: 0 0 auto; }
+  #neutres .nom { border-color: rgba(154,168,165,.45); color: var(--faible); }
   /* La liste occupe toute la hauteur de la colonne : on peut lacher un nom
      n'importe ou dedans, pas seulement sur les noms deja poses. */
   .liste { flex: 1; padding: 8px; display: flex; flex-wrap: wrap;
@@ -126,7 +135,8 @@
   <h1>Guerre d'OP</h1>
   <p>En jeu, tape <code>/chatLog</code>, puis des <code>/who</code> pendant l'OP.
      Dépose ensuite ton journal (<code>save/log_…txt</code>) ci-dessous : les
-     noms vus arrivent au centre, et chacun les glisse à gauche ou à droite.
+     noms vus arrivent au centre, et chacun les glisse à gauche, à droite, ou
+     dans les neutres pour les spectateurs.
      Tout le monde voit le même tri. Du journal, seuls les <code>/who</code>
      sont envoyés — jamais les tells ni le canal de guilde.</p>
 </header>
@@ -149,9 +159,14 @@
   <section class="colonne" id="kamis" data-camp="kamis">
     <h2>Kamis <span></span></h2><div class="liste"></div>
   </section>
-  <section class="colonne" id="tous" data-camp="">
-    <h2>À trier <span></span></h2><div class="liste"></div>
-  </section>
+  <div class="milieu">
+    <section class="colonne" id="tous" data-camp="">
+      <h2>À trier <span></span></h2><div class="liste"></div>
+    </section>
+    <section class="colonne" id="neutres" data-camp="neutres">
+      <h2>Neutres <span></span></h2><div class="liste"></div>
+    </section>
+  </div>
   <section class="colonne" id="opposants" data-camp="opposants">
     <h2>Opposants <span></span></h2><div class="liste"></div>
   </section>
@@ -389,6 +404,7 @@
   function peindre() {
     peindreWhos();
     const noms = nomsVus();
+    // Les neutres comptent comme tries : ils ne reviennent pas au centre.
     const tries = camp => Object.keys(camps).filter(n => camps[n].c === camp)
                                 .sort((a, b) => a.localeCompare(b, "fr"));
     for (const colonne of document.querySelectorAll(".colonne")) {
@@ -516,7 +532,8 @@
   document.getElementById("copier").addEventListener("click", () => {
     const liste = camp => Object.keys(camps).filter(n => camps[n].c === camp)
                                 .sort((a, b) => a.localeCompare(b, "fr")).join(", ");
-    const texte = "Kamis : " + liste("kamis") + "\nOpposants : " + liste("opposants");
+    const texte = "Kamis : " + liste("kamis") + "\nOpposants : " + liste("opposants")
+                  + "\nNeutres : " + liste("neutres");
     navigator.clipboard.writeText(texte).catch(() => prompt("À copier :", texte));
   });
   document.getElementById("oublier").addEventListener("click", () => {
