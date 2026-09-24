@@ -80,7 +80,7 @@ GISEMENTS = {
     ("supreme", "oil", "koorin"): ([(16.7, 83.3)], [(658, -13669, "Terre de la Continuité"), (2060, -14092, "Cité Engloutie"), (2470, -15223, "Profondeurs Interdites"), (3200, -10952, "Sources Interdites")]),
     ("supreme", "oil", "pilan"): ([(50.0, 100.0)], [(966, -13247, "Terre de la Continuité"), (2072, -15584, "Profondeurs Interdites"), (2138, -14186, "Cité Engloutie"), (3329, -11078, "Sources Interdites")]),
     ("supreme", "resin", "dung"): ([(0.0, 49.9)], [(1220, -13366, "Terre de la Continuité"), (2206, -15697, "Profondeurs Interdites"), (2585, -14444, "Cité Engloutie"), (3458, -10630, "Sources Interdites")]),
-    ("supreme", "resin", "fung"): ([], [(1386, -13540, "Terre de la Continuité"), (1650, -14891, "Profondeurs Interdites"), (1909, -13987, "Cité Engloutie"), (2869, -10432, "Sources Interdites")]),
+    ("supreme", "resin", "fung"): ([(50.0, 100.0)], [(1386, -13540, "Terre de la Continuité"), (1650, -14891, "Profondeurs Interdites"), (1909, -13987, "Cité Engloutie"), (2869, -10432, "Sources Interdites")]),
     ("supreme", "resin", "glue"): ([(16.7, 83.3)], [(1466, -14186, "Terre de la Continuité"), (2396, -14260, "Cité Engloutie"), (2778, -15229, "Profondeurs Interdites"), (3418, -10048, "Sources Interdites")]),
     ("supreme", "resin", "moon"): ([(16.7, 49.9), (83.4, 100.0)], [(1412, -15182, "Profondeurs Interdites"), (1482, -13864, "Terre de la Continuité"), (2417, -14030, "Cité Engloutie"), (2987, -10677, "Sources Interdites")]),
     ("supreme", "sap", "dante"): ([(50.0, 100.0)], [(406, -13391, "Terre de la Continuité"), (1898, -15135, "Profondeurs Interdites"), (2183, -13813, "Cité Engloutie"), (3147, -10796, "Sources Interdites")]),
@@ -109,6 +109,54 @@ GISEMENTS = {
     ("supreme", "wood_node", "yana"): ([(0.0, 16.6), (50.0, 83.3)], [(1068, -14670, "Terre de la Continuité"), (2284, -13487, "Cité Engloutie"), (2648, -14727, "Profondeurs Interdites"), (3282, -10330, "Sources Interdites")]),
 }
 
+#: Lieu-dit -> région, pour les quatre zones des Primes.
+#:
+#: Quand on entre quelque part, le jeu écrit dans son canal `ZON` le nom du
+#: **lieu-dit** — « Pré Lancinant », « Gorge Hantée » — et non celui de la
+#: région. Il ne cite la région qu'en franchissant sa frontière, ce qui peut
+#: ne pas arriver d'une soirée entière. Sans cette table, une prise relevée
+#: dans le journal du jeu ne sait pas dans quelle colonne du relevé aller.
+#:
+#: Rattachement par le gisement étiqueté le plus proche — cent quatre-vingt-neuf
+#: points de référence. Le contrôle qui valide la méthode : les libellés de
+#: région retombent chacun sur sa propre région, tous les quatre.
+LIEUX_DITS = {
+    "Ailes du Dépit": "Terre de la Continuité",
+    "Atelier des Bois du Champignon Géant": "Terre de la Continuité",
+    "Atelier des Cornes du Dragon": "Profondeurs Interdites",
+    "Atelier du Valon des Souches": "Cité Engloutie",
+    "Avant-Poste Diplomatique du Tournant de la Continuité": "Terre de la Continuité",
+    "Bois du Champignon Géant": "Terre de la Continuité",
+    "Caverne Maudite": "Terre de la Continuité",
+    "Caverne de la Montagne Empoisonnée": "Profondeurs Interdites",
+    "Centre de Recherche de la Promenade des Grottes": "Terre de la Continuité",
+    "Cité Engloutie": "Cité Engloutie",
+    "Eaux Furtives": "Sources Interdites",
+    "Ferme de la Gorge Hantée": "Cité Engloutie",
+    "Ferme des Ailes du Dépit": "Terre de la Continuité",
+    "Ferme des Ruines de Cryton": "Profondeurs Interdites",
+    "Forteresse de l'Arbre Mort": "Sources Interdites",
+    "Forteresse de la Caverne Maudite": "Terre de la Continuité",
+    "Forteresse de la Salle de la Montagne Empoisonnée": "Profondeurs Interdites",
+    "Forteresse du Lac Majeure de Sève": "Cité Engloutie",
+    "Giron du Démon": "Profondeurs Interdites",
+    "Gorge Hantée": "Cité Engloutie",
+    "Impasse Maudite": "Profondeurs Interdites",
+    "Lac Majeur de Sève": "Cité Engloutie",
+    "Marécage de la Sève": "Sources Interdites",
+    "Point du Milieu": "Terre de la Continuité",
+    "Poste Frontière du Pré Lancinant": "Sources Interdites",
+    "Poste d'Échange du Marécage de la Sève": "Sources Interdites",
+    "Profondeurs Interdites": "Profondeurs Interdites",
+    "Promenade des Grottes": "Terre de la Continuité",
+    "Pré Lancinant": "Sources Interdites",
+    "Ruines de Tryde": "Sources Interdites",
+    "Sources Interdites": "Sources Interdites",
+    "Terre de la Continuité": "Terre de la Continuité",
+    "Trou aux Arbres Morts": "Sources Interdites",
+    "Vallée des Cornes du Dragon": "Profondeurs Interdites",
+}
+
 #: (famille, libellé affiché) -> (famille, matière) du jeu.
 #:
 #: Les deux écrans ne nomment pas les matières pareil — « Colle » ici, « Glue »
@@ -116,7 +164,6 @@ GISEMENTS = {
 #: rempli. Tout est résolu à la fabrication : ici, un simple accès.
 LIBELLES = {
     ("Ambres", "Beng"): ("amber", "beng"),
-    ("Ambres", "Beng Agro"): ("amber", "beng"),
     ("Ambres", "Hash"): ("amber", "hash"),
     ("Ambres", "Pha"): ("amber", "pha"),
     ("Ambres", "Sha"): ("amber", "sha"),
@@ -133,14 +180,12 @@ LIBELLES = {
     ("Boucles", "Scrath"): ("wood_node", "scrath"),
     ("Boucles", "Tansy"): ("wood_node", "tansy"),
     ("Boucles", "Yana"): ("wood_node", "yana"),
-    ("Boucles", "Yana ?"): ("wood_node", "yana"),
     ("Carapace", "Big"): ("shell", "big"),
     ("Carapace", "Cornée"): ("shell", "horny"),
     ("Carapace", "Cuty"): ("shell", "cuty"),
     ("Carapace", "Grosse"): ("shell", "big"),
     ("Carapace", "Horny"): ("shell", "horny"),
     ("Carapace", "Inteligente"): ("shell", "smart"),
-    ("Carapace", "Migno Omg AGGRO"): ("shell", "cuty"),
     ("Carapace", "Mignonne"): ("shell", "cuty"),
     ("Carapace", "Smart"): ("shell", "smart"),
     ("Carapace", "Splinter"): ("shell", "splinter"),
@@ -153,7 +198,6 @@ LIBELLES = {
     ("Graines", "Sarina"): ("seed", "sarina"),
     ("Graines", "Saurona"): ("seed", "saurona"),
     ("Graines", "Silvio"): ("seed", "silvio"),
-    ("Huile", "Enola"): ("sap", "enola"),
     ("Huile", "Gulatch"): ("oil", "gulatch"),
     ("Huile", "Irin"): ("oil", "irin"),
     ("Huile", "Koorin"): ("oil", "koorin"),
@@ -165,13 +209,11 @@ LIBELLES = {
     ("Résine", "Lune"): ("resin", "moon"),
     ("Résine", "Moon"): ("resin", "moon"),
     ("Sève", "Ardente"): ("sap", "redhot"),
-    ("Sève", "Ardente ?"): ("sap", "redhot"),
     ("Sève", "Dante"): ("sap", "dante"),
     ("Sève", "Enola"): ("sap", "enola"),
     ("Sève", "Redhot"): ("sap", "redhot"),
     ("Sève", "Silverweed"): ("sap", "silverweed"),
     ("Sève", "Visc"): ("sap", "viscous"),
-    ("Sève", "Visc agro KKT"): ("sap", "viscous"),
     ("Écorce", "Adriel"): ("bark", "adriel"),
     ("Écorce", "Beckers"): ("bark", "beckers"),
     ("Écorce", "Mitexi"): ("bark", "mitexi"),

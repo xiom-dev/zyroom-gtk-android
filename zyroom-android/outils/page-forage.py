@@ -80,10 +80,17 @@ ZONES = ("Sources Interdites", "Terre de la Continuité",
 #: Les quatre conditions du jeu, avec la fourchette d'humidite que le tracker
 #: affiche. Le nom anglais est garde : c'est celui du classeur et du tracker,
 #: donc celui que les foreuses ont sous les yeux.
-CONDITIONS = (("Exécrable", "Worst", "84 – 100 %"),
-              ("Mauvaise", "Bad", "50 – 83 %"),
-              ("Bonne", "Good", "17 – 49 %"),
-              ("Excellente", "Best", "0 – 16 %"))
+#: **« Médiocre » et non « Exécrable ».** C'est le mot du tracker d'atys.us et
+#: du graphe de Ballistic Mystix, ceux que les foreuses ont sous les yeux à
+#: côté de cette page. Deux noms pour la même bande d'humidité forçaient à
+#: traduire de tête à chaque coup d'œil.
+#:
+#: Les bornes sont celles du jeu, sans arrondi : 16,6 / 16,7 et 83,3 / 83,4
+#: sont des frontières, pas des approximations.
+CONDITIONS = (("Médiocre", "Worst", "83,4 – 100 %"),
+              ("Mauvaise", "Bad", "50 – 83,3 %"),
+              ("Bonne", "Good", "16,7 – 49,9 %"),
+              ("Excellente", "Best", "0 – 16,6 %"))
 
 QUALITES = ("Supp", "XL", "Choix")
 
@@ -172,15 +179,30 @@ def grille(familles: list) -> str:
         # colle en haut, on perd la colonne ou l'on vise en descendant.
         # La premiere famille n'en a pas besoin : le vrai en-tete est juste
         # au-dessus d'elle, et le redire ferait deux lignes identiques collees.
+        # L'embleme devant le nom, a cinq pixels, l'ensemble centre dans sa
+        # cellule. Il l'a d'abord precede sans que la cellule soit centree :
+        # le nom se trouvait alors pousse d'une largeur d'icone vers la droite.
+        # Le nom dans sa propre balise : c'est lui, et lui seul, que le
+        # centrage doit prendre en compte.
         titre = (f'<img class="embleme" src="{symbole(famille)}" alt="">'
-                 f'{html.escape(famille)}')
+                 f'<span class="nom-famille">{html.escape(famille)}</span>')
         if rang_famille == 0:
-            lignes.append(f'<tr class="famille"><th colspan="6">{titre}</th></tr>')
+            # Meme largeur de cellule que les autres familles, pour que les dix
+            # noms se centrent sur la meme colonne. Les quatre cases de droite
+            # restent vides : le vrai en-tete est juste au-dessus, et redire
+            # les conditions ferait deux lignes identiques collees.
+            lignes.append(f'<tr class="famille"><th colspan="2">{titre}</th>'
+                          + '<td class="vide"></td>' * len(CONDITIONS)
+                          + '</tr>')
         else:
             lignes.append(
                 f'<tr class="famille"><th colspan="2">{titre}</th>'
-                + "".join(f'<th class="rappel">{fr}</th>'
-                          for fr, _c, _p in CONDITIONS)
+                # La plage aussi, et pas seulement le nom : le tableau est
+                # long, et c'est ce rappel-ci qu'on a sous les yeux en le
+                # parcourant, pas l'en-tete reste tout en haut.
+                + "".join(f'<th class="rappel">{fr}'
+                          f'<span class="plage">{plage}</span></th>'
+                          for fr, _c, plage in CONDITIONS)
                 + "</tr>")
         for matiere in matieres:
             # Le « ² » du classeur marquait les matieres a stocker en priorite
@@ -488,10 +510,26 @@ GABARIT = """<!DOCTYPE html>
   header { max-width: 900px; margin: 0 auto; padding: 24px 0 8px; }
   h1 { font-size: 1.4rem; margin: 0 0 8px; color: var(--or); }
   p { margin: 0 0 10px; color: var(--faible); line-height: 1.5; }
+  header { max-width: 900px; margin: 0 auto; padding: 0 12px; }
   a { color: var(--clair); }
 
-  .barre { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-           max-width: 900px; margin: 12px auto; }
+  /* Le plan : le panneau de commandes, puis le tableau. Les deux se
+     partagent la largeur, et le panneau ne grandit pas. */
+  .plan { display: flex; gap: 16px; align-items: flex-start;
+          max-width: 1180px; margin: 12px auto; padding: 0 12px; }
+
+  /* **Colle en haut, et n'en bouge plus.** Le tableau fait cent quarante et
+     une lignes : sans cela il fallait remonter jusqu'en haut de la page pour
+     changer de zone ou de saison, puis redescendre chercher sa ligne. */
+  .cote { position: sticky; top: 8px; flex: 0 0 auto;
+          display: flex; flex-direction: column; gap: 10px; }
+  /* Deux colonnes : les quatre zones a gauche, les quatre saisons a droite. */
+  .choix { display: flex; gap: 8px; align-items: flex-start; }
+  .pile { display: flex; flex-direction: column; gap: 6px; }
+  .pile button { text-align: left; white-space: nowrap; }
+  #bloc-nom { color: var(--faible); font-size: .9rem; }
+  #bloc-nom input { width: 100%; box-sizing: border-box; margin-top: 4px; }
+  .cote #lecture { margin: 0; font-size: .85rem; }
   button {
     background: var(--surface); color: var(--texte); cursor: pointer;
     border: 1px solid #24343a; border-radius: 7px; padding: 7px 13px;
@@ -502,10 +540,22 @@ GABARIT = """<!DOCTYPE html>
     background: var(--sarcelle); color: #08120f; border-color: var(--sarcelle);
     font-weight: 600;
   }
-  .compte { margin-left: auto; color: var(--faible); font-size: .9rem; }
+  .compte { color: var(--faible); font-size: .9rem; }
 
   /* Le tableau deborde volontiers : il defile seul, sans pousser la page. */
-  .cadre { max-width: 900px; margin: 0 auto; overflow-x: auto; }
+  .cadre { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+
+  /* Sous mille pixels, deux panneaux cote a cote ne tiennent plus : le
+     panneau repasse au-dessus du tableau, en ligne, comme avant. */
+  @media (max-width: 1000px) {
+    .plan { display: block; }
+    .cote { position: static; flex-direction: row; flex-wrap: wrap;
+            align-items: center; margin-bottom: 12px; }
+    .choix { flex-wrap: wrap; }
+    .pile { flex-direction: row; flex-wrap: wrap; }
+    .pile button { text-align: center; }
+    #bloc-nom input { width: auto; }
+  }
   /* Largeurs posees : laissee libre, la colonne des noms s'etirait sur la
      moitie de l'ecran et les quatre conditions se serraient a droite. */
   table { border-collapse: collapse; width: auto; margin: 0 auto; }
@@ -524,9 +574,20 @@ GABARIT = """<!DOCTYPE html>
   /* Le fond de la ligne de famille est plus clair que la couleur des traits :
      les separations de colonnes y disparaissaient, et l'oeil perdait la
      colonne qu'il suivait en descendant. On les eclaircit juste assez. */
-  .famille .embleme { width: 22px; height: 22px; vertical-align: -5px; }
-  .famille th { background: #1d2b30; color: var(--or); text-align: left;
+  /* **L'embleme ne compte pas dans le centrage.** Vingt-deux pixels de
+     large, cinq de marge a droite, et vingt-sept de marge negative a gauche :
+     sa largeur totale est donc nulle, et le centrage ne voit que le nom. Sans
+     cela, le nom se decalait vers la droite de la moitie de l'icone -- ce
+     qu'on voyait tout de suite en comparant deux familles. */
+  .famille .embleme { width: 22px; height: 22px; vertical-align: -5px;
+                      margin-right: 5px; margin-left: -27px; }
+  /* Le nom de la famille et son embleme sont centres ensemble sur leurs deux
+     colonnes. Ils etaient alignes a gauche : le nom se trouvait alors pousse
+     d'une largeur d'icone, et le passer devant l'image l'a fait sauter contre
+     la bordure. Le centrage regle les deux. */
+  .famille th { background: #1d2b30; color: var(--or); text-align: center;
                 letter-spacing: .02em; border-color: #3d5560; }
+  .famille .vide { background: #1d2b30; border-color: #3d5560; }
   .matiere { text-align: center; white-space: nowrap; font-weight: 600;
              width: 170px; }
   .qualite { color: var(--faible); font-weight: 400; font-size: .85rem;
@@ -536,6 +597,7 @@ GABARIT = """<!DOCTYPE html>
   /* Centres : `.famille th` aligne tout a gauche pour le nom de la famille,
      et les rappels heritaient de cet alignement -- ils flottaient donc au bord
      gauche de colonnes larges de cent huit points, loin de la case visee. */
+  .famille .rappel .plage { display: block; font-size: .68rem; opacity: .7; }
   .famille .rappel { font-size: .75rem; font-weight: 400; color: var(--clair);
                      letter-spacing: .02em; text-align: center; }
   .q-supp .qualite { color: var(--or); }
@@ -614,20 +676,24 @@ GABARIT = """<!DOCTYPE html>
      parfois plusieurs heures de décalage.</p>
 </header>
 
-<div class="barre">
-  __ZONES__
-</div>
+<!-- Le plan : un panneau de commandes a gauche, le tableau a droite.
+     Le panneau se colle en haut des qu'on a depasse l'en-tete et n'en bouge
+     plus : le tableau fait cent quarante et une lignes, et il fallait
+     remonter tout en haut pour changer de zone ou de saison. -->
+<div class="plan">
 
-<div class="barre">
-  __ONGLETS__
+<aside class="cote">
+  <div class="choix">
+    <div class="pile">__ZONES__</div>
+    <div class="pile">__ONGLETS__</div>
+  </div>
   <label id="bloc-nom">Ton nom&nbsp;:
     <input id="nom" maxlength="24" size="12" placeholder="Xiom" spellcheck="false">
   </label>
   <span class="compte" id="compte">chargement…</span>
-</div>
-
-<p id="lecture" hidden>Lecture seule&nbsp;: demande le lien de saisie dans le
-   canal de guilde pour pouvoir cocher.</p>
+  <p id="lecture" hidden>Lecture seule&nbsp;: demande le lien de saisie dans
+     le canal de guilde pour pouvoir cocher.</p>
+</aside>
 
 <div class="cadre">
   <table>
@@ -639,6 +705,8 @@ GABARIT = """<!DOCTYPE html>
     </thead>
     <tbody id="corps">__GRILLE__</tbody>
   </table>
+</div>
+
 </div>
 
 <style>

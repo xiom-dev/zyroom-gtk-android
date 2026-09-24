@@ -272,9 +272,17 @@ def enumere_qualites(qualites) -> str:
 
 
 def texte_condition(condition: str) -> str:
-    """La condition de gisement, en français."""
+    """La condition de gisement, en français.
+
+    **« Médiocre » et non « Exécrable ».** C'est le mot du tracker d'atys.us,
+    du graphe de Ballistic Mystix et du relevé de la guilde — ceux que les
+    foreuses ont ouverts à côté de cet écran. Deux noms pour la même bande
+    d'humidité forçaient à traduire de tête à chaque coup d'œil. Les
+    commentaires du code disent encore « exécrable » : c'est le mot du jeu, et
+    il désigne la même chose.
+    """
     return {"best": "Excellente", "good": "Bonne",
-            "bad": "Mauvaise", "worst": "Exécrable"}.get(condition.lower(), condition)
+            "bad": "Mauvaise", "worst": "Médiocre"}.get(condition.lower(), condition)
 
 
 def duree(minutes: int, unite: bool = False) -> str:

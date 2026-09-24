@@ -80,7 +80,10 @@ class Textes(unittest.TestCase):
 
     def test_les_conditions_de_gisement(self):
         self.assertEqual("Excellente", meteo.texte_condition("best"))
-        self.assertEqual("Exécrable", meteo.texte_condition("worst"))
+        # « Médiocre » et non « Exécrable » : le mot du tracker d'atys.us, du
+        # graphe de Ballistic Mystix et du relevé de la guilde. Deux noms pour
+        # la même bande d'humidité forçaient à traduire de tête.
+        self.assertEqual("Médiocre", meteo.texte_condition("worst"))
 
     def test_un_compte_a_rebours_se_lit(self):
         self.assertEqual("27 min", meteo.duree(27))
