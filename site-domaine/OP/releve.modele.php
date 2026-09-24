@@ -215,9 +215,78 @@ function ajouter_whos(array $etat, array $liste): array
 
 // ------------------------------------------------------------- les guerres
 
+// Deux formes d'identifiant : le jour du premier round (les guerres
+// reconnues a leurs rounds, avant le calendrier), et « g » suivi de l'instant
+// de creation, pour celles qu'on ouvre avec « Nouvelle guerre ».
 function guerre_valide($id): bool
 {
-    return is_string($id) && preg_match('/^\d{4}-\d{2}-\d{2}(-\d{1,2})?$/', $id) === 1;
+    return is_string($id)
+        && preg_match('/^(\d{4}-\d{2}-\d{2}(-\d{1,2})?|g\d{8}-\d{6}(-\d{1,2})?)$/', $id) === 1;
+}
+
+function fichier_guerre(string $id): string
+{
+    return COMBATS . '/' . $id . '.json';
+}
+
+/** Une guerre complete, champs manquants remplis : les anciennes n'ont ni
+ *  nom, ni mois, ni /who a elles. */
+function guerre_complete(array $lu, string $id): array
+{
+    $jour = preg_match('/^(\d{4})-(\d{2})/', $id, $m) ? $m : null;
+    return [
+        'id' => $id,
+        'nom' => (string) ($lu['nom'] ?? ''),
+        'annee' => (int) ($lu['annee'] ?? ($jour ? $jour[1] : gmdate('Y'))),
+        'mois' => (int) ($lu['mois'] ?? ($jour ? $jour[2] : gmdate('n'))),
+        'cree_le' => $lu['cree_le'] ?? null,
+        'cree_par' => $lu['cree_par'] ?? null,
+        'enregistree_le' => $lu['enregistree_le'] ?? null,
+        'enregistree_par' => $lu['enregistree_par'] ?? null,
+        'whos' => is_array($lu['whos'] ?? null) ? $lu['whos'] : [],
+        'journaux' => is_array($lu['journaux'] ?? null) ? $lu['journaux'] : [],
+        'bilan' => $lu['bilan'] ?? null,
+        'camps_figes' => is_array($lu['camps_figes'] ?? null) ? $lu['camps_figes'] : null,
+    ];
+}
+
+/**
+ * Lire, modifier, reecrire une guerre -- entiere, sous verrou. Toutes les
+ * ecritures passent par ici : un champ oublie par une action ne doit pas
+ * effacer ce qu'une autre a pose.
+ */
+function modifier_guerre(string $id, callable $changement, bool $creer = false): array
+{
+    $f = fichier_guerre($id);
+    if (!$creer && !is_file($f)) {
+        repond(404, ['erreur' => 'guerre inconnue']);
+    }
+    @mkdir(COMBATS, 0775, true);
+    $fh = fopen($f, 'c+');
+    if ($fh === false || !flock($fh, LOCK_EX)) {
+        repond(500, ['erreur' => 'fichier verrouille']);
+    }
+    $lu = json_decode((string) stream_get_contents($fh), true);
+    $g = $changement(guerre_complete(is_array($lu) ? $lu : [], $id));
+    ftruncate($fh, 0);
+    rewind($fh);
+    $g['journaux'] = (object) $g['journaux'];
+    fwrite($fh, (string) json_encode($g, JSON_UNESCAPED_UNICODE));
+    fflush($fh);
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    clearstatcache();
+    return $g;
+}
+
+function lire_guerre(string $id): ?array
+{
+    $f = fichier_guerre($id);
+    if (!is_file($f)) {
+        return null;
+    }
+    $lu = json_decode((string) file_get_contents($f), true);
+    return guerre_complete(is_array($lu) ? $lu : [], $id);
 }
 
 /** Les guerres connues : de quoi remplir la liste, sans leur contenu. */
@@ -229,9 +298,12 @@ function guerres(): array
         if (!guerre_valide($id)) {
             continue;
         }
-        $lu = json_decode((string) file_get_contents($f), true);
-        $liste[] = ['id' => $id, 'maj' => filemtime($f),
-                    'proprios' => array_keys($lu['journaux'] ?? [])];
+        $g = lire_guerre($id);
+        $liste[] = ['id' => $id, 'maj' => filemtime($f), 'nom' => $g['nom'],
+                    'annee' => $g['annee'], 'mois' => $g['mois'],
+                    'enregistree_le' => $g['enregistree_le'],
+                    'cree_le' => $g['cree_le'],
+                    'proprios' => array_keys($g['journaux'])];
     }
     usort($liste, fn($a, $b) => strcmp($b['id'], $a['id']));
     return $liste;
@@ -249,13 +321,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     }
     if (isset($_GET['guerre'])) {
         $id = (string) $_GET['guerre'];
-        $f = COMBATS . '/' . $id . '.json';
-        if (!guerre_valide($id) || !is_file($f)) {
+        $g = guerre_valide($id) ? lire_guerre($id) : null;
+        if ($g === null) {
             repond(404, ['erreur' => 'guerre inconnue']);
         }
-        $lu = json_decode((string) file_get_contents($f), true);
-        repond(200, ['id' => $id, 'journaux' => (object) ($lu['journaux'] ?? []),
-                     'bilan' => $lu['bilan'] ?? null]);
+        $g['journaux'] = (object) $g['journaux'];
+        if ($g['camps_figes'] !== null) {
+            $g['camps_figes'] = (object) $g['camps_figes'];
+        }
+        repond(200, $g);
     }
     $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
     repond(200, reponse(lu($contenu)));
@@ -309,6 +383,20 @@ switch ($action) {
             }
             return $etat;
         });
+        // Une guerre deja enregistree garde son propre tri : le geste fait en
+        // la consultant la corrige elle aussi.
+        $id = $demande['guerre'] ?? null;
+        if (guerre_valide($id) && ($g = lire_guerre($id)) && $g['camps_figes'] !== null) {
+            modifier_guerre($id, function (array $g) use ($nom, $camp, $qui, $quand) {
+                if ($camp === '') {
+                    unset($g['camps_figes'][$nom]);
+                } else {
+                    $g['camps_figes'][$nom] = ['c' => $camp, 'qui' => $qui,
+                                               'quand' => $quand];
+                }
+                return $g;
+            });
+        }
         repond(200, reponse($etat));
 
     case 'whos':
@@ -353,7 +441,6 @@ switch ($action) {
         if (!is_array($resumes)) {
             repond(400, ['erreur' => 'resumes absents']);
         }
-        @mkdir(COMBATS, 0775, true);
         $gardes = 0;
         foreach ($resumes as $r) {
             if (!is_array($r) || !nom_valide($r['proprio'] ?? null)
@@ -361,26 +448,12 @@ switch ($action) {
                 || strlen((string) json_encode($r)) > MAX_RESUME) {
                 continue;
             }
-            $f = COMBATS . '/' . $r['guerre'] . '.json';
-            $fh = fopen($f, 'c+');
-            if ($fh === false || !flock($fh, LOCK_EX)) {
-                repond(500, ['erreur' => 'fichier verrouille']);
-            }
-            $lu = json_decode((string) stream_get_contents($fh), true);
-            $journaux = is_array($lu['journaux'] ?? null) ? $lu['journaux'] : [];
             $r['depose_par'] = $qui;
             $r['depose_le'] = $quand;
-            $journaux[$r['proprio']] = $r;
-            ftruncate($fh, 0);
-            rewind($fh);
-            // Le bilan de la guerre reste tel quel : deposer un journal ne
-            // doit pas effacer ce que quelqu'un a ecrit a la main.
-            fwrite($fh, (string) json_encode(['journaux' => $journaux,
-                                              'bilan' => $lu['bilan'] ?? null],
-                                             JSON_UNESCAPED_UNICODE));
-            fflush($fh);
-            flock($fh, LOCK_UN);
-            fclose($fh);
+            modifier_guerre($r['guerre'], function (array $g) use ($r) {
+                $g['journaux'][$r['proprio']] = $r;
+                return $g;
+            }, true);
             $gardes++;
         }
         $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
@@ -396,25 +469,108 @@ switch ($action) {
             || strlen($texte) > MAX_BILAN) {
             repond(400, ['erreur' => 'bilan illisible ou trop long']);
         }
-        $f = COMBATS . '/' . $id . '.json';
-        if (!is_file($f)) {
+        $bilan = ['texte' => $texte, 'qui' => $qui, 'quand' => $quand];
+        modifier_guerre($id, function (array $g) use ($bilan) {
+            $g['bilan'] = $bilan;
+            return $g;
+        });
+        repond(200, ['ok' => true, 'bilan' => $bilan, 'guerres' => guerres()]);
+
+    case 'nouvelle':
+        // Une guerre vide, rangee d'emblee dans le mois choisi a gauche.
+        $annee = (int) ($demande['annee'] ?? 0);
+        $mois = (int) ($demande['mois'] ?? 0);
+        if ($annee < 2000 || $annee > 2100 || $mois < 1 || $mois > 12) {
+            repond(400, ['erreur' => 'mois inconnu']);
+        }
+        $base = 'g' . gmdate('Ymd-His');
+        $id = $base;
+        for ($n = 2; is_file(fichier_guerre($id)); $n++) {
+            $id = $base . '-' . $n;
+        }
+        $g = modifier_guerre($id, function (array $g) use ($annee, $mois, $qui, $quand) {
+            $g['annee'] = $annee;
+            $g['mois'] = $mois;
+            $g['cree_le'] = $quand;
+            $g['cree_par'] = $qui;
+            return $g;
+        }, true);
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)) + ['ouverte' => $id]);
+
+    case 'journal':
+        // Ce qu'un journal apporte a la guerre ouverte : ses /who et le resume
+        // de ses combats. Redeposer le meme journal ne double rien : les /who
+        // se reconnaissent a leur heure et leur region, le resume remplace
+        // celui du meme joueur.
+        $id = $demande['guerre'] ?? null;
+        if (!guerre_valide($id)) {
+            repond(400, ['erreur' => 'guerre inconnue']);
+        }
+        $liste = is_array($demande['whos'] ?? null) ? $demande['whos'] : [];
+        $resumes = is_array($demande['resumes'] ?? null) ? $demande['resumes'] : [];
+        modifier_guerre($id, function (array $g) use ($liste, $resumes, $id, $qui, $quand) {
+            $g = ajouter_whos($g, $liste);
+            foreach ($resumes as $r) {
+                if (!is_array($r) || !nom_valide($r['proprio'] ?? null)
+                    || strlen((string) json_encode($r)) > MAX_RESUME) {
+                    continue;
+                }
+                $r['guerre'] = $id;
+                $r['depose_par'] = $qui;
+                $r['depose_le'] = $quand;
+                $g['journaux'][$r['proprio']] = $r;
+            }
+            return $g;
+        });
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)));
+
+    case 'enregistrer':
+        // Ranger la guerre dans un mois, sous un nom, et figer son tri : un
+        // joueur qui changera de camp plus tard n'y changera pas.
+        $id = $demande['guerre'] ?? null;
+        $nomGuerre = trim((string) ($demande['nom'] ?? ''));
+        $annee = (int) ($demande['annee'] ?? 0);
+        $mois = (int) ($demande['mois'] ?? 0);
+        $participants = $demande['participants'] ?? [];
+        if (!guerre_valide($id) || preg_match('/^[^\x00-\x1f<>]{1,80}$/u', $nomGuerre) !== 1
+            || $annee < 2000 || $annee > 2100 || $mois < 1 || $mois > 12
+            || !is_array($participants)) {
+            repond(400, ['erreur' => 'nom ou mois invalide']);
+        }
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        $etat = lu($contenu);
+        modifier_guerre($id, function (array $g) use ($nomGuerre, $annee, $mois,
+                                                     $participants, $etat, $qui, $quand) {
+            $g['nom'] = $nomGuerre;
+            $g['annee'] = $annee;
+            $g['mois'] = $mois;
+            $g['enregistree_le'] = $quand;
+            $g['enregistree_par'] = $qui;
+            $figes = [];
+            foreach ($participants as $n) {
+                if (nom_valide($n) && isset($etat['camps'][$n])) {
+                    $figes[$n] = $etat['camps'][$n];
+                }
+            }
+            $g['camps_figes'] = $figes;
+            return $g;
+        });
+        repond(200, reponse($etat));
+
+    case 'supprimer':
+        // Une guerre supprimee n'est pas perdue : elle part dans les
+        // sauvegardes, d'ou on peut la ressortir a la main.
+        $id = $demande['guerre'] ?? null;
+        if (!guerre_valide($id) || !is_file(fichier_guerre($id))) {
             repond(404, ['erreur' => 'guerre inconnue']);
         }
-        $fh = fopen($f, 'c+');
-        if ($fh === false || !flock($fh, LOCK_EX)) {
-            repond(500, ['erreur' => 'fichier verrouille']);
-        }
-        $lu = json_decode((string) stream_get_contents($fh), true);
-        $bilan = ['texte' => $texte, 'qui' => $qui, 'quand' => $quand];
-        ftruncate($fh, 0);
-        rewind($fh);
-        fwrite($fh, (string) json_encode(['journaux' => $lu['journaux'] ?? [],
-                                          'bilan' => $bilan],
-                                         JSON_UNESCAPED_UNICODE));
-        fflush($fh);
-        flock($fh, LOCK_UN);
-        fclose($fh);
-        repond(200, ['ok' => true, 'bilan' => $bilan, 'guerres' => guerres()]);
+        @mkdir(SAUVEGARDES, 0775, true);
+        rename(fichier_guerre($id),
+               SAUVEGARDES . '/guerre-' . $id . '-supprimee-' . gmdate('Ymd-His') . '.json');
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)));
 
     case 'oublier':
         $etat = modifier(function (array $etat) {

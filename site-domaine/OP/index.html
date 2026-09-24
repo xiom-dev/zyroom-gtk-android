@@ -155,36 +155,94 @@
   .barre-val { color: var(--faible); font-variant-numeric: tabular-nums;
                white-space: nowrap; }
 
+  /* **La page en deux : le calendrier a gauche, la guerre ouverte a
+     droite.** Le calendrier range les guerres par annee et par mois ; on en
+     rouvre une d'un clic. */
+  .page { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px;
+          max-width: 1360px; margin: 0 auto; align-items: start; }
+  #calendrier { position: sticky; top: 12px; background: var(--surface);
+                border: 1px solid var(--trait); border-radius: 10px; padding: 12px; }
+  #calendrier button { width: 100%; }
+  #nouvelle { background: var(--sarcelle); border-color: var(--sarcelle);
+              color: #fff; font-weight: 600; }
+  .annee { display: grid; grid-template-columns: 34px 1fr 34px; gap: 6px;
+           align-items: center; margin: 12px 0 8px; }
+  .annee span { text-align: center; font-weight: 700; color: var(--or); }
+  .annee button { padding: 4px 0; }
+  #mois { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  #mois button { padding: 5px 0; font-size: .82rem; position: relative; }
+  #mois button[aria-pressed="true"] { background: var(--sarcelle); border-color: var(--sarcelle); }
+  #mois button .n { position: absolute; top: -6px; right: -5px; min-width: 17px;
+                    padding: 0 4px; border-radius: 9px; background: var(--or);
+                    color: #10171a; font-size: .68rem; font-weight: 700; line-height: 17px; }
+  #mois-titre { margin: 14px 0 6px; font-size: .9rem; color: var(--clair); }
+  #liste-guerres { list-style: none; margin: 0; padding: 0; display: flex;
+                   flex-direction: column; gap: 5px; }
+  #liste-guerres button { text-align: left; font-size: .85rem; line-height: 1.3; }
+  #liste-guerres button[aria-current="true"] { border-color: var(--or); }
+  #liste-guerres small { display: block; color: var(--faible); font-size: .74rem; }
+  #liste-guerres .brouillon { color: var(--or); }
+  #liste-guerres .vide { padding: 0; }
+
+  /* La fiche : la guerre ouverte, son nom, et ce qu'on peut en faire. */
+  #fiche { max-width: 1100px; margin: 0 auto 12px; background: var(--surface);
+           border: 1px solid var(--trait); border-radius: 10px; padding: 10px 12px; }
+  #fiche-pleine { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #fiche-pleine[hidden], #fiche-vide[hidden] { display: none; }
+  #fiche-nom { flex: 1 1 260px; font-weight: 600; }
+  #fiche-etat { color: var(--faible); font-size: .85rem; flex: 1 1 100%; }
+  #fiche-vide { color: var(--faible); }
+  #enregistrer { background: var(--sarcelle); border-color: var(--sarcelle); color: #fff; }
+
+  /* Le menu du PDF : imprimer, ou telecharger le fichier. */
+  .menu-pdf { position: relative; }
+  #pdf-choix { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 5;
+               display: flex; flex-direction: column; gap: 4px; padding: 6px;
+               background: var(--surface); border: 1px solid var(--trait);
+               border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+  #pdf-choix[hidden] { display: none; }
+  #pdf-choix button { white-space: nowrap; text-align: left; }
+
   #titre-imprime, #bilan-imprime { display: none; }
 
-  /* **L'impression : le bilan d'une soiree, a lire ou a envoyer.** Fond
-     blanc -- l'encre --, ni boutons, ni zone de depot, ni la colonne « A
-     trier » : ce qui reste est ce qu'on a decide. « Enregistrer en PDF » dans
-     la fenetre d'impression en fait un fichier, sans rien installer. */
-  @media print {
-    @page { margin: 12mm; }
-    :root { --fond: #fff; --surface: #fff; --texte: #111; --faible: #555;
-            --trait: #bbb; --clair: #245e4f; --or: #7a5a00; }
-    body { padding: 0; font-size: 11pt; }
-    header p, .barre, .source, #whos, .actions, #voile, #tous,
-    #bilan-texte, #bilan-etat, #guerre { display: none !important; }
-    #titre-imprime, #bilan-imprime { display: inline; }
-    #bilan-imprime { display: block; white-space: pre-wrap; line-height: 1.45; }
-    .colonnes { grid-template-columns: 1fr 1fr 1fr; }
-    .milieu #tous { display: none; }
-    .colonne, .carte, #bilan { min-height: 0; break-inside: avoid; }
-    .liste { flex: none; }
-    .nom { cursor: default; background: #fff; }
-    /* Ce qui ne sert qu'a l'ecran : les aides au survol, les invites a
-       glisser un nom dans une colonne vide. */
-    .ecran, .colonne .vide { display: none; }
-    /* Les jauges gardent leurs couleurs : sans cela, le navigateur les
-       efface pour economiser l'encre, et les barres disparaissent. */
-    .barre-fond, .barre-plein { -webkit-print-color-adjust: exact;
-                                print-color-adjust: exact; }
-    .barre-fond { background: #e6ecea; }
-    #cartes { grid-template-columns: 1fr 1fr; }
-    #stats { margin-top: 16px; }
+  /* **L'impression et le PDF : le bilan d'une soiree, a lire ou a envoyer.**
+     Une seule mise en page pour les deux, posee par la classe « mode-pdf » :
+     l'impression l'allume avant d'imprimer, le telechargement le temps de
+     dessiner le fichier. Fond blanc -- l'encre --, ni calendrier, ni
+     boutons, ni zone de depot, ni la colonne « A trier » : ce qui reste est
+     ce qu'on a decide. */
+  @media print { @page { margin: 12mm; } }
+  html.mode-pdf { --fond: #fff; --surface: #fff; --texte: #111; --faible: #555;
+                  --trait: #bbb; --clair: #245e4f; --or: #7a5a00; }
+  html.mode-pdf body { padding: 0; font-size: 11pt; background: #fff; }
+  html.mode-pdf .page { display: block; max-width: none; }
+  html.mode-pdf :is(#calendrier, #fiche, header p, .barre, .source, #whos,
+                    .actions, #voile, #tous, #bilan-texte, #bilan-etat) { display: none !important; }
+  html.mode-pdf :is(#titre-imprime, #bilan-imprime) { display: inline; }
+  html.mode-pdf #bilan-imprime { display: block; white-space: pre-wrap; line-height: 1.45; }
+  html.mode-pdf .colonnes { grid-template-columns: 1fr 1fr 1fr; }
+  html.mode-pdf :is(.colonne, .carte, #bilan) { min-height: 0; break-inside: avoid; }
+  html.mode-pdf .liste { flex: none; }
+  html.mode-pdf .nom { cursor: default; background: #fff; }
+  /* Ce qui ne sert qu'a l'ecran : les aides au survol, les invites a
+     glisser un nom dans une colonne vide. */
+  html.mode-pdf :is(.ecran, .colonne .vide) { display: none; }
+  /* Les jauges gardent leurs couleurs : sans cela, le navigateur les efface
+     a l'impression pour economiser l'encre, et les barres disparaissent. */
+  html.mode-pdf :is(.barre-fond, .barre-plein) { -webkit-print-color-adjust: exact;
+                                                 print-color-adjust: exact; }
+  html.mode-pdf .barre-fond { background: #e6ecea; }
+  html.mode-pdf #cartes { grid-template-columns: 1fr 1fr; }
+  html.mode-pdf #stats { margin-top: 16px; }
+  /* Le fichier telecharge : les cartes l'une sous l'autre. html2pdf.js
+     repousse une carte a la page suivante en inserant un blanc devant elle,
+     ce qui ne marche pas dans une grille -- la carte restait coupee. */
+  html.pdf-fichier #cartes { display: block; }
+  html.pdf-fichier .carte { margin-bottom: 12px; }
+
+  @media (max-width: 1000px) {
+    .page { grid-template-columns: 1fr; }
+    #calendrier { position: static; }
   }
 
   @media (max-width: 700px) {
@@ -207,12 +265,28 @@
   </form>
 </div>
 
+<div class="page">
+<!-- Le calendrier : les guerres rangees par annee et par mois. -->
+<aside id="calendrier">
+  <button id="nouvelle">+ Nouvelle guerre</button>
+  <div class="annee">
+    <button id="annee-moins" aria-label="Année précédente">‹</button>
+    <span id="annee"></span>
+    <button id="annee-plus" aria-label="Année suivante">›</button>
+  </div>
+  <div id="mois"></div>
+  <h3 id="mois-titre"></h3>
+  <ul id="liste-guerres"></ul>
+</aside>
+
+<main id="contenu">
 <header>
   <h1>Guerre d'OP <span id="titre-imprime"></span></h1>
   <p>En jeu, tape <code>/chatLog</code>, puis des <code>/who</code> pendant l'OP.
-     Dépose ensuite ton journal (<code>save/log_…txt</code>) ci-dessous : les
-     noms vus arrivent au centre, et chacun les glisse à gauche, à droite, ou
-     dans les neutres pour les spectateurs.
+     Ouvre la guerre à gauche (« Nouvelle guerre »), dépose ton journal
+     (<code>save/log_…txt</code>) ci-dessous : les noms vus arrivent au centre,
+     et chacun les glisse à gauche, à droite, ou dans les neutres pour les
+     spectateurs. « Enregistrer » la range dans le mois choisi.
      Tout le monde voit le même tri. Du journal, seuls les <code>/who</code>
      sont envoyés — jamais les tells ni le canal de guilde.</p>
 </header>
@@ -224,6 +298,17 @@
   </label>
   <span id="etat">connexion…</span>
 </div>
+
+<section id="fiche">
+  <div id="fiche-vide">Choisis une guerre à gauche, ou crée une « Nouvelle guerre ».</div>
+  <div id="fiche-pleine" hidden>
+    <input type="text" id="fiche-nom" maxlength="80" placeholder="Nom de la guerre"
+           aria-label="Nom de la guerre">
+    <button id="enregistrer">Enregistrer</button>
+    <button id="supprimer">Supprimer</button>
+    <span id="fiche-etat"></span>
+  </div>
+</section>
 
 <label class="source" id="source">
   <b>Déposer le journal ici</b> ou cliquer pour le choisir
@@ -265,14 +350,22 @@
   <input type="file" id="sauvegarde" accept=".json,application/json" hidden>
   <button id="copier">Copier les listes</button>
   <button id="oublier">Oublier le tri</button>
-  <button id="imprimer">Imprimer / PDF</button>
+  <span class="menu-pdf">
+    <button id="pdf" aria-haspopup="true" aria-expanded="false">PDF ▾</button>
+    <span id="pdf-choix" hidden>
+      <button id="imprimer">Imprimer</button>
+      <button id="telecharger">Télécharger le PDF</button>
+    </span>
+  </span>
 </div>
 
 <section id="stats">
-  <h2>Statistiques <select id="guerre" aria-label="Guerre"></select></h2>
+  <h2>Statistiques</h2>
   <p id="stats-resume"></p>
   <div id="cartes"></div>
 </section>
+</main>
+</div>
 
 <script>
   "use strict";
@@ -334,6 +427,8 @@
 
   function recevoir(d) {
     camps = d.camps || {};
+    // Les /who d'avant le calendrier restent au serveur (et dans la
+    // sauvegarde) ; l'ecran montre ceux de la guerre ouverte.
     whos = d.whos || [];
     peindre();
     if (d.guerres) recevoirGuerres(d.guerres);
@@ -456,25 +551,31 @@
   }
 
   async function charger(fichiers) {
+    // Deposer sans guerre ouverte en ouvre une, dans le mois choisi.
+    if (!guerreChoisie && !(await creerGuerre())) return;
     const liste = [], resumes = [];
     for (const f of fichiers) {
       const texte = await f.text();
-      liste.push(...lireJournal(texte));
-      resumes.push(...analyserGuerres(texte, f.name).filter(r => r.proprio));
+      const guerresDuJournal = analyserGuerres(texte, f.name).filter(r => r.proprio);
+      // **La derniere guerre du journal.** Un journal couvre souvent plusieurs
+      // jours : c'est la soiree la plus recente qu'on vient deposer. Ses /who
+      // sont ceux du meme jour ; sans guerre, ceux du dernier jour du journal.
+      const derniere = guerresDuJournal[guerresDuJournal.length - 1];
+      const tous = lireJournal(texte);
+      const jour = derniere ? derniere.guerre.slice(0, 10).replace(/-/g, "/")
+                            : (tous.length ? tous[tous.length - 1].quand.slice(0, 10) : "");
+      liste.push(...tous.filter(w => w.quand.startsWith(jour)));
+      if (derniere) resumes.push(derniere);
     }
     if (!liste.length && !resumes.length) {
       signaler("ni /who ni guerre d'OP dans ce journal", true);
       return;
     }
-    // Ce qui part : les /who (heure, region, noms) et le resume chiffre de
-    // chaque guerre. Rien d'autre du journal ne quitte ce navigateur.
-    if (liste.length) await ecrire({ action: "whos", liste });
-    if (resumes.length) {
-      // La guerre deposee devient celle qu'on regarde.
-      guerreChoisie = resumes[resumes.length - 1].guerre;
-      local.ecrire("op-guerre", guerreChoisie);
-      majChargee = null;
-      await ecrire({ action: "combats", resumes });
+    // Ce qui part : les /who (heure, region, noms) et le resume chiffre de la
+    // guerre. Rien d'autre du journal ne quitte ce navigateur.
+    majChargee = null;
+    if (await ecrire({ action: "journal", guerre: guerreChoisie, whos: liste, resumes })) {
+      signaler(liste.length + " /who et " + resumes.length + " journal de combat ajoutés à la guerre");
     }
   }
 
@@ -698,59 +799,220 @@
   // meme evenement n'est donc jamais compte deux fois -- sauf les soins, vus
   // des deux cotes, dont on ne garde que celui du soigneur quand il a depose.
 
-  let guerres = [];             // [{id, maj, proprios}]
-  let guerreChoisie = local.lire("op-guerre", "");
-  let journaux = {};            // proprio -> resume, pour la guerre choisie
+  let guerres = [];             // [{id, nom, annee, mois, enregistree_le, maj, proprios}]
+  let guerreChoisie = local.lire("op-guerre", "");   // la guerre ouverte
+  let guerre = null;            // la guerre ouverte, entiere
+  let journaux = {};            // proprio -> resume, pour la guerre ouverte
   let majChargee = null;
 
-  const choixGuerre = document.getElementById("guerre");
-  choixGuerre.addEventListener("change", async () => {
+  // ------------------------------------------------------------ le calendrier
+  //
+  // A gauche : l'annee, les douze mois, et les guerres du mois choisi. Une
+  // guerre s'ouvre d'un clic ; « Nouvelle guerre » en cree une vide, rangee
+  // d'emblee dans le mois choisi, et « Enregistrer » la nomme et fige son tri.
+
+  const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+                "août", "septembre", "octobre", "novembre", "décembre"];
+  const MOIS_COURT = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.",
+                      "août", "sept.", "oct.", "nov.", "déc."];
+  const maintenant = new Date();
+  let anneeVue = local.lire("op-annee", maintenant.getFullYear());
+  let moisVu = local.lire("op-mois", maintenant.getMonth() + 1);
+
+  function choisirMois(annee, mois) {
+    anneeVue = annee; moisVu = mois;
+    local.ecrire("op-annee", anneeVue); local.ecrire("op-mois", moisVu);
+    peindreCalendrier();
+    peindreFiche();
+  }
+  document.getElementById("annee-moins").addEventListener("click", () => choisirMois(anneeVue - 1, moisVu));
+  document.getElementById("annee-plus").addEventListener("click", () => choisirMois(anneeVue + 1, moisVu));
+
+  // Le nom d'une guerre dans la liste : le sien, sinon ce qu'on en sait.
+  function nomAffiche(g) {
+    if (g.nom) return g.nom;
+    if (/^\d{4}-\d{2}-\d{2}/.test(g.id)) return "Guerre du " + g.id.slice(8, 10) + "/" + g.id.slice(5, 7);
+    // La date de creation a l'heure de celui qui regarde : l'identifiant,
+    // lui, est en heure universelle, et disait « 24/09 » passe minuit.
+    return "Nouvelle guerre" + (g.cree_le ? " du " + dateCourte(g.cree_le).slice(0, 5) : "");
+  }
+
+  function peindreCalendrier() {
+    document.getElementById("annee").textContent = anneeVue;
+    const boite = document.getElementById("mois");
+    boite.textContent = "";
+    for (let m = 1; m <= 12; m++) {
+      const b = document.createElement("button");
+      b.textContent = MOIS_COURT[m - 1];
+      b.setAttribute("aria-pressed", m === moisVu ? "true" : "false");
+      const n = guerres.filter(g => g.annee === anneeVue && g.mois === m).length;
+      if (n) {
+        const pastille = document.createElement("span");
+        pastille.className = "n";
+        pastille.textContent = n;
+        b.append(pastille);
+      }
+      b.addEventListener("click", () => choisirMois(anneeVue, m));
+      boite.append(b);
+    }
+    document.getElementById("mois-titre").textContent =
+      MOIS[moisVu - 1].charAt(0).toUpperCase() + MOIS[moisVu - 1].slice(1) + " " + anneeVue;
+    const liste = document.getElementById("liste-guerres");
+    liste.textContent = "";
+    const ici = guerres.filter(g => g.annee === anneeVue && g.mois === moisVu)
+                       .sort((a, b) => b.id.localeCompare(a.id));
+    for (const g of ici) {
+      const li = document.createElement("li");
+      const b = document.createElement("button");
+      b.textContent = nomAffiche(g);
+      const detail = document.createElement("small");
+      detail.textContent = (g.enregistree_le ? "enregistrée le " + dateCourte(g.enregistree_le)
+                                             : "brouillon")
+                           + " · " + g.proprios.length + " journal" + (g.proprios.length > 1 ? "x" : "");
+      if (!g.enregistree_le) detail.className = "brouillon";
+      b.append(detail);
+      if (g.id === guerreChoisie) b.setAttribute("aria-current", "true");
+      b.addEventListener("click", () => ouvrir(g.id));
+      li.append(b);
+      liste.append(li);
+    }
+    if (!ici.length) {
+      const li = document.createElement("li");
+      li.className = "vide";
+      li.textContent = "Aucune guerre ce mois-ci.";
+      liste.append(li);
+    }
+  }
+
+  async function ouvrir(id) {
     // Un bilan en cours d'ecriture part avant qu'on change de guerre.
     if (bilanModifie) await enregistrerBilan();
-    guerreChoisie = choixGuerre.value;
+    guerreChoisie = id;
     local.ecrire("op-guerre", guerreChoisie);
     majChargee = null;
-    chargerGuerre();
-  });
+    const g = guerres.find(x => x.id === id);
+    if (g) choisirMois(g.annee, g.mois);
+    await chargerGuerre();
+  }
+
+  async function creerGuerre() {
+    enVol++;
+    try {
+      const r = await fetch(SERVEUR, {
+        method: "POST",
+        headers: entetes({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ action: "nouvelle", annee: anneeVue, mois: moisVu,
+                               qui: champNom.value.trim() }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erreur || ("HTTP " + r.status));
+      enVol--;
+      recevoir(d);
+      await ouvrir(d.ouverte);
+      return true;
+    } catch (e) {
+      enVol = Math.max(0, enVol - 1);
+      signaler("guerre non créée : " + e.message, true);
+      return false;
+    }
+  }
+  document.getElementById("nouvelle").addEventListener("click", creerGuerre);
 
   function recevoirGuerres(liste) {
     guerres = liste || [];
-    if (!guerres.some(g => g.id === guerreChoisie)) {
-      guerreChoisie = guerres.length ? guerres[0].id : "";
+    if (guerreChoisie && !guerres.some(g => g.id === guerreChoisie)) {
+      // Supprimee, ou jamais connue ici : plus de guerre ouverte.
+      guerreChoisie = "";
+      local.ecrire("op-guerre", "");
+      guerre = null; journaux = {};
+      recevoirBilan(null); peindreFiche(); peindre(); peindreStats();
     }
-    choixGuerre.textContent = "";
-    for (const g of guerres) {
-      const o = document.createElement("option");
-      o.value = g.id;
-      o.textContent = "Guerre du " + g.id.slice(8, 10) + "/" + g.id.slice(5, 7)
-                      + "/" + g.id.slice(0, 4) + (g.id.length > 10 ? " (" + g.id.slice(11) + ")" : "")
-                      + " — " + g.proprios.length + (g.proprios.length > 1 ? " journaux" : " journal");
-      choixGuerre.append(o);
-    }
-    choixGuerre.value = guerreChoisie;
+    peindreCalendrier();
     const g = guerres.find(x => x.id === guerreChoisie);
-    // On ne retelecharge une guerre que si quelqu'un y a depose un journal.
+    // On ne retelecharge la guerre ouverte que si quelqu'un y a touche.
     if (g && g.maj !== majChargee) chargerGuerre();
-    if (!g) { journaux = {}; recevoirBilan(null); peindreStats(); }
   }
 
   async function chargerGuerre() {
-    if (!guerreChoisie) { journaux = {}; peindreStats(); return; }
+    if (!guerreChoisie) {
+      guerre = null; journaux = {};
+      recevoirBilan(null); peindreFiche(); peindre(); peindreStats();
+      return;
+    }
     try {
       const r = await fetch(SERVEUR + "?guerre=" + encodeURIComponent(guerreChoisie),
                             { cache: "no-store", headers: entetes() });
       if (!r.ok) throw new Error("HTTP " + r.status);
-      const d = await r.json();
-      journaux = d.journaux || {};
-      recevoirBilan(d.bilan || null);
+      guerre = await r.json();
+      journaux = guerre.journaux || {};
+      recevoirBilan(guerre.bilan || null);
       const g = guerres.find(x => x.id === guerreChoisie);
       majChargee = g ? g.maj : null;
     } catch (e) {
-      journaux = {};
+      guerre = null; journaux = {};
       recevoirBilan(null);
     }
+    peindreFiche();
+    peindreCalendrier();
     peindreStats();
   }
+
+  // ------------------------------------------------------------ la fiche
+
+  const champNomGuerre = document.getElementById("fiche-nom");
+
+  // **Le nom propose vient du /who.** Celui qui compte le plus de noms est
+  // celui de la bataille : sa region et son heure nomment la guerre. Sans
+  // /who, la date des rounds ; on peut toujours le changer avant d'enregistrer.
+  function nomParDefaut() {
+    if (!guerre) return "";
+    const w = [...(guerre.whos || [])].sort((a, b) => b.noms.length - a.noms.length)[0];
+    if (w) return w.region + " — " + w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7)
+                  + " " + w.quand.slice(11, 16);
+    const r = Object.values(journaux)[0];
+    if (r && /^\d{4}-\d{2}-\d{2}/.test(r.guerre)) {
+      return "Guerre du " + r.guerre.slice(8, 10) + "/" + r.guerre.slice(5, 7) + " " + (r.heure || "");
+    }
+    return "";
+  }
+
+  function peindreFiche() {
+    const ouverte = !!guerre;
+    document.getElementById("fiche-vide").hidden = ouverte;
+    document.getElementById("fiche-pleine").hidden = !ouverte;
+    if (!ouverte) return;
+    if (document.activeElement !== champNomGuerre) champNomGuerre.value = guerre.nom || "";
+    champNomGuerre.placeholder = nomParDefaut() || "Nom de la guerre";
+    document.getElementById("enregistrer").textContent =
+      (guerre.enregistree_le ? "Réenregistrer" : "Enregistrer") + " dans " + MOIS[moisVu - 1] + " " + anneeVue;
+    document.getElementById("fiche-etat").textContent = guerre.enregistree_le
+      ? "Enregistrée dans " + MOIS[guerre.mois - 1] + " " + guerre.annee + " le "
+        + dateCourte(guerre.enregistree_le) + (guerre.enregistree_par ? " par " + guerre.enregistree_par : "")
+        + " · son tri est figé : il ne suit plus les changements faits ailleurs."
+      : "Brouillon · dépose les journaux, trie, écris le bilan, puis « Enregistrer ».";
+    document.getElementById("titre-imprime").textContent =
+      "— " + (guerre.nom || nomParDefaut() || "bilan de la guerre");
+  }
+
+  document.getElementById("enregistrer").addEventListener("click", async () => {
+    if (!guerre) return;
+    if (bilanModifie) await enregistrerBilan();
+    const nom = champNomGuerre.value.trim() || nomParDefaut();
+    if (!nom) { champNomGuerre.focus(); signaler("donne un nom à la guerre", true); return; }
+    majChargee = null;
+    if (await ecrire({ action: "enregistrer", guerre: guerreChoisie, nom,
+                       annee: anneeVue, mois: moisVu, participants: [...participants()] })) {
+      signaler("guerre enregistrée dans " + MOIS[moisVu - 1] + " " + anneeVue);
+    }
+  });
+
+  document.getElementById("supprimer").addEventListener("click", async () => {
+    if (!guerre) return;
+    if (!confirm("Supprimer « " + (guerre.nom || nomAffiche(guerre)) + " » pour toute la guilde ?\n"
+                 + "Elle reste récupérable dans les sauvegardes du serveur.")) return;
+    bilanModifie = false;
+    await ecrire({ action: "supprimer", guerre: guerreChoisie });
+  });
 
   // ------------------------------------------------------------ le bilan
   //
@@ -773,21 +1035,12 @@
 
   function peindreBilan(message, souci) {
     const g = guerreChoisie;
-    const titre = document.getElementById("bilan-guerre");
-    titre.textContent = g ? "— guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7)
-                            + "/" + g.slice(0, 4) + " " : "";
-    if (g) {
-      const aide = document.createElement("span");
-      aide.className = "ecran";
-      aide.textContent = "(choix dans les statistiques)";
-      titre.append(aide);
-    }
+    document.getElementById("bilan-guerre").textContent = guerre
+      ? "— " + (guerre.nom || champNomGuerre.value.trim() || nomParDefaut() || "guerre ouverte") : "";
     zoneBilan.disabled = !g;
-    document.getElementById("titre-imprime").textContent = g
-      ? "— bilan de la guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7) + "/" + g.slice(0, 4) : "";
     etatBilan.classList.toggle("souci", !!souci);
     etatBilan.textContent = message
-      || (!g ? "Dépose le journal d'une guerre pour ouvrir son bilan."
+      || (!g ? "Ouvre une guerre à gauche pour écrire son bilan."
           : bilanRecu && bilanRecu.quand
             ? "Enregistré · dernière modification par " + (bilanRecu.qui || "quelqu'un")
               + " le " + dateCourte(bilanRecu.quand)
@@ -827,19 +1080,88 @@
     }
   }
 
-  // Imprimer : le titre porte la guerre, et devient le nom propose pour le
-  // PDF (« Guerre d'OP 2026-09-24.pdf »). Le texte du bilan est recopie tel
-  // qu'il est a l'ecran, meme pas encore enregistre.
+  // ------------------------------------------------------------ le PDF
+  //
+  // Deux sorties, une seule mise en page (la classe « mode-pdf ») :
+  // imprimer, par la fenetre du navigateur ; ou telecharger le fichier,
+  // dessine ici par html2pdf.js. La bibliotheque n'est chargee qu'au premier
+  // telechargement, et son empreinte est verifiee : un fichier modifie en
+  // route serait refuse par le navigateur.
+
+  const HTML2PDF = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.14.0/html2pdf.bundle.min.js";
+  const HTML2PDF_SRI = "sha512-+9GoO5OUX2MmPRHUH5dnOY+KGReMLcxywEvQxvAI0y5JxXh/lkz99dKj4xdYfODP3dMFsoZRz4CF/vHcaqa2Ag==";
   const titreOrigine = document.title;
-  addEventListener("beforeprint", () => {
-    const g = guerreChoisie;
-    document.getElementById("titre-imprime").textContent = g
-      ? "— bilan de la guerre du " + g.slice(8, 10) + "/" + g.slice(5, 7) + "/" + g.slice(0, 4) : "";
+
+  function nomDeFichier() {
+    const nom = guerre ? (guerre.nom || champNomGuerre.value.trim() || nomParDefaut()) : "";
+    return ("Guerre d'OP" + (nom ? " - " + nom : "")).replace(/[\\/:*?"<>|]+/g, "-");
+  }
+
+  // Avant d'imprimer ou de dessiner : le bilan tel qu'il est a l'ecran, meme
+  // pas encore enregistre, et la mise en page claire.
+  function preparerPdf() {
     document.getElementById("bilan-imprime").textContent = zoneBilan.value || "(pas de bilan écrit)";
-    if (g) document.title = "Guerre d'OP " + g;
+    document.documentElement.classList.add("mode-pdf");
+    document.title = nomDeFichier();
+  }
+  function finirPdf() {
+    document.documentElement.classList.remove("mode-pdf");
+    document.title = titreOrigine;
+  }
+  addEventListener("beforeprint", preparerPdf);
+  addEventListener("afterprint", finirPdf);
+
+  const boutonPdf = document.getElementById("pdf");
+  const choixPdf = document.getElementById("pdf-choix");
+  function menuPdf(ouvert) {
+    choixPdf.hidden = !ouvert;
+    boutonPdf.setAttribute("aria-expanded", ouvert ? "true" : "false");
+  }
+  boutonPdf.addEventListener("click", e => { e.stopPropagation(); menuPdf(choixPdf.hidden); });
+  document.addEventListener("click", () => menuPdf(false));
+  document.getElementById("imprimer").addEventListener("click", () => { menuPdf(false); print(); });
+
+  let html2pdfPret = null;
+  function chargerHtml2pdf() {
+    if (!html2pdfPret) {
+      html2pdfPret = new Promise((ok, ko) => {
+        const sc = document.createElement("script");
+        sc.src = HTML2PDF;
+        sc.integrity = HTML2PDF_SRI;
+        sc.crossOrigin = "anonymous";
+        sc.referrerPolicy = "no-referrer";
+        sc.onload = () => ok(window.html2pdf);
+        sc.onerror = () => { html2pdfPret = null; ko(new Error("bibliothèque PDF injoignable")); };
+        document.head.append(sc);
+      });
+    }
+    return html2pdfPret;
+  }
+
+  document.getElementById("telecharger").addEventListener("click", async () => {
+    menuPdf(false);
+    signaler("préparation du PDF…");
+    try {
+      const html2pdf = await chargerHtml2pdf();
+      preparerPdf();
+      document.documentElement.classList.add("pdf-fichier");
+      await html2pdf().set({
+        margin: [10, 10, 10, 10],
+        filename: nomDeFichier() + ".pdf",
+        image: { type: "jpeg", quality: 0.95 },
+        html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        // Une carte, une colonne ou le bilan ne se coupent jamais en deux.
+        pagebreak: { mode: ["css", "legacy"], avoid: [".carte", ".colonnes", "#bilan"] },
+      }).from(document.getElementById("contenu")).save();
+      signaler("PDF téléchargé");
+    } catch (e) {
+      signaler("PDF impossible : " + e.message, true);
+    } finally {
+      document.documentElement.classList.remove("pdf-fichier");
+      finirPdf();
+    }
   });
-  addEventListener("afterprint", () => { document.title = titreOrigine; });
-  document.getElementById("imprimer").addEventListener("click", () => print());
 
   zoneBilan.addEventListener("input", () => {
     bilanModifie = true;
@@ -1061,18 +1383,34 @@
 
   // ------------------------------------------------------------ l'affichage
 
+  // Les /who de la guerre ouverte.
+  const whosGuerre = () => (guerre && guerre.whos) || [];
+
+  // Le tri qui vaut pour la guerre ouverte : le sien, fige, si elle est
+  // enregistree ; sinon le tri commun.
+  const campsEffectifs = () => (guerre && guerre.camps_figes) || camps;
+
+  // Ceux qui ont pris part a la guerre ouverte : ses /who, ses statistiques,
+  // et ceux que son tri fige nomme.
+  function participants() {
+    const p = new Set(Object.keys(nomsDesStats()));
+    for (const w of whosGuerre()) w.noms.forEach(n => p.add(n));
+    if (guerre && guerre.camps_figes) Object.keys(guerre.camps_figes).forEach(n => p.add(n));
+    return p;
+  }
+
   // Le centre : les noms des /who coches, et ceux des statistiques de la
-  // guerre choisie.
+  // guerre ouverte.
   function nomsVus() {
     const vus = new Set(Object.keys(nomsDesStats()));
-    for (const w of whos) if (!decoches.has(cleWho(w))) w.noms.forEach(n => vus.add(n));
+    for (const w of whosGuerre()) if (!decoches.has(cleWho(w))) w.noms.forEach(n => vus.add(n));
     return [...vus].sort((a, b) => a.localeCompare(b, "fr"));
   }
 
   function peindreWhos() {
     const boite = document.getElementById("whos");
     boite.textContent = "";
-    for (const w of whos) {
+    for (const w of whosGuerre()) {
       const l = document.createElement("label");
       const c = document.createElement("input");
       c.type = "checkbox";
@@ -1093,8 +1431,12 @@
   function peindre() {
     peindreWhos();
     const noms = nomsVus();
+    const cs = campsEffectifs();
+    // Une guerre ouverte ne montre que les siens ; sans guerre, les colonnes
+    // montrent tout le tri commun -- l'annuaire des camps.
+    const siens = guerre ? participants() : null;
     // Les neutres comptent comme tries : ils ne reviennent pas au centre.
-    const tries = camp => Object.keys(camps).filter(n => camps[n].c === camp)
+    const tries = camp => Object.keys(cs).filter(n => cs[n].c === camp && (!siens || siens.has(n)))
                                 .sort((a, b) => a.localeCompare(b, "fr"));
     for (const colonne of document.querySelectorAll(".colonne")) {
       const camp = colonne.dataset.camp;
@@ -1102,12 +1444,12 @@
       liste.textContent = "";
       // Les colonnes de cote gardent tout le tri, meme les noms absents des
       // /who coches : c'est la liste des camps, pas celle d'une soiree.
-      const ici = camp ? tries(camp) : noms.filter(n => !camps[n]);
+      const ici = camp ? tries(camp) : noms.filter(n => !cs[n]);
       // Au survol : qui l'a range et quand, ou, au centre, d'ou vient le
       // nom -- un /who, ou ce qu'il a fait pendant la guerre.
       const dit = camp ? {} : nomsDesStats();
       for (const n of ici) {
-        const c = camps[n];
+        const c = cs[n];
         liste.append(puce(n, c ? (c.qui || "quelqu'un") + " — "
                                  + new Date(c.quand).toLocaleString("fr-FR")
                                : dit[n] || "vu dans un /who"));
@@ -1116,7 +1458,8 @@
         const v = document.createElement("span");
         v.className = "vide";
         v.textContent = camp ? "Glisse un nom ici."
-                             : (noms.length ? "Tout est trié." : "Aucun journal chargé.");
+                             : (noms.length ? "Tout est trié."
+                                : guerre ? "Dépose un journal pour cette guerre." : "Ouvre une guerre à gauche.");
         liste.append(v);
       }
       colonne.querySelector("h2 span").textContent = ici.length;
@@ -1193,14 +1536,18 @@
       const n = e.dataTransfer.getData("text/plain");
       if (!n) return;
       const camp = colonne.dataset.camp;
-      if ((camps[n] ? camps[n].c : "") === camp) return;
+      const cs = campsEffectifs();
+      if ((cs[n] ? cs[n].c : "") === camp) return;
       // On peint d'abord : le geste doit repondre tout de suite. Si le
-      // serveur refuse, `ecrire` revient a ce qui est enregistre.
-      if (camp) camps[n] = { c: camp, qui: champNom.value.trim(),
-                             quand: new Date().toISOString() };
-      else delete camps[n];
+      // serveur refuse, `ecrire` revient a ce qui est enregistre. Le tri
+      // commun suit toujours ; celui d'une guerre enregistree aussi.
+      const geste = { c: camp, qui: champNom.value.trim(), quand: new Date().toISOString() };
+      for (const cible of new Set([camps, cs])) {
+        if (camp) cible[n] = geste; else delete cible[n];
+      }
       peindre();
-      ecrire({ action: "ranger", nom: n, camp });
+      if (guerre && guerre.camps_figes) majChargee = null;
+      ecrire({ action: "ranger", nom: n, camp, guerre: guerreChoisie });
     });
   }
 
@@ -1264,9 +1611,10 @@
   });
 
   document.getElementById("copier").addEventListener("click", () => {
-    const liste = camp => Object.keys(camps).filter(n => camps[n].c === camp)
+    const cs = campsEffectifs(), siens = guerre ? participants() : null;
+    const liste = camp => Object.keys(cs).filter(n => cs[n].c === camp && (!siens || siens.has(n)))
                                 .sort((a, b) => a.localeCompare(b, "fr")).join(", ");
-    const texte = "Kamis : " + liste("kamis") + "\nOpposants : " + liste("opposants")
+    const texte = (guerre ? (guerre.nom || nomParDefaut()) + "\n" : "") + "Kamis : " + liste("kamis") + "\nOpposants : " + liste("opposants")
                   + "\nNeutres : " + liste("neutres");
     navigator.clipboard.writeText(texte).catch(() => prompt("À copier :", texte));
   });
@@ -1286,6 +1634,8 @@
   });
 
   peindre();
+  peindreCalendrier();
+  peindreFiche();
   relire().then(ok => { if (ok) reprendreAncienTri(); });
 </script>
 </body>
