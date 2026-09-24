@@ -828,8 +828,27 @@
     peindreCalendrier();
     peindreFiche();
   }
-  document.getElementById("annee-moins").addEventListener("click", () => choisirMois(anneeVue - 1, moisVu));
-  document.getElementById("annee-plus").addEventListener("click", () => choisirMois(anneeVue + 1, moisVu));
+
+  // **Changer de mois a la main referme la guerre qui n'en est pas.** Les
+  // tableaux se vident, et attendent qu'on choisisse une guerre de ce mois --
+  // sans quoi on lirait, sous « mars », les chiffres d'une guerre de juin.
+  async function allerAuMois(annee, mois) {
+    if (guerre && (guerre.annee !== annee || guerre.mois !== mois)) await fermer();
+    choisirMois(annee, mois);
+  }
+
+  async function fermer() {
+    // Un bilan en cours d'ecriture part avant qu'on referme.
+    if (bilanModifie) await enregistrerBilan();
+    guerreChoisie = "";
+    local.ecrire("op-guerre", "");
+    guerre = null; journaux = {}; majChargee = null;
+    recevoirBilan(null);
+    peindreFiche();
+    peindreStats();       // repeint aussi les colonnes, vides
+  }
+  document.getElementById("annee-moins").addEventListener("click", () => allerAuMois(anneeVue - 1, moisVu));
+  document.getElementById("annee-plus").addEventListener("click", () => allerAuMois(anneeVue + 1, moisVu));
 
   // Le nom d'une guerre dans la liste : le sien, sinon ce qu'on en sait.
   function nomAffiche(g) {
@@ -856,7 +875,7 @@
         pastille.textContent = n;
         b.append(pastille);
       }
-      b.addEventListener("click", () => choisirMois(anneeVue, m));
+      b.addEventListener("click", () => allerAuMois(anneeVue, m));
       boite.append(b);
     }
     document.getElementById("mois-titre").textContent =
@@ -1438,10 +1457,10 @@
     const noms = nomsVus();
     const cs = campsEffectifs();
     // Une guerre ouverte ne montre que les siens ; sans guerre, les colonnes
-    // montrent tout le tri commun -- l'annuaire des camps.
-    const siens = guerre ? participants() : null;
+    // restent vides -- le tableau d'un mois sans guerre choisie.
+    const siens = guerre ? participants() : new Set();
     // Les neutres comptent comme tries : ils ne reviennent pas au centre.
-    const tries = camp => Object.keys(cs).filter(n => cs[n].c === camp && (!siens || siens.has(n)))
+    const tries = camp => Object.keys(cs).filter(n => cs[n].c === camp && siens.has(n))
                                 .sort((a, b) => a.localeCompare(b, "fr"));
     for (const colonne of document.querySelectorAll(".colonne")) {
       const camp = colonne.dataset.camp;
@@ -1462,7 +1481,8 @@
       if (!ici.length) {
         const v = document.createElement("span");
         v.className = "vide";
-        v.textContent = camp ? "Glisse un nom ici."
+        v.textContent = !guerre ? (camp ? "" : "Aucune guerre ouverte : choisis-en une à gauche, ou crée une « Nouvelle guerre ».")
+                      : camp ? "Glisse un nom ici."
                              : (noms.length ? "Tout est trié."
                                 : guerre ? "Dépose un journal pour cette guerre." : "Ouvre une guerre à gauche.");
         liste.append(v);
