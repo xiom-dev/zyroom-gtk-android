@@ -394,8 +394,7 @@ class PageMeteo:
                                  for c in bilan.get("cochees", []))
                 dire("✓ " + _("cochée(s) sur le relevé : %s") % noms, "#4bbf72")
             elif bilan["prises"]:
-                dire(_("Rien de neuf : les %d prise(s) du journal sont déjà "
-                       "cochées") % bilan["prises"], "#9aa8a5")
+                pass            # rien de neuf : rien a dire
             else:
                 dire(_("Aucune prise dans le journal. En jeu, « /chatLog » "
                        "l'allume — et l'écran météo doit rester ouvert pour "
