@@ -172,7 +172,7 @@
   .barre-plein { display: block; height: 100%; border-radius: 4px; background: var(--clair); }
   .barre-plein.nous { background: var(--nous); }
   .barre-plein.eux { background: var(--eux); }
-  .barre-plein.pnj { background: var(--or); }
+  .barre-plein.pnj { background: var(--eux); }
   .barre-val { color: var(--faible); font-variant-numeric: tabular-nums;
                white-space: nowrap; }
 
@@ -438,7 +438,7 @@
   <ul id="coffre-liste"></ul>
   <div class="pied">
     <span class="pc">
-      <button id="telecharger" type="button" title="Télécharger le tri commun et les /who, en fichier .json">Copie sur le PC</button>
+      <button id="copie-pc" type="button" title="Télécharger le tri commun et les /who, en fichier .json">Copie sur le PC</button>
       <button id="depuis-pc" type="button" title="Recharger un fichier .json gardé sur le PC">Fichier du PC…</button>
     </span>
     <button id="coffre-fermer" type="button">Fermer</button>
@@ -1785,7 +1785,7 @@
            + "_" + z(d.getHours()) + "h" + z(d.getMinutes());
   }
   // Une copie sur le PC reste possible, depuis la fenetre des sauvegardes.
-  document.getElementById("telecharger").addEventListener("click", () => {
+  document.getElementById("copie-pc").addEventListener("click", () => {
     const contenu = JSON.stringify({ page: "guerre-op", version: 2,
                                      le: new Date().toISOString(),
                                      camps, whos }, null, 1);
