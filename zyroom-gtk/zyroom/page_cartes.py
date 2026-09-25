@@ -41,11 +41,18 @@ class CartesCommunes:
     #: attachés ensemble.
     SEUIL_GROUPE = 40.0
 
-    #: Jusqu'où l'agrandissement va. Au-delà, on n'ajoute plus que du flou.
-    ZOOM_MAX = 6.0
+    #: Jusqu'où l'agrandissement va.
+    #:
+    #: Six ne suffisait pas sur les mini-cartes des gisements : hautes de 340
+    #: pixels pour une image d'Atys de 3 000, elles restent nettes jusqu'à
+    #: neuf fois environ, et deux gisements voisins s'y confondaient encore.
+    #: Au-delà de neuf, le fond s'adoucit, mais les points et les noms --
+    #: dessinés par-dessus -- restent nets : c'est eux qu'on vient séparer.
+    ZOOM_MAX = 16.0
 
     #: Un cran de molette. On agrandit de ce facteur, et on rapetisse de son
     #: **inverse** : avec 1,1 et 0,9, trois crans dans un sens puis trois dans
     #: l'autre laissaient la carte à 97 % de sa taille, et on ne retrouvait
-    #: jamais tout à fait la vue qu'on avait.
-    PAS_ZOOM = 1.1
+    #: jamais tout à fait la vue qu'on avait. 1,15 et non plus 1,1 depuis que
+    #: le zoom monte à seize : vingt crans pour aller au bout, au lieu de trente.
+    PAS_ZOOM = 1.15
