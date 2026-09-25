@@ -658,8 +658,10 @@
   // moins que cela.
   const TUEUR_S = 20;
   // Les gardes d'avant-poste : un seul mot, comme un joueur, mais des PNJ.
+  // « Escouade » : reste d'un ancien decoupage de « Guerrier Chef d'Escouade »,
+  // encore present dans les resumes deja deposes.
   const PNJ_CONNUS = ["Guerrier", "Artilleur", "Archer", "Mage", "Soigneur", "Gu\u00e9risseur",
-                      "Garde", "Tireur", "Sentinelle"];
+                      "Garde", "Tireur", "Sentinelle", "Escouade"];
   const PARTIES = ["tête", "poitrine", "bras", "main", "jambe", "pied"];
 
   // Un nom est un PNJ s'il porte un article (« le Kincher epouvantable »),
@@ -682,7 +684,10 @@
     sansDegats: /^(.+?) vous atteint mais n'inflige pas de dégâts\.$/,
     magie: /^(.+?) a lancé un sort qui vous inflige (\d+)\((\d+)\) points de dommages magiques\.$/,
     magie2: /^(.+?) vous lance un sort, vous infligeant des dégâts à hauteur de (\d+) point/,
-    donne: /^Vous atteignez (?:la |le |l'|les )?(.+?) (?:du |de la |de l'|des |de |d')(.+?), infligeant (\d+)(?: \((\d+)\))? points de dégâts\.$/,
+    // Certains PNJ viennent sans « du » (« la poitrine Guerrier Chef
+    // d'Escouade ») : la partie touchee est en minuscules, la cible commence
+    // par une majuscule, sinon le « d' » du nom coupait la cible en « Escouade ».
+    donne: /^Vous atteignez (?:la |le |l'|les )?([a-zà-ÿ][a-zà-ÿ' -]*?) (?:du |de la |de l'|des |de |d')?([A-ZÀ-Ý].*?), infligeant (\d+)(?: \((\d+)\))? points de dégâts\.$/,
     donneMagie: /^Votre sort inflige (\d+)\((\d+)\) points de dommages magiques à (.+)\.$/,
     mort: /^Vous avez été tué\.$/,
     tue: /^Vous avez tué (.+)\.$/,
@@ -1337,7 +1342,7 @@
       rounds: { gagnes: 0, perdus: 0 },
       meurtres: {}, morts: {}, tues: {},
       parties: {}, partiesDonnees: {},
-      attaquants: {}, pnj: {},
+      attaquants: {}, pnj: {}, porteurs: {},
       resistes: {}, insensibles: {},
       cibles: {}, soins: {}, evites: {}, rompues: {},
     };
@@ -1366,8 +1371,12 @@
       for (const m of j.morts || []) {
         if (m.tueur && estPnj(m.tueur)) cumul(res.pnj, sansArticle(m.tueur), { tues: 1 });
       }
-      for (const v of Object.values(j.donnes || {})) {
+      for (const [cible, v] of Object.entries(j.donnes || {})) {
         for (const [p, n] of Object.entries(v.parties || {})) cumul(res.partiesDonnees, p, { n });
+        // Nos coups sur des joueurs, au nom de celui qui a depose : un Kami
+        // qui n'a rien depose ne se lit que chez sa victime, en face.
+        if (!estPnj(cible)) cumul(res.porteurs, proprio, { coups: v.coups || 0,
+                                                            degats: v.degats || 0, max: v.max || 0 });
       }
       for (const [qui, v] of Object.entries(j.resistes || {})) cumul(res.resistes, qui, { n: v.n });
       for (const [qui, v] of Object.entries(j.insensibles || {})) cumul(res.insensibles, qui, { n: v.n });
@@ -1493,12 +1502,22 @@
         (() => { const d = document.createElement("h4"); d.textContent = "portés par nous"; return d; })(),
         barres(enParties(r.partiesDonnees), "nous", "Aucun coup porté à un joueur dans les journaux déposés."),
       ]),
-      carte("Puissance des coups (joueurs)", barres(trie(r.attaquants, "degats").slice(0, 12).map(e => ({
-        nom: e.nom + (campDe(e.nom) === "kamis" ? " (Kami)" : ""),
-        valeur: e.valeur,
-        texte: nf(e.valeur) + " · max " + nf(e.v.max),
-        detail: e.v.coups + " coups, moyenne " + nf(e.v.degats / Math.max(1, e.v.coups)) + ", plus gros " + nf(e.v.max),
-      })), "eux"), "Dégâts infligés à ceux qui ont déposé leur journal ; « max » est le plus gros coup."),
+      carte("Puissance des coups (joueurs)", [
+        (() => { const d = document.createElement("h4"); d.textContent = "reçus par nous"; return d; })(),
+        barres(trie(r.attaquants, "degats").slice(0, 12).map(e => ({
+          nom: e.nom + (campDe(e.nom) === "kamis" ? " (Kami)" : ""),
+          valeur: e.valeur,
+          texte: nf(e.valeur) + " · max " + nf(e.v.max),
+          detail: e.v.coups + " coups, moyenne " + nf(e.v.degats / Math.max(1, e.v.coups)) + ", plus gros " + nf(e.v.max),
+        })), "eux"),
+        (() => { const d = document.createElement("h4"); d.textContent = "portés par nous"; return d; })(),
+        barres(trie(r.porteurs, "degats").map(e => ({
+          nom: e.nom,
+          valeur: e.valeur,
+          texte: nf(e.valeur) + " · max " + nf(e.v.max),
+          detail: e.v.coups + " coups, moyenne " + nf(e.v.degats / Math.max(1, e.v.coups)) + ", plus gros " + nf(e.v.max),
+        })), "nous", "Aucun coup porté à un joueur dans les journaux déposés."),
+      ], "Reçus : dégâts infligés à ceux qui ont déposé leur journal. Portés : seulement par ceux qui l'ont déposé. « max » est le plus gros coup."),
       carte("Dégâts des PNJ, par type", barres(trie(r.pnj, "degats").map(e => ({
         nom: e.nom, valeur: e.valeur,
         texte: nf(e.valeur) + (e.v.tues ? " · " + e.v.tues + " mort" + (e.v.tues > 1 ? "s" : "") : ""),
