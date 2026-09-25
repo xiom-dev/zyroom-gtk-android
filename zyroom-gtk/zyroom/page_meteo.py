@@ -270,8 +270,11 @@ class PageMeteo:
             # qui dure passe avant ce qui décrira le décor.
             # La ligne, telle que Ludo la veut :
             #
-            #   humidite mauvaise 61 %, sort supreme et XL pendant 4 min
+            #   humidite bad 61 % pendant 4 min
             #     - beau, ete, 22 h sur Atys, nuit
+            #
+            # Depuis le 26/09/2026 : la condition sous son nom anglais, celui
+            # du releve xiom.be/forage, et plus de « sort supreme et XL ».
             #
             # **« excellente dans 1 h 12 » a ete retiree.** Elle comptait vers
             # le prochain cycle par temps sec -- la condition « best » du jeu.
@@ -291,13 +294,8 @@ class PageMeteo:
                 # Le taux de l'instant, comme le jeu et la courbe l'affichent :
                 # pendant la derniere heure d'un cycle, il glisse deja vers le
                 # suivant, et sa condition avec lui.
-                gras(f"{meteo.texte_condition(meteo.condition_de(taux)).lower()} "
-                     f"{int(taux * 100)} %"),
+                gras(f"{meteo.condition_de(taux)} {int(taux * 100)} %"),
             ]
-            qualites = self._qualites_du_moment(releve, maintenant)
-            if qualites:
-                morceaux.append(clair(_(", sort ")))
-                morceaux.append(gras(meteo.enumere_qualites(qualites)))
             if prochain is not None:
                 # Le temps qui reste, et non le nom de la condition d'apres :
                 # « pendant 4 min » repond a « est-ce que j'ai le temps ? ».
