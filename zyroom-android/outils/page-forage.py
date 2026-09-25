@@ -91,6 +91,8 @@ ZONES = ("Sources Interdites", "Terre de la Continuité",
 #: du graphe de Ballistic Mystix, ceux que les foreuses ont sous les yeux à
 #: côté de cette page. Deux noms pour la même bande d'humidité forçaient à
 #: traduire de tête à chaque coup d'œil.
+#: Depuis le 25/09/2026, les titres du tableau sont les noms anglais seuls
+#: (Worst, Bad, Good, Best), à la demande de Ludo ; le nom français reste ici.
 #:
 #: Les bornes sont celles du jeu, sans arrondi : 16,6 / 16,7 et 83,3 / 83,4
 #: sont des frontières, pas des approximations.
@@ -210,9 +212,9 @@ def grille(familles: list) -> str:
                 # La plage aussi, et pas seulement le nom : le tableau est
                 # long, et c'est ce rappel-ci qu'on a sous les yeux en le
                 # parcourant, pas l'en-tete reste tout en haut.
-                + "".join(f'<th class="rappel">{fr}'
+                + "".join(f'<th class="rappel">{court}'
                           f'<span class="plage">{plage}</span></th>'
-                          for fr, _c, plage in CONDITIONS)
+                          for _fr, court, plage in CONDITIONS)
                 + "</tr>")
         for matiere in matieres:
             # Le « ² » du classeur marquait les matieres a stocker en priorite
@@ -1100,8 +1102,8 @@ def main() -> int:
     matieres = [m.replace("²", "").strip()
                 for _f, ms in familles for m in ms]
     entetes = "\n        ".join(
-        f'<th class="cond">{fr}<span class="plage">{court} · {plage}</span></th>'
-        for fr, court, plage in CONDITIONS)
+        f'<th class="cond">{court}<span class="plage">{plage}</span></th>'
+        for _fr, court, plage in CONDITIONS)
     onglets = "\n  ".join(
         f'<button data-saison="{i}" aria-pressed="{"true" if i == 0 else "false"}">'
         f'{s}</button>' for i, s in enumerate(SAISONS))
