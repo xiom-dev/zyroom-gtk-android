@@ -657,6 +657,18 @@ class Settings:
         self._ini.set("GENERAL", "WindowMaximized", "1" if value else "0")
         self._flush()
 
+    @property
+    def page_a_rouvrir(self) -> str:
+        """L'écran à rouvrir au prochain démarrage, posé juste avant qu'une
+        mise à jour relance l'application. Vide le reste du temps : un
+        démarrage ordinaire s'ouvre toujours sur l'accueil."""
+        return self._ini.get("GENERAL", "PageARouvrir", fallback="")
+
+    @page_a_rouvrir.setter
+    def page_a_rouvrir(self, value: str) -> None:
+        self._ini.set("GENERAL", "PageARouvrir", value or "")
+        self._flush()
+
     def _flush(self) -> None:
         with open(self._path, "w", encoding="utf-8") as fh:
             self._ini.write(fh)

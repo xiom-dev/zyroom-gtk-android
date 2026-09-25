@@ -226,6 +226,9 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         GLib.timeout_add_seconds(4 * 3600, self._carnet_meteo_tick)
         self._schedule_sync()
         self.connect("close-request", self._on_close)
+        # Apres une mise a jour, l'ecran qu'on avait ouvert. Au premier temps
+        # libre : le chargement des entites choisit sa page d'abord.
+        GLib.idle_add(self._rouvrir_page)
 
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
@@ -1101,6 +1104,26 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         page = parametre.get_string()
         self._stack.set_visible_child_name("plus")
         self._plus_stack.set_visible_child_name(page)
+
+    def _page_ouverte(self) -> str:
+        """L'écran visible, sous la forme « page » ou « plus/sous-page »."""
+        page = self._stack.get_visible_child_name() or ""
+        if page == "plus":
+            page += "/" + (self._plus_stack.get_visible_child_name() or "")
+        return page
+
+    def _rouvrir_page(self) -> bool:
+        """Rouvre l'écran laissé au moment de la mise à jour, une seule fois."""
+        page = self._settings.page_a_rouvrir
+        if page:
+            self._settings.page_a_rouvrir = ""
+            nom, _barre, sous = page.partition("/")
+            if self._stack.get_child_by_name(nom) is not None:
+                self._stack.set_visible_child_name(nom)
+                if sous and self._plus_stack.get_child_by_name(sous) is not None:
+                    self._plus_stack.set_visible_child_name(sous)
+                self._refresh_navigation()
+        return False
 
     def _refresh_navigation(self) -> None:
         """Aligne les boutons sur la page réellement visible.
@@ -3644,9 +3667,20 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
                 return
             if choix != 1:
                 return
+            # **Ce qu'on retient avant de relancer.** La nouvelle version
+            # demarre avant que celle-ci ne se ferme : elle lisait donc les
+            # reglages avant que la taille n'y soit ecrite, et s'ouvrait a
+            # l'ancienne, sur l'accueil. On ecrit tout d'abord -- taille,
+            # agrandissement, ecran ouvert -- et on relance ensuite. La
+            # position, elle, ne se choisit pas : sous Wayland, c'est le
+            # bureau qui place les fenetres.
+            self._settings.window_size = self.get_default_size()
+            self._settings.window_maximized = self.is_maximized()
+            self._settings.page_a_rouvrir = self._page_ouverte()
             if self._updater.relancer():
                 self.close()
             else:
+                self._settings.page_a_rouvrir = ""
                 self._set_status(
                     _("Impossible de relancer automatiquement : fermez et "
                       "rouvrez l'application pour utiliser la nouvelle version."))
