@@ -531,6 +531,9 @@ class FenetrePrincipale(QMainWindow):
         self._appliquer_proxy()
         self._construire_ui()
         self._recharger_entites()
+        # Apres une mise a jour, l'ecran qu'on avait ouvert. Au premier temps
+        # libre : le chargement des entites choisit sa page d'abord.
+        QTimer.singleShot(0, self._rouvrir_page)
         self._programmer_releve()
         # Au lancement, puis tous les quarts d'heure -- la meme cadence a
         # laquelle on regarde deja si quelque chose a change ailleurs.
@@ -1098,6 +1101,27 @@ class FenetrePrincipale(QMainWindow):
             self._pages_bonus[nom] = self._pile_bonus.addWidget(contenu)
         colonne.addWidget(self._pile_bonus, 1)
         return page
+
+    def _page_ouverte(self) -> str:
+        """L'écran visible, sous la forme « page » ou « plus/sous-page »."""
+        nom = next((n for n, i in self._pages.items()
+                    if i == self._pile.currentIndex()), "")
+        if nom == "plus":
+            nom += "/" + next((n for n, i in self._pages_bonus.items()
+                               if i == self._pile_bonus.currentIndex()), "")
+        return nom
+
+    def _rouvrir_page(self) -> None:
+        """Rouvre l'écran laissé au moment de la mise à jour, une seule fois."""
+        page = self._settings.page_a_rouvrir
+        if not page:
+            return
+        self._settings.page_a_rouvrir = ""
+        nom, _barre, sous = page.partition("/")
+        if nom == "plus" and sous in self._pages_bonus:
+            self._montrer_bonus(sous)
+        elif nom in self._pages:
+            self._montrer_page(nom)
 
     def _montrer_bonus(self, nom: str) -> None:
         """Ouvre l'onglet « Bonus » sur l'un de ses cinq écrans."""
@@ -3287,6 +3311,10 @@ class FenetrePrincipale(QMainWindow):
         boite.exec()
         if boite.clickedButton() is not relancer:
             return
+        # L'ecran ouvert, pour que la nouvelle version s'y rouvre -- comme
+        # GTK. La taille, elle, s'ecrit en fermant, avant que le relais ne
+        # relance.
+        self._settings.page_a_rouvrir = self._page_ouverte()
         if updater.relancer():
             # Le relais est parti, et il relancera lui-meme. `closeEvent` ne
             # doit pas en lancer un second : deux scripts qui permutent les
@@ -3294,6 +3322,7 @@ class FenetrePrincipale(QMainWindow):
             self._relais_parti = True
             self.close()
         else:
+            self._settings.page_a_rouvrir = ""
             # La raison, quand il y en a une : un bouton qui ne fait rien sans
             # rien dire est ce qui a le plus retarde le diagnostic.
             raison = updater.derniere_erreur

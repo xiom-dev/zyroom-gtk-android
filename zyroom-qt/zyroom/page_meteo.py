@@ -284,33 +284,41 @@ class PageMeteo(QWidget):
         self._courbe.setContentsMargins(8, 0, 8, 0)
         colonne.addWidget(self._courbe)
 
-        # Deux colonnes, et **un seul defilement pour tout**. Chacune a d'abord
-        # eu le sien ; a l'usage, deux barres sont pires : on ne sait plus
-        # laquelle on tient, et comparer deux tableaux qui glissent separement
-        # demande de les recaler a la main.
-        contenu = QWidget()
-        dedans = QVBoxLayout(contenu)
-        dedans.setContentsMargins(8, 8, 8, 8)
-        dedans.setSpacing(2)
+        # **Un defilement par zone**, comme dans GTK. Les quatre colonnes
+        # partageaient un seul defilement : la plus longue -- Sources
+        # Interdites, souvent -- faisait descendre les trois autres avec elle,
+        # et l'on perdait de vue ce qu'on voulait comparer. Chacune defile
+        # seule ; le titre au-dessus et la note au-dessous restent en place.
 
         # Ce qui sort maintenant, en tete et sur toute la largeur : c'est la
         # seule chose de cet ecran qui depende de l'instant.
         self._pop_titre = QLabel()
         self._pop_titre.setObjectName("peuple")
-        dedans.addWidget(self._pop_titre)
+        self._pop_titre.setContentsMargins(8, 8, 8, 2)
+        colonne.addWidget(self._pop_titre)
         pop = QWidget()
         rangee = QHBoxLayout(pop)
-        rangee.setContentsMargins(0, 0, 0, 0)
+        rangee.setContentsMargins(8, 0, 8, 2)
         rangee.setSpacing(12)
         self._pop_colonnes = []
+        self._pop_defilements = []
         for _rang in range(COLONNES_POP):
             porteur = QWidget()
             pile = QVBoxLayout(porteur)
             pile.setContentsMargins(0, 0, 0, 0)
             pile.setSpacing(2)
+            # Les blocs s'empilent par le haut, comme GTK le fait d'office.
+            pile.setAlignment(Qt.AlignmentFlag.AlignTop)
+            defilant = QScrollArea()
+            defilant.setWidget(porteur)
+            defilant.setWidgetResizable(True)
+            defilant.setFrameShape(QScrollArea.Shape.NoFrame)
+            defilant.setHorizontalScrollBarPolicy(
+                Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             self._pop_colonnes.append(pile)
-            rangee.addWidget(porteur, 1)
-        dedans.addWidget(pop)
+            self._pop_defilements.append(defilant)
+            rangee.addWidget(defilant, 1)
+        colonne.addWidget(pop, 1)
 
         # Le tableau des excellentes de la saison, jour et nuit cote a cote,
         # a ete retire. Il disait la saison entiere quand "ce qui sort" dit
@@ -328,16 +336,8 @@ class PageMeteo(QWidget):
               "Positions de ballisticmystix.net."))
         self._note.setObjectName("discret")
         self._note.setWordWrap(True)
-        self._note.setContentsMargins(0, 8, 0, 0)
-        dedans.addWidget(self._note)
-        dedans.addStretch(1)
-
-        defilant = QScrollArea()
-        defilant.setWidget(contenu)
-        defilant.setWidgetResizable(True)
-        defilant.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        colonne.addWidget(defilant, 1)
+        self._note.setContentsMargins(8, 0, 8, 8)
+        colonne.addWidget(self._note)
 
         self._minuteur = QTimer(self)
         self._minuteur.timeout.connect(self._battement)

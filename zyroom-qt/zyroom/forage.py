@@ -813,6 +813,7 @@ EXCELLENTES = {
         },
         ("Carapace", "Big"): {
             ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "GOOD"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
@@ -856,7 +857,6 @@ EXCELLENTES = {
         },
         ("Huile", "Koorin"): {
             ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
             ("ETE", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
@@ -1267,8 +1267,6 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BAD"),
         },
         ("Huile", "Koorin"): {
-            ("AUTOMNE", "BAD"),
-            ("AUTOMNE", "WORST"),
             ("PRINTEMPS", "BAD"),
         },
         ("Huile", "Pilan"): {
@@ -1277,12 +1275,8 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BAD"),
         },
         ("Résine", "Dung"): {
-            ("AUTOMNE", "GOOD"),
             ("ETE", "GOOD"),
             ("PRINTEMPS", "GOOD"),
-        },
-        ("Résine", "Glue"): {
-            ("AUTOMNE", "WORST"),
         },
         ("Sève", "Visc"): {
             ("HIVER", "GOOD"),

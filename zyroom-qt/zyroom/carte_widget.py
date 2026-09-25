@@ -26,11 +26,15 @@ from PySide6.QtWidgets import QWidget
 from . import theme
 from . import carte
 
-#: Jusqu'ou l'agrandissement va. Au-dela, on n'ajoute plus que du flou.
-ZOOM_MAX = 6.0
+#: Jusqu'ou l'agrandissement va -- comme GTK. Six ne suffisait pas sur les
+#: mini-cartes des gisements : hautes de 340 pixels pour une image d'Atys de
+#: 3 000, elles restent nettes jusqu'a neuf fois environ. Au-dela, le fond
+#: s'adoucit, mais les points et les noms, dessines par-dessus, restent nets.
+ZOOM_MAX = 16.0
 
 #: Ce que gagne ou perd un cran de molette.
-PAS_ZOOM = 1.1
+#: 1,15 depuis que le zoom monte a seize : vingt crans pour aller au bout.
+PAS_ZOOM = 1.15
 
 #: Le noir des cernes et des liseres, jamais tout a fait noir pour l'oeil.
 CERNE = QColor(15, 20, 23)

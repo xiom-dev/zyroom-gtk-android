@@ -173,7 +173,19 @@ class L_ExcellenteVientDuMêmeRelevé(unittest.TestCase):
                    for couple, creneaux in matieres.items()
                    for creneau in creneaux
                    & forage.EXCELLENTES[zone].get(couple, set())]
-        self.assertEqual(11, len(communs))
+        # Onze à l'origine ; le relevé bouge chaque soir (la Koorin XL Worst
+        # a été retirée le 24 septembre), donc on compte dans le relevé les
+        # créneaux cochés à la fois en suprême et en XL.
+        import json
+        chemin = os.path.join(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))),
+            "donnees", "forage-releve-guilde.json")
+        with open(chemin, encoding="utf-8") as fh:
+            cases = json.load(fh)["cases"]
+        oui = {c for c, v in cases.items() if v in ("x", "?")}
+        attendus = sum(1 for c in oui if c.split("|")[3] == "Supp"
+                       and c.replace("|Supp|", "|XL|") in oui)
+        self.assertEqual(attendus, len(communs))
 
 
 class LesContinentsRestentÀPart(unittest.TestCase):
