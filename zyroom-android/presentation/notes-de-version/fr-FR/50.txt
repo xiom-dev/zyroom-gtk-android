@@ -1,0 +1,5 @@
+* Le taux d'humidité en tête de l'écran météo suit enfin le jeu. Pendant la
+  dernière heure d'Atys de chaque cycle, le taux glisse déjà vers le suivant ;
+  l'en-tête affichait la valeur du cycle jusqu'à la dernière seconde — 91 %
+  quand le jeu et la courbe montraient déjà 35 %. La condition affichée suit
+  le même taux.

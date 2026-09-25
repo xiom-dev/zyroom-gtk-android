@@ -59,6 +59,8 @@ import net.ryzom.zyroom.model.popDe
 import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
+import net.ryzom.zyroom.model.conditionDe
+import net.ryzom.zyroom.model.tauxDeLInstant
 import net.ryzom.zyroom.model.nomSaison
 import net.ryzom.zyroom.model.texteCondition
 import net.ryzom.zyroom.model.texteMeteo
@@ -201,22 +203,27 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
 private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
     val cycles = cyclesDesPrimes(releve)
     val maintenant = maintenantDansLesPrimes(releve) ?: return
+    // Le taux de l'instant, comme le jeu et la courbe l'affichent : pendant la
+    // derniere heure d'un cycle, il glisse deja vers le suivant, et sa
+    // condition avec lui.
+    val taux = releve.tauxDeLInstant(cycles) ?: maintenant.value
+    val conditionDuTaux = conditionDe(taux)
     if (compact) {
-        EnTeteCompact(releve, maintenant, cycles)
+        EnTeteCompact(releve, maintenant, cycles, taux)
         return
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
         Row {
             Text(
-                "${texteMeteo(maintenant.text)} · ${(maintenant.value * 100).toInt()} %",
+                "${texteMeteo(maintenant.text)} · ${(taux * 100).toInt()} %",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                "  →  ${texteCondition(maintenant.condition)}",
+                "  →  ${texteCondition(conditionDuTaux)}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = couleurCondition(maintenant.condition),
+                color = couleurCondition(conditionDuTaux),
             )
         }
         // On ne montre que les bascules, non les cycles un par un : ce qu'on
@@ -259,7 +266,9 @@ private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
 
 /** Tout sur une ligne : la condition, la bascule qui vient, la fenêtre excellente. */
 @Composable
-private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Meteo>) {
+private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Meteo>,
+                          taux: Double) {
+    val conditionDuTaux = conditionDe(taux)
     val suite = cycles.filter { it.cycle > releve.cycleCourant }
     val prochain = suite.firstOrNull { it.condition != maintenant.condition }
     val meilleur = suite.firstOrNull { it.condition == "best" }
@@ -268,14 +277,14 @@ private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Met
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "${(maintenant.value * 100).toInt()} %  ",
+            "${(taux * 100).toInt()} %  ",
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            texteCondition(maintenant.condition),
+            texteCondition(conditionDuTaux),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = couleurCondition(maintenant.condition),
+            color = couleurCondition(conditionDuTaux),
         )
         prochain?.let {
             Text(

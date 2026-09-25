@@ -89,6 +89,42 @@ fun estLaNuit(heureDuJour: Int): Boolean = heureDuJour >= 22 || heureDuJour < 3
 const val HEURES_PAR_CYCLE = 3
 
 /**
+ * La bascule d'un cycle au suivant, en heures d'Atys : la **dernière** heure de
+ * chaque cycle, le taux glisse en ligne droite vers celui du cycle suivant
+ * (`CPredictWeather::predictWeather`, ryzomcore). La courbe et l'en-tête lisent
+ * tous deux cette valeur : ils ne peuvent plus se contredire.
+ */
+const val TRANSITION_HEURES = 1.0
+
+/** Les seuils du jeu, qui découpent les quatre conditions de gisement. */
+fun conditionDe(valeur: Double): String = when {
+    valeur <= 0.1666 -> "best"
+    valeur < 0.5 -> "good"
+    valeur <= 0.8333 -> "bad"
+    else -> "worst"
+}
+
+/**
+ * Le taux à l'instant, tel que le jeu l'affiche.
+ *
+ * La valeur d'un cycle n'est pas celle de tout le cycle : pendant sa dernière
+ * heure, le taux glisse déjà vers le cycle suivant. L'en-tête affichait la
+ * valeur du cycle jusqu'à la dernière seconde — « 91 % » quand le jeu et la
+ * courbe étaient déjà presque à 35 %.
+ */
+fun MeteoAtys.tauxDeLInstant(cycles: List<Meteo>): Double? {
+    val valeur = cycles.firstOrNull { it.cycle == cycleCourant }?.value ?: return null
+    val suivante = cycles.firstOrNull { it.cycle == cycleCourant + 1 }?.value
+    val dans = heureAtys - cycleCourant * HEURES_PAR_CYCLE
+    val debutBascule = HEURES_PAR_CYCLE - TRANSITION_HEURES
+    if (suivante != null && dans > debutBascule) {
+        val part = ((dans - debutBascule) / TRANSITION_HEURES).coerceAtMost(1.0)
+        return valeur + (suivante - valeur) * part
+    }
+    return valeur
+}
+
+/**
  * Minutes réelles pour une heure d'Atys.
  *
  * Mesuré sur l'API, et confirmé par le code du jeu (`ATYS_HOUR = 3`).

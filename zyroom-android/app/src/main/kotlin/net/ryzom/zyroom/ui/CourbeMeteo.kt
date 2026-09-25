@@ -53,7 +53,7 @@ private const val ANCRE = 0.15
  * retard sur le jeu : mesuré le 24 septembre 2026, le jeu affichait 53 %, la
  * courbe 20 %.
  */
-private const val TRANSITION_HEURES = 1.0
+private const val TRANSITION_HEURES = net.ryzom.zyroom.model.TRANSITION_HEURES
 
 /**
  * Minutes réelles entre deux repères d'heure sous le graphique.
