@@ -92,17 +92,12 @@ class PageMeteo:
         self._pad(self._meteo_courbe)
         page.append(self._meteo_courbe)
 
-        # Deux colonnes, et **un seul défilement pour tout**. Chacune a d'abord
-        # eu le sien, de peur que la colonne de gauche — plus longue — n'entraîne
-        # la droite et ne laisse une moitié d'écran vide. À l'usage, deux barres
-        # sont pires : on ne sait plus laquelle on tient, et comparer deux
-        # tableaux qui glissent séparément demande de les recaler à la main.
-        defilement = Gtk.ScrolledWindow()
-        defilement.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        defilement.set_vexpand(True)
-        dedans = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        self._pad(dedans)
-        defilement.set_child(dedans)
+        # **Un défilement par zone.** Les quatre colonnes partageaient un seul
+        # défilement : la plus longue -- Sources Interdites, souvent -- faisait
+        # descendre les trois autres avec elle, et l'on perdait de vue ce
+        # qu'on voulait comparer. Ludo les a voulues indépendantes : chacune
+        # défile seule, le titre au-dessus et la note au-dessous restent en
+        # place.
 
         # Ce qui sort maintenant, en tête et sur toute la largeur : c'est la
         # seule chose de cet écran qui dépende de l'instant, et donc la seule
@@ -110,18 +105,30 @@ class PageMeteo:
         self._meteo_pop_titre = Gtk.Label(xalign=0.0)
         self._meteo_pop_titre.add_css_class("title-4")
         self._meteo_pop_titre.add_css_class("peuple")
-        dedans.append(self._meteo_pop_titre)
+        self._pad(self._meteo_pop_titre)
+        self._meteo_pop_titre.set_margin_bottom(2)
+        page.append(self._meteo_pop_titre)
         pop = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12,
                       homogeneous=True)
+        pop.set_vexpand(True)
+        self._pad(pop)
+        pop.set_margin_top(0)
+        pop.set_margin_bottom(2)
         self._meteo_pop_colonnes = []
+        self._meteo_pop_defilements = []
         # Surtout pas `for _ in range(...)` : `_` est la fonction de traduction,
         # et l'écraser ici la rendrait locale à la méthode — tous les `_("…")`
         # de l'écran météo lèveraient alors une UnboundLocalError au démarrage.
         for _rang in range(self.COLONNES_POP):
             colonne = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            defilement = Gtk.ScrolledWindow()
+            defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            defilement.set_vexpand(True)
+            defilement.set_child(colonne)
             self._meteo_pop_colonnes.append(colonne)
-            pop.append(colonne)
-        dedans.append(pop)
+            self._meteo_pop_defilements.append(defilement)
+            pop.append(defilement)
+        page.append(pop)
 
         # Le tableau des excellentes de la saison, jour et nuit cote a cote,
         # a été retiré à son tour. Il disait la saison entière quand « ce qui
@@ -130,8 +137,9 @@ class PageMeteo:
         # excellentes par saison et par temps — comme les suprêmes. Les deux
         # listes se contredisaient sur l'écorce et la résine.
         self._meteo_note = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        dedans.append(self._meteo_note)
-        page.append(defilement)
+        self._pad(self._meteo_note)
+        self._meteo_note.set_margin_top(0)
+        page.append(self._meteo_note)
 
         self._meteo_releve = None      #: ce que l'API a rendu, tel quel
         self._meteo_affiche = None     #: le même, recalé sur l'instant présent
