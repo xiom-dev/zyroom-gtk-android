@@ -720,6 +720,10 @@
     for (const brute of texte.split(/\r?\n/)) {
       const m = RE.ligne.exec(brute.replace(COULEUR, ""));
       if (!m) continue;
+      // Les messages du jeu seulement : un tell, la guilde ou /dire qui
+      // finirait comme une phrase de combat serait sinon compte -- et un
+      // morceau du message partirait au serveur avec le resume.
+      if (!/^SYSTEM(\/|$)/.test(m[7])) continue;
       const t = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000;
       sortie.push({ t, jour: m[1] + "-" + m[2] + "-" + m[3],
                     heure: m[4] + ":" + m[5], canal: m[7], texte: m[8] });
