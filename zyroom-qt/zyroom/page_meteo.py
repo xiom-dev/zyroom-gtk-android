@@ -37,7 +37,7 @@ ANCRE = 0.15
 #: la derniere heure de chaque cycle, le taux glisse en ligne droite vers celui
 #: du cycle suivant et l'atteint pile au changement de cycle. Centree sur ce
 #: changement, la bascule avait une minute et demie de retard sur le jeu.
-TRANSITION_HEURES = 1.0
+TRANSITION_HEURES = meteo.TRANSITION_HEURES
 
 #: Les reperes d'heure reelle sous l'axe.
 #:
@@ -501,10 +501,16 @@ class PageMeteo(QWidget):
         # d'ecrire "sort supreme et XL" : le meme mot y designait une bande
         # d'humidite et ce qu'on fore. La courbe, juste dessous, montre de
         # toute facon quand le taux redescend.
+        taux = releve.humidite()
+        if taux is None:
+            taux = maintenant.value
         morceaux = [
             html.escape(_("humidité ")),
-            gras(f"{meteo.texte_condition(maintenant.condition).lower()} "
-                 f"{int(maintenant.value * 100)} %"),
+            # Le taux de l'instant, comme le jeu et la courbe l'affichent :
+            # pendant la derniere heure d'un cycle, il glisse deja vers le
+            # suivant, et sa condition avec lui.
+            gras(f"{meteo.texte_condition(meteo.condition_de(taux)).lower()} "
+                 f"{int(taux * 100)} %"),
         ]
         qualites = self._qualites_du_moment(releve, maintenant)
         if qualites:

@@ -846,5 +846,32 @@ class LesJoueursNeVoientPasLesMPAVerifier(unittest.TestCase):
         self.assertTrue(any(meteo.table_de(meteo.A_CONFIRMER).values()))
 
 
+class LeTauxDeLInstant(unittest.TestCase):
+    """L'en-tête affiche le taux que montrent le jeu et la courbe : pendant la
+    dernière heure d'un cycle, il glisse déjà vers le suivant. Relevé du
+    24 septembre 2026 : 6,7 % puis 71,1 % ; le jeu affichait 53 % à 0,72 h
+    de la fin de la bascule."""
+
+    def releve(self, heure):
+        C = meteo.Meteo
+        cycles = [C(41984, "best", 0.067, ""), C(41985, "bad", 0.711, "")]
+        return meteo.MeteoAtys(cycle_courant=int(heure // 3), heure_atys=heure,
+                               saison=2, continents={"sources": cycles})
+
+    def test_le_palier_tient_les_deux_premieres_heures(self):
+        self.assertAlmostEqual(0.067, self.releve(41984 * 3 + 1.5).humidite())
+
+    def test_la_derniere_heure_glisse_vers_le_suivant(self):
+        taux = self.releve(41984 * 3 + 2.72).humidite()
+        self.assertAlmostEqual(0.53, taux, places=2)
+        self.assertEqual("bad", meteo.condition_de(taux))
+
+    def test_les_seuils_du_jeu(self):
+        self.assertEqual("best", meteo.condition_de(0.10))
+        self.assertEqual("good", meteo.condition_de(0.41))
+        self.assertEqual("bad", meteo.condition_de(0.62))
+        self.assertEqual("worst", meteo.condition_de(0.91))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -60,6 +60,22 @@ QUALITE_GISEMENT = {SUPREME: "supreme", EXCELLENTE: "excellent", CHOIX: "",
 #: Les seuils du jeu, qui découpent les quatre conditions de gisement.
 SEUILS = (0.1666, 0.5, 0.8333)
 
+#: La bascule d'un cycle au suivant, en heures d'Atys : la **dernière** heure
+#: de chaque cycle, le taux glisse en ligne droite vers celui du cycle
+#: suivant (`CPredictWeather::predictWeather`, ryzomcore).
+TRANSITION_HEURES = 1.0
+
+
+def condition_de(valeur: float) -> str:
+    """La condition d'un taux d'humidité, selon les seuils du jeu."""
+    if valeur <= SEUILS[0]:
+        return "best"
+    if valeur < SEUILS[1]:
+        return "good"
+    if valeur <= SEUILS[2]:
+        return "bad"
+    return "worst"
+
 #: Zone du relevé → continent interrogé pour la météo. Les quatre zones des
 #: Primes partagent deux continents seulement, et rendent la même série : c'est
 #: vérifié sur quarante cycles.
@@ -148,6 +164,26 @@ class MeteoAtys:
             if m.cycle == self.cycle_courant:
                 return m
         return cycles[0] if cycles else None
+
+    def humidite(self) -> float | None:
+        """Le taux à l'instant, tel que le jeu l'affiche.
+
+        La valeur d'un cycle n'est pas celle de tout le cycle : pendant sa
+        dernière heure, le taux glisse déjà vers le cycle suivant. L'en-tête
+        affichait la valeur du cycle jusqu'à la dernière seconde -- « 91 % »
+        quand le jeu et la courbe étaient déjà presque à 35 %.
+        """
+        par_cycle = {c.cycle: c.value for c in self.cycles_des_primes()}
+        valeur = par_cycle.get(self.cycle_courant)
+        if valeur is None:
+            return None
+        suivante = par_cycle.get(self.cycle_courant + 1)
+        dans = self.heure_atys - self.cycle_courant * HEURES_PAR_CYCLE
+        debut_bascule = HEURES_PAR_CYCLE - TRANSITION_HEURES
+        if suivante is not None and dans > debut_bascule:
+            part = min(1.0, (dans - debut_bascule) / TRANSITION_HEURES)
+            return valeur + (suivante - valeur) * part
+        return valeur
 
     def minutes_avant(self, cycle: int) -> int:
         """Minutes réelles avant le début d'un cycle à venir.

@@ -283,10 +283,16 @@ class PageMeteo:
             # Les conditions en minuscules : « mauvaise » qualifie l'humidite
             # qui precede, et la capitale en faisait un nom propre qu'on lisait
             # comme une qualite de matiere.
+            taux = releve.humidite()
+            if taux is None:
+                taux = maintenant.value
             morceaux = [
                 clair(_("humidité ")),
-                gras(f"{meteo.texte_condition(maintenant.condition).lower()} "
-                     f"{int(maintenant.value * 100)} %"),
+                # Le taux de l'instant, comme le jeu et la courbe l'affichent :
+                # pendant la derniere heure d'un cycle, il glisse deja vers le
+                # suivant, et sa condition avec lui.
+                gras(f"{meteo.texte_condition(meteo.condition_de(taux)).lower()} "
+                     f"{int(taux * 100)} %"),
             ]
             qualites = self._qualites_du_moment(releve, maintenant)
             if qualites:
@@ -607,7 +613,7 @@ class PageMeteo:
     #: demi-heure de chaque côté : la courbe avait alors une minute et demie
     #: de retard sur le jeu. Mesuré le 24 septembre 2026, de 6,7 % vers
     #: 71,1 % : le jeu affichait 53 %, la courbe 20 %.
-    TRANSITION_HEURES = 1.0
+    TRANSITION_HEURES = meteo.TRANSITION_HEURES
 
     def _dessiner_courbe(self, _area, cr, largeur, hauteur) -> None:
         """L'humidité dans le temps, **en paliers reliés par des obliques**.
