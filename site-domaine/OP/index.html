@@ -111,6 +111,27 @@
            padding: 6px 12px; cursor: pointer; }
   button:hover { border-color: var(--clair); }
 
+  /* Les sauvegardes du serveur : une fenetre par-dessus la page, la plus
+     recente en haut. */
+  #coffre { background: var(--surface); color: var(--texte);
+            border: 1px solid var(--trait); border-radius: 12px; padding: 18px;
+            width: min(560px, calc(100vw - 32px)); max-height: 85vh; }
+  #coffre::backdrop { background: rgba(8,12,14,.8); }
+  #coffre h2 { color: var(--or); margin: 0 0 4px; font-size: 1.15rem; }
+  #coffre > p { color: var(--faible); margin: 0 0 12px; font-size: .88rem;
+                line-height: 1.4; }
+  #coffre-liste { list-style: none; margin: 0; padding: 0; overflow-y: auto;
+                  max-height: 50vh; border-top: 1px solid var(--trait); }
+  #coffre-liste li { display: flex; align-items: center; gap: 10px;
+                     padding: 7px 2px; border-bottom: 1px solid var(--trait); }
+  #coffre-liste .quand { flex: 1; min-width: 0; }
+  #coffre-liste .detail { display: block; color: var(--faible); font-size: .8rem; }
+  #coffre-liste .manuelle { color: var(--or); font-size: .8rem; }
+  #coffre-liste .vide { color: var(--faible); justify-content: center; }
+  #coffre .pied { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px;
+                  justify-content: flex-end; }
+  #coffre .pied .pc { margin-right: auto; }
+
   /* Les statistiques, sous les colonnes : une carte par question. */
   /* Le bilan : toute la largeur, sous les quatre colonnes. */
   #bilan { max-width: 1100px; margin: 12px auto 0; background: var(--surface);
@@ -402,12 +423,27 @@
 </section>
 
 <div class="actions">
-  <button id="sauver" title="Télécharger une copie du tri commun et des /who, en fichier .json">Sauvegarder</button>
-  <button id="restaurer" title="Recharger une sauvegarde .json : elle remplace le tri commun, pour toute la guilde">Restaurer</button>
+  <button id="sauver" title="Garder une copie du tri commun dans les sauvegardes du serveur">Sauvegarder</button>
+  <button id="restaurer" title="Choisir une sauvegarde du serveur : elle remplace le tri commun, pour toute la guilde">Restaurer</button>
   <input type="file" id="sauvegarde" accept=".json,application/json" hidden>
   <button id="copier" title="Copier les listes Kamis, Opposants et Neutres, à coller dans le canal de guilde">Copier les listes</button>
   <button id="oublier" title="Remettre tous les noms au centre, pour toute la guilde">Oublier le tri</button>
 </div>
+
+<dialog id="coffre">
+  <h2>Sauvegardes du serveur</h2>
+  <p>Automatiques : avant un changement, au plus une toutes les 5 minutes, et
+     toujours avant « Restaurer » ou « Oublier le tri ». Les 60 dernières sont
+     gardées, et les 100 dernières faites au bouton.</p>
+  <ul id="coffre-liste"></ul>
+  <div class="pied">
+    <span class="pc">
+      <button id="telecharger" type="button" title="Télécharger le tri commun et les /who, en fichier .json">Copie sur le PC</button>
+      <button id="depuis-pc" type="button" title="Recharger un fichier .json gardé sur le PC">Fichier du PC…</button>
+    </span>
+    <button id="coffre-fermer" type="button">Fermer</button>
+  </div>
+</dialog>
 
 <section id="stats">
   <div class="entete-stats">
@@ -1748,7 +1784,8 @@
     return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate())
            + "_" + z(d.getHours()) + "h" + z(d.getMinutes());
   }
-  document.getElementById("sauver").addEventListener("click", () => {
+  // Une copie sur le PC reste possible, depuis la fenetre des sauvegardes.
+  document.getElementById("telecharger").addEventListener("click", () => {
     const contenu = JSON.stringify({ page: "guerre-op", version: 2,
                                      le: new Date().toISOString(),
                                      camps, whos }, null, 1);
@@ -1762,8 +1799,72 @@
     setTimeout(() => URL.revokeObjectURL(lien.href), 1000);
   });
 
+  // **Les sauvegardes du serveur.** Le bouton en ajoute une ; « Restaurer »
+  // ouvre la liste, et on y choisit celle qui remplace le tri commun.
+  const coffre = document.getElementById("coffre");
+  const coffreListe = document.getElementById("coffre-liste");
+  function peindreSauvegardes(liste) {
+    coffreListe.replaceChildren();
+    if (!liste.length) {
+      const li = document.createElement("li");
+      li.className = "vide";
+      li.textContent = "Aucune sauvegarde sur le serveur.";
+      coffreListe.append(li);
+      return;
+    }
+    for (const s of liste) {
+      const li = document.createElement("li");
+      const quand = document.createElement("span");
+      quand.className = "quand";
+      quand.textContent = new Date(s.quand).toLocaleString("fr-FR", {
+        weekday: "short", day: "numeric", month: "short",
+        hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      if (s.manuelle) {
+        const m = document.createElement("span");
+        m.className = "manuelle";
+        m.textContent = "  · au bouton" + (s.qui ? " par " + s.qui : "");
+        quand.append(m);
+      }
+      const d = document.createElement("span");
+      d.className = "detail";
+      d.textContent = s.camps.kamis + " Kamis, " + s.camps.opposants
+                      + " opposants, " + s.camps.neutres + " neutres";
+      quand.append(d);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "Restaurer";
+      b.addEventListener("click", async () => {
+        if (!confirm("Remplacer le tri commun, pour toute la guilde, par celui du "
+                     + quand.firstChild.textContent + " ?\nLe tri actuel est "
+                     + "gardé dans les sauvegardes.")) return;
+        if (await ecrire({ action: "restaurer_sauvegarde", id: s.id })) {
+          coffre.close();
+          signaler("sauvegarde restaurée");
+        }
+      });
+      li.append(quand, b);
+      coffreListe.append(li);
+    }
+  }
+  document.getElementById("sauver").addEventListener("click", async () => {
+    if (await ecrire({ action: "sauver" })) signaler("tri sauvegardé sur le serveur");
+  });
+  document.getElementById("restaurer").addEventListener("click", async () => {
+    try {
+      const r = await fetch(SERVEUR + "?sauvegardes=1", { headers: entetes({}) });
+      if (r.status === 401) { voile.hidden = false; return; }
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.erreur || ("HTTP " + r.status));
+      peindreSauvegardes(d.sauvegardes || []);
+      coffre.showModal();
+    } catch (e) {
+      signaler("sauvegardes illisibles : " + e.message, true);
+    }
+  });
+  document.getElementById("coffre-fermer").addEventListener("click", () => coffre.close());
+
   const choixSauvegarde = document.getElementById("sauvegarde");
-  document.getElementById("restaurer").addEventListener("click",
+  document.getElementById("depuis-pc").addEventListener("click",
     () => choixSauvegarde.click());
   choixSauvegarde.addEventListener("change", async () => {
     const f = choixSauvegarde.files[0];
@@ -1777,7 +1878,7 @@
     }
     if (!confirm("Remplacer le tri commun, pour toute la guilde, par celui "
                  + "de la sauvegarde ?")) return;
-    await ecrire({ action: "restaurer", camps: lu.camps, whos: lu.whos || [] });
+    if (await ecrire({ action: "restaurer", camps: lu.camps, whos: lu.whos || [] })) coffre.close();
   });
 
   document.getElementById("copier").addEventListener("click", () => {
@@ -1790,7 +1891,7 @@
   });
   document.getElementById("oublier").addEventListener("click", () => {
     if (!confirm("Remettre tous les noms au centre, pour toute la guilde ?\n"
-                 + "Pense à « Sauvegarder » d'abord.")) return;
+                 + "Le tri actuel est gardé dans les sauvegardes du serveur.")) return;
     ecrire({ action: "oublier" });
   });
 

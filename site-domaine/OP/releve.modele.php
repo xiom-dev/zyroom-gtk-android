@@ -23,6 +23,13 @@ const DUREE = 30 * 24 * 3600;
 const FICHIER = __DIR__ . '/releve.json';
 const SAUVEGARDES = __DIR__ . '/sauvegardes';
 const MAX_SAUVEGARDES = 60;
+// Au plus une sauvegarde par tranche de cinq minutes : un tri mene nom apres
+// nom en ecrivait une toutes les deux secondes, et les soixante ne couvraient
+// plus que deux minutes. Ainsi espacees, elles couvrent au moins cinq heures.
+const ECART_SAUVEGARDES = 5 * 60;
+// Les sauvegardes faites au bouton : a part des automatiques, pour que la
+// rotation de celles-ci ne les emporte pas.
+const MAX_MANUELLES = 100;
 // Un journal d'une soiree porte quelques dizaines de /who : cinq cents
 // kilooctets laissent une grande marge, sans ouvrir la porte a n'importe quoi.
 const MAX_CORPS = 512 * 1024;
@@ -159,7 +166,7 @@ function pour_json(array $etat): array
  * part avant chaque ecriture : un tri tenu sur plusieurs guerres ne doit pas
  * disparaitre sur une fausse manoeuvre.
  */
-function modifier(callable $changement): array
+function modifier(callable $changement, bool $toujours = false): array
 {
     $fh = fopen(FICHIER, 'c+');
     if ($fh === false || !flock($fh, LOCK_EX)) {
@@ -167,7 +174,12 @@ function modifier(callable $changement): array
     }
     $contenu = (string) stream_get_contents($fh);
     $etat = lu($contenu);
-    if ($contenu !== '') {
+    $vieilles = glob(SAUVEGARDES . '/releve-*.json') ?: [];
+    sort($vieilles);
+    $derniere = $vieilles ? (int) @filemtime(end($vieilles)) : 0;
+    // `$toujours` : restaurer et oublier effacent d'un coup tout le tri ; ce
+    // qu'on a range depuis la derniere sauvegarde ne doit pas s'y perdre.
+    if ($contenu !== '' && ($toujours || time() - $derniere >= ECART_SAUVEGARDES)) {
         @mkdir(SAUVEGARDES, 0775, true);
         @file_put_contents(
             SAUVEGARDES . '/releve-' . gmdate('Ymd-His') . '.json', $contenu);
@@ -309,6 +321,50 @@ function guerres(): array
     return $liste;
 }
 
+// ------------------------------------------------------ les sauvegardes
+//
+// Deux sortes dans SAUVEGARDES : `releve-AAAAMMJJ-HHMMSS` (automatique, avant
+// une ecriture) et `manuelle-AAAAMMJJ-HHMMSS` (au bouton). L'heure est UTC.
+
+function sauvegarde_valide(string $id): bool
+{
+    return (bool) preg_match('/^(releve|manuelle)-\d{8}-\d{6}$/', $id);
+}
+
+/** Les sauvegardes du tri, les plus recentes d'abord, avec de quoi choisir. */
+function sauvegardes(): array
+{
+    $liste = [];
+    foreach (glob(SAUVEGARDES . '/{releve,manuelle}-*.json', GLOB_BRACE) ?: [] as $f) {
+        $id = basename($f, '.json');
+        if (!sauvegarde_valide($id)) {
+            continue;
+        }
+        $contenu = (string) file_get_contents($f);
+        $brut = json_decode($contenu, true);
+        $etat = lu($contenu);
+        $n = ['kamis' => 0, 'opposants' => 0, 'neutres' => 0];
+        foreach ($etat['camps'] as $v) {
+            $c = is_array($v) ? (string) ($v['c'] ?? '') : (string) $v;
+            if (isset($n[$c])) {
+                $n[$c]++;
+            }
+        }
+        [$sorte, $jour, $heure] = explode('-', $id);
+        $liste[] = [
+            'id' => $id,
+            'manuelle' => $sorte === 'manuelle',
+            'quand' => substr($jour, 0, 4) . '-' . substr($jour, 4, 2) . '-'
+                       . substr($jour, 6, 2) . 'T' . substr($heure, 0, 2) . ':'
+                       . substr($heure, 2, 2) . ':' . substr($heure, 4, 2) . 'Z',
+            'qui' => is_array($brut) ? (string) ($brut['sauve_par'] ?? '') : '',
+            'camps' => $n,
+        ];
+    }
+    usort($liste, fn($a, $b) => strcmp($b['quand'], $a['quand']));
+    return $liste;
+}
+
 /** L'etat du tri, et la liste des guerres a cote. */
 function reponse(array $etat): array
 {
@@ -318,6 +374,9 @@ function reponse(array $etat): array
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if (!connecte()) {
         repond(401, ['erreur' => 'mot de passe']);
+    }
+    if (isset($_GET['sauvegardes'])) {
+        repond(200, ['sauvegardes' => sauvegardes()]);
     }
     if (isset($_GET['guerre'])) {
         $id = (string) $_GET['guerre'];
@@ -576,8 +635,42 @@ switch ($action) {
         $etat = modifier(function (array $etat) {
             $etat['camps'] = [];
             return $etat;
-        });
+        }, true);
         repond(200, reponse($etat));
+
+    case 'sauver':
+        // Au bouton : le tri tel qu'il est, dans le dossier du serveur.
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        $etat = lu($contenu);
+        @mkdir(SAUVEGARDES, 0775, true);
+        $copie = pour_json($etat) + ['sauve_par' => $qui];
+        if (@file_put_contents(SAUVEGARDES . '/manuelle-' . gmdate('Ymd-His') . '.json',
+                               (string) json_encode($copie, JSON_UNESCAPED_UNICODE
+                                                            | JSON_PRETTY_PRINT)) === false) {
+            repond(500, ['erreur' => 'sauvegarde impossible']);
+        }
+        $manuelles = glob(SAUVEGARDES . '/manuelle-*.json') ?: [];
+        sort($manuelles);
+        foreach (array_slice($manuelles, 0,
+                             max(0, count($manuelles) - MAX_MANUELLES)) as $v) {
+            @unlink($v);
+        }
+        repond(200, reponse($etat) + ['sauvegardes' => sauvegardes()]);
+
+    case 'restaurer_sauvegarde':
+        // Une sauvegarde du dossier : son tri remplace le tri commun, tel
+        // qu'il etait (qui et quand compris), et ses /who s'ajoutent.
+        $id = (string) ($demande['id'] ?? '');
+        $f = SAUVEGARDES . '/' . $id . '.json';
+        if (!sauvegarde_valide($id) || !is_file($f)) {
+            repond(404, ['erreur' => 'sauvegarde inconnue']);
+        }
+        $ancien = lu((string) file_get_contents($f));
+        $etat = modifier(function (array $etat) use ($ancien) {
+            $etat['camps'] = $ancien['camps'];
+            return ajouter_whos($etat, $ancien['whos']);
+        }, true);
+        repond(200, reponse($etat) + ['sauvegardes' => sauvegardes()]);
 }
 
 repond(400, ['erreur' => 'action inconnue']);
