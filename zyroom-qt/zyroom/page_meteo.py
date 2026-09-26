@@ -488,8 +488,11 @@ class PageMeteo(QWidget):
         # etait la suivante : il fallait connaitre le code pour la decoder.
         # Elle se lit maintenant comme une phrase :
         #
-        #   humidite mauvaise 61 %, sort supreme et XL pendant 4 min
+        #   humidite bad 61 % pendant 4 min
         #     - beau, ete, 22 h sur Atys, nuit
+        #
+        # Depuis le 26/09/2026, comme GTK : la condition sous son nom anglais,
+        # celui du releve de la guilde, et plus de "sort supreme et XL".
         #
         # Les conditions en minuscules : "mauvaise" qualifie l'humidite qui
         # precede, et la capitale en faisait un nom propre qu'on lisait comme
@@ -509,13 +512,8 @@ class PageMeteo(QWidget):
             # Le taux de l'instant, comme le jeu et la courbe l'affichent :
             # pendant la derniere heure d'un cycle, il glisse deja vers le
             # suivant, et sa condition avec lui.
-            gras(f"{meteo.texte_condition(meteo.condition_de(taux)).lower()} "
-                 f"{int(taux * 100)} %"),
+            gras(f"{meteo.condition_de(taux)} {int(taux * 100)} %"),
         ]
-        qualites = self._qualites_du_moment(releve, maintenant)
-        if qualites:
-            morceaux.append(html.escape(_(", sort ")))
-            morceaux.append(gras(meteo.enumere_qualites(qualites)))
         if prochain is not None:
             # Le temps qui reste, et non le nom de la condition d'apres :
             # "pendant 4 min" repond a "est-ce que j'ai le temps ?".
