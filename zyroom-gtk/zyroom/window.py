@@ -2780,6 +2780,9 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
                pointe de sarcelle plutôt qu'un gris : c'est ce qui fait la
                différence entre un tableau terne et un tableau habillé. */
             .zebre { background: mix(@zy_surface, @zy_sarcelle, 0.14); }
+            /* Le cadre d'une zone de la meteo : l'en-tete fixe et ce qui
+               defile dessous, sur le fond des surfaces ou l'on lit. */
+            .cadre-zone { background-color: @zy_surface; }
             /* Le vert de l'application pour ce qui est monté au maximum. */
             /* Sans gras : la police epaissie a la volee rend le vert flou. La couleur
                suffit a dire que c'est monte au maximum. */

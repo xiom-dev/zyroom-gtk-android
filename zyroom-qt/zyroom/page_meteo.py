@@ -302,6 +302,7 @@ class PageMeteo(QWidget):
         rangee.setSpacing(12)
         self._pop_colonnes = []
         self._pop_defilements = []
+        self._pop_titres = []
         for _rang in range(COLONNES_POP):
             porteur = QWidget()
             pile = QVBoxLayout(porteur)
@@ -315,9 +316,41 @@ class PageMeteo(QWidget):
             defilant.setFrameShape(QScrollArea.Shape.NoFrame)
             defilant.setHorizontalScrollBarPolicy(
                 Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            # **Le nom de la zone reste en place quand on fait defiler.** Il
+            # est sorti de la partie qui defile et pose juste au-dessus, sur
+            # le meme fond : au repos rien ne change a l'oeil, et en bas d'une
+            # longue liste on sait toujours de quelle zone on parle.
+            tete = QWidget()
+            tete.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            tete.setProperty("zebre", True)
+            ligne_tete = QVBoxLayout(tete)
+            ligne_tete.setContentsMargins(8, 8, 8, 0)
+            titre = QLabel()
+            titre.setObjectName("titre")
+            ligne_tete.addWidget(titre)
+            # La barre de defilement de Qt prend sa place a cote du contenu,
+            # la ou celle de GTK flotte par-dessus : l'en-tete lui laisse la
+            # meme largeur, sans quoi il deborderait le bloc qu'il coiffe.
+            bord = QWidget()
+            ligne_bord = QVBoxLayout(bord)
+            ligne_bord.setContentsMargins(0, 0, 0, 0)
+            ligne_bord.addWidget(tete)
+            barre = defilant.verticalScrollBar()
+
+            def caler(_min, maxi, ligne=ligne_bord, barre=barre):
+                ligne.setContentsMargins(
+                    0, 0, barre.sizeHint().width() if maxi > 0 else 0, 0)
+            barre.rangeChanged.connect(caler)
+            cadre = QWidget()
+            pile_cadre = QVBoxLayout(cadre)
+            pile_cadre.setContentsMargins(0, 0, 0, 0)
+            pile_cadre.setSpacing(0)
+            pile_cadre.addWidget(bord)
+            pile_cadre.addWidget(defilant, 1)
             self._pop_colonnes.append(pile)
             self._pop_defilements.append(defilant)
-            rangee.addWidget(defilant, 1)
+            self._pop_titres.append(titre)
+            rangee.addWidget(cadre, 1)
         colonne.addWidget(pop, 1)
 
         # Le tableau des excellentes de la saison, jour et nuit cote a cote,
@@ -440,6 +473,9 @@ class PageMeteo(QWidget):
 
         for pile in self._pop_colonnes:
             self._vider(pile)
+        for titre in self._pop_titres:
+            titre.setText("")
+            titre.parentWidget().setVisible(False)
 
         # Ce qui sort maintenant, une colonne par zone : l'humidite decide de
         # la condition, la condition decide de la qualite, et la qualite decide
@@ -460,12 +496,15 @@ class PageMeteo(QWidget):
                 blocs = meteo.sorties_de(releve.saison, zone,
                                          actuelle.condition)
                 pile = self._pop_colonnes[rang % COLONNES_POP]
+                titre = self._pop_titres[rang % COLONNES_POP]
+                titre.setText(zone)
+                titre.parentWidget().setVisible(True)
                 # `AlignTop`, sans quoi Qt etire le bloc pour remplir sa
                 # colonne et centre son contenu : les quatre zones n'ayant pas
                 # le meme nombre de matieres, leurs titres ne s'alignaient plus
                 # d'une colonne a l'autre. GTK empile par le haut d'office.
                 pile.addWidget(self._bloc_matieres(
-                    zone, blocs, rang // COLONNES_POP % 2 == 0),
+                    None, blocs, rang // COLONNES_POP % 2 == 0),
                     0, Qt.AlignmentFlag.AlignTop)
 
     def _maj_entete(self, releve) -> None:
@@ -573,13 +612,16 @@ class PageMeteo(QWidget):
     def _on_gisement(self, adresse: str) -> None:
         page_gisements.montrer(self, *adresse.split("|", 2))
 
-    def _bloc_matieres(self, titre: str, blocs: list, zebre: bool) -> QWidget:
+    def _bloc_matieres(self, titre: str | None, blocs: list, zebre: bool) -> QWidget:
         """Une zone : son nom, puis un sous-bloc par qualite qu'elle sort.
 
         `blocs` est ce que rend `meteo.sorties_de` -- la meilleure qualite
         d'abord. Chacune porte son nom et son compte, sans quoi une XL
         affichee sous une supreme se lirait comme une supreme, et une seule
         supreme s'annoncerait comme les vingt et une de l'execrable.
+
+        Sans `titre`, le nom de la zone est porte par l'en-tete fixe de sa
+        colonne, au-dessus de ce qui defile : le bloc s'y raccorde par le haut.
         """
         boite = QWidget()
         # Sans cet attribut, Qt ne peint pas le fond que la feuille
@@ -592,9 +634,13 @@ class PageMeteo(QWidget):
         colonne.setContentsMargins(8, 8, 8, 8)
         colonne.setSpacing(1)
 
-        entete = QLabel(titre)
-        entete.setObjectName("titre")
-        colonne.addWidget(entete)
+        if titre is None:
+            # L'espace qui separait le nom de la zone de la premiere qualite.
+            colonne.setContentsMargins(8, 1, 8, 8)
+        else:
+            entete = QLabel(titre)
+            entete.setObjectName("titre")
+            colonne.addWidget(entete)
 
         if not blocs:
             vide = QLabel(_("Pas encore relevé"))

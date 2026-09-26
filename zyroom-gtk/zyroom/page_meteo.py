@@ -116,6 +116,7 @@ class PageMeteo:
         pop.set_margin_bottom(2)
         self._meteo_pop_colonnes = []
         self._meteo_pop_defilements = []
+        self._meteo_pop_titres = []
         # Surtout pas `for _ in range(...)` : `_` est la fonction de traduction,
         # et l'écraser ici la rendrait locale à la méthode — tous les `_("…")`
         # de l'écran météo lèveraient alors une UnboundLocalError au démarrage.
@@ -125,9 +126,26 @@ class PageMeteo:
             defilement.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
             defilement.set_vexpand(True)
             defilement.set_child(colonne)
+            # **Le nom de la zone reste en place quand on fait defiler.** Il
+            # est sorti de la partie qui defile et pose juste au-dessus, sur
+            # le meme fond : au repos rien ne change a l'oeil, et en bas d'une
+            # longue liste on sait toujours de quelle zone on parle.
+            tete = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            tete.add_css_class("zebre")
+            for m in ("margin_top", "margin_start", "margin_end"):
+                setattr(tete.props, m, 8)
+            titre = Gtk.Label(xalign=0.0)
+            titre.add_css_class("heading")
+            titre.set_margin_bottom(1)
+            tete.append(titre)
+            cadre = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            cadre.add_css_class("cadre-zone")
+            cadre.append(tete)
+            cadre.append(defilement)
             self._meteo_pop_colonnes.append(colonne)
             self._meteo_pop_defilements.append(defilement)
-            pop.append(defilement)
+            self._meteo_pop_titres.append(titre)
+            pop.append(cadre)
         page.append(pop)
 
         # Le tableau des excellentes de la saison, jour et nuit cote a cote,
@@ -313,6 +331,9 @@ class PageMeteo:
         for colonne in (self._meteo_note, *self._meteo_pop_colonnes):
             while (child := colonne.get_first_child()) is not None:
                 colonne.remove(child)
+        for titre in self._meteo_pop_titres:
+            titre.set_text("")
+            titre.get_parent().set_visible(False)
 
         # Ce qui sort maintenant, une colonne par zone : l'humidité décide de la
         # condition, la condition décide de la qualité, et la qualité décide de
@@ -340,8 +361,11 @@ class PageMeteo:
             self._meteo_pop_titre.set_text(_("MP qui pop maintenant"))
             for rang, (zone, blocs) in enumerate(sorties):
                 colonne = self._meteo_pop_colonnes[rang % self.COLONNES_POP]
+                titre = self._meteo_pop_titres[rang % self.COLONNES_POP]
+                titre.set_text(zone)
+                titre.get_parent().set_visible(True)
                 colonne.append(self._bloc_matieres(
-                    zone, blocs, rang // self.COLONNES_POP % 2 == 0))
+                    None, blocs, rang // self.COLONNES_POP % 2 == 0))
 
         # Deux choses qu'on ne devine pas en regardant le tableau : que les
         # quatre zones partagent une meteo mais pas leurs pops, et qu'un spot
@@ -436,20 +460,26 @@ class PageMeteo:
         label.props.margin_top = 10
         return label
 
-    def _bloc_matieres(self, titre: str, blocs: list, zebre: bool) -> Gtk.Widget:
+    def _bloc_matieres(self, titre: str | None, blocs: list, zebre: bool) -> Gtk.Widget:
         """Une zone : son nom, puis un sous-bloc par qualité qu'elle sort.
 
         `blocs` est ce que rend `meteo.sorties_de` — la meilleure qualité
         d'abord. Chacune porte son nom, sans quoi une excellente affichée sous
         une suprême se lirait comme une suprême.
+
+        Sans `titre`, le nom de la zone est porté par l'en-tête fixe de sa
+        colonne, au-dessus de ce qui défile : le bloc s'y raccorde par le haut.
         """
         boite = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         if zebre:
             boite.add_css_class("zebre")
         self._pad(boite)
-        entete = Gtk.Label(label=titre, xalign=0.0)
-        entete.add_css_class("heading")
-        boite.append(entete)
+        if titre is None:
+            boite.set_margin_top(0)
+        else:
+            entete = Gtk.Label(label=titre, xalign=0.0)
+            entete.add_css_class("heading")
+            boite.append(entete)
         if not blocs:
             boite.append(self._note(_("Pas encore relevé")))
         for qualite, groupes in blocs:
