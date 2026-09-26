@@ -35,6 +35,7 @@ import glob
 import json
 import os
 import re
+import unicodedata
 import urllib.error
 import urllib.request
 
@@ -229,13 +230,23 @@ NOM_JEU = {"mignonne": "Cuty", "grosse": "Big", "cornée": "Horny",
            "colle": "Glue", "lune": "Moon", "ardente": "Redhot"}
 
 
+def _sans_accents(texte: str) -> str:
+    """Le texte en minuscules, privé de ses accents.
+
+    Le jeu écrit « Anète », le relevé « Anete » : comparés tels quels, la prise
+    était lue puis jetée en silence, et sa case restait orange.
+    """
+    return "".join(c for c in unicodedata.normalize("NFD", texte.lower())
+                   if not unicodedata.combining(c))
+
+
 def _matieres() -> dict:
-    """{nom en minuscules: Nom} — les quarante-sept noms du relevé, et leurs
-    noms français tels que le jeu les écrit."""
+    """{nom en minuscules, sans accents: Nom} — les quarante-sept noms du
+    relevé, et leurs noms français tels que le jeu les écrit."""
     noms = {m for t in (forage.SUPREMES, forage.EXCELLENTES)
             for z in t.values() for _f_, m in z}
-    sortie = {n.lower(): n for n in noms}
-    sortie.update({fr: en for fr, en in NOM_JEU.items() if en in noms})
+    sortie = {_sans_accents(n): n for n in noms}
+    sortie.update({_sans_accents(fr): en for fr, en in NOM_JEU.items() if en in noms})
     return sortie
 
 
@@ -278,7 +289,7 @@ def prises() -> list:
         prise = _PRISE.search(ligne)
         if not prise or zone is None:
             continue
-        texte = prise.group(1).lower()
+        texte = _sans_accents(prise.group(1))
         # Le jeu nomme les matières de deux façons — « Ambres excellents /
         # Sha » mais « Fibres de choix de Dzao » — d'où la recherche du nom
         # n'importe où dans la phrase plutôt qu'à une place convenue.
