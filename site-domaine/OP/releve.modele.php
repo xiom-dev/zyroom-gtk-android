@@ -241,6 +241,24 @@ function fichier_guerre(string $id): string
     return COMBATS . '/' . $id . '.json';
 }
 
+/** La fenetre d'une soiree sans rounds (un boss) : le jour et les heures
+ *  du journal, de debut et de fin ; null si elle est illisible. */
+function fenetre_propre($f): ?array
+{
+    if (!is_array($f)) {
+        return null;
+    }
+    $jour = (string) ($f['jour'] ?? '');
+    $de = (string) ($f['de'] ?? '');
+    $a = (string) ($f['a'] ?? '');
+    $heure = '/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/';
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $jour) !== 1
+        || preg_match($heure, $de) !== 1 || preg_match($heure, $a) !== 1) {
+        return null;
+    }
+    return ['jour' => $jour, 'de' => $de, 'a' => $a];
+}
+
 /** Une guerre complete, champs manquants remplis : les anciennes n'ont ni
  *  nom, ni mois, ni /who a elles. */
 function guerre_complete(array $lu, string $id): array
@@ -259,6 +277,7 @@ function guerre_complete(array $lu, string $id): array
         'journaux' => is_array($lu['journaux'] ?? null) ? $lu['journaux'] : [],
         'bilan' => $lu['bilan'] ?? null,
         'camps_figes' => is_array($lu['camps_figes'] ?? null) ? $lu['camps_figes'] : null,
+        'fenetre' => fenetre_propre($lu['fenetre'] ?? null),
     ];
 }
 
@@ -568,7 +587,13 @@ switch ($action) {
         }
         $liste = is_array($demande['whos'] ?? null) ? $demande['whos'] : [];
         $resumes = is_array($demande['resumes'] ?? null) ? $demande['resumes'] : [];
-        modifier_guerre($id, function (array $g) use ($liste, $resumes, $id, $qui, $quand) {
+        // Le premier journal d'une soiree sans rounds pose ses heures par
+        // defaut ; les suivants se decoupent sur les memes.
+        $fenetre = fenetre_propre($demande['fenetre'] ?? null);
+        modifier_guerre($id, function (array $g) use ($liste, $resumes, $fenetre, $id, $qui, $quand) {
+            if ($g['fenetre'] === null && $fenetre !== null) {
+                $g['fenetre'] = $fenetre;
+            }
             $g = ajouter_whos($g, $liste);
             foreach ($resumes as $r) {
                 if (!is_array($r) || !nom_valide($r['proprio'] ?? null)
@@ -580,6 +605,20 @@ switch ($action) {
                 $r['depose_le'] = $quand;
                 $g['journaux'][$r['proprio']] = $r;
             }
+            return $g;
+        });
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)));
+
+    case 'fenetre':
+        // Les heures d'une soiree sans rounds, corrigees a la main sur la fiche.
+        $id = $demande['guerre'] ?? null;
+        $fenetre = fenetre_propre($demande['fenetre'] ?? null);
+        if (!guerre_valide($id) || $fenetre === null) {
+            repond(400, ['erreur' => 'heures illisibles']);
+        }
+        modifier_guerre($id, function (array $g) use ($fenetre) {
+            $g['fenetre'] = $fenetre;
             return $g;
         });
         $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';

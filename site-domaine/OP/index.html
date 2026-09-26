@@ -383,6 +383,11 @@
     <input type="text" id="fiche-nom" maxlength="80" placeholder="Nom de la guerre"
            aria-label="Nom de la guerre">
     <button id="enregistrer" title="Ranger la guerre dans le mois choisi sous ce nom, et figer son tri">Enregistrer</button>
+    <span id="fiche-heures" hidden
+          title="Soirée sans rounds (un boss) : seuls les combats entre ces deux heures comptent. Après un changement, redépose les journaux.">
+      de <input type="time" id="fenetre-de" step="1" aria-label="Début de la soirée">
+      à <input type="time" id="fenetre-a" step="1" aria-label="Fin de la soirée">
+    </span>
     <button id="supprimer" title="Supprimer cette guerre pour toute la guilde (elle reste récupérable dans les sauvegardes du serveur)">Supprimer</button>
     <span id="fiche-etat"></span>
   </div>
@@ -648,27 +653,45 @@
     // Deposer sans guerre ouverte en ouvre une, dans le mois choisi.
     if (!guerreChoisie && !(await creerGuerre())) return;
     const liste = [], resumes = [];
+    let fenetre = null;
     for (const f of fichiers) {
       const texte = await f.text();
       const guerresDuJournal = analyserGuerres(texte, f.name).filter(r => r.proprio);
       // **La derniere guerre du journal.** Un journal couvre souvent plusieurs
       // jours : c'est la soiree la plus recente qu'on vient deposer. Ses /who
       // sont ceux du meme jour ; sans guerre, ceux du dernier jour du journal.
+      // Une soiree sans rounds (un boss, pas un OP) plus recente que la
+      // derniere guerre l'emporte : ses /who, et pas le resume d'avant.
       const derniere = guerresDuJournal[guerresDuJournal.length - 1];
       const tous = lireJournal(texte);
-      const jour = derniere ? derniere.guerre.slice(0, 10).replace(/-/g, "/")
-                            : (tous.length ? tous[tous.length - 1].quand.slice(0, 10) : "");
+      const jourGuerre = derniere ? derniere.guerre.slice(0, 10).replace(/-/g, "/") : "";
+      const jourWho = tous.length ? tous[tous.length - 1].quand.slice(0, 10) : "";
+      const jour = jourGuerre > jourWho ? jourGuerre : jourWho;
+      // **Une soiree sans rounds se decoupe a l'heure** : celle de la guerre
+      // si un journal l'a deja posee, sinon celle que ce journal propose.
+      const f0 = (guerre && guerre.fenetre) || fenetre
+                 || (jour && jour !== jourGuerre ? fenetreParDefaut(texte, tous, jour) : null);
+      if (f0 && (!derniere || f0.jour.replace(/-/g, "/") !== jourGuerre)) {
+        fenetre = fenetre || f0;
+        const p = periodeDeFenetre(f0);
+        const proprio = proprioDuFichier(f.name, texte);
+        liste.push(...tous.filter(w => secondesUtc(w.quand) >= p.de && secondesUtc(w.quand) <= p.a));
+        if (proprio) resumes.push(resumer(lignesDatees(texte), p, proprio));
+        continue;
+      }
       liste.push(...tous.filter(w => w.quand.startsWith(jour)));
-      if (derniere) resumes.push(derniere);
+      if (derniere && jourGuerre === jour) resumes.push(derniere);
     }
     if (!liste.length && !resumes.length) {
       signaler("ni /who ni guerre d'OP dans ce journal", true);
       return;
     }
-    // Ce qui part : les /who (heure, region, noms) et le resume chiffre de la
-    // guerre. Rien d'autre du journal ne quitte ce navigateur.
+    // Ce qui part : les /who (heure, region, noms), le resume chiffre de la
+    // guerre, et les heures d'une soiree sans rounds. Rien d'autre du journal
+    // ne quitte ce navigateur.
     majChargee = null;
-    if (await ecrire({ action: "journal", guerre: guerreChoisie, whos: liste, resumes })) {
+    if (await ecrire({ action: "journal", guerre: guerreChoisie, whos: liste, resumes,
+                       fenetre: guerre && guerre.fenetre ? null : fenetre })) {
       signaler(liste.length + " /who et " + resumes.length + " journal de combat ajoutés à la guerre");
     }
   }
@@ -880,6 +903,40 @@
       }
     }
     return r;
+  }
+
+  // **Les heures par defaut d'une soiree sans rounds.** Le boss commence un
+  // peu avant le premier /who : on part de celui-ci moins un round (cinq
+  // minutes), et l'on finit une minute apres le dernier coup recu ou la
+  // derniere mort de ce jour-la. Les deux se corrigent sur la fiche.
+  function fenetreParDefaut(texte, tous, jour) {
+    const premier = tous.find(w => w.quand.startsWith(jour));
+    if (!premier) return null;
+    const de = secondesUtc(premier.quand) - ROUND_S;
+    const cle = jour.replace(/\//g, "-");
+    let fin = 0;
+    for (const l of lignesDatees(texte)) {
+      if (l.jour !== cle || l.t < de) continue;
+      if (RE.coup.test(l.texte) || RE.magie.test(l.texte) || RE.magie2.test(l.texte)
+          || RE.mort.test(l.texte)) fin = l.t;
+    }
+    const a = Math.min(Math.max(fin, secondesUtc(premier.quand)) + 60,
+                       Date.UTC(+cle.slice(0, 4), +cle.slice(5, 7) - 1, +cle.slice(8, 10)) / 1000 + 86399);
+    return { jour: cle, de: heureDe(de), a: heureDe(a) };
+  }
+
+  const heureDe = t => lignesHeure({ t });
+  // Comme lignesDatees : l'heure du journal comptee en UTC, sans fuseau.
+  const secondesUtc = quand => Date.parse(quand.replace(/\//g, "-").replace(" ", "T") + "Z") / 1000;
+
+  // La fenetre, en secondes du journal ; une fin avant le debut passe minuit.
+  function periodeDeFenetre(f) {
+    const base = Date.UTC(+f.jour.slice(0, 4), +f.jour.slice(5, 7) - 1, +f.jour.slice(8, 10)) / 1000;
+    const s = h => h.split(":").reduce((acc, n) => acc * 60 + +n, 0) * (h.length > 5 ? 1 : 60);
+    const de = base + s(f.de);
+    let a = base + s(f.a);
+    if (a < de) a += 86400;
+    return { id: f.jour, de, a, heure: f.de.slice(0, 5), rounds: [] };
   }
 
   function lignesHeure(l) {
@@ -1114,6 +1171,13 @@
         + dateCourte(guerre.enregistree_le) + (guerre.enregistree_par ? " par " + guerre.enregistree_par : "")
         + " · son tri est figé : il ne suit plus les changements faits ailleurs."
       : "Brouillon · dépose les journaux, trie, écris le bilan, puis « Enregistrer ».";
+    // Les heures, pour une soiree sans rounds seulement.
+    const f = guerre.fenetre;
+    document.getElementById("fiche-heures").hidden = !f;
+    for (const [id, cle] of [["fenetre-de", "de"], ["fenetre-a", "a"]]) {
+      const champ = document.getElementById(id);
+      if (f && document.activeElement !== champ) champ.value = f[cle];
+    }
     document.getElementById("titre-imprime").textContent =
       "— " + (guerre.nom || nomParDefaut() || "bilan de la guerre");
   }
@@ -1129,6 +1193,19 @@
       signaler("guerre enregistrée dans " + MOIS[moisVu - 1] + " " + anneeVue);
     }
   });
+
+  for (const id of ["fenetre-de", "fenetre-a"]) {
+    document.getElementById(id).addEventListener("change", async () => {
+      const de = document.getElementById("fenetre-de").value;
+      const a = document.getElementById("fenetre-a").value;
+      if (!guerre || !guerre.fenetre || !de || !a) return;
+      majChargee = null;
+      if (await ecrire({ action: "fenetre", guerre: guerreChoisie,
+                         fenetre: { jour: guerre.fenetre.jour, de, a } })) {
+        signaler("heures changées : redépose les journaux pour recompter les combats");
+      }
+    });
+  }
 
   document.getElementById("supprimer").addEventListener("click", async () => {
     if (!guerre) return;
@@ -1382,7 +1459,7 @@
       rounds: { gagnes: 0, perdus: 0 },
       meurtres: {}, morts: {}, tues: {},
       parties: {}, partiesDonnees: {},
-      attaquants: {}, pnj: {}, porteurs: {},
+      attaquants: {}, pnj: {}, porteurs: {}, pnjPortes: {},
       resistes: {}, insensibles: {},
       cibles: {}, soins: {}, evites: {}, rompues: {},
     };
@@ -1397,7 +1474,7 @@
       }
       // ... et les leurs, vues du cote de celui qui a porte le coup.
       for (const t of j.tues || []) {
-        if (estPnj(t.victime)) continue;
+        if (estPnj(t.victime)) { cumul(res.pnjPortes, sansArticle(t.victime), { tues: 1 }); continue; }
         cumul(res.meurtres, proprio + " → " + t.victime, { n: 1 });
         cumul(res.tues, t.victime, { n: 1 });
       }
@@ -1417,6 +1494,13 @@
         // qui n'a rien depose ne se lit que chez sa victime, en face.
         if (!estPnj(cible)) cumul(res.porteurs, proprio, { coups: v.coups || 0,
                                                             degats: v.degats || 0, max: v.max || 0 });
+        // Nos coups sur les PNJ, par type, avec la part de chacun.
+        else {
+          const o = cumul(res.pnjPortes, cible, { coups: v.coups || 0,
+                                                  degats: v.degats || 0, max: v.max || 0 });
+          o.par = o.par || {};
+          o.par[proprio] = (o.par[proprio] || 0) + (v.degats || 0);
+        }
       }
       for (const [qui, v] of Object.entries(j.resistes || {})) cumul(res.resistes, qui, { n: v.n });
       for (const [qui, v] of Object.entries(j.insensibles || {})) cumul(res.insensibles, qui, { n: v.n });
@@ -1564,6 +1648,14 @@
         detail: e.v.coups + " coups, plus gros " + nf(e.v.max),
       })), "pnj", "Aucun PNJ dans les journaux déposés."),
         "Total : " + nf(somme(r.pnj, "degats")) + " points de vie."),
+      carte("Dégâts portés aux PNJ", barres(trie(r.pnjPortes, "degats").map(e => ({
+        nom: e.nom, valeur: e.valeur,
+        texte: nf(e.valeur) + (e.v.tues ? " · " + e.v.tues + " tué" + (e.v.tues > 1 ? "s" : "") : ""),
+        detail: (e.v.coups || 0) + " coups, plus gros " + nf(e.v.max || 0) + " · "
+              + Object.entries(e.v.par || {}).sort((a, b) => b[1] - a[1])
+                      .map(([qui, d]) => qui + " " + nf(d)).join(", "),
+      })), "nous", "Aucun coup porté à un PNJ dans les journaux déposés."),
+        "Total : " + nf(somme(r.pnjPortes, "degats")) + " points de dégâts · seulement par ceux qui ont déposé leur journal."),
       carte("Sorts bloqués", [
         (() => { const d = document.createElement("h4"); d.textContent = "résistés par nous (lanceur)"; return d; })(),
         barres(trie(r.resistes, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "nous"),
