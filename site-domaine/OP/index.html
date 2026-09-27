@@ -471,11 +471,12 @@
 
 <!-- Au depot d'un journal : d'ou partir. Chacun choisit pour le sien. -->
 <dialog id="depart">
-  <h2>Depuis quel /who ?</h2>
-  <p>Ton journal <b id="depart-fichier"></b> couvre peut-être toute la journée.
-     Clique le /who d'où partir : les /who de cette heure et d'après entrent
-     dans la guerre, et les statistiques commencent là — celles des rounds
-     s'il y en a, sinon tout le combat jusqu'à la fin du journal.
+  <h2 id="depart-titre">Le /who du début</h2>
+  <p>Ton journal <b id="depart-fichier"></b> couvre peut-être plusieurs jours.
+     Clique le /who du début du combat, puis celui de la fin : les /who entre
+     les deux entrent dans la guerre. Les statistiques sont celles des rounds
+     d'un avant-poste proche de ces /who, sinon — du PvP — tout le combat
+     entre les deux.
      Mal choisi&nbsp;? Redépose le journal : le nouveau dépôt remplace l'ancien.</p>
   <ul id="depart-liste"></ul>
   <div class="pied">
@@ -715,29 +716,51 @@
   }
 
   // Rend le /who choisi, "auto", ou null si l'on annule.
+  // Deux clics : le /who du debut, puis celui de la fin. Rend {debut, fin}
+  // -- fin vaut null pour « jusqu'a la fin du journal » --, "auto", ou null
+  // si l'on annule.
   function choisirDepart(nomFichier, tous) {
     const boite = document.getElementById("depart");
     const ul = document.getElementById("depart-liste");
+    const titre = document.getElementById("depart-titre");
     document.getElementById("depart-fichier").textContent = nomFichier;
-    ul.textContent = "";
     return new Promise(fini => {
-      let rendu = null;
+      let rendu = null, debut = null;
       const finir = v => { rendu = v; boite.close(); };
-      // Le plus recent en haut : c'est presque toujours lui.
-      for (const w of [...tous].reverse()) {
-        const li = document.createElement("li");
-        const b = document.createElement("button");
-        b.type = "button";
-        const d = document.createElement("span");
-        d.className = "detail";
-        d.textContent = " · " + w.noms.length + " nom" + (w.noms.length > 1 ? "s" : "")
-                      + " : " + w.noms.slice(0, 6).join(", ") + (w.noms.length > 6 ? "…" : "");
-        b.append(w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7) + " " + w.quand.slice(11, 16)
-                 + " · " + w.region, d);
-        b.addEventListener("click", () => finir(w));
-        li.append(b);
-        ul.append(li);
-      }
+      const lister = () => {
+        ul.textContent = "";
+        titre.textContent = debut ? "Le /who de la fin" : "Le /who du début";
+        // La fin se choisit parmi le debut et ce qui suit, et peut etre
+        // la fin du journal : un /who oublie a la fin ne bloque rien.
+        if (debut) {
+          const li = document.createElement("li");
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = "Jusqu'à la fin du journal";
+          b.addEventListener("click", () => finir({ debut, fin: null }));
+          li.append(b);
+          ul.append(li);
+        }
+        const offerts = debut ? tous.filter(w => secondes(w.quand) >= secondes(debut.quand)) : tous;
+        // Le plus recent en haut : c'est presque toujours lui.
+        for (const w of [...offerts].reverse()) {
+          const li = document.createElement("li");
+          const b = document.createElement("button");
+          b.type = "button";
+          const d = document.createElement("span");
+          d.className = "detail";
+          d.textContent = " · " + w.noms.length + " nom" + (w.noms.length > 1 ? "s" : "")
+                        + " : " + w.noms.slice(0, 6).join(", ") + (w.noms.length > 6 ? "…" : "");
+          b.append(w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7) + " " + w.quand.slice(11, 16)
+                   + " · " + w.region, d);
+          b.addEventListener("click", () => {
+            if (debut) finir({ debut, fin: w }); else { debut = w; lister(); }
+          });
+          li.append(b);
+          ul.append(li);
+        }
+      };
+      lister();
       document.getElementById("depart-auto").onclick = () => finir("auto");
       document.getElementById("depart-annuler").onclick = () => finir(null);
       boite.addEventListener("close", () => fini(rendu), { once: true });
@@ -769,17 +792,23 @@
         const choix = await choisirDepart(f.name, tous);
         if (choix === null) continue;
         if (choix !== "auto") {
-          const t0 = secondes(choix.quand);
-          liste.push(...tous.filter(w => secondes(w.quand) >= t0));
           const lignes = lignesDatees(texte);
+          const t0 = secondes(choix.debut.quand);
+          const t1 = choix.fin ? secondes(choix.fin.quand)
+                               : (lignes.length ? lignes[lignes.length - 1].t : Infinity);
+          liste.push(...tous.filter(w => secondes(w.quand) >= t0 && secondes(w.quand) <= t1));
           if (proprio && lignes.length) {
-            // La guerre a rounds qui court encore apres le /who choisi ;
-            // sans elle -- du PvP sans avant-poste --, tout le combat depuis
-            // le /who jusqu'a la fin du journal.
-            const p = periodes(lignes).filter(q => q.a >= t0).pop()
-                      || { id: choix.quand.slice(0, 10).replace(/\//g, "-"),
-                           de: t0, a: lignes[lignes.length - 1].t,
-                           heure: choix.quand.slice(11, 16), rounds: [] };
+            // **Un avant-poste proche des /who** : ses rounds bornent le
+            // combat, meme si les /who ont ete tapes juste apres -- le 24/09,
+            // tous l'ont ete entre 12 et 37 min apres le dernier round. On
+            // prend la guerre qui finit au plus une heure avant le debut, ou
+            // commence au plus une demi-heure apres la fin.
+            // Sans elle, du PvP : tout le combat entre les deux /who.
+            const p = periodes(lignes).filter(q => q.a >= t0 - APRES_GUERRE_S
+                                                   && q.de <= t1 + AVANT_GUERRE_S).pop()
+                      || { id: choix.debut.quand.slice(0, 10).replace(/\//g, "-"),
+                           de: t0, a: t1,
+                           heure: choix.debut.quand.slice(11, 16), rounds: [] };
             resumes.push(resumer(lignes, p, proprio));
           }
           await envoyerJournal(liste, resumes, proprio);
