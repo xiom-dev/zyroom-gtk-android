@@ -132,7 +132,7 @@ cat <<'FIN'
   Reste a publier le site :
 
     cd ..
-    git fetch origin gh-pages
+    git fetch --depth=1 origin gh-pages
     tampon=$(mktemp -u)
     (cd pages && GIT_INDEX_FILE=$tampon git --git-dir=../.git --work-tree=. add -Af .)
     arbre=$(GIT_INDEX_FILE=$tampon git write-tree)

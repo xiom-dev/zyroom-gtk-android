@@ -354,7 +354,7 @@ Reste à faire, à la main — rien n'a été envoyé :
   1. publier le dépôt et la page :
 
        cd ..
-       git fetch origin gh-pages
+       git fetch --depth=1 origin gh-pages
        tampon=$(mktemp -u)
        (cd pages && GIT_INDEX_FILE=$tampon git --git-dir=../.git --work-tree=. add -Af .)
        arbre=$(GIT_INDEX_FILE=$tampon git write-tree)
@@ -376,6 +376,9 @@ Reste à faire, à la main — rien n'a été envoyé :
      Plus de `-f` : le commit descend de ce qui est en ligne, la poussee
      avance sans rien ecraser. Le `fetch` d'abord, sans quoi `FETCH_HEAD` ne
      designe rien.
+
+     `--depth=1` : seul le dernier etat du site descend, pas les centaines
+     de megaoctets de ses versions passees -- le parent suffit a la poussee.
 
 FIN
 
