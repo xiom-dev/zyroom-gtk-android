@@ -124,6 +124,20 @@
             border: 1px solid var(--trait); border-radius: 12px; padding: 18px;
             width: min(560px, calc(100vw - 32px)); max-height: 85vh; }
   #coffre::backdrop { background: rgba(8,12,14,.8); }
+  /* Le choix du /who de depart : meme fenetre que les sauvegardes. */
+  #depart { background: var(--surface); color: var(--texte);
+            border: 1px solid var(--trait); border-radius: 12px; padding: 18px;
+            width: min(560px, calc(100vw - 32px)); max-height: 85vh; }
+  #depart::backdrop { background: rgba(8,12,14,.8); }
+  #depart h2 { color: var(--or); margin: 0 0 4px; font-size: 1.15rem; }
+  #depart > p { color: var(--faible); margin: 0 0 12px; font-size: .88rem;
+                line-height: 1.4; }
+  #depart-liste { list-style: none; margin: 0; padding: 0; overflow-y: auto;
+                  max-height: 50vh; border-top: 1px solid var(--trait); }
+  #depart-liste li { padding: 5px 2px; border-bottom: 1px solid var(--trait); }
+  #depart-liste button { width: 100%; text-align: left; }
+  #depart-liste .detail { color: var(--faible); font-size: .8rem; }
+  #depart .pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   #coffre h2 { color: var(--or); margin: 0 0 4px; font-size: 1.15rem; }
   #coffre > p { color: var(--faible); margin: 0 0 12px; font-size: .88rem;
                 line-height: 1.4; }
@@ -450,6 +464,20 @@
   <button id="oublier" title="Remettre tous les noms au centre, pour toute la guilde">Oublier le tri</button>
 </div>
 
+<!-- Au depot d'un journal : d'ou partir. Chacun choisit pour le sien. -->
+<dialog id="depart">
+  <h2>Depuis quel /who ?</h2>
+  <p>Ton journal <b id="depart-fichier"></b> couvre peut-être toute la journée.
+     Clique le /who d'où partir : les /who de cette heure et d'après entrent
+     dans la guerre, et les statistiques commencent là — celles des rounds
+     s'il y en a, sinon tout le combat jusqu'à la fin du journal.</p>
+  <ul id="depart-liste"></ul>
+  <div class="pied">
+    <button id="depart-auto" type="button" title="Comme avant : la dernière guerre à rounds du journal, et ses /who">Automatique</button>
+    <button id="depart-annuler" type="button">Annuler</button>
+  </div>
+</dialog>
+
 <dialog id="coffre">
   <h2>Sauvegardes du serveur</h2>
   <p>Automatiques : avant un changement, au plus une toutes les 5 minutes, et
@@ -680,6 +708,37 @@
     return trouves.filter(w => w.noms.length);
   }
 
+  // Rend le /who choisi, "auto", ou null si l'on annule.
+  function choisirDepart(nomFichier, tous) {
+    const boite = document.getElementById("depart");
+    const ul = document.getElementById("depart-liste");
+    document.getElementById("depart-fichier").textContent = nomFichier;
+    ul.textContent = "";
+    return new Promise(fini => {
+      let rendu = null;
+      const finir = v => { rendu = v; boite.close(); };
+      // Le plus recent en haut : c'est presque toujours lui.
+      for (const w of [...tous].reverse()) {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        b.type = "button";
+        const d = document.createElement("span");
+        d.className = "detail";
+        d.textContent = " · " + w.noms.length + " nom" + (w.noms.length > 1 ? "s" : "")
+                      + " : " + w.noms.slice(0, 6).join(", ") + (w.noms.length > 6 ? "…" : "");
+        b.append(w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7) + " " + w.quand.slice(11, 16)
+                 + " · " + w.region, d);
+        b.addEventListener("click", () => finir(w));
+        li.append(b);
+        ul.append(li);
+      }
+      document.getElementById("depart-auto").onclick = () => finir("auto");
+      document.getElementById("depart-annuler").onclick = () => finir(null);
+      boite.addEventListener("close", () => fini(rendu), { once: true });
+      boite.showModal();
+    });
+  }
+
   async function charger(fichiers) {
     // Deposer sans guerre ouverte en ouvre une, dans le mois choisi.
     if (!guerreChoisie && !(await creerGuerre())) return;
@@ -694,6 +753,30 @@
       // derniere guerre l'emporte : ses /who, et pas le resume d'avant.
       const derniere = guerresDuJournal[guerresDuJournal.length - 1];
       const tous = lireJournal(texte);
+      // **Le depart choisi a la main.** Le journal a des /who : celui qui
+      // depose dit d'ou partir. Sans /who, ou sur « Automatique », on suit
+      // les rounds comme avant.
+      if (tous.length) {
+        const choix = await choisirDepart(f.name, tous);
+        if (choix === null) continue;
+        if (choix !== "auto") {
+          const t0 = secondes(choix.quand);
+          liste.push(...tous.filter(w => secondes(w.quand) >= t0));
+          const proprio = proprioDuFichier(f.name, texte);
+          const lignes = lignesDatees(texte);
+          if (proprio && lignes.length) {
+            // La guerre a rounds qui court encore apres le /who choisi ;
+            // sans elle -- du PvP sans avant-poste --, tout le combat depuis
+            // le /who jusqu'a la fin du journal.
+            const p = periodes(lignes).filter(q => q.a >= t0).pop()
+                      || { id: choix.quand.slice(0, 10).replace(/\//g, "-"),
+                           de: t0, a: lignes[lignes.length - 1].t,
+                           heure: choix.quand.slice(11, 16), rounds: [] };
+            resumes.push(resumer(lignes, p, proprio));
+          }
+          continue;
+        }
+      }
       const jourGuerre = derniere ? derniere.guerre.slice(0, 10).replace(/-/g, "/") : "";
       const jourWho = tous.length ? tous[tous.length - 1].quand.slice(0, 10) : "";
       const jour = jourGuerre > jourWho ? jourGuerre : jourWho;
