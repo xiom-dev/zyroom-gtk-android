@@ -644,8 +644,10 @@
 
   // ------------------------------------------------------------ le journal
 
+  // En UTC, comme `lignesDatees()` : les deux horloges se comparent quand on
+  // borne les /who aux rounds d'une guerre.
   function secondes(quand) {
-    return Date.parse(quand.replace(/\//g, "-").replace(" ", "T")) / 1000;
+    return Date.parse(quand.replace(/\//g, "-").replace(" ", "T") + "Z") / 1000;
   }
 
   function lireJournal(texte) {
@@ -688,8 +690,21 @@
       const jourGuerre = derniere ? derniere.guerre.slice(0, 10).replace(/-/g, "/") : "";
       const jourWho = tous.length ? tous[tous.length - 1].quand.slice(0, 10) : "";
       const jour = jourGuerre > jourWho ? jourGuerre : jourWho;
-      liste.push(...tous.filter(w => w.quand.startsWith(jour)));
-      if (derniere && jourGuerre === jour) resumes.push(derniere);
+      if (derniere && jourGuerre === jour) {
+        // **Les /who de la guerre, pas ceux de la journee.** Un /who tape
+        // l'apres-midi dans une autre region entrait dans la guerre du soir.
+        // On garde ceux tapes entre une demi-heure avant le premier round --
+        // le temps de se rassembler sur place -- et une heure apres le
+        // dernier : le 24/09, tous les /who ont suivi la fin de la guerre.
+        const p = periodes(lignesDatees(texte)).find(q => q.id === derniere.guerre);
+        const de = p.rounds[0].t - AVANT_GUERRE_S;
+        const a = p.rounds[p.rounds.length - 1].t + APRES_GUERRE_S;
+        liste.push(...tous.filter(w => secondes(w.quand) >= de
+                                       && secondes(w.quand) <= a));
+        resumes.push(derniere);
+      } else {
+        liste.push(...tous.filter(w => w.quand.startsWith(jour)));
+      }
     }
     if (!liste.length && !resumes.length) {
       signaler("ni /who ni guerre d'OP dans ce journal", true);
@@ -718,6 +733,10 @@
   // entreraient dans les statistiques de la soiree.
 
   const ROUND_S = 300;
+  // Les /who retenus pour une guerre : si tot avant le premier round, et si
+  // tard apres le dernier.
+  const AVANT_GUERRE_S = 1800;
+  const APRES_GUERRE_S = 3600;
   // Deux rounds plus eloignes que cela appartiennent a deux guerres.
   const ENTRE_GUERRES_S = 1800;
   // La mort revient a celui qui a frappe en dernier, s'il l'a fait depuis
