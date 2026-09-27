@@ -513,7 +513,11 @@ switch ($action) {
         if (guerre_valide($id) && ($g = lire_guerre($id)) && $g['camps_figes'] !== null) {
             modifier_guerre($id, function (array $g) use ($nom, $camp, $qui, $quand) {
                 if ($camp === '') {
-                    unset($g['camps_figes'][$nom]);
+                    // Ramene au centre, il reste de la guerre : un camp vide,
+                    // et non un effacement -- sans quoi un joueur que seul ce
+                    // tri nommait en disparaissait.
+                    $g['camps_figes'][$nom] = ['c' => '', 'qui' => $qui,
+                                               'quand' => $quand];
                 } else {
                     $g['camps_figes'][$nom] = ['c' => $camp, 'qui' => $qui,
                                                'quand' => $quand];
@@ -690,9 +694,12 @@ switch ($action) {
             $g['enregistree_par'] = $qui;
             $figes = [];
             foreach ($participants as $n) {
-                if (nom_valide($n) && isset($etat['camps'][$n])) {
-                    $figes[$n] = $etat['camps'][$n];
+                if (!nom_valide($n)) {
+                    continue;
                 }
+                // Les pas-encore-tries y entrent aussi, sans camp : la guerre
+                // enregistree les garde au centre.
+                $figes[$n] = $etat['camps'][$n] ?? ['c' => ''];
             }
             $g['camps_figes'] = $figes;
             return $g;

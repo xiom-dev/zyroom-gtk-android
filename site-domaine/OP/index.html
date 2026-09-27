@@ -1931,6 +1931,10 @@
 
   // Ceux qui ont pris part a la guerre ouverte : ses /who, ses statistiques,
   // et ceux que son tri fige nomme.
+  // Les noms ramenes au centre depuis ce navigateur : un /who decoche ne les
+  // fait pas disparaitre.
+  const ramenes = new Set();
+
   function participants() {
     const p = new Set(Object.keys(nomsDesStats()));
     for (const w of whosGuerre()) w.noms.forEach(n => p.add(n));
@@ -1948,6 +1952,14 @@
   function nomsVus() {
     const vus = new Set(Object.keys(nomsDesStats()));
     for (const w of whosGuerre()) if (!decoches.has(cleWho(w))) w.noms.forEach(n => vus.add(n));
+    // Ceux qu'on a ramenes au centre y restent, meme sans /who coche : le
+    // tri fige les garde sans camp, et ce navigateur se souvient des siens.
+    const cs = campsEffectifs();
+    for (const n of Object.keys(cs)) if (!cs[n].c) vus.add(n);
+    if (ramenes.size) {
+      const siens = participants();
+      ramenes.forEach(n => { if (siens.has(n)) vus.add(n); });
+    }
     retiresGuerre().forEach(n => vus.delete(n));
     return [...vus].sort((a, b) => a.localeCompare(b, "fr"));
   }
@@ -2034,12 +2046,12 @@
       liste.textContent = "";
       // Les colonnes de cote gardent tout le tri, meme les noms absents des
       // /who coches : c'est la liste des camps, pas celle d'une soiree.
-      const ici = camp ? tries(camp) : noms.filter(n => !cs[n]);
+      const ici = camp ? tries(camp) : noms.filter(n => !cs[n] || !cs[n].c);
       // Au survol : qui l'a range et quand, ou, au centre, d'ou vient le
       // nom -- un /who, ou ce qu'il a fait pendant la guerre.
       const dit = camp ? {} : nomsDesStats();
       for (const n of ici) {
-        const c = cs[n];
+        const c = cs[n] && cs[n].c ? cs[n] : null;
         liste.append(puce(n, c ? (c.qui || "quelqu'un") + " — "
                                  + new Date(c.quand).toLocaleString("fr-FR")
                                : dit[n] || "vu dans un /who",
@@ -2144,8 +2156,13 @@
       // commun suit toujours ; celui d'une guerre enregistree aussi.
       const geste = { c: camp, qui: champNom.value.trim(), quand: new Date().toISOString() };
       for (const cible of new Set([camps, cs])) {
-        if (camp) cible[n] = geste; else delete cible[n];
+        // Le tri fige garde un nom ramene au centre, sans camp ; le tri
+        // commun, lui, l'oublie.
+        if (camp) cible[n] = geste;
+        else if (cible === camps) delete cible[n];
+        else cible[n] = geste;
       }
+      if (!camp) ramenes.add(n);
       peindre();
       if (guerre && guerre.camps_figes) majChargee = null;
       ecrire({ action: "ranger", nom: n, camp, guerre: guerreChoisie });
