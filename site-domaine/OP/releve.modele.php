@@ -262,7 +262,33 @@ function guerre_complete(array $lu, string $id): array
         // Les noms qu'on a retires de cette guerre : vus dans un /who du
         // meme jour, mais absents de l'OP.
         'retires' => array_values(array_filter((array) ($lu['retires'] ?? []), 'nom_valide')),
+        // Qui a apporte quels /who : {proprio: ["quand|region", ...]}. Les
+        // /who deposes avant n'ont pas d'auteur, et restent quoi qu'il arrive.
+        'whos_de' => is_array($lu['whos_de'] ?? null) ? $lu['whos_de'] : [],
     ];
+}
+
+/**
+ * Retirer d'une guerre ce qu'un journal y a apporte : son resume, et les /who
+ * que lui seul a apportes -- un /who qu'un autre journal a aussi apporte
+ * reste. Sert au bouton de retrait, et avant de redeposer un journal : le
+ * nouveau depot remplace l'ancien au lieu de s'y ajouter.
+ */
+function oublier_journal(array $g, string $proprio): array
+{
+    $siens = (array) ($g['whos_de'][$proprio] ?? []);
+    unset($g['whos_de'][$proprio], $g['journaux'][$proprio]);
+    $autres = [];
+    foreach ($g['whos_de'] as $cles) {
+        foreach ((array) $cles as $c) {
+            $autres[$c] = true;
+        }
+    }
+    $g['whos'] = array_values(array_filter($g['whos'], function ($w) use ($siens, $autres) {
+        $c = $w['quand'] . '|' . $w['region'];
+        return !in_array($c, $siens, true) || isset($autres[$c]);
+    }));
+    return $g;
 }
 
 /**
@@ -286,6 +312,7 @@ function modifier_guerre(string $id, callable $changement, bool $creer = false):
     ftruncate($fh, 0);
     rewind($fh);
     $g['journaux'] = (object) $g['journaux'];
+    $g['whos_de'] = (object) $g['whos_de'];
     fwrite($fh, (string) json_encode($g, JSON_UNESCAPED_UNICODE));
     fflush($fh);
     flock($fh, LOCK_UN);
@@ -422,6 +449,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             repond(404, ['erreur' => 'guerre inconnue']);
         }
         $g['journaux'] = (object) $g['journaux'];
+        $g['whos_de'] = (object) $g['whos_de'];
         if ($g['camps_figes'] !== null) {
             $g['camps_figes'] = (object) $g['camps_figes'];
         }
@@ -605,7 +633,23 @@ switch ($action) {
         }
         $liste = is_array($demande['whos'] ?? null) ? $demande['whos'] : [];
         $resumes = is_array($demande['resumes'] ?? null) ? $demande['resumes'] : [];
-        modifier_guerre($id, function (array $g) use ($liste, $resumes, $id, $qui, $quand) {
+        // Le proprietaire du journal, quand la page le connait : son depot
+        // precedent est alors remplace, et ses /who lui sont attribues.
+        $proprio = $demande['proprio'] ?? null;
+        $proprio = nom_valide($proprio) ? $proprio : null;
+        modifier_guerre($id, function (array $g) use ($liste, $resumes, $id, $qui, $quand, $proprio) {
+            if ($proprio !== null) {
+                $g = oublier_journal($g, $proprio);
+                $cles = [];
+                foreach ($liste as $brut) {
+                    if (($w = who_propre($brut)) !== null) {
+                        $cles[] = $w['quand'] . '|' . $w['region'];
+                    }
+                }
+                if ($cles) {
+                    $g['whos_de'][$proprio] = $cles;
+                }
+            }
             $g = ajouter_whos($g, $liste);
             foreach ($resumes as $r) {
                 if (!is_array($r) || !nom_valide($r['proprio'] ?? null)
@@ -654,6 +698,17 @@ switch ($action) {
             return $g;
         });
         repond(200, reponse($etat));
+
+    case 'retirer_journal':
+        // Un journal de moins dans la guerre, les autres restent.
+        $id = $demande['guerre'] ?? null;
+        $proprio = $demande['proprio'] ?? null;
+        if (!guerre_valide($id) || !nom_valide($proprio)) {
+            repond(400, ['erreur' => 'journal ou guerre inconnu']);
+        }
+        modifier_guerre($id, fn(array $g) => oublier_journal($g, $proprio));
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)));
 
     case 'renommer':
         // Le nom seul : ni le mois ni le tri fige ne bougent, contrairement a

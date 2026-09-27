@@ -175,6 +175,11 @@
             font-size: .9rem; border: 1px solid var(--trait); border-radius: 7px;
             padding: 5px 8px; }
   #stats-resume { color: var(--faible); font-size: .85rem; margin: 0 0 12px; }
+  #stats-resume .retirer-journal { margin: 0 2px 0 3px; padding: 0 4px; border: 0;
+                                   background: none; color: var(--faible);
+                                   cursor: pointer; font-weight: 700; }
+  #stats-resume .retirer-journal:hover { color: var(--texte); }
+  html.mode-pdf #stats-resume .retirer-journal { display: none; }
   #cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 12px; }
   .carte { background: var(--surface); border: 1px solid var(--trait);
@@ -470,7 +475,8 @@
   <p>Ton journal <b id="depart-fichier"></b> couvre peut-être toute la journée.
      Clique le /who d'où partir : les /who de cette heure et d'après entrent
      dans la guerre, et les statistiques commencent là — celles des rounds
-     s'il y en a, sinon tout le combat jusqu'à la fin du journal.</p>
+     s'il y en a, sinon tout le combat jusqu'à la fin du journal.
+     Mal choisi&nbsp;? Redépose le journal : le nouveau dépôt remplace l'ancien.</p>
   <ul id="depart-liste"></ul>
   <div class="pied">
     <button id="depart-auto" type="button" title="Comme avant : la dernière guerre à rounds du journal, et ses /who">Automatique</button>
@@ -742,9 +748,12 @@
   async function charger(fichiers) {
     // Deposer sans guerre ouverte en ouvre une, dans le mois choisi.
     if (!guerreChoisie && !(await creerGuerre())) return;
-    const liste = [], resumes = [];
     for (const f of fichiers) {
       const texte = await f.text();
+      // Un envoi par journal, a son proprietaire : le serveur remplace alors
+      // son depot precedent -- on se reprend en redeposant.
+      const liste = [], resumes = [];
+      const proprio = proprioDuFichier(f.name, texte);
       const guerresDuJournal = analyserGuerres(texte, f.name).filter(r => r.proprio);
       // **La derniere guerre du journal.** Un journal couvre souvent plusieurs
       // jours : c'est la soiree la plus recente qu'on vient deposer. Ses /who
@@ -762,7 +771,6 @@
         if (choix !== "auto") {
           const t0 = secondes(choix.quand);
           liste.push(...tous.filter(w => secondes(w.quand) >= t0));
-          const proprio = proprioDuFichier(f.name, texte);
           const lignes = lignesDatees(texte);
           if (proprio && lignes.length) {
             // La guerre a rounds qui court encore apres le /who choisi ;
@@ -774,6 +782,7 @@
                            heure: choix.quand.slice(11, 16), rounds: [] };
             resumes.push(resumer(lignes, p, proprio));
           }
+          await envoyerJournal(liste, resumes, proprio);
           continue;
         }
       }
@@ -795,7 +804,11 @@
       } else {
         liste.push(...tous.filter(w => w.quand.startsWith(jour)));
       }
+      await envoyerJournal(liste, resumes, proprio);
     }
+  }
+
+  async function envoyerJournal(liste, resumes, proprio) {
     if (!liste.length && !resumes.length) {
       signaler("ni /who ni guerre d'OP dans ce journal", true);
       return;
@@ -803,7 +816,8 @@
     // Ce qui part : les /who (heure, region, noms) et le resume chiffre de la
     // guerre. Rien d'autre du journal ne quitte ce navigateur.
     majChargee = null;
-    if (await ecrire({ action: "journal", guerre: guerreChoisie, whos: liste, resumes })) {
+    if (await ecrire({ action: "journal", guerre: guerreChoisie, proprio,
+                       whos: liste, resumes })) {
       signaler(liste.length + " /who et " + resumes.length + " journal de combat ajoutés à la guerre");
     }
   }
@@ -1701,11 +1715,33 @@
       resume.textContent = "Aucune guerre : dépose le journal d'un OP. La guerre se "
                          + "repère aux « round gagné / perdu » que le jeu écrit toutes "
                          + "les cinq minutes.";
+      // Un journal qui n'a apporte que des /who se retire quand meme.
+      for (const p of journauxDeposes()) {
+        const x = document.createElement("button");
+        x.type = "button";
+        x.className = "retirer-journal";
+        x.textContent = "× " + p;
+        x.title = "Retirer le journal de " + p + " de cette guerre";
+        x.addEventListener("click", () => retirerJournal(p));
+        resume.append(" ", x);
+      }
       return;
     }
     const r = calculer();
-    resume.textContent = "Journaux : " + r.proprios.join(", ") + " · rounds "
-                       + r.rounds.gagnes + " gagnés, " + r.rounds.perdus + " perdus";
+    resume.textContent = "";
+    resume.append("Journaux : ");
+    journauxDeposes().forEach((p, i) => {
+      if (i) resume.append(", ");
+      resume.append(p);
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "retirer-journal";
+      x.textContent = "×";
+      x.title = "Retirer le journal de " + p + " de cette guerre";
+      x.addEventListener("click", () => retirerJournal(p));
+      resume.append(x);
+    });
+    resume.append(" · rounds " + r.rounds.gagnes + " gagnés, " + r.rounds.perdus + " perdus");
     const aide = document.createElement("span");
     aide.className = "ecran";
     aide.textContent = " · survole une barre pour le détail.";
@@ -1859,6 +1895,24 @@
         l.append(b);
       }
       boite.append(l);
+    }
+  }
+
+  // Ceux qui ont depose dans la guerre ouverte : un resume, ou des /who.
+  function journauxDeposes() {
+    return [...new Set([...Object.keys(journaux),
+                        ...Object.keys((guerre && guerre.whos_de) || {})])]
+           .sort((a, b) => a.localeCompare(b, "fr"));
+  }
+
+  // Pour tout le monde, d'ou la question. Redeposer le journal le remet.
+  async function retirerJournal(p) {
+    if (!guerre || !confirm("Retirer le journal de " + p + " de cette guerre, pour tout le monde ?\n"
+                            + "Ses statistiques partent, avec les /who qu'il est seul à avoir apportés. "
+                            + "Redéposer le journal les remet.")) return;
+    majChargee = null;
+    if (await ecrire({ action: "retirer_journal", guerre: guerreChoisie, proprio: p })) {
+      signaler("journal de " + p + " retiré");
     }
   }
 
