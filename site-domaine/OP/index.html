@@ -132,14 +132,23 @@
   #depart h2 { color: var(--or); margin: 0 0 4px; font-size: 1.15rem; }
   #depart > p { color: var(--faible); margin: 0 0 12px; font-size: .88rem;
                 line-height: 1.4; }
+  /* La fenetre tient dans l'ecran : c'est la liste des /who qui retrecit et
+     defile, pas la fenetre -- sinon « Automatique » et « Annuler »
+     sortaient par le bas. */
+  #depart[open] { display: flex; flex-direction: column; }
   #depart-liste { list-style: none; margin: 0; padding: 0; overflow-y: auto;
-                  max-height: 50vh; border-top: 1px solid var(--trait); }
+                  flex: 1 1 auto; min-height: 90px; border-top: 1px solid var(--trait); }
   #depart-liste li { padding: 5px 2px; border-bottom: 1px solid var(--trait); }
   #depart-liste button { width: 100%; text-align: left; }
   #depart-liste .detail { color: var(--faible); font-size: .8rem; }
   #depart .pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
-  #depart-heures { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
-                   margin-top: 12px; font-size: .9rem; }
+  /* Les deux heures l'une sous l'autre, alignees sur leurs etiquettes. */
+  #depart-heures { display: grid; grid-template-columns: max-content max-content;
+                   align-items: center; gap: 6px 10px; margin-top: 12px;
+                   font-size: .9rem; }
+  #depart-heures b, #depart-heures-refus { grid-column: 1 / -1; }
+  #depart-heures-ok { grid-column: 2; justify-self: start; color: var(--or);
+                      font-weight: 700; }
   #depart-heures input { background: var(--fond); color: var(--texte); font: inherit;
                          border: 1px solid var(--trait); border-radius: 7px; padding: 4px 6px; }
   #depart-heures-refus { color: var(--eux); font-size: .85rem; }
@@ -487,9 +496,9 @@
   <ul id="depart-liste"></ul>
   <div id="depart-heures">
     <b>Ou les heures du combat</b>
-    <label>du <input type="datetime-local" id="depart-de"></label>
-    <label>au <input type="datetime-local" id="depart-a"></label>
-    <button id="depart-heures-ok" type="button" title="Tout ce qui s'est passé entre ces deux heures, rounds compris">Ces heures</button>
+    <label for="depart-de">du</label><input type="datetime-local" id="depart-de">
+    <label for="depart-a">au</label><input type="datetime-local" id="depart-a">
+    <button id="depart-heures-ok" type="button" title="Tout ce qui s'est passé entre ces deux heures, rounds compris">Accepter</button>
     <span id="depart-heures-refus"></span>
   </div>
   <div class="pied">
