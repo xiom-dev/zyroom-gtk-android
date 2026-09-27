@@ -12,6 +12,7 @@ lorsque la prévision touche à sa fin.
 from __future__ import annotations
 
 import html
+import time
 from datetime import datetime, timedelta
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
@@ -394,12 +395,17 @@ class PageMeteo(QWidget):
             # La saison vient d'un autre appel : le flux meteo ne la porte pas,
             # et c'est elle qui dit quelle page du releve regarder.
             try:
-                saison = ryzom_api.parse_time(
-                    ryzom_api.fetch_time_xml())["season_index"]
+                temps = ryzom_api.parse_time(ryzom_api.fetch_time_xml())
+                saison = temps["season_index"]
+                # L'echeance ramenee a l'instant du releve meteo, lu juste
+                # avant : c'est de lui que `a_present()` compte.
+                dans = (temps["minutes_to_next"]
+                        + (time.monotonic() - releve.pris_a) / 60.0)
             except Exception:                           # noqa: BLE001
-                saison = -1
+                saison, dans = -1, -1.0
             return meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys,
-                                   saison, releve.continents, releve.pris_a)
+                                   saison, releve.continents, releve.pris_a,
+                                   saison_dans=dans)
 
         def apres(resultat, erreur):
             self._en_cours = False

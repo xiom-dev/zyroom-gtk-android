@@ -11,6 +11,7 @@ Le code vient de `window.py`, déplacé sans une ligne de changement.
 """
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta
 
 from gi.repository import GLib, Gtk
@@ -214,10 +215,14 @@ class PageMeteo:
             # La saison vient d'un autre appel : le flux météo ne la porte pas,
             # et c'est elle qui dit quelle page du relevé regarder.
             try:
-                saison = ryzom_api.parse_time(
-                    ryzom_api.fetch_time_xml())["season_index"]
+                temps = ryzom_api.parse_time(ryzom_api.fetch_time_xml())
+                saison = temps["season_index"]
+                # L'echeance ramenee a l'instant du releve meteo, lu juste
+                # avant : c'est de lui que `a_present()` compte.
+                dans = (temps["minutes_to_next"]
+                        + (time.monotonic() - releve.pris_a) / 60.0)
             except Exception:                           # noqa: BLE001
-                saison = -1
+                saison, dans = -1, -1.0
             # gtk-dev relit aussi le relevé : une croix cochée à la main sur
             # le site entre ainsi dans l'écran sans passer par le bouton. Une
             # panne du site ne doit pas priver de météo.
@@ -227,7 +232,8 @@ class PageMeteo:
                 except (OSError, ValueError):
                     pass
             return meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys,
-                                   saison, releve.continents, releve.pris_a)
+                                   saison, releve.continents, releve.pris_a,
+                                   saison_dans=dans)
 
         def done(res, err):
             self._meteo_en_cours = False

@@ -32,6 +32,9 @@ MINUTES_PAR_HEURE_ATYS = 3
 #: Durée réelle d'un cycle, en minutes.
 MINUTES_PAR_CYCLE = 9
 
+#: Durée réelle d'une saison, en minutes : 90 jours de 24 heures d'Atys.
+MINUTES_PAR_SAISON = 90 * 24 * MINUTES_PAR_HEURE_ATYS
+
 #: Les quatre saisons, dans l'ordre où l'API les numérote.
 SAISONS = ("PRINTEMPS", "ETE", "AUTOMNE", "HIVER")
 
@@ -121,6 +124,11 @@ class MeteoAtys:
     #: un changement d'heure ou une mise à l'heure réseau ferait sauter la
     #: seconde, et le graphique avec.
     pris_a: float = field(default_factory=time.monotonic)
+    #: Minutes réelles entre `pris_a` et le prochain changement de saison ;
+    #: négatif si l'API ne l'a pas dit. Sans lui, `a_present()` gardait la
+    #: saison du chargement : l'écran restait en automne des heures durant
+    #: après le passage à l'hiver.
+    saison_dans: float = -1.0
 
     def a_present(self) -> "MeteoAtys":
         """Le même relevé, recalé sur l'instant présent.
@@ -132,9 +140,17 @@ class MeteoAtys:
         """
         ecoulees = max(0.0, time.monotonic() - self.pris_a)
         heure = self.heure_atys + ecoulees / (60.0 * MINUTES_PAR_HEURE_ATYS)
+        # La saison avance de meme : chaque echeance franchie depuis le
+        # releve en passe une, et l'echeance recule d'autant.
+        saison, dans = self.saison, self.saison_dans
+        if saison >= 0 and dans >= 0 and ecoulees / 60.0 >= dans:
+            passees = 1 + int((ecoulees / 60.0 - dans) // MINUTES_PAR_SAISON)
+            saison = (saison + passees) % len(SAISONS)
+            dans += passees * MINUTES_PAR_SAISON
         return MeteoAtys(cycle_courant=int(heure // HEURES_PAR_CYCLE),
-                         heure_atys=heure, saison=self.saison,
-                         continents=self.continents, pris_a=self.pris_a)
+                         heure_atys=heure, saison=saison,
+                         continents=self.continents, pris_a=self.pris_a,
+                         saison_dans=dans)
 
     @property
     def avancement_du_cycle(self) -> float:
