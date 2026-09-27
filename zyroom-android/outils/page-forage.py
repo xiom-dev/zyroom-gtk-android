@@ -754,7 +754,8 @@ GABARIT = """<!DOCTYPE html>
   .case[data-v="-"]::after { content: "\\2212"; }
   /* **L'orange, c'est ce qu'on n'a pas vu soi-meme.** Il vient des landmarks
      des foreuses, de la cartographie du tutoriel ou de Ballistic Mystix. Un
-     clic le confirme et il passe au vert ; deux, et il devient un tiret. */
+     clic le confirme et il passe au vert ; deux, et il devient un tiret ;
+     trois, et il redevient orange. */
   .case[data-v="?"] { color: var(--dedu);
                       background: rgba(232,161,58,.10);
                       box-shadow: inset 0 0 0 1px rgba(232,161,58,.5); }
@@ -1044,8 +1045,9 @@ GABARIT = """<!DOCTYPE html>
     if (!td) return;
     const k = cle(td);
     const avant = cases[k];
-    // L'orange se confirme d'un clic : il devient vert. Puis tiret, puis vide.
-    const suite = { undefined: "x", "?": "x", "x": "-", "-": undefined };
+    // L'orange se confirme d'un clic : il devient vert. Puis tiret, puis
+    // orange, puis vide : une case quittee par erreur peut y revenir.
+    const suite = { undefined: "x", "x": "-", "-": "?", "?": undefined };
     const v = suite[avant ? avant.v : undefined];
     // On peint d'abord et on demande ensuite : le clic doit repondre tout de
     // suite. Si le serveur refuse, on remet ce qui etait la.
