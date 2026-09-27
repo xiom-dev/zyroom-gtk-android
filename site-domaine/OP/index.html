@@ -51,7 +51,7 @@
 
   /* La zone ou l'on depose le journal. Un clic ouvre aussi le selecteur de
      fichiers : sur un ecran tactile, glisser un fichier n'existe pas. */
-  .source { display: block; border: 2px dashed var(--trait); border-radius: 10px;
+  .source { display: block; border: 2px dashed var(--or); border-radius: 10px;
             padding: 16px; text-align: center; color: var(--faible);
             cursor: pointer; }
   .source.survol { border-color: var(--clair); color: var(--texte); }
@@ -1348,10 +1348,9 @@
     champNomGuerre.placeholder = nomParDefaut() || "Nom de la guerre";
     document.getElementById("enregistrer").textContent =
       (guerre.enregistree_le ? "Réenregistrer" : "Enregistrer") + " dans " + MOIS[moisVu - 1] + " " + anneeVue;
-    document.getElementById("fiche-etat").textContent = guerre.enregistree_le
-      ? "Enregistrée dans " + MOIS[guerre.mois - 1] + " " + guerre.annee + " le "
-        + dateCourte(guerre.enregistree_le) + (guerre.enregistree_par ? " par " + guerre.enregistree_par : "")
-        + " · son tri est figé : il ne suit plus les changements faits ailleurs."
+    // Une guerre enregistree ne dit plus rien ici : le bouton
+    // « Réenregistrer » et le calendrier le montrent deja.
+    document.getElementById("fiche-etat").textContent = guerre.enregistree_le ? ""
       : "Brouillon · dépose les journaux, trie, écris le bilan, puis « Enregistrer ».";
     document.getElementById("titre-imprime").textContent =
       "— " + (guerre.nom || nomParDefaut() || "bilan de la guerre");
