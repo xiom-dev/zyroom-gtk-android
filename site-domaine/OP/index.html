@@ -143,12 +143,15 @@
   #depart-liste .detail { color: var(--faible); font-size: .8rem; }
   #depart .pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   /* Les deux heures l'une sous l'autre, alignees sur leurs etiquettes. */
-  #depart-heures { display: grid; grid-template-columns: max-content max-content;
+  #depart-heures { display: grid; grid-template-columns: max-content max-content max-content;
                    align-items: center; gap: 6px 10px; margin-top: 12px;
                    font-size: .9rem; }
   #depart-heures b, #depart-heures-refus { grid-column: 1 / -1; }
   #depart-heures-ok { grid-column: 2; justify-self: start; color: var(--or);
                       font-weight: 700; }
+  /* Les fleches, l'une sur l'autre a droite du champ. */
+  #depart-heures .fleches { display: flex; flex-direction: column; gap: 2px; }
+  #depart-heures .fleches button { padding: 0 8px; font-size: .65rem; line-height: 1.5; }
   #depart-heures input { background: var(--fond); color: var(--texte); font: inherit;
                          border: 1px solid var(--trait); border-radius: 7px; padding: 4px 6px; }
   #depart-heures-refus { color: var(--eux); font-size: .85rem; }
@@ -497,7 +500,9 @@
   <div id="depart-heures">
     <b>Ou les heures du combat</b>
     <label for="depart-de">du</label><input type="datetime-local" id="depart-de">
+    <span class="fleches" data-champ="depart-de"><button type="button" data-pas="1" title="5 minutes plus tard">▲</button><button type="button" data-pas="-1" title="5 minutes plus tôt">▼</button></span>
     <label for="depart-a">au</label><input type="datetime-local" id="depart-a">
+    <span class="fleches" data-champ="depart-a"><button type="button" data-pas="1" title="5 minutes plus tard">▲</button><button type="button" data-pas="-1" title="5 minutes plus tôt">▼</button></span>
     <button id="depart-heures-ok" type="button" title="Tout ce qui s'est passé entre ces deux heures, rounds compris">Accepter</button>
     <span id="depart-heures-refus"></span>
   </div>
@@ -764,6 +769,24 @@
     return new Promise(fini => {
       let rendu = null, debut = null;
       const finir = v => { rendu = v; boite.close(); };
+      // Les fleches : cinq minutes par clic, et ca defile tant qu'on appuie.
+      for (const f of document.querySelectorAll("#depart-heures .fleches")) {
+        const champ = document.getElementById(f.dataset.champ);
+        for (const b of f.querySelectorAll("button")) {
+          const pas = () => {
+            const t = depuisChamp(champ.value);
+            if (!isNaN(t)) champ.value = versChamp(t + b.dataset.pas * 300);
+          };
+          let attente = null, rafale = null;
+          const stop = () => { clearTimeout(attente); clearInterval(rafale); };
+          b.onpointerdown = e => {
+            e.preventDefault();
+            pas();
+            attente = setTimeout(() => { rafale = setInterval(pas, 120); }, 400);
+          };
+          b.onpointerup = b.onpointerleave = b.onpointercancel = stop;
+        }
+      }
       document.getElementById("depart-heures-ok").onclick = () => {
         const t0 = depuisChamp(champDe.value), t1 = depuisChamp(champA.value);
         if (!(t0 < t1)) { refus.textContent = "la fin doit suivre le début"; return; }
