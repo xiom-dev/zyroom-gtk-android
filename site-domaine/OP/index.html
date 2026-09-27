@@ -144,14 +144,15 @@
   #depart .pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   /* Les deux heures l'une sous l'autre, alignees sur leurs etiquettes. */
   #depart-heures { display: grid; grid-template-columns: max-content max-content max-content;
-                   align-items: center; gap: 6px 10px; margin-top: 12px;
+                   align-items: center; gap: 14px 10px; margin-top: 12px;
                    font-size: .9rem; }
   #depart-heures b, #depart-heures-refus { grid-column: 1 / -1; }
   #depart-heures-ok { grid-column: 2; justify-self: start; color: var(--or);
                       font-weight: 700; }
   /* Les fleches, l'une sur l'autre a droite du champ. */
-  #depart-heures .fleches { display: flex; flex-direction: column; gap: 2px; }
+  #depart-heures .fleches { display: flex; flex-direction: column; gap: 5px; }
   #depart-heures .fleches button { padding: 0 8px; font-size: .65rem; line-height: 1.5; }
+  #depart-heures .fleches button:hover { color: var(--or); border-color: var(--or); }
   #depart-heures input { background: var(--fond); color: var(--texte); font: inherit;
                          border: 1px solid var(--trait); border-radius: 7px; padding: 4px 6px; }
   #depart-heures-refus { color: var(--eux); font-size: .85rem; }
