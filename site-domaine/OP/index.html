@@ -99,6 +99,13 @@
 
   .nom { padding: 4px 9px; border-radius: 6px; background: #1f2e33;
          border: 1px solid var(--trait); cursor: grab; user-select: none; }
+  /* Le x d'une puce du centre : discret, il ne s'allume qu'au survol. */
+  .nom .retirer { margin-left: 6px; padding: 0 4px; border: 0; background: none;
+                  color: var(--faible); cursor: pointer; font-weight: 700; }
+  .nom .retirer:hover { color: var(--texte); }
+  #whos .retires { white-space: normal; }
+  #whos .retires button { margin: 0 4px 4px 0; padding: 1px 8px; font-size: .85rem; }
+  html.mode-pdf .nom .retirer, html.mode-pdf #whos .retires { display: none; }
   .nom:active { cursor: grabbing; }
   .nom.saisi { opacity: .4; }
   #kamis .nom { border-color: rgba(75,191,114,.5); }
@@ -1167,6 +1174,22 @@
       "— " + (guerre.nom || nomParDefaut() || "bilan de la guerre");
   }
 
+  // **Renommer ne touche qu'au nom.** « change » part a la touche Entree ou
+  // en quittant le champ ; le mois et le tri fige restent ce qu'ils sont.
+  champNomGuerre.addEventListener("change", async () => {
+    const nom = champNomGuerre.value.trim();
+    if (!guerre || !nom || nom === guerre.nom) return;
+    guerre.nom = nom;
+    peindreFiche();
+    majChargee = null;
+    if (await ecrire({ action: "renommer", guerre: guerreChoisie, nom })) {
+      signaler("guerre renommée « " + nom + " »");
+    }
+  });
+  champNomGuerre.addEventListener("keydown", e => {
+    if (e.key === "Enter") champNomGuerre.blur();
+  });
+
   document.getElementById("enregistrer").addEventListener("click", async () => {
     if (!guerre) return;
     if (bilanModifie) await enregistrerBilan();
@@ -1487,9 +1510,19 @@
       }
     }
     // Les Kamis tries qui n'ont recu aucun soin comptent aussi : c'est
-    // justement eux que « le moins soigne » doit montrer.
-    for (const [nom, c] of Object.entries(camps)) {
-      if (c.c === "kamis" && !res.soins[nom]) res.soins[nom] = { pv: 0, n: 0 };
+    // justement eux que « le moins soigne » doit montrer. Ceux de la guerre
+    // seulement : le tri commun nomme aussi les absents de l'OP.
+    const presents = participants();
+    for (const [nom, c] of Object.entries(campsEffectifs())) {
+      if (c.c === "kamis" && presents.has(nom) && !res.soins[nom]) res.soins[nom] = { pv: 0, n: 0 };
+    }
+    // Un nom retire de la guerre sort aussi des statistiques.
+    const retires = retiresGuerre();
+    for (const o of Object.values(res)) {
+      if (!o || typeof o !== "object" || Array.isArray(o)) continue;
+      for (const cle of Object.keys(o)) {
+        if (cle.split(" → ").some(n => retires.has(n))) delete o[cle];
+      }
     }
     return res;
   }
@@ -1650,14 +1683,20 @@
     const p = new Set(Object.keys(nomsDesStats()));
     for (const w of whosGuerre()) w.noms.forEach(n => p.add(n));
     if (guerre && guerre.camps_figes) Object.keys(guerre.camps_figes).forEach(n => p.add(n));
+    retiresGuerre().forEach(n => p.delete(n));
     return p;
   }
+
+  // Les noms sortis de la guerre ouverte a la main : vus dans un /who, mais
+  // pas sur l'OP.
+  function retiresGuerre() { return new Set((guerre && guerre.retires) || []); }
 
   // Le centre : les noms des /who coches, et ceux des statistiques de la
   // guerre ouverte.
   function nomsVus() {
     const vus = new Set(Object.keys(nomsDesStats()));
     for (const w of whosGuerre()) if (!decoches.has(cleWho(w))) w.noms.forEach(n => vus.add(n));
+    retiresGuerre().forEach(n => vus.delete(n));
     return [...vus].sort((a, b) => a.localeCompare(b, "fr"));
   }
 
@@ -1680,6 +1719,33 @@
                + " (" + w.noms.length + ")");
       boite.append(l);
     }
+    // Les retires restent a portee : un clic les remet dans la guerre.
+    const retires = [...retiresGuerre()].sort((a, b) => a.localeCompare(b, "fr"));
+    if (retires.length) {
+      const l = document.createElement("span");
+      l.className = "retires";
+      l.append("Retirés de cette guerre : ");
+      for (const n of retires) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = n + " ↺";
+        b.title = "Remettre " + n + " dans cette guerre";
+        b.addEventListener("click", () => retirer(n, true));
+        l.append(b);
+      }
+      boite.append(l);
+    }
+  }
+
+  // On peint d'abord, comme pour un rangement ; le serveur confirme ensuite.
+  async function retirer(n, remettre) {
+    if (!guerre) return;
+    const r = retiresGuerre();
+    if (remettre) r.delete(n); else r.add(n);
+    guerre.retires = [...r];
+    peindreStats();
+    majChargee = null;
+    await ecrire({ action: "retirer", guerre: guerreChoisie, nom: n, remettre });
   }
 
   function peindre() {
@@ -1706,7 +1772,8 @@
         const c = cs[n];
         liste.append(puce(n, c ? (c.qui || "quelqu'un") + " — "
                                  + new Date(c.quand).toLocaleString("fr-FR")
-                               : dit[n] || "vu dans un /who"));
+                               : dit[n] || "vu dans un /who",
+                          !camp && !!guerre));
       }
       if (!ici.length) {
         const v = document.createElement("span");
@@ -1721,10 +1788,19 @@
     }
   }
 
-  function puce(n, titre) {
+  function puce(n, titre, retirable) {
     const p = document.createElement("span");
     p.className = "nom";
     p.textContent = n;
+    if (retirable) {
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "retirer";
+      x.textContent = "×";
+      x.title = "Retirer " + n + " de cette guerre : il n'était pas sur l'OP";
+      x.addEventListener("click", () => retirer(n, false));
+      p.append(x);
+    }
     p.draggable = true;
     if (titre) p.title = titre;
     p.addEventListener("dragstart", e => {

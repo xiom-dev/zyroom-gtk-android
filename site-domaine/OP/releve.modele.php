@@ -259,6 +259,9 @@ function guerre_complete(array $lu, string $id): array
         'journaux' => is_array($lu['journaux'] ?? null) ? $lu['journaux'] : [],
         'bilan' => $lu['bilan'] ?? null,
         'camps_figes' => is_array($lu['camps_figes'] ?? null) ? $lu['camps_figes'] : null,
+        // Les noms qu'on a retires de cette guerre : vus dans un /who du
+        // meme jour, mais absents de l'OP.
+        'retires' => array_values(array_filter((array) ($lu['retires'] ?? []), 'nom_valide')),
     ];
 }
 
@@ -380,6 +383,9 @@ function joueurs_des_guerres(): array
         }
         foreach ($g['whos'] as $w) {
             foreach ((array) ($w['noms'] ?? []) as $n) {
+                if (in_array($n, $g['retires'], true)) {
+                    continue;
+                }
                 $joueurs[$n] = $joueurs[$n] ?? '';
             }
         }
@@ -648,6 +654,38 @@ switch ($action) {
             return $g;
         });
         repond(200, reponse($etat));
+
+    case 'renommer':
+        // Le nom seul : ni le mois ni le tri fige ne bougent, contrairement a
+        // « Enregistrer ».
+        $id = $demande['guerre'] ?? null;
+        $nomGuerre = trim((string) ($demande['nom'] ?? ''));
+        if (!guerre_valide($id) || preg_match('/^[^\x00-\x1f<>]{1,80}$/u', $nomGuerre) !== 1) {
+            repond(400, ['erreur' => 'nom invalide']);
+        }
+        modifier_guerre($id, function (array $g) use ($nomGuerre) {
+            $g['nom'] = $nomGuerre;
+            return $g;
+        });
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)));
+
+    case 'retirer':
+        // Sortir un nom de la guerre, ou l'y remettre. Le tri commun n'y
+        // perd rien : seule cette guerre l'oublie.
+        $id = $demande['guerre'] ?? null;
+        $nom = $demande['nom'] ?? null;
+        $remettre = !empty($demande['remettre']);
+        if (!guerre_valide($id) || !nom_valide($nom)) {
+            repond(400, ['erreur' => 'nom ou guerre inconnu']);
+        }
+        modifier_guerre($id, function (array $g) use ($nom, $remettre) {
+            $reste = array_values(array_diff($g['retires'], [$nom]));
+            $g['retires'] = $remettre ? $reste : array_merge($reste, [$nom]);
+            return $g;
+        });
+        $contenu = is_file(FICHIER) ? (string) file_get_contents(FICHIER) : '';
+        repond(200, reponse(lu($contenu)));
 
     case 'supprimer':
         // Une guerre supprimee n'est pas perdue : elle part dans les
