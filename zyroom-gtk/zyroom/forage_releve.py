@@ -84,11 +84,11 @@ _LIGNE = re.compile(r"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) \((SYSTEM[^)]*)\) "
                     r"\* (.*)$")
 _COULEUR = re.compile(r"@\{[0-9A-Fa-f]{4}\}")
 _PRISE = re.compile(r"Vous obtenez \d+ (.+?) de qualité \d+")
-#: **« Vous êtes dans » seulement, jamais « Vous quittez ».** Le jeu écrit
-#: les deux à la même seconde en passant une frontière — « Vous êtes dans la
-#: Cité Engloutie », puis « Vous quittez les Ailes du Dépit » — et lire le
-#: second remettait dans la région qu'on venait de quitter : une Dzao forée
-#: à la Cité Engloutie a été cochée en Terre de la Continuité.
+#: **"Vous etes dans" seulement, jamais "Vous quittez".** Le jeu ecrit les
+#: deux a la meme seconde en passant une frontiere -- "Vous etes dans la Cite
+#: Engloutie", puis "Vous quittez les Ailes du Depit" -- et lire le second
+#: remettait dans la region qu'on venait de quitter : une Dzao foree a la
+#: Cite Engloutie a ete cochee en Terre de la Continuite.
 _LIEU = re.compile(r"Vous êtes dans (?:le |la |les |l')?(.+?)\.")
 
 #: Les saisons telles que la page du relevé les nomme, dans l'ordre de l'API.

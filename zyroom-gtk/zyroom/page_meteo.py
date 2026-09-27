@@ -560,17 +560,16 @@ class PageMeteo:
 
     #: Ce que la courbe montre, en heures d'Atys, et où s'y tient le présent.
     #:
-    #: Vingt-quatre heures d'Atys valent soixante-douze minutes réelles : de
-    #: quoi voir une heure d'avance et un bon quart d'heure de passé. Le trait
+    #: Quarante heures d'Atys valent deux heures reelles, comme le demande
+    #: Ludo : une heure trois quarts d'avance et un quart d'heure de passe. Le trait
     #: du présent se tient à un sixième de la largeur — c'est ce qui vient qui
     #: compte, le passé ne sert qu'à comprendre d'où l'on sort. Pas contre le
     #: bord pour autant : on veut voir le palier qu'on quitte.
     #: Minutes réelles entre deux repères d'heure sous le graphique.
     #:
-    #: La fenêtre ne couvre que soixante-douze minutes réelles — vingt-quatre
-    #: heures d'Atys : à l'heure ronde, il n'y aurait qu'un repère, parfois
-    #: zéro. Le quart d'heure en donne quatre ou cinq, assez pour situer un
-    #: creux sans encombrer l'axe.
+    #: La fenetre couvre deux heures reelles -- quarante heures d'Atys : a
+    #: l'heure ronde, il n'y aurait que deux reperes. Le quart d'heure en
+    #: donne huit, assez pour situer un creux.
     #:
     #: **Ce sont les heures écrites.** Les tirets, eux, tombent cinq fois plus
     #: souvent : voir `MINUTES_ENTRE_TIRETS`.
@@ -625,7 +624,7 @@ class PageMeteo:
     #: seize pas d'un quart d'heure couvraient.
     PAS_DE_TEMPS = 48
 
-    FENETRE_HEURES = 24.0
+    FENETRE_HEURES = 40.0
     ANCRE = 0.15
 
     #: Durée de la bascule d'un palier au suivant, en heures d'Atys.

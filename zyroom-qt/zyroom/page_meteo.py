@@ -25,11 +25,11 @@ from .i18n import _
 
 #: Ce que la courbe montre, en heures d'Atys, et ou s'y tient le present.
 #:
-#: Vingt-quatre heures d'Atys valent soixante-douze minutes reelles : de quoi
-#: voir une heure d'avance et un bon quart d'heure de passe. Le trait du
+#: Quarante heures d'Atys valent deux heures reelles, comme le demande Ludo :
+#: une heure trois quarts d'avance et un quart d'heure de passe. Le trait du
 #: present se tient a un sixieme de la largeur -- c'est ce qui vient qui
 #: compte, le passe ne sert qu'a comprendre d'ou l'on sort.
-FENETRE_HEURES = 24.0
+FENETRE_HEURES = 40.0
 ANCRE = 0.15
 
 #: La duree de la bascule d'un palier au suivant, en heures d'Atys. C'est le
@@ -219,8 +219,8 @@ class CourbeMeteo(QWidget):
 
         # L'heure reelle, tous les quarts d'heure -- et un tiret toutes les
         # cinq minutes entre elles. Une heure d'Atys valant trois minutes, la
-        # fenetre ne couvre que soixante-douze minutes reelles : a l'heure
-        # ronde, il n'y aurait qu'un repere, parfois zero.
+        # fenetre couvre deux heures reelles : a l'heure ronde, il n'y aurait
+        # que deux reperes.
         maintenant = datetime.now()
         repere = maintenant.replace(minute=0, second=0,
                                     microsecond=0) - timedelta(hours=1)
