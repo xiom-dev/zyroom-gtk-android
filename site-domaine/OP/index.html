@@ -1454,7 +1454,7 @@
       rounds: { gagnes: 0, perdus: 0 },
       meurtres: {}, morts: {}, tues: {},
       parties: {}, partiesDonnees: {},
-      attaquants: {}, pnj: {}, porteurs: {},
+      attaquants: {}, pnj: {}, porteurs: {}, pnjPortes: {},
       resistes: {}, insensibles: {},
       cibles: {}, soins: {}, evites: {}, rompues: {},
     };
@@ -1469,7 +1469,7 @@
       }
       // ... et les leurs, vues du cote de celui qui a porte le coup.
       for (const t of j.tues || []) {
-        if (estPnj(t.victime)) continue;
+        if (estPnj(t.victime)) { cumul(res.pnjPortes, sansArticle(t.victime), { tues: 1 }); continue; }
         cumul(res.meurtres, proprio + " → " + t.victime, { n: 1 });
         cumul(res.tues, t.victime, { n: 1 });
       }
@@ -1489,6 +1489,15 @@
         // qui n'a rien depose ne se lit que chez sa victime, en face.
         if (!estPnj(cible)) cumul(res.porteurs, proprio, { coups: v.coups || 0,
                                                             degats: v.degats || 0, max: v.max || 0 });
+        // Nos coups sur les PNJ -- les gardes de l'avant-poste --, par type,
+        // avec la part de chacun. Le resume ne couvre que la guerre : les
+        // PNJ d'une chasse de l'apres-midi n'y entrent pas.
+        else {
+          const o = cumul(res.pnjPortes, sansArticle(cible), { coups: v.coups || 0,
+                                                               degats: v.degats || 0, max: v.max || 0 });
+          o.par = o.par || {};
+          o.par[proprio] = (o.par[proprio] || 0) + (v.degats || 0);
+        }
       }
       for (const [qui, v] of Object.entries(j.resistes || {})) cumul(res.resistes, qui, { n: v.n });
       for (const [qui, v] of Object.entries(j.insensibles || {})) cumul(res.insensibles, qui, { n: v.n });
@@ -1646,6 +1655,16 @@
         detail: e.v.coups + " coups, plus gros " + nf(e.v.max),
       })), "pnj", "Aucun PNJ dans les journaux déposés."),
         "Total : " + nf(somme(r.pnj, "degats")) + " points de vie."),
+      carte("Dégâts portés aux PNJ", barres(trie(r.pnjPortes, "degats").map(e => ({
+        nom: e.nom, valeur: e.valeur,
+        texte: nf(e.valeur) + " · max " + nf(e.v.max || 0)
+               + (e.v.tues ? " · " + e.v.tues + " tué" + (e.v.tues > 1 ? "s" : "") : ""),
+        detail: (e.v.coups || 0) + " coups, moyenne " + nf((e.v.degats || 0) / Math.max(1, e.v.coups || 0))
+              + ", plus gros " + nf(e.v.max || 0) + " · "
+              + Object.entries(e.v.par || {}).sort((a, b) => b[1] - a[1])
+                      .map(([qui, d]) => qui + " " + nf(d)).join(", "),
+      })), "nous", "Aucun coup porté à un PNJ dans les journaux déposés."),
+        "Total : " + nf(somme(r.pnjPortes, "degats")) + " points de dégâts · seulement par ceux qui ont déposé leur journal."),
       carte("Sorts bloqués", [
         (() => { const d = document.createElement("h4"); d.textContent = "résistés par nous (lanceur)"; return d; })(),
         barres(trie(r.resistes, "n").map(e => ({ nom: e.nom, valeur: e.valeur })), "nous"),
