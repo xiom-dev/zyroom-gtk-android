@@ -140,6 +140,7 @@
                   flex: 1 1 auto; min-height: 90px; border-top: 1px solid var(--trait); }
   #depart-liste li { padding: 5px 2px; border-bottom: 1px solid var(--trait); }
   #depart-liste button { width: 100%; text-align: left; }
+  #depart-liste button.choisi { border-color: var(--or); }
   #depart-liste .detail { color: var(--faible); font-size: .8rem; }
   #depart .pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   /* Les deux heures l'une sous l'autre, alignees sur leurs etiquettes. */
@@ -492,14 +493,13 @@
 <dialog id="depart">
   <h2 id="depart-titre">Le /who du début</h2>
   <p>Ton journal <b id="depart-fichier"></b> couvre peut-être plusieurs jours.
-     Clique le /who du début du combat, puis celui de la fin : les /who entre
-     les deux entrent dans la guerre. Les statistiques sont celles des rounds
-     d'un avant-poste proche de ces /who, sinon — du PvP — tout le combat
-     entre les deux. Pas de /who&nbsp;? Donne les heures du combat, en bas.
+     Clique le /who du début du combat — ou règle l'heure du début en bas —,
+     règle l'heure de la fin, puis « Accepter ». Tout ce qui s'est passé
+     entre les deux entre dans la guerre : les /who, les rounds, le PvP.
      Mal choisi&nbsp;? Redépose le journal : le nouveau dépôt remplace l'ancien.</p>
   <ul id="depart-liste"></ul>
   <div id="depart-heures">
-    <b>Ou les heures du combat</b>
+    <b>Les heures du combat</b>
     <label for="depart-de">du</label><input type="datetime-local" id="depart-de">
     <span class="fleches" data-champ="depart-de"><button type="button" data-pas="1" title="5 minutes plus tard">▲</button><button type="button" data-pas="-1" title="5 minutes plus tôt">▼</button></span>
     <label for="depart-a">au</label><input type="datetime-local" id="depart-a">
@@ -749,8 +749,9 @@
   const versChamp = t => new Date(t * 1000).toISOString().slice(0, 16);
   const depuisChamp = v => Date.parse(v + ":00Z") / 1000;
 
-  // Deux clics sur les /who -- le debut, puis la fin --, ou deux heures
-  // tapees. Rend {t0, t1, heures} en secondes, "auto", ou null si l'on annule.
+  // Le debut et la fin du combat : un /who ou le selecteur pour le debut, le
+  // selecteur pour la fin. Rend {t0, t1} en secondes, "auto", ou null si
+  // l'on annule.
   function choisirDepart(nomFichier, tous, lignes) {
     const boite = document.getElementById("depart");
     const ul = document.getElementById("depart-liste");
@@ -768,7 +769,7 @@
     champA.value = versChamp(guerre ? guerre.a : fin);
     refus.textContent = "";
     return new Promise(fini => {
-      let rendu = null, debut = null;
+      let rendu = null;
       const finir = v => { rendu = v; boite.close(); };
       // Les fleches : cinq minutes par clic, et ca defile tant qu'on appuie.
       for (const f of document.querySelectorAll("#depart-heures .fleches")) {
@@ -791,26 +792,18 @@
       document.getElementById("depart-heures-ok").onclick = () => {
         const t0 = depuisChamp(champDe.value), t1 = depuisChamp(champA.value);
         if (!(t0 < t1)) { refus.textContent = "la fin doit suivre le début"; return; }
-        finir({ t0, t1, heures: true });
+        // La minute de fin comptee en entier : un /who tape a 23:19:40 entre
+        // quand on regle la fin sur 23:19.
+        finir({ t0, t1: t1 + 59 });
       };
+      // **Un seul /who, celui du debut.** Il met son heure dans « du » ; la
+      // fin se regle au selecteur, puis « Accepter ». Si « au » ne suit plus
+      // le debut, il passe a la fin du journal.
       const lister = () => {
         ul.textContent = "";
-        titre.textContent = !tous.length ? "Les heures du combat"
-                          : debut ? "Le /who de la fin" : "Le /who du début";
-        // La fin se choisit parmi le debut et ce qui suit, et peut etre
-        // la fin du journal : un /who oublie a la fin ne bloque rien.
-        if (debut) {
-          const li = document.createElement("li");
-          const b = document.createElement("button");
-          b.type = "button";
-          b.textContent = "Jusqu'à la fin du journal";
-          b.addEventListener("click", () => finir({ t0: secondes(debut.quand), t1: fin }));
-          li.append(b);
-          ul.append(li);
-        }
-        const offerts = debut ? tous.filter(w => secondes(w.quand) >= secondes(debut.quand)) : tous;
+        titre.textContent = tous.length ? "Le début du combat" : "Les heures du combat";
         // Le plus recent en haut : c'est presque toujours lui.
-        for (const w of [...offerts].reverse()) {
+        for (const w of [...tous].reverse()) {
           const li = document.createElement("li");
           const b = document.createElement("button");
           b.type = "button";
@@ -821,8 +814,12 @@
           b.append(w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7) + " " + w.quand.slice(11, 16)
                    + " · " + w.region, d);
           b.addEventListener("click", () => {
-            if (debut) finir({ t0: secondes(debut.quand), t1: secondes(w.quand) });
-            else { debut = w; lister(); }
+            const t = secondes(w.quand);
+            champDe.value = versChamp(t);
+            if (!(depuisChamp(champA.value) > t)) champA.value = versChamp(fin);
+            refus.textContent = "";
+            for (const autre of ul.querySelectorAll("button")) autre.classList.remove("choisi");
+            b.classList.add("choisi");
           });
           li.append(b);
           ul.append(li);
@@ -864,19 +861,11 @@
           const { t0, t1 } = choix;
           liste.push(...tous.filter(w => secondes(w.quand) >= t0 && secondes(w.quand) <= t1));
           if (proprio && lignes.length) {
-            // **Un avant-poste proche des /who** : ses rounds bornent le
-            // combat, meme si les /who ont ete tapes juste apres -- le 24/09,
-            // tous l'ont ete entre 12 et 37 min apres le dernier round. On
-            // prend la guerre qui finit au plus une heure avant le debut, ou
-            // commence au plus une demi-heure apres la fin.
-            // Sans elle, du PvP : tout le combat entre les deux /who.
-            // **Des heures tapees a la main font foi telles quelles** : rien
-            // n'est elargi, les rounds compris dedans sont comptes.
+            // Les heures choisies font foi telles quelles : les rounds compris
+            // dedans sont comptes, rien n'est elargi.
             const debutIso = versChamp(t0);
-            const p = (!choix.heures && periodes(lignes).filter(q => q.a >= t0 - APRES_GUERRE_S
-                                                                && q.de <= t1 + AVANT_GUERRE_S).pop())
-                      || { id: debutIso.slice(0, 10), de: t0, a: t1,
-                           heure: debutIso.slice(11, 16), rounds: [] };
+            const p = { id: debutIso.slice(0, 10), de: t0, a: t1,
+                        heure: debutIso.slice(11, 16), rounds: [] };
             resumes.push(resumer(lignes, p, proprio));
           }
           await envoyerJournal(liste, resumes, proprio);
