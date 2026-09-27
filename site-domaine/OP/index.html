@@ -138,6 +138,12 @@
   #depart-liste button { width: 100%; text-align: left; }
   #depart-liste .detail { color: var(--faible); font-size: .8rem; }
   #depart .pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  #depart-heures { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+                   margin-top: 12px; font-size: .9rem; }
+  #depart-heures input { background: var(--fond); color: var(--texte); font: inherit;
+                         border: 1px solid var(--trait); border-radius: 7px; padding: 4px 6px; }
+  #depart-heures-refus { color: var(--eux); font-size: .85rem; }
+  #depart-liste:empty { display: none; }
   #coffre h2 { color: var(--or); margin: 0 0 4px; font-size: 1.15rem; }
   #coffre > p { color: var(--faible); margin: 0 0 12px; font-size: .88rem;
                 line-height: 1.4; }
@@ -476,9 +482,16 @@
      Clique le /who du début du combat, puis celui de la fin : les /who entre
      les deux entrent dans la guerre. Les statistiques sont celles des rounds
      d'un avant-poste proche de ces /who, sinon — du PvP — tout le combat
-     entre les deux.
+     entre les deux. Pas de /who&nbsp;? Donne les heures du combat, en bas.
      Mal choisi&nbsp;? Redépose le journal : le nouveau dépôt remplace l'ancien.</p>
   <ul id="depart-liste"></ul>
+  <div id="depart-heures">
+    <b>Ou les heures du combat</b>
+    <label>du <input type="datetime-local" id="depart-de"></label>
+    <label>au <input type="datetime-local" id="depart-a"></label>
+    <button id="depart-heures-ok" type="button" title="Tout ce qui s'est passé entre ces deux heures, rounds compris">Ces heures</button>
+    <span id="depart-heures-refus"></span>
+  </div>
   <div class="pied">
     <button id="depart-auto" type="button" title="Comme avant : la dernière guerre à rounds du journal, et ses /who">Automatique</button>
     <button id="depart-annuler" type="button">Annuler</button>
@@ -715,21 +728,42 @@
     return trouves.filter(w => w.noms.length);
   }
 
-  // Rend le /who choisi, "auto", ou null si l'on annule.
-  // Deux clics : le /who du debut, puis celui de la fin. Rend {debut, fin}
-  // -- fin vaut null pour « jusqu'a la fin du journal » --, "auto", ou null
-  // si l'on annule.
-  function choisirDepart(nomFichier, tous) {
+  // Les heures du journal, en secondes, vers le champ datetime-local et
+  // retour. Tout en UTC, comme `lignesDatees()` : l'heure affichee est celle
+  // du journal, telle quelle.
+  const versChamp = t => new Date(t * 1000).toISOString().slice(0, 16);
+  const depuisChamp = v => Date.parse(v + ":00Z") / 1000;
+
+  // Deux clics sur les /who -- le debut, puis la fin --, ou deux heures
+  // tapees. Rend {t0, t1, heures} en secondes, "auto", ou null si l'on annule.
+  function choisirDepart(nomFichier, tous, lignes) {
     const boite = document.getElementById("depart");
     const ul = document.getElementById("depart-liste");
     const titre = document.getElementById("depart-titre");
+    const champDe = document.getElementById("depart-de");
+    const champA = document.getElementById("depart-a");
+    const refus = document.getElementById("depart-heures-refus");
     document.getElementById("depart-fichier").textContent = nomFichier;
+    // Les heures proposees : la derniere guerre a rounds ; sans elle, du
+    // dernier /who a la fin du journal ; sans /who, la derniere heure.
+    const fin = lignes[lignes.length - 1].t;
+    const guerre = periodes(lignes).pop();
+    const dernierWho = tous.length ? secondes(tous[tous.length - 1].quand) : null;
+    champDe.value = versChamp(guerre ? guerre.de : dernierWho !== null ? dernierWho : fin - 3600);
+    champA.value = versChamp(guerre ? guerre.a : fin);
+    refus.textContent = "";
     return new Promise(fini => {
       let rendu = null, debut = null;
       const finir = v => { rendu = v; boite.close(); };
+      document.getElementById("depart-heures-ok").onclick = () => {
+        const t0 = depuisChamp(champDe.value), t1 = depuisChamp(champA.value);
+        if (!(t0 < t1)) { refus.textContent = "la fin doit suivre le début"; return; }
+        finir({ t0, t1, heures: true });
+      };
       const lister = () => {
         ul.textContent = "";
-        titre.textContent = debut ? "Le /who de la fin" : "Le /who du début";
+        titre.textContent = !tous.length ? "Les heures du combat"
+                          : debut ? "Le /who de la fin" : "Le /who du début";
         // La fin se choisit parmi le debut et ce qui suit, et peut etre
         // la fin du journal : un /who oublie a la fin ne bloque rien.
         if (debut) {
@@ -737,7 +771,7 @@
           const b = document.createElement("button");
           b.type = "button";
           b.textContent = "Jusqu'à la fin du journal";
-          b.addEventListener("click", () => finir({ debut, fin: null }));
+          b.addEventListener("click", () => finir({ t0: secondes(debut.quand), t1: fin }));
           li.append(b);
           ul.append(li);
         }
@@ -754,7 +788,8 @@
           b.append(w.quand.slice(8, 10) + "/" + w.quand.slice(5, 7) + " " + w.quand.slice(11, 16)
                    + " · " + w.region, d);
           b.addEventListener("click", () => {
-            if (debut) finir({ debut, fin: w }); else { debut = w; lister(); }
+            if (debut) finir({ t0: secondes(debut.quand), t1: secondes(w.quand) });
+            else { debut = w; lister(); }
           });
           li.append(b);
           ul.append(li);
@@ -788,14 +823,12 @@
       // **Le depart choisi a la main.** Le journal a des /who : celui qui
       // depose dit d'ou partir. Sans /who, ou sur « Automatique », on suit
       // les rounds comme avant.
-      if (tous.length) {
-        const choix = await choisirDepart(f.name, tous);
+      const lignes = lignesDatees(texte);
+      if (lignes.length) {
+        const choix = await choisirDepart(f.name, tous, lignes);
         if (choix === null) continue;
         if (choix !== "auto") {
-          const lignes = lignesDatees(texte);
-          const t0 = secondes(choix.debut.quand);
-          const t1 = choix.fin ? secondes(choix.fin.quand)
-                               : (lignes.length ? lignes[lignes.length - 1].t : Infinity);
+          const { t0, t1 } = choix;
           liste.push(...tous.filter(w => secondes(w.quand) >= t0 && secondes(w.quand) <= t1));
           if (proprio && lignes.length) {
             // **Un avant-poste proche des /who** : ses rounds bornent le
@@ -804,11 +837,13 @@
             // prend la guerre qui finit au plus une heure avant le debut, ou
             // commence au plus une demi-heure apres la fin.
             // Sans elle, du PvP : tout le combat entre les deux /who.
-            const p = periodes(lignes).filter(q => q.a >= t0 - APRES_GUERRE_S
-                                                   && q.de <= t1 + AVANT_GUERRE_S).pop()
-                      || { id: choix.debut.quand.slice(0, 10).replace(/\//g, "-"),
-                           de: t0, a: t1,
-                           heure: choix.debut.quand.slice(11, 16), rounds: [] };
+            // **Des heures tapees a la main font foi telles quelles** : rien
+            // n'est elargi, les rounds compris dedans sont comptes.
+            const debutIso = versChamp(t0);
+            const p = (!choix.heures && periodes(lignes).filter(q => q.a >= t0 - APRES_GUERRE_S
+                                                                && q.de <= t1 + AVANT_GUERRE_S).pop())
+                      || { id: debutIso.slice(0, 10), de: t0, a: t1,
+                           heure: debutIso.slice(11, 16), rounds: [] };
             resumes.push(resumer(lignes, p, proprio));
           }
           await envoyerJournal(liste, resumes, proprio);
