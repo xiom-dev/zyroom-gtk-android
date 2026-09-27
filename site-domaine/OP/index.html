@@ -144,11 +144,13 @@
   #depart-liste .detail { color: var(--faible); font-size: .8rem; }
   #depart .pied { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   /* Les deux heures l'une sous l'autre, alignees sur leurs etiquettes. */
-  #depart-heures { display: grid; grid-template-columns: max-content max-content max-content;
+  #depart-heures { display: grid; grid-template-columns: repeat(4, max-content);
                    align-items: center; gap: 14px 10px; margin-top: 12px;
                    font-size: .9rem; }
   #depart-heures b, #depart-heures-refus { grid-column: 1 / -1; }
-  #depart-heures-ok { grid-column: 2; justify-self: start; color: var(--texte);
+  /* « Accepter » a droite des fleches, a mi-hauteur des deux heures. */
+  #depart-heures-ok { grid-column: 4; grid-row: 2 / span 2; align-self: center;
+                      margin-left: 6px; color: var(--texte);
                       font-weight: 700; }
   /* Les fleches, l'une sur l'autre a droite du champ. */
   #depart-heures .fleches { display: flex; flex-direction: column; gap: 5px; }
