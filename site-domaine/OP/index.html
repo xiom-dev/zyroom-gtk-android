@@ -532,12 +532,15 @@
 
   const voile = document.getElementById("voile");
 
-  // **Les compteurs** : le tri commun reunit tous les noms ranges, guerre
-  // apres guerre ; un joueur n'y figure qu'une fois, dans son camp actuel.
+  // **Les compteurs** : les joueurs des guerres qui existent encore, que
+  // le serveur rassemble ; chacun compte une fois, dans son camp actuel --
+  // celui du tri commun, a defaut celui fige avec sa guerre.
+  let joueurs = {};
   function peindreCompteurs() {
     for (const camp of ["kamis", "opposants"]) {
       document.querySelector("#compte-" + camp + " b").textContent =
-        Object.values(camps).filter(c => c.c === camp).length;
+        Object.entries(joueurs).filter(([n, fige]) =>
+          (camps[n] ? camps[n].c : fige) === camp).length;
     }
   }
 
@@ -546,6 +549,7 @@
     // Les /who d'avant le calendrier restent au serveur (et dans la
     // sauvegarde) ; l'ecran montre ceux de la guerre ouverte.
     whos = d.whos || [];
+    if (d.joueurs) joueurs = d.joueurs;
     peindreCompteurs();
     peindre();
     if (d.guerres) recevoirGuerres(d.guerres);

@@ -365,10 +365,41 @@ function sauvegardes(): array
     return $liste;
 }
 
+/**
+ * Les joueurs des guerres qui existent encore : leurs /who, leur tri fige et
+ * ceux qui ont depose un journal. Rend {nom: camp fige, ou ""}. Une guerre
+ * supprimee n'y compte plus, ni les rangements d'avant le calendrier.
+ */
+function joueurs_des_guerres(): array
+{
+    $joueurs = [];
+    foreach (glob(COMBATS . '/*.json') ?: [] as $f) {
+        $id = basename($f, '.json');
+        if (!guerre_valide($id) || ($g = lire_guerre($id)) === null) {
+            continue;
+        }
+        foreach ($g['whos'] as $w) {
+            foreach ((array) ($w['noms'] ?? []) as $n) {
+                $joueurs[$n] = $joueurs[$n] ?? '';
+            }
+        }
+        foreach (array_keys($g['journaux']) as $n) {
+            $joueurs[$n] = $joueurs[$n] ?? '';
+        }
+        foreach ($g['camps_figes'] ?? [] as $n => $c) {
+            if (($joueurs[$n] ?? '') === '') {
+                $joueurs[$n] = (string) ($c['c'] ?? '');
+            }
+        }
+    }
+    return $joueurs;
+}
+
 /** L'etat du tri, et la liste des guerres a cote. */
 function reponse(array $etat): array
 {
-    return pour_json($etat) + ['guerres' => guerres()];
+    return pour_json($etat) + ['guerres' => guerres(),
+                               'joueurs' => (object) joueurs_des_guerres()];
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
