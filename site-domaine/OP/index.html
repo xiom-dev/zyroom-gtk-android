@@ -227,7 +227,9 @@
      rouvre une d'un clic. */
   .page { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px;
           max-width: 1360px; margin: 0 auto; align-items: start; }
-  #calendrier { position: sticky; top: 12px; background: var(--surface);
+  /* Le calendrier defile avec la page, a sa demande : fixe, il restait a
+     l'ecran pendant qu'on lisait les statistiques. */
+  #calendrier { background: var(--surface);
                 border: 1px solid var(--trait); border-radius: 10px; padding: 12px; }
   #calendrier button { width: 100%; }
   #nouvelle { background: var(--sarcelle); border-color: var(--sarcelle);
@@ -364,7 +366,6 @@
 
   @media (max-width: 1000px) {
     .page { grid-template-columns: 1fr; }
-    #calendrier { position: static; }
   }
 
   @media (max-width: 700px) {
@@ -1348,10 +1349,9 @@
     champNomGuerre.placeholder = nomParDefaut() || "Nom de la guerre";
     document.getElementById("enregistrer").textContent =
       (guerre.enregistree_le ? "Réenregistrer" : "Enregistrer") + " dans " + MOIS[moisVu - 1] + " " + anneeVue;
-    // Une guerre enregistree ne dit plus rien ici : le bouton
-    // « Réenregistrer » et le calendrier le montrent deja.
-    document.getElementById("fiche-etat").textContent = guerre.enregistree_le ? ""
-      : "Brouillon · dépose les journaux, trie, écris le bilan, puis « Enregistrer ».";
+    // Plus de ligne d'etat, a sa demande : le bouton « Enregistrer » ou
+    // « Réenregistrer » et le calendrier disent deja ou en est la guerre.
+    document.getElementById("fiche-etat").textContent = "";
     document.getElementById("titre-imprime").textContent =
       "— " + (guerre.nom || nomParDefaut() || "bilan de la guerre");
   }
