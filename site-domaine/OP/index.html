@@ -1539,7 +1539,7 @@
       parties: {}, partiesDonnees: {},
       attaquants: {}, pnj: {}, porteurs: {}, pnjPortes: {},
       resistes: {}, insensibles: {},
-      cibles: {}, soins: {}, evites: {}, rompues: {},
+      cibles: {}, soins: {}, soigneurs: {}, evites: {}, rompues: {},
     };
     for (const [proprio, j] of Object.entries(journaux)) {
       res.rounds.gagnes = Math.max(res.rounds.gagnes, j.rounds?.gagnes || 0);
@@ -1599,6 +1599,22 @@
     for (const [proprio, j] of Object.entries(journaux)) {
       for (const [soigneur, v] of Object.entries(j.soinsRecus || {})) {
         if (!journaux[soigneur]) cumul(res.soins, proprio, { pv: v.pv, n: v.n });
+      }
+    }
+    // Les soins donnes, au nom du soigneur : lus dans son journal s'il l'a
+    // depose, sinon chez ceux qu'il a soignes. Les soins sur soi n'y entrent
+    // pas : on compte ce qu'on envoie aux autres.
+    const donne = (soigneur, cible, v) => {
+      const o = cumul(res.soigneurs, soigneur, { pv: v.pv, n: v.n });
+      o.vers = o.vers || {};
+      o.vers[cible] = (o.vers[cible] || 0) + (v.pv || 0);
+    };
+    for (const [proprio, j] of Object.entries(journaux)) {
+      for (const [cible, v] of Object.entries(j.soinsDonnes || {})) {
+        if (cible !== proprio) donne(proprio, cible, v);
+      }
+      for (const [soigneur, v] of Object.entries(j.soinsRecus || {})) {
+        if (!journaux[soigneur]) donne(soigneur, proprio, v);
       }
     }
     // Les Kamis tries qui n'ont recu aucun soin comptent aussi : c'est
@@ -1761,6 +1777,13 @@
         texte: nf(e.valeur),
         detail: e.v.n + " soins",
       })), "nous"), "En haut le plus soigné, en bas le moins. Compté chez le soigneur s'il a déposé, sinon chez le soigné."),
+      carte("Soins donnés", barres(trie(r.soigneurs, "pv").map(e => ({
+        nom: e.nom, valeur: e.valeur,
+        texte: nf(e.valeur),
+        detail: e.v.n + " soins · " + Object.entries(e.v.vers || {}).sort((a, b) => b[1] - a[1])
+                                              .map(([qui, pv]) => qui + " " + nf(pv)).join(", "),
+      })), "nous", "Aucun soin donné dans les journaux déposés."),
+        "Soins envoyés aux autres, par soigneur. Lu chez le soigneur s'il a déposé, sinon chez ceux qu'il a soignés."),
       carte("Dégâts évités", barres(trie(r.evites, "n").map(e => ({
         nom: e.nom, valeur: e.valeur,
         detail: (e.v.parade || 0) + " parades, " + (e.v.esquive || 0) + " esquives, "
