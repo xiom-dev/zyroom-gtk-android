@@ -1466,7 +1466,7 @@
                 </div>
                 <div class="pied">
                     <button id="depart-auto" type="button"
-                        title="Comme avant : la dernière guerre à rounds du journal, et ses /who">Automatique</button>
+                        title="La dernière guerre à rounds du journal et ses /who ; sans rounds ce jour-là (boss, PvP), depuis ton dernier /who jusqu'à la fin du journal">Automatique</button>
                     <button id="depart-annuler" type="button">Annuler</button>
                 </div>
             </dialog>
@@ -1851,6 +1851,20 @@
                     liste.push(...tous.filter(w => secondes(w.quand) >= de
                         && secondes(w.quand) <= a));
                     resumes.push(derniere);
+                } else if (tous.length && proprio && lignes.length) {
+                    // **Sans rounds ce jour-la -- un boss, du PvP --, le dernier
+                    // /who fait depart.** On garde lui et les suivants, et les stats
+                    // courent de lui a la fin du journal. Avant, ce cas n'envoyait
+                    // que les /who de la journee et aucune stat : la soiree Dante
+                    // du 28/09 etait restee vide.
+                    const dernierWho = tous[tous.length - 1];
+                    const t0 = secondes(dernierWho.quand);
+                    const t1 = lignes[lignes.length - 1].t;
+                    liste.push(...tous.filter(w => secondes(w.quand) >= t0));
+                    resumes.push(resumer(lignes, {
+                        id: dernierWho.quand.slice(0, 10).replace(/\//g, "-"), de: t0, a: t1,
+                        heure: dernierWho.quand.slice(11, 16), rounds: []
+                    }, proprio));
                 } else {
                     liste.push(...tous.filter(w => w.quand.startsWith(jour)));
                 }
