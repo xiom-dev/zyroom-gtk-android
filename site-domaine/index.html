@@ -15,20 +15,20 @@
         height: 100dvh; object-fit: cover; object-position: center; }
 
   /* **Le fondu enchaine : eau, feu, glace, et on recommence.** Un tour de
-     24 s, 8 s par image : 6 s pleine, 2 s de fondu vers la suivante. Les
+     30 s, 10 s par image : 6 s pleine, 4 s de fondu vers la suivante. Les
      trois images portent la meme animation ; chacune est decalee d'un tiers
      de tour par un retard negatif -- un retard positif l'aurait laissee
      visible avant son depart. */
-  img { animation: fondu 24s infinite; }
+  img { animation: fondu 30s infinite; }
   #eau   { animation-delay: 0s; }
-  #feu   { animation-delay: -16s; }
-  #glace { animation-delay: -8s; }
+  #feu   { animation-delay: -20s; }
+  #glace { animation-delay: -10s; }
   @keyframes fondu {
-    0%     { opacity: 1; }
-    25%    { opacity: 1; }
-    33.33% { opacity: 0; }
-    91.67% { opacity: 0; }
-    100%   { opacity: 1; }
+    0%     { opacity: 1; }   /*  0 s */
+    20%    { opacity: 1; }   /*  6 s : fin de la pleine image */
+    33.33% { opacity: 0; }   /* 10 s : la suivante a pris la place */
+    86.67% { opacity: 0; }   /* 26 s : son tour revient */
+    100%   { opacity: 1; }   /* 30 s */
   }
   /* Pas d'exception pour "prefers-reduced-motion" : un fondu lent ne deplace
      rien a l'ecran, et GNOME transmet cette preference des que ses propres
