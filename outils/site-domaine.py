@@ -6,8 +6,9 @@
 
 **La page vit dans le sous-site `Lune-eternelle/`**, depuis le 28/09/2026 :
 xiom.be/Lune-eternelle/. Elle y est déplacée telle quelle, sans être
-retouchée ; la racine de xiom.be accueillera autre chose. Seuls le
-`.htaccess` et les icônes du domaine restent à la racine.
+retouchée. La racine de xiom.be n'affiche plus que l'image « Xiom » ;
+son `index.html`, son image et ses icônes (le X) sont écrits à la main et
+suivis par git — cet outil n'y écrit que le `.htaccess`.
 
 **Une seule page, deux adresses.** La page vit dans `pages/index.html`, d'où
 `livraison.sh` la publie sur GitHub Pages. La recopier à la main pour un
@@ -126,11 +127,11 @@ def main() -> int:
     apercus = os.path.join(dossier, "apercus")
     shutil.rmtree(apercus, ignore_errors=True)
     shutil.copytree(os.path.join(PAGES, "apercus"), apercus)
-    # Les icones vont aux deux endroits : la page les cite a cote d'elle, et
-    # le navigateur cherche celle du domaine a la racine.
+    # Les icones de la Lune restent avec la page, dans le sous-site. Celles
+    # de la racine sont le X de l'accueil, ecrites a la main : ne pas les
+    # ecraser.
     for icone in ("favicon.png", "favicon-32.png"):
-        for ou in (dossier, sortie):
-            shutil.copy2(os.path.join(PAGES, icone), os.path.join(ou, icone))
+        shutil.copy2(os.path.join(PAGES, icone), os.path.join(dossier, icone))
     # Le .htaccess reste a la racine : il vaut pour tout le site, sous-dossiers
     # compris.
     open(os.path.join(sortie, ".htaccess"), "w",
@@ -143,7 +144,7 @@ def main() -> int:
     print(f"  {combien} fichiers, {poids / 1024:.0f} Ko")
     print()
     print(f"  À déposer dans le dossier « {SOUS_SITE}/ » de xiom.be, tel quel ;")
-    print("  à la racine, seuls .htaccess et les deux icônes.")
+    print("  à la racine, seul le .htaccess vient d'ici.")
     restants = len(re.findall(r'"' + re.escape(BASE), page))
     print(f"  {restants} liens pointent encore vers GitHub : c'est voulu, "
           "les\n  archives n'ont pas déménagé.")

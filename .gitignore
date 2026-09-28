@@ -39,6 +39,8 @@ site-domaine/*
 # page des applis est partie dans Lune-eternelle/.
 !site-domaine/index.html
 !site-domaine/xiom.webp
+!site-domaine/favicon.png
+!site-domaine/favicon-32.png
 # ... sauf ce qui porte un secret ou des donnees : le PHP produit par
 # outils/page-op.py, et le tri qu'il ecrit quand on l'essaie en local.
 site-domaine/OP/releve.php
