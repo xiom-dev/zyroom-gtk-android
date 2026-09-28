@@ -211,6 +211,15 @@ class MeteoAtys:
         return max(0, int(ecart * MINUTES_PAR_CYCLE))
 
 
+def heures_restantes(releve: "MeteoAtys") -> float:
+    """Heures d'Atys de prevision encore devant le present : du trait
+    « maintenant » jusqu'au bout du dernier cycle recu."""
+    cycles = releve.cycles_des_primes()
+    if not cycles:
+        return 0.0
+    return (cycles[-1].cycle + 1) * HEURES_PAR_CYCLE - releve.heure_atys
+
+
 def est_la_nuit(heure_du_jour: int) -> bool:
     """Il fait nuit sur Atys de 22 h à 3 h.
 

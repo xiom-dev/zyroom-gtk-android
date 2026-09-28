@@ -390,7 +390,9 @@ class PageMeteo(QWidget):
             # Quelques cycles deja ecoules en plus : sans eux la courbe
             # commencerait a l'instant present, et le trait du "maintenant"
             # se collerait au bord gauche.
-            brut = ryzom_api.fetch_weather_json(continents, cycles=20, passes=6)
+            # Quarante cycles, le plus que l'API accepte : six heures reelles
+            # de prevision, pour une courbe qui en montre une trois quarts.
+            brut = ryzom_api.fetch_weather_json(continents, cycles=40, passes=6)
             releve = meteo.parse_weather(brut)
             # La saison vient d'un autre appel : le flux meteo ne la porte pas,
             # et c'est elle qui dit quelle page du releve regarder.
@@ -454,7 +456,11 @@ class PageMeteo(QWidget):
             return
         avance = self._releve.a_present()
         cycles = avance.cycles_des_primes()
-        if cycles and not self._en_cours and avance.cycle_courant >= cycles[-1].cycle - 2:
+        # On recharge des que la prevision ne remplit plus la courbe : attendre
+        # les deux derniers cycles laissait sa droite s'arreter net.
+        devant = FENETRE_HEURES * (1 - ANCRE)
+        if (cycles and not self._en_cours
+                and meteo.heures_restantes(avance) < devant + meteo.HEURES_PAR_CYCLE):
             self.charger(force=True)
         self._affiche = avance
         self.rafraichir()

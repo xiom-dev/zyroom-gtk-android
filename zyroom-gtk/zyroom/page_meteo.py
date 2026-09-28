@@ -186,8 +186,13 @@ class PageMeteo:
             return False
         avance = self._meteo_releve.a_present()
         cycles = avance.cycles_des_primes()
+        # **On recharge des que la prevision ne remplit plus la courbe.**
+        # Attendre qu'il ne reste que quatre cycles laissait la droite du
+        # graphique s'arreter net pendant plus d'une heure : la courbe montre
+        # une heure trois quarts d'avance, quatre cycles n'en font que 36 min.
+        devant = PageMeteo.FENETRE_HEURES * (1 - PageMeteo.ANCRE)
         if (cycles and not self._meteo_en_cours
-                and avance.cycle_courant > cycles[-1].cycle - 4):
+                and meteo.heures_restantes(avance) < devant + meteo.HEURES_PAR_CYCLE):
             self._load_meteo(force=True)
         # Quoi qu'il arrive, on avance : la prévision manquante ne concerne que
         # la droite du graphique, pas le trait du présent.
@@ -210,7 +215,9 @@ class PageMeteo:
             # Quelques cycles déjà écoulés en plus : sans eux la courbe
             # commencerait à l'instant présent, et le trait du « maintenant »
             # se collerait au bord gauche.
-            brut = ryzom_api.fetch_weather_json(continents, cycles=20, passes=6)
+            # Quarante cycles, le plus que l'API accepte : six heures reelles
+            # de prevision, pour une courbe qui en montre une trois quarts.
+            brut = ryzom_api.fetch_weather_json(continents, cycles=40, passes=6)
             releve = meteo.parse_weather(brut)
             # La saison vient d'un autre appel : le flux météo ne la porte pas,
             # et c'est elle qui dit quelle page du relevé regarder.
