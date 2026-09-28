@@ -39,7 +39,7 @@ site-domaine/*
 # page des applis est partie dans Lune-eternelle/.
 !site-domaine/index.html
 !site-domaine/xiom.webp
-!site-domaine/xiom-feu2.webp
+!site-domaine/xiom-feu3.webp
 !site-domaine/xiom-glace.webp
 !site-domaine/favicon.png
 !site-domaine/favicon-32.png
