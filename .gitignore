@@ -35,6 +35,10 @@ site-domaine/*
 !site-domaine/carte/
 # `OP/` aussi : le tri des participants d'un OP, ecrit a la main.
 !site-domaine/OP/
+# La page d'accueil de xiom.be et son image, ecrites a la main depuis que la
+# page des applis est partie dans Lune-eternelle/.
+!site-domaine/index.html
+!site-domaine/xiom.webp
 # ... sauf ce qui porte un secret ou des donnees : le PHP produit par
 # outils/page-op.py, et le tri qu'il ecrit quand on l'essaie en local.
 site-domaine/OP/releve.php
