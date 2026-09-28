@@ -7,12 +7,35 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" href="favicon.png">
 <style>
-  /* L'image seule, en plein ecran et sans bord. "cover" : elle remplit
-     tout, quitte a perdre une bande de reflet ou de fond noir sur les cotes
-     ou en haut et en bas -- le mot, au centre, reste entier. */
+  /* Les images seules, en plein ecran et sans bord. "cover" : elles
+     remplissent tout, quitte a perdre une bande de reflet ou de fond noir
+     sur les cotes ou en haut et en bas -- le mot, au centre, reste entier. */
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-  img { display: block; width: 100vw; height: 100vh; height: 100dvh;
-        object-fit: cover; object-position: center; }
+  img { position: fixed; inset: 0; display: block; width: 100vw; height: 100vh;
+        height: 100dvh; object-fit: cover; object-position: center; }
+
+  /* **Le fondu enchaine : eau, feu, glace, et on recommence.** Un tour de
+     24 s, 8 s par image : 6 s pleine, 2 s de fondu vers la suivante. Les
+     trois images portent la meme animation ; chacune est decalee d'un tiers
+     de tour par un retard negatif -- un retard positif l'aurait laissee
+     visible avant son depart. */
+  img { animation: fondu 24s infinite; }
+  #eau   { animation-delay: 0s; }
+  #feu   { animation-delay: -16s; }
+  #glace { animation-delay: -8s; }
+  @keyframes fondu {
+    0%     { opacity: 1; }
+    25%    { opacity: 1; }
+    33.33% { opacity: 0; }
+    91.67% { opacity: 0; }
+    100%   { opacity: 1; }
+  }
+  /* Qui a demande a son systeme de limiter les animations garde l'eau,
+     immobile. */
+  @media (prefers-reduced-motion: reduce) {
+    img { animation: none; opacity: 0; }
+    #eau { opacity: 1; }
+  }
   /* Sauf sur un ecran en hauteur (telephone) : "cover" n'y montrerait plus
      que "io". L'image y reste entiere, le noir se fond dans le sien. */
   @media (orientation: portrait) {
@@ -21,7 +44,9 @@
 </style>
 </head>
 <body>
-<img src="xiom.webp" alt="Xiom" width="1672" height="941">
+<img id="eau" src="xiom.webp" alt="Xiom" width="1672" height="941">
+<img id="feu" src="xiom-feu.webp" alt="" width="1672" height="940">
+<img id="glace" src="xiom-glace.webp" alt="" width="1672" height="940">
 <!-- Le morceau de la page des applis de la Lune, en boucle, sans lecteur
      visible : la page reste l'image seule. -->
 <audio id="musique" src="https://xiom-dev.github.io/zyroom-gtk-android/sielu-cuovggas.mp3"
