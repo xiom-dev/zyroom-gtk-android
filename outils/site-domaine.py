@@ -4,6 +4,11 @@
     ./outils/site-domaine.py            écrit dans site-domaine/
     ./outils/site-domaine.py DOSSIER    ailleurs
 
+**La page vit dans le sous-site `Lune-eternelle/`**, depuis le 28/09/2026 :
+xiom.be/Lune-eternelle/. Elle y est déplacée telle quelle, sans être
+retouchée ; la racine de xiom.be accueillera autre chose. Seuls le
+`.htaccess` et les icônes du domaine restent à la racine.
+
 **Une seule page, deux adresses.** La page vit dans `pages/index.html`, d'où
 `livraison.sh` la publie sur GitHub Pages. La recopier à la main pour un
 second hébergement, c'est se condamner à corriger deux fois chaque phrase et
@@ -34,6 +39,9 @@ import sys
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = os.path.join(RACINE, "pages")
+
+#: Le sous-dossier du site où vit la page des applis de la Lune.
+SOUS_SITE = "Lune-eternelle"
 
 #: L'adresse où les archives restent servies, tant qu'elles n'ont pas déménagé.
 BASE = "https://xiom-dev.github.io/zyroom-gtk-android/"
@@ -110,24 +118,32 @@ def main() -> int:
     # copie, sinon elle annoncerait des numéros figés au jour de sa création.
     page = page.replace('fetch("version.json")', f'fetch("{BASE}version.json")')
 
-    os.makedirs(sortie, exist_ok=True)
-    open(os.path.join(sortie, "index.html"), "w", encoding="utf-8").write(page)
-    apercus = os.path.join(sortie, "apercus")
+    # La page, ses apercus et ses icones partent ensemble dans le sous-site :
+    # ses liens vers eux sont relatifs, elle s'y retrouve sans retouche.
+    dossier = os.path.join(sortie, SOUS_SITE)
+    os.makedirs(dossier, exist_ok=True)
+    open(os.path.join(dossier, "index.html"), "w", encoding="utf-8").write(page)
+    apercus = os.path.join(dossier, "apercus")
     shutil.rmtree(apercus, ignore_errors=True)
     shutil.copytree(os.path.join(PAGES, "apercus"), apercus)
+    # Les icones vont aux deux endroits : la page les cite a cote d'elle, et
+    # le navigateur cherche celle du domaine a la racine.
     for icone in ("favicon.png", "favicon-32.png"):
-        shutil.copy2(os.path.join(PAGES, icone), os.path.join(sortie, icone))
+        for ou in (dossier, sortie):
+            shutil.copy2(os.path.join(PAGES, icone), os.path.join(ou, icone))
+    # Le .htaccess reste a la racine : il vaut pour tout le site, sous-dossiers
+    # compris.
     open(os.path.join(sortie, ".htaccess"), "w",
          encoding="utf-8").write(HTACCESS)
 
     poids = sum(os.path.getsize(os.path.join(racine, f))
-                for racine, _, fichiers in os.walk(sortie) for f in fichiers)
-    combien = sum(len(f) for _, _, f in os.walk(sortie))
-    print(f"  {sortie}")
+                for racine, _, fichiers in os.walk(dossier) for f in fichiers)
+    combien = sum(len(f) for _, _, f in os.walk(dossier))
+    print(f"  {dossier}")
     print(f"  {combien} fichiers, {poids / 1024:.0f} Ko")
     print()
-    print("  À déposer tel quel à la racine web de l'hébergement Infomaniak")
-    print("  (le dossier « web/ » ou « sites/<domaine>/ » selon la formule).")
+    print(f"  À déposer dans le dossier « {SOUS_SITE}/ » de xiom.be, tel quel ;")
+    print("  à la racine, seuls .htaccess et les deux icônes.")
     restants = len(re.findall(r'"' + re.escape(BASE), page))
     print(f"  {restants} liens pointent encore vers GitHub : c'est voulu, "
           "les\n  archives n'ont pas déménagé.")
