@@ -353,18 +353,7 @@
             color: var(--texte);
         }
 
-        #whos .retires {
-            white-space: normal;
-        }
-
-        #whos .retires button {
-            margin: 0 4px 4px 0;
-            padding: 1px 8px;
-            font-size: .85rem;
-        }
-
-        html.mode-pdf .nom .retirer,
-        html.mode-pdf #whos .retires {
+        html.mode-pdf .nom .retirer {
             display: none;
         }
 
@@ -2976,22 +2965,9 @@
                     + " (" + w.noms.length + ")");
                 boite.append(l);
             }
-            // Les retires restent a portee : un clic les remet dans la guerre.
-            const retires = [...retiresGuerre()].sort((a, b) => a.localeCompare(b, "fr"));
-            if (retires.length) {
-                const l = document.createElement("span");
-                l.className = "retires";
-                l.append("Retirés de cette guerre : ");
-                for (const n of retires) {
-                    const b = document.createElement("button");
-                    b.type = "button";
-                    b.textContent = n + " ↺";
-                    b.title = "Remettre " + n + " dans cette guerre";
-                    b.addEventListener("click", () => retirer(n, true));
-                    l.append(b);
-                }
-                boite.append(l);
-            }
+            // Les retires ne sont plus affiches, a sa demande : la ligne
+            // « Retires de cette guerre » preterait a confusion. Ils restent
+            // hors de la guerre ; le serveur les garde dans `retires`.
         }
 
         // Ceux qui ont depose dans la guerre ouverte : un resume, ou des /who.
