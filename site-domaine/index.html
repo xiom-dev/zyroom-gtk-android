@@ -30,12 +30,9 @@
     91.67% { opacity: 0; }
     100%   { opacity: 1; }
   }
-  /* Qui a demande a son systeme de limiter les animations garde l'eau,
-     immobile. */
-  @media (prefers-reduced-motion: reduce) {
-    img { animation: none; opacity: 0; }
-    #eau { opacity: 1; }
-  }
+  /* Pas d'exception pour "prefers-reduced-motion" : un fondu lent ne deplace
+     rien a l'ecran, et GNOME transmet cette preference des que ses propres
+     animations sont coupees -- la page restait alors figee sur l'eau. */
   /* Sauf sur un ecran en hauteur (telephone) : "cover" n'y montrerait plus
      que "io". L'image y reste entiere, le noir se fond dans le sien. */
   @media (orientation: portrait) {
