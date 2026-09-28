@@ -22,5 +22,33 @@
 </head>
 <body>
 <img src="xiom.webp" alt="Xiom" width="1672" height="941">
+<!-- Le morceau de la page des applis de la Lune, en boucle, sans lecteur
+     visible : la page reste l'image seule. -->
+<audio id="musique" src="https://xiom-dev.github.io/zyroom-gtk-android/sielu-cuovggas.mp3"
+       loop preload="auto"></audio>
+<script>
+  // Un navigateur refuse qu'une page joue du son avant le moindre geste du
+  // visiteur : play() rend alors une promesse rejetee. Dans ce cas, le
+  // premier clic, touche, molette ou toucher lance le morceau -- une fois ;
+  // les ecouteurs se retirent ensuite.
+  (function () {
+    var audio = document.getElementById("musique");
+    var GESTES = ["pointerdown", "keydown", "wheel", "touchstart"];
+    function auPremierGeste() {
+      GESTES.forEach(function (nom) {
+        document.removeEventListener(nom, auPremierGeste);
+      });
+      audio.play().catch(function () {});
+    }
+    var depart = audio.play();
+    if (depart) {
+      depart.catch(function () {
+        GESTES.forEach(function (nom) {
+          document.addEventListener(nom, auPremierGeste, { passive: true });
+        });
+      });
+    }
+  })();
+</script>
 </body>
 </html>
