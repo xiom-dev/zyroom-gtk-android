@@ -2320,10 +2320,14 @@
             if (!ouverte) return;
             if (document.activeElement !== champNomGuerre) champNomGuerre.value = guerre.nom || "";
             champNomGuerre.placeholder = nomParDefaut() || "Nom de la guerre";
-            document.getElementById("enregistrer").textContent =
-                (guerre.enregistree_le ? "Réenregistrer" : "Enregistrer") + " dans " + MOIS[moisVu - 1] + " " + anneeVue;
-            // Plus de ligne d'etat, a sa demande : le bouton « Enregistrer » ou
-            // « Réenregistrer » et le calendrier disent deja ou en est la guerre.
+            // Toujours « Enregistrer », a sa demande : ni « Reenregistrer », ni
+            // le mois. Le survol dit encore ou la guerre sera rangee.
+            const bouton = document.getElementById("enregistrer");
+            bouton.textContent = "Enregistrer";
+            bouton.title = "Ranger la guerre dans " + MOIS[moisVu - 1] + " " + anneeVue
+                           + " sous ce nom, et figer son tri";
+            // Plus de ligne d'etat, a sa demande : le calendrier dit deja ou en
+            // est la guerre.
             document.getElementById("fiche-etat").textContent = "";
             document.getElementById("titre-imprime").textContent =
                 "— " + (guerre.nom || nomParDefaut() || "bilan de la guerre");
