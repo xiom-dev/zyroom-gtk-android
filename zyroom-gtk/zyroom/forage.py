@@ -4,7 +4,7 @@ Fichier produit par ../zyroom-android/outils/table_forage.py — ne pas
 modifier à la main.
 
 **Tout vient du relevé de terrain des foreuses de la guilde**, saisi
-case par case sur https://xiom.be/forage/ : quatre cent vingt-six
+case par case sur https://xiom.be/forage/ : quatre cent vingt-huit
 créneaux pour le suprême, deux cent quarante-quatre pour l'excellente.
 C'est la seule source qui ait été mesurée dans les Primes ; le reste —
 le tracker d'atys.us, Ballistic Mystix, les classeurs de 2009 — en
@@ -62,6 +62,7 @@ SUPREMES = {
             ("PRINTEMPS", "WORST"),
         },
         ("Bois", "Motega"): {
+            ("AUTOMNE", "BAD"),
             ("AUTOMNE", "GOOD"),
         },
         ("Bois", "Tama"): {
@@ -88,6 +89,7 @@ SUPREMES = {
         },
         ("Carapace", "Big"): {
             ("AUTOMNE", "BEST"),
+            ("ETE", "BEST"),
             ("PRINTEMPS", "BEST"),
         },
         ("Carapace", "Cuty"): {
@@ -795,13 +797,11 @@ EXCELLENTES = {
             ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
             ("ETE", "WORST"),
+            ("HIVER", "BAD"),
         },
         ("Ambres", "Zun"): {
             ("AUTOMNE", "BAD"),
             ("PRINTEMPS", "BAD"),
-        },
-        ("Bois", "Motega"): {
-            ("AUTOMNE", "BAD"),
         },
         ("Boucles", "Nita"): {
             ("AUTOMNE", "BAD"),
@@ -820,6 +820,7 @@ EXCELLENTES = {
         },
         ("Carapace", "Cuty"): {
             ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "BEST"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
@@ -854,6 +855,7 @@ EXCELLENTES = {
         },
         ("Huile", "Irin"): {
             ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "GOOD"),
         },
         ("Huile", "Koorin"): {
             ("AUTOMNE", "BAD"),
@@ -881,6 +883,7 @@ EXCELLENTES = {
         },
         ("Sève", "Visc"): {
             ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "BEST"),
             ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
@@ -916,6 +919,9 @@ EXCELLENTES = {
         ("Bois", "Eyota"): {
             ("HIVER", "BAD"),
         },
+        ("Bois", "Kachine"): {
+            ("AUTOMNE", "BAD"),
+        },
         ("Bois", "Motega"): {
             ("HIVER", "BAD"),
         },
@@ -925,6 +931,7 @@ EXCELLENTES = {
         },
         ("Boucles", "Tansy"): {
             ("AUTOMNE", "GOOD"),
+            ("AUTOMNE", "WORST"),
             ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },
@@ -955,12 +962,15 @@ EXCELLENTES = {
         },
         ("Huile", "Gulatch"): {
             ("ETE", "BEST"),
-            ("ETE", "GOOD"),
         },
         ("Huile", "Irin"): {
             ("ETE", "GOOD"),
         },
         ("Huile", "Koorin"): {
+            ("HIVER", "BAD"),
+        },
+        ("Huile", "Pilan"): {
+            ("AUTOMNE", "BAD"),
             ("HIVER", "BAD"),
         },
         ("Résine", "Glue"): {
@@ -1028,6 +1038,9 @@ EXCELLENTES = {
             ("HIVER", "BAD"),
             ("HIVER", "WORST"),
         },
+        ("Bois", "Motega"): {
+            ("HIVER", "BEST"),
+        },
         ("Carapace", "Splinter"): {
             ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
@@ -1068,6 +1081,9 @@ EXCELLENTES = {
             ("ETE", "BEST"),
             ("ETE", "GOOD"),
             ("PRINTEMPS", "GOOD"),
+        },
+        ("Résine", "Dung"): {
+            ("AUTOMNE", "BAD"),
         },
         ("Résine", "Glue"): {
             ("AUTOMNE", "BEST"),
@@ -1138,6 +1154,9 @@ EXCELLENTES = {
         ("Bois", "Tama"): {
             ("HIVER", "BAD"),
         },
+        ("Boucles", "Patee"): {
+            ("AUTOMNE", "GOOD"),
+        },
         ("Boucles", "Scrath"): {
             ("AUTOMNE", "GOOD"),
             ("ETE", "GOOD"),
@@ -1168,12 +1187,14 @@ EXCELLENTES = {
         },
         ("Graines", "Sarina"): {
             ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "GOOD"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Graines", "Saurona"): {
             ("AUTOMNE", "BAD"),
+            ("AUTOMNE", "GOOD"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
@@ -1239,9 +1260,6 @@ A_CONFIRMER = {
             ("ETE", "BAD"),
             ("ETE", "WORST"),
         },
-        ("Bois", "Motega"): {
-            ("AUTOMNE", "BAD"),
-        },
         ("Boucles", "Nita"): {
             ("PRINTEMPS", "BAD"),
         },
@@ -1250,16 +1268,11 @@ A_CONFIRMER = {
         },
         ("Carapace", "Big"): {
             ("ETE", "BAD"),
-            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Carapace", "Cuty"): {
             ("ETE", "BAD"),
-            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
-        },
-        ("Carapace", "Splinter"): {
-            ("HIVER", "BAD"),
         },
         ("Fibres", "Shu"): {
             ("ETE", "BAD"),
@@ -1271,24 +1284,18 @@ A_CONFIRMER = {
         },
         ("Huile", "Pilan"): {
             ("ETE", "BAD"),
-            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Résine", "Dung"): {
             ("ETE", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },
-        ("Sève", "Visc"): {
-            ("HIVER", "GOOD"),
-        },
         ("Écorce", "Adriel"): {
-            ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Écorce", "Beckers"): {
-            ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },
         ("Écorce", "Oath"): {
@@ -1298,7 +1305,6 @@ A_CONFIRMER = {
     },
     "Terre de la Continuité": {
         ("Ambres", "Sha"): {
-            ("AUTOMNE", "BAD"),
             ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
@@ -1313,24 +1319,19 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BEST"),
         },
         ("Boucles", "Tansy"): {
-            ("AUTOMNE", "GOOD"),
-            ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },
         ("Carapace", "Big"): {
             ("ETE", "BAD"),
         },
         ("Fibres", "Anete"): {
-            ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },
         ("Fibres", "Shu"): {
-            ("AUTOMNE", "BAD"),
             ("HIVER", "BAD"),
         },
         ("Graines", "Caprice"): {
-            ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
         },
         ("Graines", "Sarina"): {
@@ -1341,9 +1342,6 @@ A_CONFIRMER = {
         },
         ("Huile", "Gulatch"): {
             ("ETE", "BEST"),
-        },
-        ("Huile", "Koorin"): {
-            ("HIVER", "BAD"),
         },
         ("Résine", "Glue"): {
             ("AUTOMNE", "BAD"),
@@ -1359,7 +1357,6 @@ A_CONFIRMER = {
         ("Sève", "Enola"): {
             ("AUTOMNE", "BAD"),
             ("ETE", "BAD"),
-            ("HIVER", "BAD"),
             ("PRINTEMPS", "BAD"),
         },
         ("Sève", "Visc"): {
@@ -1402,7 +1399,6 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BAD"),
         },
         ("Fibres", "Dzao"): {
-            ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
             ("PRINTEMPS", "GOOD"),
         },
@@ -1412,11 +1408,9 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BAD"),
         },
         ("Graines", "Sarina"): {
-            ("AUTOMNE", "GOOD"),
             ("HIVER", "GOOD"),
         },
         ("Huile", "Koorin"): {
-            ("AUTOMNE", "GOOD"),
             ("ETE", "BEST"),
             ("ETE", "GOOD"),
             ("PRINTEMPS", "GOOD"),
@@ -1428,7 +1422,6 @@ A_CONFIRMER = {
             ("PRINTEMPS", "BAD"),
         },
         ("Sève", "Redhot"): {
-            ("AUTOMNE", "GOOD"),
             ("ETE", "GOOD"),
         },
         ("Écorce", "Oath"): {

@@ -582,7 +582,7 @@ class CeQuiSort(unittest.TestCase):
     def test_la_table_dit_ce_que_les_foreuses_ont_relevé(self):
         """Le suprême vient du terrain, et rien ne doit s'y ajouter en chemin.
 
-        `donnees/forage-releve-guilde.json` porte les quatre cent vingt-six
+        `donnees/forage-releve-guilde.json` porte les quatre cent vingt-huit
         croix telles qu'elles ont été saisies sur xiom.be/forage. Ce contrôle
         refait la traduction — noms de saisons, de conditions, de matières — et
         compare case pour case à ce que l'écran affichera.

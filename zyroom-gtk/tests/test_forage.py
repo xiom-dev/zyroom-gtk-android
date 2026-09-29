@@ -76,16 +76,16 @@ class Structure(unittest.TestCase):
 class LeRelevéDeTerrain(unittest.TestCase):
     """Le suprême ne se déduit plus : il a été relevé source par source.
 
-    Quatre cent vingt-six cases cochées par les foreuses sur xiom.be/forage,
+    Quatre cent vingt-huit cases cochées par les foreuses sur xiom.be/forage,
     zone par zone, saison par saison, condition par condition. C'est la seule
     mesure faite dans les Primes — tout le reste en était déduit, d'Armory, du
     tracker, ou d'un classeur de 2009.
     """
 
-    def test_les_quatre_cent_vingt_six_créneaux(self):
+    def test_les_quatre_cent_vingt_huit_créneaux(self):
         creneaux = sum(len(k) for zone in forage.SUPREMES.values()
                        for k in zone.values())
-        self.assertEqual(426, creneaux)
+        self.assertEqual(428, creneaux)
 
     def test_chaque_zone_en_porte_une_quarantaine(self):
         """Sept matières environ ne sortent jamais en suprême dans une zone.

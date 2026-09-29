@@ -22,7 +22,7 @@ contrôle dans `verifie()` s'assure que la table produite lui est identique,
 case pour case.
 
 **Le suprême vient donc du relevé de terrain de la guilde**,
-`donnees/forage-releve-guilde.json` : quatre cent vingt-six cases cochées une à
+`donnees/forage-releve-guilde.json` : quatre cent vingt-huit cases cochées une à
 une sur https://xiom.be/forage/ par les foreuses, zone par zone, saison par
 saison, condition par condition. C'est la seule source qui ait été *mesurée*
 dans les Primes plutôt que déduite d'ailleurs, et elle recoupe ce que le
@@ -525,7 +525,7 @@ def python(tables: dict, conts: dict) -> str:
         "modifier à la main.",
         "",
         "**Tout vient du relevé de terrain des foreuses de la guilde**, saisi",
-        "case par case sur https://xiom.be/forage/ : quatre cent vingt-six",
+        "case par case sur https://xiom.be/forage/ : quatre cent vingt-huit",
         "créneaux pour le suprême, deux cent quarante-quatre pour l'excellente.",
         "C'est la seule source qui ait été mesurée dans les Primes ; le reste —",
         "le tracker d'atys.us, Ballistic Mystix, les classeurs de 2009 — en",
