@@ -10,6 +10,14 @@ retouchée. La racine de xiom.be n'affiche plus que l'image « Xiom » ;
 son `index.html`, son image et ses icônes (le X) sont écrits à la main et
 suivis par git — cet outil n'y écrit que le `.htaccess`.
 
+**Le sous-site est fermé par un mot de passe**, depuis le 29/09/2026. La page
+y est écrite sous le nom `page.html`, que le `.htaccess` du dossier refuse de
+servir ; seul `index.php` la rend, et seulement à qui a donné le mot de passe.
+Ce PHP vient de `outils/lune-porte.modele.php`, versionné sans secret :
+l'empreinte et le sel sont tirés de `~/.config/zyroom/lune.motdepasse` et
+`lune.sel`. Changer le mot de passe : réécrire le premier, relancer, redéposer
+`index.php`.
+
 **Une seule page, deux adresses.** La page vit dans `pages/index.html`, d'où
 `livraison.sh` la publie sur GitHub Pages. La recopier à la main pour un
 second hébergement, c'est se condamner à corriger deux fois chaque phrase et
@@ -38,11 +46,19 @@ import re
 import shutil
 import sys
 
+import bcrypt
+
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = os.path.join(RACINE, "pages")
 
 #: Le sous-dossier du site où vit la page des applis de la Lune.
 SOUS_SITE = "Lune-eternelle"
+
+#: La porte du sous-site, et ses deux secrets gardés hors du dépôt.
+PORTE = os.path.join(RACINE, "outils", "lune-porte.modele.php")
+SECRETS = os.path.expanduser("~/.config/zyroom")
+MOT_DE_PASSE = os.path.join(SECRETS, "lune.motdepasse")
+SEL = os.path.join(SECRETS, "lune.sel")
 
 #: L'adresse où les archives restent servies, tant qu'elles n'ont pas déménagé.
 BASE = "https://xiom-dev.github.io/zyroom-gtk-android/"
@@ -105,6 +121,39 @@ HTACCESS = """\
 Options -Indexes
 """
 
+#: Le `.htaccess` du sous-site : la page ne se lit que par la porte.
+#:
+#: `DirectoryIndex` d'abord : si l'ancien `index.html` restait sur le serveur,
+#: Apache le prefererait a `index.php` et la porte ne servirait a rien. Le
+#: refus des `.html` le couvre aussi, au cas ou il n'aurait pas ete efface.
+HTACCESS_LUNE = """\
+# La page ne sort que par index.php, qui demande le mot de passe.
+DirectoryIndex index.php
+<FilesMatch "\\.html$">
+    Require all denied
+</FilesMatch>
+"""
+
+
+def porte() -> str:
+    """Le PHP de la porte, avec l'empreinte du mot de passe et le sel."""
+    for chemin, aide in (
+            (MOT_DE_PASSE, "En poser un : echo 'ma-phrase' > " + MOT_DE_PASSE),
+            (SEL, "En tirer un : python3 -c \"import secrets; "
+                  "print(secrets.token_hex(24))\" > " + SEL)):
+        if not os.path.isfile(chemin):
+            raise SystemExit(f"Absent : {chemin}\n{aide}")
+    phrase = open(MOT_DE_PASSE, encoding="utf-8").read().strip()
+    sel = open(SEL, encoding="utf-8").read().strip()
+    # PHP attend le prefixe "$2y$" ; c'est le meme algorithme que "$2b$".
+    empreinte = "$2y$" + bcrypt.hashpw(phrase.encode(),
+                                       bcrypt.gensalt(12)).decode()[4:]
+    modele = open(PORTE, encoding="utf-8").read()
+    for trou in ("__EMPREINTE__", "__SEL__"):
+        if modele.count(trou) != 1:
+            raise SystemExit(f"{PORTE} : {trou} attendu une fois")
+    return modele.replace("__EMPREINTE__", empreinte).replace("__SEL__", sel)
+
 
 def main() -> int:
     sortie = (sys.argv[1] if len(sys.argv) > 1
@@ -123,7 +172,14 @@ def main() -> int:
     # ses liens vers eux sont relatifs, elle s'y retrouve sans retouche.
     dossier = os.path.join(sortie, SOUS_SITE)
     os.makedirs(dossier, exist_ok=True)
-    open(os.path.join(dossier, "index.html"), "w", encoding="utf-8").write(page)
+    # La page derriere sa porte : page.html ne se lit que par index.php.
+    ancienne = os.path.join(dossier, "index.html")
+    if os.path.exists(ancienne):
+        os.remove(ancienne)
+    open(os.path.join(dossier, "page.html"), "w", encoding="utf-8").write(page)
+    open(os.path.join(dossier, "index.php"), "w", encoding="utf-8").write(porte())
+    open(os.path.join(dossier, ".htaccess"), "w",
+         encoding="utf-8").write(HTACCESS_LUNE)
     apercus = os.path.join(dossier, "apercus")
     shutil.rmtree(apercus, ignore_errors=True)
     shutil.copytree(os.path.join(PAGES, "apercus"), apercus)
@@ -145,6 +201,7 @@ def main() -> int:
     print()
     print(f"  À déposer dans le dossier « {SOUS_SITE}/ » de xiom.be, tel quel ;")
     print("  à la racine, seul le .htaccess vient d'ici.")
+    print("  Sur le serveur, effacer l'ancien Lune-eternelle/index.html.")
     restants = len(re.findall(r'"' + re.escape(BASE), page))
     print(f"  {restants} liens pointent encore vers GitHub : c'est voulu, "
           "les\n  archives n'ont pas déménagé.")
