@@ -1967,8 +1967,11 @@
                     const r = await fetch(SERVEUR + "?guerre=" + encodeURIComponent(g.id),
                         { cache: "no-store", headers: entetes() });
                     if (!r.ok) return null;
-                    const ref = plageDeReference((await r.json()).journaux);
-                    return ref ? { nom: nomAffiche(g), de: ref.plage.de, a: ref.plage.a } : null;
+                    const detail = await r.json();
+                    const ref = plageDeReference(detail.journaux);
+                    // Ses joueurs : les noms de ses /who.
+                    const noms = new Set((detail.whos || []).flatMap(w => w.noms || []));
+                    return ref ? { nom: nomAffiche(g), de: ref.plage.de, a: ref.plage.a, noms } : null;
                 } catch (e) { return null; }
             }));
             return lues.filter(Boolean);
@@ -1976,12 +1979,28 @@
 
         // Un debut qui tombe dans une autre guerre passe juste apres sa fin -- et
         // de proche en proche, si elles se suivent. Rend {t, apres}.
-        function apresLesAutres(t, autres) {
+        //
+        // **Seulement si ce sont les memes joueurs.** Deux OP peuvent se
+        // chevaucher, chacune avec les siens : il faut au moins deux noms du
+        // /who du journal dans les /who de l'autre guerre -- un seul joueur passe
+        // d'une OP a l'autre n'y suffit pas. Sans /who, pas de noms, pas de
+        // decalage.
+        const NOMS_COMMUNS_MIN = 2;
+        function apresLesAutres(t, autres, noms) {
             let apres = null;
+            if (!noms || !noms.length) return { t, apres };
             for (const o of [...autres].sort((x, y) => x.de - y.de)) {
-                if (o.de <= t && t < o.a) { t = o.a + 1; apres = o; }
+                const communs = noms.filter(n => o.noms && o.noms.has(n)).length;
+                if (communs >= NOMS_COMMUNS_MIN && o.de <= t && t < o.a) { t = o.a + 1; apres = o; }
             }
             return { t, apres };
+        }
+
+        // Les noms du /who qui ouvre le combat : le dernier tape avant le debut
+        // (a la minute pres), dans les deux heures qui precedent.
+        function nomsAuDebut(tous, t) {
+            const avant = tous.filter(w => secondes(w.quand) <= t + 60 && secondes(w.quand) >= t - 7200);
+            return avant.length ? avant[avant.length - 1].noms : [];
         }
 
         // Le debut et la fin du combat : un /who ou le selecteur pour le debut, le
@@ -2031,7 +2050,8 @@
             // Sans heures dans la guerre, le debut propose ne tombe pas dans une
             // autre guerre du meme soir : il passe apres sa fin, en jaune.
             if (!reference && champDe.value) {
-                const decale = apresLesAutres(depuisChamp(champDe.value), autres);
+                const debut = depuisChamp(champDe.value);
+                const decale = apresLesAutres(debut, autres, nomsAuDebut(tous, debut));
                 if (decale.apres) {
                     champDe.value = versChamp(decale.t);
                     if (!(depuisChamp(champA.value) > decale.t)) champA.value = versChamp(fin);
@@ -2262,7 +2282,7 @@
                         const dernierWho = tous[tous.length - 1];
                         // Un /who tape pendant une autre guerre du soir : on part
                         // de la fin de celle-ci.
-                        const decale = apresLesAutres(secondes(dernierWho.quand), autres);
+                        const decale = apresLesAutres(secondes(dernierWho.quand), autres, dernierWho.noms);
                         t0 = decale.t;
                         t1 = await demanderFin(f.name, t0, lignes[lignes.length - 1].t,
                             decale.apres
