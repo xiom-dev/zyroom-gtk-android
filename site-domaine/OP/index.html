@@ -1038,6 +1038,76 @@
             color: var(--eux);
         }
 
+        /* Un clic sur un compteur ouvre la liste de ses noms. */
+        #compte-kamis,
+        #compte-opposants {
+            cursor: pointer;
+            border-radius: 6px;
+            padding: 1px 4px;
+            margin: 0 -4px;
+        }
+
+        #compte-kamis:hover,
+        #compte-opposants:hover {
+            background: var(--trait);
+        }
+
+        /* La liste des noms d'un camp : meme fenetre que le /who de depart. */
+        #noms-camp {
+            background: var(--surface);
+            color: var(--texte);
+            border: 1px solid var(--trait);
+            border-radius: 12px;
+            padding: 18px;
+            width: min(420px, calc(100vw - 32px));
+            max-height: 85vh;
+        }
+
+        #noms-camp[open] {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #noms-camp::backdrop {
+            background: rgba(8, 12, 14, .8);
+        }
+
+        #noms-camp h2 {
+            margin: 0 0 10px;
+            font-size: 1.15rem;
+        }
+
+        #noms-camp.kamis h2 {
+            color: var(--nous);
+        }
+
+        #noms-camp.opposants h2 {
+            color: var(--eux);
+        }
+
+        #noms-camp-liste {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;
+            flex: 1 1 auto;
+            border-top: 1px solid var(--trait);
+            overscroll-behavior: contain;
+            columns: 2;
+            column-gap: 18px;
+        }
+
+        #noms-camp-liste li {
+            padding: 3px 2px;
+            break-inside: avoid;
+        }
+
+        #noms-camp .pied {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+
         /* **Samara.** Le pop-up du site WRC, porte ici : voile sombre, image aux
      coins arrondis dans un halo rouge, qui se met a trembler au bout de
      0,3 s -- pendant que le cri part. */
@@ -1339,8 +1409,8 @@
             <!-- Le cumul de toutes les guerres : chaque joueur trie compte une fois. -->
             <div id="compteurs" title="Toutes guerres confondues : chaque joueur compte une seule fois">
                 <h3>Total des joueurs</h3>
-                <div id="compte-kamis">Kamis <b>0</b></div>
-                <div id="compte-opposants">Opposants <b>0</b></div>
+                <div id="compte-kamis" role="button" tabindex="0" title="Voir la liste des Kamis">Kamis <b>0</b></div>
+                <div id="compte-opposants" role="button" tabindex="0" title="Voir la liste des opposants">Opposants <b>0</b></div>
             </div>
         </aside>
 
@@ -1471,6 +1541,14 @@
                 </div>
             </dialog>
 
+            <dialog id="noms-camp">
+                <h2 id="noms-camp-titre"></h2>
+                <ul id="noms-camp-liste"></ul>
+                <div class="pied">
+                    <button id="noms-camp-fermer" type="button">Fermer</button>
+                </div>
+            </dialog>
+
             <dialog id="coffre">
                 <h2>Sauvegardes du serveur</h2>
                 <p>Automatiques : avant un changement, au plus une toutes les 5 minutes, et
@@ -1566,13 +1644,48 @@
         // le serveur rassemble ; chacun compte une fois, dans son camp actuel --
         // celui du tri commun, a defaut celui fige avec sa guerre.
         let joueurs = {};
+        function nomsDuCamp(camp) {
+            return Object.entries(joueurs).filter(([n, fige]) =>
+                (camps[n] ? camps[n].c : fige) === camp).map(([n]) => n);
+        }
+
         function peindreCompteurs() {
             for (const camp of ["kamis", "opposants"]) {
                 document.querySelector("#compte-" + camp + " b").textContent =
-                    Object.entries(joueurs).filter(([n, fige]) =>
-                        (camps[n] ? camps[n].c : fige) === camp).length;
+                    nomsDuCamp(camp).length;
             }
         }
+
+        // Un clic sur un compteur : les noms qu'il compte, par ordre alphabetique.
+        const nomsCamp = document.getElementById("noms-camp");
+        function montrerNoms(camp) {
+            const noms = nomsDuCamp(camp).sort((a, b) =>
+                a.localeCompare(b, "fr", { sensitivity: "base" }));
+            nomsCamp.className = camp;
+            document.getElementById("noms-camp-titre").textContent =
+                (camp === "kamis" ? "Kamis" : "Opposants") + " · " + noms.length;
+            const liste = document.getElementById("noms-camp-liste");
+            liste.replaceChildren(...noms.map(n => {
+                const li = document.createElement("li");
+                li.textContent = n;
+                return li;
+            }));
+            nomsCamp.showModal();
+        }
+        for (const camp of ["kamis", "opposants"]) {
+            const bouton = document.getElementById("compte-" + camp);
+            bouton.addEventListener("click", () => montrerNoms(camp));
+            bouton.addEventListener("keydown", e => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); montrerNoms(camp); }
+            });
+        }
+        document.getElementById("noms-camp-fermer").addEventListener("click", () => nomsCamp.close());
+        // Un clic sur le voile, hors de la fenetre, la ferme aussi.
+        nomsCamp.addEventListener("click", e => {
+            const r = nomsCamp.getBoundingClientRect();
+            if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)
+                nomsCamp.close();
+        });
 
         function recevoir(d) {
             camps = d.camps || {};
