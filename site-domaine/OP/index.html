@@ -1927,6 +1927,16 @@
         const versChamp = t => new Date(t * 1000).toISOString().slice(0, 16);
         const depuisChamp = v => Date.parse(v + ":00Z") / 1000;
 
+        // La plage d'un journal deja depose dans la guerre ouverte : la plus
+        // recente reglee a la main, a defaut la plus recente tout court. C'est
+        // elle que reprennent la fenetre du depart et « Automatique ».
+        function plageDeReference() {
+            return Object.values(journaux)
+                .filter(j => j.plage && j.plage.de < j.plage.a)
+                .sort((x, y) => (y.plage.main - x.plage.main)
+                    || String(y.depose_le || "").localeCompare(String(x.depose_le || "")))[0];
+        }
+
         // Le debut et la fin du combat : un /who ou le selecteur pour le debut, le
         // selecteur pour la fin. Rend {t0, t1} en secondes, "auto", ou null si
         // l'on annule.
@@ -1951,10 +1961,7 @@
             // plus recente reglee a la main, a defaut la plus recente tout court.
             // Il ne reste qu'a « Accepter » -- ou a corriger avant.
             const memes = document.getElementById("depart-memes");
-            const reference = Object.values(journaux)
-                .filter(j => j.plage && j.plage.de < j.plage.a)
-                .sort((x, y) => (y.plage.main - x.plage.main)
-                    || String(y.depose_le || "").localeCompare(String(x.depose_le || "")))[0];
+            const reference = plageDeReference();
             const oublierMemes = () => {
                 champDe.classList.remove("memes");
                 champA.classList.remove("memes");
@@ -2093,6 +2100,7 @@
                 // Un envoi par journal, a son proprietaire : le serveur remplace alors
                 // son depot precedent -- on se reprend en redeposant.
                 const liste = [], resumes = [];
+                let precision = "";
                 const proprio = proprioDuFichier(f.name, texte);
                 const guerresDuJournal = analyserGuerres(texte, f.name).filter(r => r.proprio);
                 // **La derniere guerre du journal.** Un journal couvre souvent plusieurs
@@ -2146,25 +2154,39 @@
                     // /who fait depart, et la fin se demande.** Avant, les stats
                     // couraient jusqu'au bout du journal : deux boss d'une meme
                     // soiree se melaient (Dante et Pei, le 30/09).
-                    const dernierWho = tous[tous.length - 1];
-                    const t0 = secondes(dernierWho.quand);
-                    const t1 = await demanderFin(f.name, t0, lignes[lignes.length - 1].t,
-                        dernierWho.quand.slice(8, 10) + "/" + dernierWho.quand.slice(5, 7) + " "
-                        + dernierWho.quand.slice(11, 16) + " (" + dernierWho.region + ")");
-                    if (t1 === null) continue;
+                    // **Sauf si la guerre a deja un journal avec ses heures** : on
+                    // reprend alors son debut et sa fin, sans rien demander.
+                    const reference = plageDeReference();
+                    let t0, t1;
+                    if (reference) {
+                        t0 = reference.plage.de;
+                        t1 = reference.plage.a;
+                        precision = "heures reprises de " + reference.proprio + " : "
+                            + versChamp(t0).slice(11) + " → " + versChamp(t1).slice(11);
+                    } else {
+                        const dernierWho = tous[tous.length - 1];
+                        t0 = secondes(dernierWho.quand);
+                        t1 = await demanderFin(f.name, t0, lignes[lignes.length - 1].t,
+                            dernierWho.quand.slice(8, 10) + "/" + dernierWho.quand.slice(5, 7) + " "
+                            + dernierWho.quand.slice(11, 16) + " (" + dernierWho.region + ")");
+                        if (t1 === null) continue;
+                    }
+                    const debutIso = versChamp(t0);
                     liste.push(...tous.filter(w => secondes(w.quand) >= t0 && secondes(w.quand) <= t1));
                     resumes.push(resumer(lignes, {
-                        id: dernierWho.quand.slice(0, 10).replace(/\//g, "-"), de: t0, a: t1, main: true,
-                        heure: dernierWho.quand.slice(11, 16), rounds: []
+                        id: debutIso.slice(0, 10), de: t0, a: t1,
+                        // Reprise, elle garde la nature de l'originale.
+                        main: reference ? reference.plage.main : true,
+                        heure: debutIso.slice(11, 16), rounds: []
                     }, proprio));
                 } else {
                     liste.push(...tous.filter(w => w.quand.startsWith(jour)));
                 }
-                await envoyerJournal(liste, resumes, proprio);
+                await envoyerJournal(liste, resumes, proprio, precision);
             }
         }
 
-        async function envoyerJournal(liste, resumes, proprio) {
+        async function envoyerJournal(liste, resumes, proprio, precision) {
             if (!liste.length && !resumes.length) {
                 signaler("ni /who ni guerre d'OP dans ce journal", true);
                 return;
@@ -2176,7 +2198,8 @@
                 action: "journal", guerre: guerreChoisie, proprio,
                 whos: liste, resumes
             })) {
-                signaler(liste.length + " /who et " + resumes.length + " journal de combat ajoutés à la guerre");
+                signaler(liste.length + " /who et " + resumes.length + " journal de combat ajoutés à la guerre"
+                    + (precision ? " · " + precision : ""));
             }
         }
 
