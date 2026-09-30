@@ -1944,17 +1944,50 @@
         // La plage d'un journal deja depose dans la guerre ouverte : la plus
         // recente reglee a la main, a defaut la plus recente tout court. C'est
         // elle que reprennent la fenetre du depart et « Automatique ».
-        function plageDeReference() {
-            return Object.values(journaux)
+        function plageDeReference(des = journaux) {
+            return Object.values(des || {})
                 .filter(j => j.plage && j.plage.de < j.plage.a)
                 .sort((x, y) => (y.plage.main - x.plage.main)
                     || String(y.depose_le || "").localeCompare(String(x.depose_le || "")))[0];
         }
 
+        // **Les heures des autres guerres proches du journal**, pour qu'une
+        // guerre ne commence pas avant la fin de la precedente : le 30/09, le seul
+        // /who de Nizyros etait au debut de Dante, et Pei heritait de Dante.
+        // Ne sont lues que les guerres creees pendant le journal (a deux jours
+        // pres), ou, sans date de creation, celles du mois de sa fin.
+        async function plagesDesAutresGuerres(lignes) {
+            const de = lignes[0].t - 2 * 86400, a = lignes[lignes.length - 1].t + 2 * 86400;
+            const finIso = versChamp(lignes[lignes.length - 1].t);
+            const proches = guerres.filter(g => g.id !== guerreChoisie && (g.cree_le
+                ? Date.parse(g.cree_le) / 1000 >= de && Date.parse(g.cree_le) / 1000 <= a
+                : g.annee === +finIso.slice(0, 4) && g.mois === +finIso.slice(5, 7)));
+            const lues = await Promise.all(proches.map(async g => {
+                try {
+                    const r = await fetch(SERVEUR + "?guerre=" + encodeURIComponent(g.id),
+                        { cache: "no-store", headers: entetes() });
+                    if (!r.ok) return null;
+                    const ref = plageDeReference((await r.json()).journaux);
+                    return ref ? { nom: nomAffiche(g), de: ref.plage.de, a: ref.plage.a } : null;
+                } catch (e) { return null; }
+            }));
+            return lues.filter(Boolean);
+        }
+
+        // Un debut qui tombe dans une autre guerre passe juste apres sa fin -- et
+        // de proche en proche, si elles se suivent. Rend {t, apres}.
+        function apresLesAutres(t, autres) {
+            let apres = null;
+            for (const o of [...autres].sort((x, y) => x.de - y.de)) {
+                if (o.de <= t && t < o.a) { t = o.a + 1; apres = o; }
+            }
+            return { t, apres };
+        }
+
         // Le debut et la fin du combat : un /who ou le selecteur pour le debut, le
         // selecteur pour la fin. Rend {t0, t1} en secondes, "auto", ou null si
         // l'on annule.
-        function choisirDepart(nomFichier, tous, lignes) {
+        function choisirDepart(nomFichier, tous, lignes, autres = []) {
             const boite = document.getElementById("depart");
             const ul = document.getElementById("depart-liste");
             const titre = document.getElementById("depart-titre");
@@ -1962,13 +1995,16 @@
             const champA = document.getElementById("depart-a");
             const refus = document.getElementById("depart-heures-refus");
             document.getElementById("depart-fichier").textContent = nomFichier;
-            // Les heures proposees : la derniere guerre a rounds ; sans elle, du
-            // dernier /who a la fin du journal ; sans /who, la derniere heure.
+            // Les heures proposees : la derniere guerre a rounds, ou le dernier /who
+            // jusqu'a la fin du journal -- le plus recent des deux, comme
+            // « Automatique » : un OP d'un autre soir ne passe pas devant le /who
+            // de ce soir. Sans l'un ni l'autre, la derniere heure.
             const fin = lignes[lignes.length - 1].t;
             const guerre = periodes(lignes).pop();
             const dernierWho = tous.length ? secondes(tous[tous.length - 1].quand) : null;
-            champDe.value = versChamp(guerre ? guerre.de : dernierWho !== null ? dernierWho : fin - 3600);
-            champA.value = versChamp(guerre ? guerre.a : fin);
+            const parRounds = guerre && !(dernierWho !== null && dernierWho > guerre.a);
+            champDe.value = versChamp(parRounds ? guerre.de : dernierWho !== null ? dernierWho : fin - 3600);
+            champA.value = versChamp(parRounds ? guerre.a : fin);
             refus.textContent = "";
             // **Les memes heures que les journaux deja deposes.** Si la guerre ouverte
             // en a un dont la plage est connue, elle remplace la proposition : la
@@ -1991,6 +2027,19 @@
                     + versChamp(reference.plage.de).slice(11) + " → "
                     + versChamp(reference.plage.a).slice(11);
                 memes.hidden = false;
+            }
+            // Sans heures dans la guerre, le debut propose ne tombe pas dans une
+            // autre guerre du meme soir : il passe apres sa fin, en jaune.
+            if (!reference && champDe.value) {
+                const decale = apresLesAutres(depuisChamp(champDe.value), autres);
+                if (decale.apres) {
+                    champDe.value = versChamp(decale.t);
+                    if (!(depuisChamp(champA.value) > decale.t)) champA.value = versChamp(fin);
+                    champDe.classList.add("memes");
+                    memes.textContent = "Après " + decale.apres.nom + " (fini à "
+                        + versChamp(decale.apres.a).slice(11) + ")";
+                    memes.hidden = false;
+                }
             }
             champDe.oninput = champA.oninput = oublierMemes;
             // **Ni /who ni heures dans la guerre** : rien ne permet de deviner le
@@ -2139,6 +2188,7 @@
                 // son depot precedent -- on se reprend en redeposant.
                 const liste = [], resumes = [];
                 let precision = "";
+                let autres = [];          // les heures des autres guerres proches
                 const proprio = proprioDuFichier(f.name, texte);
                 const guerresDuJournal = analyserGuerres(texte, f.name).filter(r => r.proprio);
                 // **La derniere guerre du journal.** Un journal couvre souvent plusieurs
@@ -2153,7 +2203,8 @@
                 // les rounds comme avant.
                 const lignes = lignesDatees(texte);
                 if (lignes.length) {
-                    const choix = await choisirDepart(f.name, tous, lignes);
+                    autres = await plagesDesAutresGuerres(lignes);
+                    const choix = await choisirDepart(f.name, tous, lignes, autres);
                     if (choix === null) continue;
                     if (choix !== "auto") {
                         const { t0, t1 } = choix;
@@ -2209,10 +2260,16 @@
                             + versChamp(t0).slice(11) + " → " + versChamp(t1).slice(11);
                     } else {
                         const dernierWho = tous[tous.length - 1];
-                        t0 = secondes(dernierWho.quand);
+                        // Un /who tape pendant une autre guerre du soir : on part
+                        // de la fin de celle-ci.
+                        const decale = apresLesAutres(secondes(dernierWho.quand), autres);
+                        t0 = decale.t;
                         t1 = await demanderFin(f.name, t0, lignes[lignes.length - 1].t,
-                            dernierWho.quand.slice(8, 10) + "/" + dernierWho.quand.slice(5, 7) + " "
-                            + dernierWho.quand.slice(11, 16) + " (" + dernierWho.region + ")");
+                            decale.apres
+                                ? versChamp(t0).slice(8, 10) + "/" + versChamp(t0).slice(5, 7) + " "
+                                + versChamp(t0).slice(11) + " (après " + decale.apres.nom + ")"
+                                : dernierWho.quand.slice(8, 10) + "/" + dernierWho.quand.slice(5, 7) + " "
+                                + dernierWho.quand.slice(11, 16) + " (" + dernierWho.region + ")");
                         if (t1 === null) continue;
                     }
                     const debutIso = versChamp(t0);
