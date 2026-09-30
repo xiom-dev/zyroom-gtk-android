@@ -502,8 +502,20 @@
         }
 
         #depart-heures b,
-        #depart-heures-refus {
+        #depart-heures-refus,
+        #depart-memes {
             grid-column: 1 / -1;
+        }
+
+        /* Les heures reprises d'un autre journal de la guerre : en jaune, comme
+     le /who choisi, avec d'ou elles viennent. */
+        #depart-heures input.memes {
+            border-color: var(--or);
+        }
+
+        #depart-memes {
+            color: var(--or);
+            font-size: .85rem;
         }
 
         /* « Accepter » a droite des fleches, a mi-hauteur des deux heures. */
@@ -1533,6 +1545,7 @@
                     <button id="depart-heures-ok" type="button"
                         title="Tout ce qui s'est passé entre ces deux heures, rounds compris">Accepter</button>
                     <span id="depart-heures-refus"></span>
+                    <span id="depart-memes" hidden></span>
                 </div>
                 <div class="pied">
                     <button id="depart-auto" type="button"
@@ -1843,6 +1856,32 @@
             champDe.value = versChamp(guerre ? guerre.de : dernierWho !== null ? dernierWho : fin - 3600);
             champA.value = versChamp(guerre ? guerre.a : fin);
             refus.textContent = "";
+            // **Les memes heures que les journaux deja deposes.** Si la guerre ouverte
+            // en a un dont la plage est connue, elle remplace la proposition : la
+            // plus recente reglee a la main, a defaut la plus recente tout court.
+            // Il ne reste qu'a « Accepter » -- ou a corriger avant.
+            const memes = document.getElementById("depart-memes");
+            const reference = Object.values(journaux)
+                .filter(j => j.plage && j.plage.de < j.plage.a)
+                .sort((x, y) => (y.plage.main - x.plage.main)
+                    || String(y.depose_le || "").localeCompare(String(x.depose_le || "")))[0];
+            const oublierMemes = () => {
+                champDe.classList.remove("memes");
+                champA.classList.remove("memes");
+            };
+            oublierMemes();
+            memes.hidden = true;
+            if (reference) {
+                champDe.value = versChamp(reference.plage.de);
+                champA.value = versChamp(reference.plage.a);
+                champDe.classList.add("memes");
+                champA.classList.add("memes");
+                memes.textContent = "Mêmes heures que " + reference.proprio + " : "
+                    + versChamp(reference.plage.de).slice(11) + " → "
+                    + versChamp(reference.plage.a).slice(11);
+                memes.hidden = false;
+            }
+            champDe.oninput = champA.oninput = oublierMemes;
             return new Promise(fini => {
                 let rendu = null;
                 const finir = v => { rendu = v; boite.close(); };
@@ -1853,6 +1892,7 @@
                         const pas = () => {
                             const t = depuisChamp(champ.value);
                             if (!isNaN(t)) champ.value = versChamp(t + b.dataset.pas * 300);
+                            champ.classList.remove("memes");
                         };
                         let attente = null, rafale = null;
                         const stop = () => { clearTimeout(attente); clearInterval(rafale); };
@@ -1905,6 +1945,7 @@
                 document.getElementById("depart-annuler").onclick = () => finir(null);
                 boite.addEventListener("close", () => fini(rendu), { once: true });
                 boite.showModal();
+                if (reference) document.getElementById("depart-heures-ok").focus();
             });
         }
 
@@ -1940,7 +1981,7 @@
                             // dedans sont comptes, rien n'est elargi.
                             const debutIso = versChamp(t0);
                             const p = {
-                                id: debutIso.slice(0, 10), de: t0, a: t1,
+                                id: debutIso.slice(0, 10), de: t0, a: t1, main: true,
                                 heure: debutIso.slice(11, 16), rounds: []
                             };
                             resumes.push(resumer(lignes, p, proprio));
@@ -2135,6 +2176,10 @@
         function resumer(lignes, periode, proprio) {
             const r = {
                 proprio, guerre: periode.id, heure: periode.heure,
+                // La plage retenue, pour que les journaux deposes ensuite dans la
+                // meme guerre reprennent les memes heures ; `main` quand elle a ete
+                // reglee a la main plutot que devinee.
+                plage: { de: periode.de, a: periode.a, main: !!periode.main },
                 rounds: { gagnes: 0, perdus: 0 },
                 morts: [], tues: [],
                 recus: {},        // attaquant -> {coups, degats, max, magie, sans, parties}
