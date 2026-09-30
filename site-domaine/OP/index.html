@@ -1064,6 +1064,75 @@
             background: var(--trait);
         }
 
+        /* L'heure de fin, demandee quand il n'y a pas de rounds : meme fenetre
+     que le /who de depart. */
+        #fin {
+            background: var(--surface);
+            color: var(--texte);
+            border: 1px solid var(--trait);
+            border-radius: 12px;
+            padding: 18px;
+            width: min(460px, calc(100vw - 32px));
+        }
+
+        #fin::backdrop {
+            background: rgba(8, 12, 14, .8);
+        }
+
+        #fin h2 {
+            color: var(--or);
+            margin: 0 0 4px;
+            font-size: 1.15rem;
+        }
+
+        #fin p {
+            color: var(--faible);
+            margin: 0 0 12px;
+            font-size: .88rem;
+            line-height: 1.4;
+        }
+
+        #fin-ligne {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #fin-ligne input {
+            background: var(--fond);
+            color: var(--texte);
+            font: inherit;
+            border: 1px solid var(--or);
+            border-radius: 7px;
+            padding: 4px 6px;
+        }
+
+        #fin .fleches {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #fin .fleches button {
+            padding: 0 8px;
+            font-size: .65rem;
+            line-height: 1.5;
+        }
+
+        #fin-refus {
+            display: block;
+            color: var(--eux);
+            min-height: 1.2em;
+            margin-top: 8px;
+        }
+
+        #fin .pied {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
         /* La liste des noms d'un camp : meme fenetre que le /who de depart. */
         #noms-camp {
             background: var(--surface);
@@ -1549,9 +1618,30 @@
                 </div>
                 <div class="pied">
                     <button id="depart-auto" type="button"
-                        title="La dernière guerre à rounds du journal et ses /who ; sans rounds ce jour-là (boss, PvP), depuis ton dernier /who jusqu'à la fin du journal">Automatique</button>
+                        title="La dernière guerre à rounds du journal et ses /who ; sans rounds ce jour-là (boss, PvP), depuis ton dernier /who, puis l'heure de fin t'est demandée">Automatique</button>
                     <button id="depart-annuler" type="button">Annuler</button>
                 </div>
+            </dialog>
+
+            <!-- Sans rounds, le journal ne dit pas quand le combat a fini : on le demande. -->
+            <dialog id="fin">
+                <form method="dialog" id="fin-form">
+                    <h2>L'heure de fin du combat</h2>
+                    <p>Pas de round d'avant-poste dans <b id="fin-fichier"></b> : le script ne sait pas
+                        quand le combat s'est arrêté. Il part de <b id="fin-debut"></b> ; indique
+                        l'heure de la fin, puis « Accepter ».</p>
+                    <div id="fin-ligne">
+                        <label for="fin-a">au</label><input type="datetime-local" id="fin-a" required>
+                        <span class="fleches"><button type="button" data-pas="1"
+                                title="5 minutes plus tard">▲</button><button type="button" data-pas="-1"
+                                title="5 minutes plus tôt">▼</button></span>
+                    </div>
+                    <span id="fin-refus"></span>
+                    <div class="pied">
+                        <button id="fin-ok" type="submit">Accepter</button>
+                        <button id="fin-annuler" type="button">Annuler</button>
+                    </div>
+                </form>
             </dialog>
 
             <dialog id="noms-camp">
@@ -1949,6 +2039,52 @@
             });
         }
 
+        // **L'heure de fin, quand il n'y a pas de rounds.** Le debut est connu
+        // (le dernier /who), la fin non : sans elle, les stats couraient jusqu'au
+        // bout du journal et melaient deux boss d'une meme soiree (Dante et Pei,
+        // le 30/09). Rend la fin en secondes, ou null si l'on annule.
+        function demanderFin(nomFichier, debut, finJournal, libelle) {
+            const boite = document.getElementById("fin");
+            const champ = document.getElementById("fin-a");
+            const refus = document.getElementById("fin-refus");
+            document.getElementById("fin-fichier").textContent = nomFichier;
+            document.getElementById("fin-debut").textContent = libelle;
+            // Une demi-heure apres le debut, sans depasser la fin du journal.
+            champ.value = versChamp(Math.min(debut + 1800, finJournal));
+            refus.textContent = "";
+            for (const b of boite.querySelectorAll(".fleches button")) {
+                const pas = () => {
+                    const t = depuisChamp(champ.value);
+                    if (!isNaN(t)) champ.value = versChamp(t + b.dataset.pas * 300);
+                };
+                let attente = null, rafale = null;
+                const stop = () => { clearTimeout(attente); clearInterval(rafale); };
+                b.onpointerdown = e => {
+                    e.preventDefault();
+                    pas();
+                    attente = setTimeout(() => { rafale = setInterval(pas, 120); }, 400);
+                };
+                b.onpointerup = b.onpointerleave = b.onpointercancel = stop;
+            }
+            return new Promise(fini => {
+                let rendu = null;
+                document.getElementById("fin-form").onsubmit = e => {
+                    const t = depuisChamp(champ.value);
+                    if (!(t > debut)) {
+                        e.preventDefault();
+                        refus.textContent = "la fin doit suivre le début";
+                        return;
+                    }
+                    // La minute de fin comptee en entier, comme dans le choix du depart.
+                    rendu = t + 59;
+                };
+                document.getElementById("fin-annuler").onclick = () => boite.close();
+                boite.addEventListener("close", () => fini(rendu), { once: true });
+                boite.showModal();
+                champ.focus();
+            });
+        }
+
         async function charger(fichiers) {
             // Deposer sans guerre ouverte en ouvre une, dans le mois choisi.
             if (!guerreChoisie && !(await creerGuerre())) return;
@@ -2007,16 +2143,18 @@
                     resumes.push(derniere);
                 } else if (tous.length && proprio && lignes.length) {
                     // **Sans rounds ce jour-la -- un boss, du PvP --, le dernier
-                    // /who fait depart.** On garde lui et les suivants, et les stats
-                    // courent de lui a la fin du journal. Avant, ce cas n'envoyait
-                    // que les /who de la journee et aucune stat : la soiree Dante
-                    // du 28/09 etait restee vide.
+                    // /who fait depart, et la fin se demande.** Avant, les stats
+                    // couraient jusqu'au bout du journal : deux boss d'une meme
+                    // soiree se melaient (Dante et Pei, le 30/09).
                     const dernierWho = tous[tous.length - 1];
                     const t0 = secondes(dernierWho.quand);
-                    const t1 = lignes[lignes.length - 1].t;
-                    liste.push(...tous.filter(w => secondes(w.quand) >= t0));
+                    const t1 = await demanderFin(f.name, t0, lignes[lignes.length - 1].t,
+                        dernierWho.quand.slice(8, 10) + "/" + dernierWho.quand.slice(5, 7) + " "
+                        + dernierWho.quand.slice(11, 16) + " (" + dernierWho.region + ")");
+                    if (t1 === null) continue;
+                    liste.push(...tous.filter(w => secondes(w.quand) >= t0 && secondes(w.quand) <= t1));
                     resumes.push(resumer(lignes, {
-                        id: dernierWho.quand.slice(0, 10).replace(/\//g, "-"), de: t0, a: t1,
+                        id: dernierWho.quand.slice(0, 10).replace(/\//g, "-"), de: t0, a: t1, main: true,
                         heure: dernierWho.quand.slice(11, 16), rounds: []
                     }, proprio));
                 } else {
