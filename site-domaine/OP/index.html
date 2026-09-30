@@ -503,7 +503,8 @@
 
         #depart-heures b,
         #depart-heures-refus,
-        #depart-memes {
+        #depart-memes,
+        #depart-alerte {
             grid-column: 1 / -1;
         }
 
@@ -511,6 +512,17 @@
      le /who choisi, avec d'ou elles viennent. */
         #depart-heures input.memes {
             border-color: var(--or);
+        }
+
+        /* Ni /who ni heures dans la guerre : les heures sont a donner. La phrase
+     passe a la ligne au lieu d'elargir les colonnes de la grille, qui
+     poussaient « Accepter » hors de la fenetre. */
+        #depart-alerte {
+            width: 0;
+            min-width: 100%;
+            color: var(--eux);
+            font-size: .85rem;
+            font-weight: 700;
         }
 
         #depart-memes {
@@ -1615,6 +1627,8 @@
                         title="Tout ce qui s'est passé entre ces deux heures, rounds compris">Accepter</button>
                     <span id="depart-heures-refus"></span>
                     <span id="depart-memes" hidden></span>
+                    <span id="depart-alerte" hidden>Aucun /who dans ton journal : indique l'heure de début
+                        et de fin du combat.</span>
                 </div>
                 <div class="pied">
                     <button id="depart-auto" type="button"
@@ -1979,6 +1993,16 @@
                 memes.hidden = false;
             }
             champDe.oninput = champA.oninput = oublierMemes;
+            // **Ni /who ni heures dans la guerre** : rien ne permet de deviner le
+            // combat. Les champs s'ouvrent vides et « Accepter » attend les deux
+            // heures -- sinon la derniere heure du journal passait sans qu'on la
+            // regarde.
+            const alerte = document.getElementById("depart-alerte");
+            const aDonner = !tous.length && !reference;
+            alerte.hidden = !aDonner;
+            if (aDonner) champDe.value = champA.value = "";
+            // Une fleche sur un champ vide part de la fin du journal, a la minute.
+            const departFleche = Math.floor(fin / 60) * 60;
             return new Promise(fini => {
                 let rendu = null;
                 const finir = v => { rendu = v; boite.close(); };
@@ -1988,7 +2012,7 @@
                     for (const b of f.querySelectorAll("button")) {
                         const pas = () => {
                             const t = depuisChamp(champ.value);
-                            if (!isNaN(t)) champ.value = versChamp(t + b.dataset.pas * 300);
+                            champ.value = versChamp(isNaN(t) ? departFleche : t + b.dataset.pas * 300);
                             champ.classList.remove("memes");
                         };
                         let attente = null, rafale = null;
@@ -2003,6 +2027,10 @@
                 }
                 document.getElementById("depart-heures-ok").onclick = () => {
                     const t0 = depuisChamp(champDe.value), t1 = depuisChamp(champA.value);
+                    if (!champDe.value || !champA.value || isNaN(t0) || isNaN(t1)) {
+                        refus.textContent = "indique l'heure de début et de fin";
+                        return;
+                    }
                     if (!(t0 < t1)) { refus.textContent = "la fin doit suivre le début"; return; }
                     // La minute de fin comptee en entier : un /who tape a 23:19:40 entre
                     // quand on regle la fin sur 23:19.
@@ -2038,7 +2066,17 @@
                     }
                 };
                 lister();
-                document.getElementById("depart-auto").onclick = () => finir("auto");
+                // Sans /who ni heures dans la guerre, « Automatique » renvoie aux deux
+                // champs, rounds ou pas : ceux du journal peuvent etre ceux d'un OP
+                // d'un autre soir.
+                document.getElementById("depart-auto").onclick = () => {
+                    if (aDonner) {
+                        refus.textContent = "pas de /who : indique l'heure de début et de fin";
+                        champDe.focus();
+                        return;
+                    }
+                    finir("auto");
+                };
                 document.getElementById("depart-annuler").onclick = () => finir(null);
                 boite.addEventListener("close", () => fini(rendu), { once: true });
                 boite.showModal();
@@ -2137,7 +2175,13 @@
                 const jourGuerre = derniere ? derniere.guerre.slice(0, 10).replace(/-/g, "/") : "";
                 const jourWho = tous.length ? tous[tous.length - 1].quand.slice(0, 10) : "";
                 const jour = jourGuerre > jourWho ? jourGuerre : jourWho;
-                if (derniere && jourGuerre === jour) {
+                // Sans /who, les heures deja deposees dans la guerre font foi : la
+                // derniere guerre a rounds du journal ne compte que si elle est du
+                // meme jour -- sinon c'est un OP d'un autre soir.
+                const reference = plageDeReference();
+                const jourReference = reference ? versChamp(reference.plage.de).slice(0, 10).replace(/-/g, "/") : "";
+                const roundsHorsSujet = !tous.length && reference && jourGuerre !== jourReference;
+                if (derniere && jourGuerre === jour && !roundsHorsSujet) {
                     // **Les /who de la guerre, pas ceux de la journee.** Un /who tape
                     // l'apres-midi dans une autre region entrait dans la guerre du soir.
                     // On garde ceux tapes entre une demi-heure avant le premier round --
@@ -2149,14 +2193,14 @@
                     liste.push(...tous.filter(w => secondes(w.quand) >= de
                         && secondes(w.quand) <= a));
                     resumes.push(derniere);
-                } else if (tous.length && proprio && lignes.length) {
+                } else if ((tous.length || reference) && proprio && lignes.length) {
                     // **Sans rounds ce jour-la -- un boss, du PvP --, le dernier
                     // /who fait depart, et la fin se demande.** Avant, les stats
                     // couraient jusqu'au bout du journal : deux boss d'une meme
                     // soiree se melaient (Dante et Pei, le 30/09).
                     // **Sauf si la guerre a deja un journal avec ses heures** : on
-                    // reprend alors son debut et sa fin, sans rien demander.
-                    const reference = plageDeReference();
+                    // reprend alors son debut et sa fin, sans rien demander -- meme
+                    // sans /who.
                     let t0, t1;
                     if (reference) {
                         t0 = reference.plage.de;
