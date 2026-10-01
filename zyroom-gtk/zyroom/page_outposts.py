@@ -294,6 +294,11 @@ class PageOutposts:
             self._op_box.append(self._ligne_simple(
                 _("Aucun changement de main depuis le premier relevé."), dim=True))
             return
+        # Une colonne = un groupe de largeur : chaque ligne reste une boite a
+        # part, mais GTK donne a ses cases la largeur de la plus large de la
+        # colonne. Les triangles tombent ainsi l'un sous l'autre, sans grille.
+        self._op_colonnes = [Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+                             for _ in range(3)]
         for rang, c in enumerate(self._op_changements):
             quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
             nom = self._names.name(f"{c.outpost}.outpost")
@@ -338,11 +343,20 @@ class PageOutposts:
             row.add_css_class("zebre")
         line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
 
+        colonnes = self._op_colonnes
         gauche = Gtk.Label(
-            label=f"{quand}   {nom}   —", xalign=0.0)
+            label=f"{quand}   {nom}", xalign=0.0)
+        colonnes[0].add_widget(gauche)
         line.append(gauche)
 
-        for guilde, gagne in ((change.frm, False), (change.to, True)):
+        for col, guilde, gagne in ((1, change.frm, False),
+                                   (2, change.to, True)):
+            # La case existe meme vide (avant-poste pris a personne) : sans
+            # elle, le triangle vert glisserait dans la colonne du rouge.
+            groupe = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                             spacing=6)
+            colonnes[col].add_widget(groupe)
+            line.append(groupe)
             if not guilde:
                 continue
             # La fleche d'abord : elle dit le sens de l'echange, et c'est
@@ -350,7 +364,7 @@ class PageOutposts:
             # colle au nom qu'il illustre.
             fleche = Gtk.Label(xalign=0.0)
             fleche.set_markup(self._fleche_prise(gagne))
-            line.append(fleche)
+            groupe.append(fleche)
 
             # La place est reservee meme quand l'annuaire ne connait plus la
             # guilde : sans elle, une ligne sans embleme serait plus basse que
@@ -358,7 +372,7 @@ class PageOutposts:
             # defilant.
             image = Gtk.Image()
             image.set_pixel_size(self._settings.icone(self.PART_EMBLEME))
-            line.append(image)
+            groupe.append(image)
             embleme = self._op_emblemes.get(guilde, "")
             if embleme:
                 self._icons.request_emblem(
@@ -368,7 +382,7 @@ class PageOutposts:
 
             etiquette = Gtk.Label(xalign=0.0)
             etiquette.set_markup(self._nom_guilde(guilde, gagne))
-            line.append(etiquette)
+            groupe.append(etiquette)
 
         self._pad(line)
         row.set_child(line)
