@@ -251,7 +251,10 @@ def _matieres() -> dict:
     noms = {m for t in (forage.SUPREMES, forage.EXCELLENTES)
             for z in t.values() for _f_, m in z}
     sortie = {_sans_accents(n): n for n in noms}
-    sortie.update({_sans_accents(fr): en for fr, en in NOM_JEU.items() if en in noms})
+    # Tout le pont, meme vers une matiere que les tables ne citent pas encore :
+    # le releve a ses lignes Horny et Smart, et c'est justement une premiere
+    # prise qui doit les remplir. Filtrer sur les tables jetait la Cornee.
+    sortie.update({_sans_accents(fr): en for fr, en in NOM_JEU.items()})
     return sortie
 
 
