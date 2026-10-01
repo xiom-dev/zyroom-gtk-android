@@ -459,11 +459,36 @@ class PageAvantPostes(QWidget):
                 _("Aucun changement de main depuis le premier relevé."), True))
             return
         noms = self._fenetre.noms
+        rangees = []
         for rang, c in enumerate(self._changements):
             quand = datetime.fromtimestamp(c.at).strftime("%d/%m %H:%M")
             nom = noms.name(f"{c.outpost}.outpost")
-            self._journal.addWidget(
+            rangees.append(
                 self._ligne_prise(quand, nom, c, zebre=rang % 2 == 0))
+            self._journal.addWidget(rangees[-1])
+        self._aligner_colonnes(rangees)
+
+    #: L'air laisse avant chaque colonne de triangles : sans lui, le nom le
+    #: plus long de la colonne precedente vient toucher son triangle.
+    AIR_COLONNE = 18
+
+    def _aligner_colonnes(self, rangees: list) -> None:
+        """Les triangles rouges l'un sous l'autre, les verts aussi.
+
+        Chaque ligne du journal est une rangée à part : sans rien de plus,
+        ses triangles tombent là où s'arrête le texte qui les précède, et
+        dansent d'une ligne à l'autre. Chaque case reçoit donc la largeur de
+        la plus large de sa colonne — un tableau sans grille ni traits.
+        """
+        if not rangees:
+            return
+        for col in range(len(rangees[0].colonnes)):
+            cases = [r.colonnes[col] for r in rangees]
+            largeur = max(c.sizeHint().width() for c in cases)
+            if col < len(rangees[0].colonnes) - 1:
+                largeur += self.AIR_COLONNE
+            for case in cases:
+                case.setFixedWidth(largeur)
 
     @staticmethod
     def _infobulle_changement(change) -> str:
@@ -741,12 +766,23 @@ class PageAvantPostes(QWidget):
         ligne.setContentsMargins(8, 4, 8, 4)
         ligne.setSpacing(6)
 
-        gauche = QLabel(f"{quand}   {nom}   —")
+        gauche = QLabel(f"{quand}   {nom}")
         gauche.setTextFormat(Qt.TextFormat.PlainText)
         ligne.addWidget(gauche)
+        # Les cases que `_aligner_colonnes` met a la meme largeur d'une
+        # ligne a l'autre.
+        rangee.colonnes = [gauche]
 
         cote = self._fenetre.reglages.icone(PART_EMBLEME)
         for guilde, gagne in ((change.frm, False), (change.to, True)):
+            # La case existe meme vide (avant-poste pris a personne) : sans
+            # elle, le triangle vert glisserait dans la colonne du rouge.
+            case = QWidget()
+            groupe = QHBoxLayout(case)
+            groupe.setContentsMargins(0, 0, 0, 0)
+            groupe.setSpacing(6)
+            ligne.addWidget(case)
+            rangee.colonnes.append(case)
             if not guilde:
                 continue
             # La fleche d'abord : elle dit le sens de l'echange, et c'est
@@ -754,7 +790,7 @@ class PageAvantPostes(QWidget):
             # colle au nom qu'il illustre.
             fleche = QLabel(_fleche_prise(gagne))
             fleche.setTextFormat(Qt.TextFormat.RichText)
-            ligne.addWidget(fleche)
+            groupe.addWidget(fleche)
 
             # La place est reservee meme quand l'annuaire ne connait plus la
             # guilde : sans elle, une ligne sans embleme serait plus basse que
@@ -762,7 +798,7 @@ class PageAvantPostes(QWidget):
             # defilant.
             image = QLabel()
             image.setFixedSize(cote, cote)
-            ligne.addWidget(image)
+            groupe.addWidget(image)
             embleme = self._emblemes.get(guilde, "")
             if embleme:
                 self._fenetre.icones.demander_embleme(
@@ -773,7 +809,8 @@ class PageAvantPostes(QWidget):
             # texte, et un nom de guilde avec un chevron suffirait a le
             # tromper dans un sens comme dans l'autre.
             etiquette.setTextFormat(Qt.TextFormat.RichText)
-            ligne.addWidget(etiquette)
+            groupe.addWidget(etiquette)
+            groupe.addStretch(1)
 
         ligne.addStretch(1)
         return rangee
