@@ -346,6 +346,9 @@ class PageOutposts:
         colonnes = self._op_colonnes
         gauche = Gtk.Label(
             label=f"{quand}   {nom}", xalign=0.0)
+        # De l'air avant la colonne rouge : sinon le nom d'avant-poste le plus
+        # long vient toucher son triangle.
+        gauche.set_margin_end(18)
         colonnes[0].add_widget(gauche)
         line.append(gauche)
 
@@ -355,6 +358,9 @@ class PageOutposts:
             # elle, le triangle vert glisserait dans la colonne du rouge.
             groupe = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
                              spacing=6)
+            if not gagne:
+                # La meme marge avant la colonne verte, pour la meme raison.
+                groupe.set_margin_end(18)
             colonnes[col].add_widget(groupe)
             line.append(groupe)
             if not guilde:
