@@ -90,6 +90,12 @@ _PRISE = re.compile(r"Vous obtenez \d+ (.+?) de qualité \d+")
 #: remettait dans la region qu'on venait de quitter : une Dzao foree a la
 #: Cite Engloutie a ete cochee en Terre de la Continuite.
 _LIEU = re.compile(r"Vous êtes dans (?:le |la |les |l')?(.+?)\.")
+#: La source trouvee : c'est **a cet instant** qu'elle a pop, et donc ce temps
+#: qui compte, non celui de l'extraction.
+_TROUVEE = re.compile(r"La source dispose d'une qualité optimale")
+#: Au-dela, la source trouvee n'est plus celle qu'on extrait : une prospection
+#: oubliee ne doit pas dater la prise d'une autre.
+TROUVEE_MAX = datetime.timedelta(minutes=10)
 
 #: Les saisons telles que la page du relevé les nomme, dans l'ordre de l'API.
 SAISONS_PAGE = ("Printemps", "Été", "Automne", "Hiver")
@@ -283,7 +289,7 @@ def prises() -> list:
     # une region qu'en franchissant sa frontiere, ce qui peut ne pas arriver
     # d'une soiree entiere -- sans memoire, les premieres prises d'un journal
     # se perdaient faute de savoir ou elles avaient eu lieu.
-    zone, sortie = _lire("zone.json", None), []
+    zone, sortie, trouvee = _lire("zone.json", None), [], None
     try:
         lignes = open(_f("journal.log"), encoding="utf-8").read().splitlines()
     except OSError:
@@ -302,6 +308,9 @@ def prises() -> list:
                       else gisements.LIEUX_DITS.get(nom))
             if trouve:
                 zone = trouve
+        if _TROUVEE.search(ligne):
+            trouvee = datetime.datetime.strptime(
+                ligne[:19], "%Y/%m/%d %H:%M:%S").astimezone()
         prise = _PRISE.search(ligne)
         if not prise or zone is None:
             continue
@@ -315,6 +324,13 @@ def prises() -> list:
             continue
         quand = datetime.datetime.strptime(
             ligne[:19], "%Y/%m/%d %H:%M:%S").astimezone()
+        # **Dater a la source trouvee, non a l'extraction.** Le temps qui fait
+        # pop une source est celui ou on la trouve ; l'extraction vient apres,
+        # vingt secondes d'ordinaire, six minutes le jour ou une Cornee
+        # trouvee par Good a ete extraite par Bad -- et cochee en Bad.
+        if trouvee is not None and \
+                datetime.timedelta(0) <= quand - trouvee <= TROUVEE_MAX:
+            quand = trouvee
         depart, heure0 = min(
             ancres, key=lambda a: abs((a[0] - quand).total_seconds()))
         cycle = int((heure0 + (quand - depart).total_seconds() / 180) // 3)
