@@ -7935,3 +7935,9 @@
 {"ts": 1791057364.0, "inv": "chest1", "label": "Coffre 1", "sheet": "item_sap_recharge.sitem", "q": 500, "kind": "modified", "delta": -2007, "old": 23710, "new": 21703}
 {"ts": 1791057364.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0756dxacc01.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 310, "new": 311}
 {"ts": 1791059225.0, "inv": "chest10", "label": "Coffre 10 — La Lune d'Ambre(Craft Bijoux/Amp", "sheet": "m0118dxacc01.sitem", "q": 250, "kind": "added", "delta": 69, "old": 0, "new": 69}
+{"ts": 1791062125.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ixpca03.sitem", "q": 250, "kind": "modified", "delta": 999, "old": 999, "new": 1998}
+{"ts": 1791062125.0, "inv": "chest1", "label": "Coffre 1", "sheet": "item_sap_recharge.sitem", "q": 500, "kind": "modified", "delta": -619, "old": 21703, "new": 21084}
+{"ts": 1791062125.0, "inv": "chest10", "label": "Coffre 10 — La Lune d'Ambre(Craft Bijoux/Amp", "sheet": "m0630dxapd01.sitem", "q": 250, "kind": "modified", "delta": 144, "old": 32, "new": 176}
+{"ts": 1791062125.0, "inv": "chest16", "label": "Coffre 16 — Laboratoire Lunaire", "sheet": "m0471chvfd01.sitem", "q": 260, "kind": "modified", "delta": 20, "old": 34, "new": 54}
+{"ts": 1791062125.0, "inv": "chest16", "label": "Coffre 16 — Laboratoire Lunaire", "sheet": "m0616chvfd01.sitem", "q": 260, "kind": "modified", "delta": 18, "old": 38, "new": 56}
+{"ts": 1791062125.0, "inv": "chest16", "label": "Coffre 16 — Laboratoire Lunaire", "sheet": "m0617chvfd01.sitem", "q": 260, "kind": "modified", "delta": 9, "old": 55, "new": 64}
