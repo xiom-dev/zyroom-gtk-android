@@ -360,18 +360,10 @@ class PageMeteo(QWidget):
         # que le releve de la guilde, lui, range les excellentes par saison et
         # par temps -- comme les supremes. Les deux listes se contredisaient
         # sur l'ecorce et la resine.
-
-        self._note = QLabel(
-            _("Les Primes partagent une seule météo, mais pas les mêmes pops : "
-              "chaque zone dit la sienne. Un spot suprême vidé met quinze "
-              "jours à se recharger — les bonnes conditions ne suffisent pas. "
-              "Le suprême a été relevé en jeu, case par case ; une partie de "
-              "l'excellente est rapportée et reste à confirmer. "
-              "Positions de ballisticmystix.net."))
-        self._note.setObjectName("discret")
-        self._note.setWordWrap(True)
-        self._note.setContentsMargins(8, 0, 8, 8)
-        colonne.addWidget(self._note)
+        #
+        # La note qui suivait les quatre zones -- une seule meteo, des pops
+        # differents, quinze jours de recharge -- a ete retiree a la demande
+        # de Ludo.
 
         self._minuteur = QTimer(self)
         self._minuteur.timeout.connect(self._battement)

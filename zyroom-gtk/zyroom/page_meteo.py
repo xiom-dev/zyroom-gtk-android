@@ -155,10 +155,10 @@ class PageMeteo:
         # d'Armory alors que le tutoriel de la guilde, lui, range les
         # excellentes par saison et par temps — comme les suprêmes. Les deux
         # listes se contredisaient sur l'écorce et la résine.
-        self._meteo_note = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        self._pad(self._meteo_note)
-        self._meteo_note.set_margin_top(0)
-        page.append(self._meteo_note)
+        #
+        # La note qui suivait les quatre zones -- une seule meteo, des pops
+        # differents, quinze jours de recharge -- a ete retiree a la demande
+        # de Ludo.
 
         self._meteo_releve = None      #: ce que l'API a rendu, tel quel
         self._meteo_affiche = None     #: le même, recalé sur l'instant présent
@@ -341,7 +341,7 @@ class PageMeteo:
             self._meteo_entete.set_markup("".join(morceaux))
         self._meteo_courbe.queue_draw()
 
-        for colonne in (self._meteo_note, *self._meteo_pop_colonnes):
+        for colonne in self._meteo_pop_colonnes:
             while (child := colonne.get_first_child()) is not None:
                 colonne.remove(child)
         for titre in self._meteo_pop_titres:
@@ -379,17 +379,6 @@ class PageMeteo:
                 titre.get_parent().set_visible(True)
                 colonne.append(self._bloc_matieres(
                     None, blocs, rang // self.COLONNES_POP % 2 == 0))
-
-        # Deux choses qu'on ne devine pas en regardant le tableau : que les
-        # quatre zones partagent une meteo mais pas leurs pops, et qu'un spot
-        # vide ne repop pas parce que le temps est revenu.
-        self._meteo_note.append(self._note(
-            _("Les Primes partagent une seule météo, mais pas les mêmes pops : "
-              "chaque zone dit la sienne. Un spot suprême vidé met quinze "
-              "jours à se recharger — les bonnes conditions ne suffisent pas. "
-              "Le suprême a été relevé en jeu, case par case ; une partie de "
-              "l'excellente est rapportée et reste à confirmer. "
-              "Positions de ballisticmystix.net.")))
 
     def _on_relever_forage(self, _bouton) -> None:
         """Le bouton : lire le journal du jeu, cocher ce qu'il confirme.
