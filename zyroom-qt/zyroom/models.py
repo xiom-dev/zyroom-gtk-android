@@ -345,7 +345,17 @@ def _parse_craft(node: Element, item: "ItemInfo") -> None:
     item.weight = _float(_cp_val(node, "weight"))
     # La durabilite d'origine, que le jeu affiche en second nombre : `<hp>`
     # dit ce qui reste, `durability` ce qu'il y avait au sortir de la forge.
-    item.hp_max = _int(_cp_val(node, "durability"))
+    #
+    # **Un de moins que ce que l'API annonce.** L'API arrondit ce maximum
+    # au-dessus, le jeu le tronque : un objet neuf de 145,6 a 145 points en
+    # jeu, et l'API dit 146 -- d'ou un « 145 / 146 » sur un objet neuf.
+    # Releve sur 1 309 objets : aucun ne depasse jamais le maximum annonce,
+    # 630 neufs s'arretent un en dessous. Le vrai maximum demanderait la
+    # formule de chaque type d'objet ; on retire donc un, sauf si les points
+    # atteignent le maximum annonce -- le calcul tombait alors juste. Seul
+    # ecart restant, rare : un maximum entier pile se lit un point trop bas.
+    annonce = _int(_cp_val(node, "durability"))
+    item.hp_max = annonce if not annonce or item.hp >= annonce else annonce - 1
 
     # Classe déduite de l'énergie (statenergy)
     energy = _cp_text(node, "statenergy")
