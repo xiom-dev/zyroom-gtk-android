@@ -759,7 +759,9 @@ GABARIT = """<!DOCTYPE html>
   .case[data-v="?"] { color: var(--dedu);
                       background: rgba(232,161,58,.10);
                       box-shadow: inset 0 0 0 1px rgba(232,161,58,.5); }
-  .case[data-v="?"]::after { content: "x"; }
+  /* Un point d'interrogation et non une croix : orange ou vert, une croix
+     se lisait « vu », et l'orange dit justement le contraire. */
+  .case[data-v="?"]::after { content: "?"; }
 
   #bloc-nom { color: var(--faible); font-size: .9rem; }
   #nom { background: var(--fond); color: var(--texte); font: inherit;
@@ -801,9 +803,9 @@ GABARIT = """<!DOCTYPE html>
      suprême seulement, ou excellent seulement — et lisez le
      message du jeu&nbsp;: <i>pas à cette saison</i>, <i>vidé</i>,
      <i>mauvaises conditions climatiques</i>.</p>
-  <p>Une croix <b style="color:var(--dedu)">orange</b> vient d'une autre
+  <p>Un <b style="color:var(--dedu)">?</b> orange vient d'une autre
      source — carnets de foreuses, tutoriel, Ballistic Mystix — et n'a pas été
-     vue en jeu. Un clic la confirme et elle passe au vert.</p>
+     vu en jeu. Un clic le confirme et il devient une croix verte.</p>
   <p>Les conditions climatiques se lisent sur
      <a href="http://ballisticmystix.net/?p=atys_calendar#">ballistic mystix</a>
      ou dans ZyRoom. Vérifiez l'heure avant de corriger une case&nbsp;: il y a
