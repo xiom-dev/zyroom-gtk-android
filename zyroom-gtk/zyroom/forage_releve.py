@@ -161,8 +161,17 @@ def noter_meteo(releve) -> None:
 
 
 def _carnet() -> tuple:
-    """(condition par cycle, saison par cycle de référence, ancre du temps)."""
-    conditions, reperes, ancre = {}, [], None
+    """(condition par cycle, saison par cycle de référence, ancres du temps).
+
+    **Toutes les ancres, et non la dernière.** L'heure d'Atys ne fait pas
+    exactement trois minutes réelles : mesurée sur le carnet, elle dérive
+    d'environ un cinquième d'heure d'Atys par jour. Dater une prise de neuf
+    jours depuis le relevé du jour la décalait de près de deux heures d'Atys
+    — assez pour changer de cycle, donc de temps : une Dung extraite par
+    Good est partie en Bad neuf jours plus tard. Chaque prise se date
+    désormais depuis le relevé le plus proche d'elle.
+    """
+    conditions, reperes, ancres = {}, [], []
     try:
         lignes = open(_f("meteo.jsonl"), encoding="utf-8").read().splitlines()
     except OSError:
@@ -176,9 +185,9 @@ def _carnet() -> tuple:
             conditions[int(c)] = cond
         if 0 <= d.get("saison", -1) < 4:
             reperes.append((int(d["cycle_courant"]), int(d["saison"])))
-        ancre = (datetime.datetime.fromisoformat(d["releve_a"]),
-                 float(d["heure_atys"]))
-    return conditions, reperes, ancre
+        ancres.append((datetime.datetime.fromisoformat(d["releve_a"]),
+                       float(d["heure_atys"])))
+    return conditions, reperes, ancres
 
 
 # --------------------------------------------------------- le journal du jeu
@@ -260,10 +269,9 @@ def _matieres() -> dict:
 
 def prises() -> list:
     """Les prises du journal, chacune ramenée à une case du relevé."""
-    conditions, reperes, ancre = _carnet()
-    if ancre is None:
+    conditions, reperes, ancres = _carnet()
+    if not ancres:
         return []
-    depart, heure0 = ancre
     mats = _matieres()
 
     def saison_pres_de(cycle: int) -> int:
@@ -307,6 +315,8 @@ def prises() -> list:
             continue
         quand = datetime.datetime.strptime(
             ligne[:19], "%Y/%m/%d %H:%M:%S").astimezone()
+        depart, heure0 = min(
+            ancres, key=lambda a: abs((a[0] - quand).total_seconds()))
         cycle = int((heure0 + (quand - depart).total_seconds() / 180) // 3)
         condition, saison = conditions.get(cycle), saison_pres_de(cycle)
         if condition is None or not 0 <= saison < 4:
