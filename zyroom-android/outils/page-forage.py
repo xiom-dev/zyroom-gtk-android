@@ -8,7 +8,7 @@ une exception. Les deux moitiés sont donc réunies ici, ce qui ramène le table
 à **quatre colonnes par saison**, celles que le jeu rend lui-même — et divise
 par deux le nombre de cases à cocher sur le terrain.
 
-La page se coche d'un clic : vide → `x` (ça sort) → `−` (ça ne sort pas) →
+La page se coche d'un clic : vide → `x` (ça sort) → `?` (à confirmer) →
 vide, et **tout le monde voit les croix de tout le monde** — le relevé vit sur
 le serveur, dans un fichier JSON que `releve.php` tient à jour.
 
@@ -754,8 +754,7 @@ GABARIT = """<!DOCTYPE html>
   .case[data-v="-"]::after { content: "\\2212"; }
   /* **L'orange, c'est ce qu'on n'a pas vu soi-meme.** Il vient des landmarks
      des foreuses, de la cartographie du tutoriel ou de Ballistic Mystix. Un
-     clic le confirme et il passe au vert ; deux, et il devient un tiret ;
-     trois, et il redevient orange. */
+     clic le confirme et il passe au vert ; deux, et il redevient orange. */
   .case[data-v="?"] { color: var(--dedu);
                       background: rgba(232,161,58,.10);
                       box-shadow: inset 0 0 0 1px rgba(232,161,58,.5); }
@@ -798,8 +797,9 @@ GABARIT = """<!DOCTYPE html>
 <header>
   <h1>Relevé de forage des Primes</h1>
   <p>Quand on fore une source dans les Primes, on coche ici. Un clic&nbsp;:
-     <b style="color:var(--oui)">x</b> ça sort, <b style="color:var(--non)">−</b>
-     ça ne sort pas, un clic de plus efface. Utilisez une stanza précise —
+     <b style="color:var(--oui)">x</b> ça sort, un clic de plus et elle
+     redevient <b style="color:var(--dedu)">?</b> à confirmer, un troisième
+     efface. Utilisez une stanza précise —
      suprême seulement, ou excellent seulement — et lisez le
      message du jeu&nbsp;: <i>pas à cette saison</i>, <i>vidé</i>,
      <i>mauvaises conditions climatiques</i>.</p>
@@ -1047,9 +1047,10 @@ GABARIT = """<!DOCTYPE html>
     if (!td) return;
     const k = cle(td);
     const avant = cases[k];
-    // L'orange se confirme d'un clic : il devient vert. Puis tiret, puis
-    // orange, puis vide : une case quittee par erreur peut y revenir.
-    const suite = { undefined: "x", "x": "-", "-": "?", "?": undefined };
+    // Vide, vert, orange, vide. Plus de tiret : personne ne s'en servait.
+    // Les rares tirets deja poses s'affichent encore, et repartent dans le
+    // cycle au premier clic.
+    const suite = { undefined: "x", "x": "?", "-": "?", "?": undefined };
     const v = suite[avant ? avant.v : undefined];
     // On peint d'abord et on demande ensuite : le clic doit repondre tout de
     // suite. Si le serveur refuse, on remet ce qui etait la.
