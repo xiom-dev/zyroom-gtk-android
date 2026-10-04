@@ -115,6 +115,9 @@ CONDITIONS_PAGE = {"Worst": "WORST", "Bad": "BAD",
 CLASSEUR = os.path.join(_DEPOT, "donnees", "tuto-forage-prime.xlsx")
 SAISONNIER = os.path.join(_DEPOT, "donnees", "pop-des-primes-par-saison.csv")
 CIBLE_PY = os.path.join(_DEPOT, "zyroom-gtk", "zyroom", "forage.py")
+#: La meme table pour V-RyLune, qui affichait encore la liste d'Armory.
+CIBLE_KT = os.path.join(_ANDROID, "app", "src", "main", "kotlin", "net",
+                        "ryzom", "zyroom", "model", "ForageTable.kt")
 
 SAISONS = ("PRINTEMPS", "ETE", "AUTOMNE", "HIVER")
 CONDITIONS = ("WORST", "BAD", "GOOD", "BEST")
@@ -579,6 +582,46 @@ def python(tables: dict, conts: dict) -> str:
     return "\n".join(lignes + ["}", ""])
 
 
+def _cases_kt(nom: str, doc: list, table: dict) -> list:
+    """Une table en liste de chaines `zone|famille|matiere|SAISON|CONDITION`.
+
+    **Des chaines et non des maps imbriquees.** Une map Kotlin ecrite en dur
+    se compile en une seule methode, et la JVM les plafonne a 64 Kio : sept
+    cents creneaux en paires de paires s'en approchaient. Une chaine par
+    creneau ne coute qu'une entree de constante, et se range au chargement.
+    """
+    lignes = list(doc) + [f"internal val {nom}: List<String> = listOf("]
+    for zone in ZONES:
+        for (famille, matiere), creneaux in sorted(table.get(zone, {}).items()):
+            for saison, condition in sorted(creneaux):
+                lignes.append(f'    "{zone}|{famille}|{matiere}|{saison}|{condition}",')
+    return lignes + [")", ""]
+
+
+def kotlin(tables: dict) -> str:
+    lignes = [
+        "package net.ryzom.zyroom.model",
+        "",
+        "// Fichier produit par outils/table_forage.py — ne pas modifier à la main.",
+        "",
+    ]
+    lignes += _cases_kt("RELEVE_SUPREME", [
+        "/**",
+        " * Le suprême des Primes, créneau par créneau : zone, matière, saison et",
+        " * temps. Relevé de terrain des foreuses de la guilde sur xiom.be/forage —",
+        " * la même table que `forage.py` dans ZyRoom-GTK, et rien ne la contredit.",
+        " */"], tables["SUPREME"])
+    lignes += _cases_kt("RELEVE_EXCELLENTE", [
+        "/**",
+        " * L'excellente, du même relevé. Les créneaux à confirmer en font partie :",
+        " * `Forage` les retire de ce qu'il montre, sauf dans la variante dev.",
+        " */"], tables["EXCELLENTE"])
+    lignes += _cases_kt("RELEVE_A_CONFIRMER", [
+        "/** Les croix oranges : rapportées d'une autre source, jamais vues en jeu. */"],
+        tables["A_CONFIRMER"])
+    return "\n".join(lignes)
+
+
 def main() -> int:
     tout = feuilles(CLASSEUR)
     tables = table_du_tracker()
@@ -607,6 +650,9 @@ def main() -> int:
     with open(CIBLE_PY, "w", encoding="utf-8") as fh:
         fh.write(python(tables, conts))
     print("→", CIBLE_PY)
+    with open(CIBLE_KT, "w", encoding="utf-8") as fh:
+        fh.write(kotlin(tables))
+    print("→", CIBLE_KT)
     return 0
 
 
