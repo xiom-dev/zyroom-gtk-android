@@ -1,0 +1,8 @@
+* L'écran météo dit ce qui pop d'après le relevé de terrain de la guilde
+  (xiom.be/forage), zone par zone : un bloc Suprême, puis un bloc
+  Excellente, selon la saison et le temps qu'il fait. Il suivait encore les
+  listes de Ryzom Armory, qui ignorent le temps.
+* Le relevé est celui du 4 octobre 2026, avec les premières Horny.
+* Le tableau des excellentes de jour et de nuit est retiré : il venait
+  d'Armory et contredisait le relevé sur l'écorce et la résine.
+* La note sous l'en-tête météo est retirée.
