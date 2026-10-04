@@ -1,0 +1,2 @@
+* La carte de l'accueil s'appelle « Forage / Météo d'Atys » : l'écran
+  qu'elle ouvre dit aussi ce qui pop dans les Primes.
