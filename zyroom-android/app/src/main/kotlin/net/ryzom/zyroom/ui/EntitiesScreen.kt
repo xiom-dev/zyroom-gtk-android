@@ -551,7 +551,7 @@ private fun CarteMeteo(onMeteo: () -> Unit) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("🌦", fontSize = 30.sp, modifier = Modifier.padding(end = 12.dp))
             Column {
-                Text("Météo d'Atys", style = MaterialTheme.typography.titleMedium)
+                Text("Forage / Météo d'Atys", style = MaterialTheme.typography.titleMedium)
                 Text("Prévisions, suprêmes et excellentes",
                      style = MaterialTheme.typography.bodySmall)
             }
