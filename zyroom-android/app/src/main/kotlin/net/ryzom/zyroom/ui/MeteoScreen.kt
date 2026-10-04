@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -51,11 +52,9 @@ import kotlinx.coroutines.launch
 import net.ryzom.zyroom.api.ApiException
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
-import net.ryzom.zyroom.model.EXCELLENTES
+import net.ryzom.zyroom.model.Forage
 import net.ryzom.zyroom.model.Gisements
-import net.ryzom.zyroom.model.SAISONS
 import net.ryzom.zyroom.model.ZONES
-import net.ryzom.zyroom.model.popDe
 import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
@@ -182,11 +181,11 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
                         hauteur = if (paysage) 190 else 200,
                     )
                 }
-                // Ce qui sort maintenant, avant les tables figées : c'est la
-                // seule chose de cet écran qui dépende de l'instant, et donc
-                // la seule sur laquelle on agit tout de suite.
+                // Ce qui sort maintenant, d'après le relevé de la guilde. Le
+                // tableau des excellentes de la saison, de jour et de nuit, a
+                // été retiré comme dans ZyRoom-GTK : il venait d'Armory et
+                // contredisait le relevé sur l'écorce et la résine.
                 item { CeQuiSort(donnees) }
-                item { TableauxMatieres(donnees) }
             }
         }
     }
@@ -196,8 +195,7 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
  * Le temps qu'il fait dans les Primes, et ce qui vient ensuite.
  *
  * `compact` sert le mode paysage, où la hauteur est comptée : les bascules
- * passent sur la même ligne que la condition, et la phrase d'explication saute
- * — elle se lit une fois, pas à chaque consultation.
+ * passent sur la même ligne que la condition.
  */
 @Composable
 private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
@@ -252,14 +250,6 @@ private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
                 modifier = Modifier.padding(top = 2.dp),
             )
         }
-        Text(
-            "Les Primes partagent une seule météo : celle-ci vaut pour les quatre zones. " +
-                "Il est ${releve.heureDuJour} h sur Atys, " +
-                (if (releve.nuit) "il y fait nuit." else "il y fait jour."),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 6.dp),
-        )
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 }
@@ -331,40 +321,34 @@ private fun TitreTableau(titre: String) {
 }
 
 /**
- * Ce que la météo du moment fait sortir, zone par zone.
+ * Ce que la météo du moment fait sortir, zone par zone et qualité par qualité.
  *
- * L'humidité décide de la condition de gisement — quatre paliers découpés par
- * les seuils du jeu — et la condition décide de ce qu'on trouve. Les deux
- * tableaux du dessous disent ce qui est suprême *à cette saison* ; celui-ci dit
- * ce qui sort **en ce moment**, et il change tout seul à chaque bascule de
- * cycle, sans rien redemander.
- *
- * Deux sources, toutes deux vérifiables : Ryzom Armory pour le couple saison ×
- * zone, et la fourchette d'humidité que le tracker d'atys.us donne pour chaque
- * gisement. Le jeu range l'humidité en quatre bandes et chaque gisement en
- * occupe exactement deux — sec vaut mieux qu'humide, contrairement à ce qu'on
- * croirait.
+ * D'après le relevé de terrain de la guilde (xiom.be/forage) — la table même
+ * de ZyRoom-GTK, voir `Forage`. Il change tout seul à chaque bascule de cycle,
+ * sans rien redemander.
  */
 @Composable
 private fun CeQuiSort(releve: MeteoAtys) {
     val maintenant = maintenantDansLesPrimes(releve) ?: return
-    val condition = texteCondition(maintenant.condition)
-    val humidite = (maintenant.value * 100).toInt()
-    TitreTableau("Suprêmes — ce qui sort : $condition, $humidite %")
+    // Les croix oranges, pistes à vérifier, ne se montrent que dans la
+    // variante dev, comme dans gtk-dev.
+    val dev = LocalContext.current.packageName.endsWith(".dev")
+    TitreTableau("MP qui pop maintenant")
     // Deux zones par rangée : les quatre tenaient sur quatre écrans, et c'est
     // le tableau qu'on consulte en jouant. Le fond teinté est porté par la
     // rangée et non par chaque zone — l'une est souvent plus courte que
     // l'autre, et deux fonds séparés laissaient un trou sous la plus courte.
-    val remplies = ZONES.map { it to popDe(releve.saison, it, maintenant.condition) }
-        .filter { (_, groupes) -> groupes.isNotEmpty() }
-    remplies.chunked(2).forEachIndexed { rang, rangee ->
+    val zones = ZONES.map {
+        it to Forage.sortiesDe(releve.saison, it, maintenant.condition, dev)
+    }
+    zones.chunked(2).forEachIndexed { rang, rangee ->
         Row(
             Modifier.fillMaxWidth()
                 .background(fondZebre(rang % 2 == 0))
                 .padding(horizontal = 10.dp, vertical = 8.dp),
         ) {
-            rangee.forEach { (zone, groupes) ->
-                Box(Modifier.weight(1f)) { CorpsMatieres(zone, groupes) }
+            rangee.forEach { (zone, blocs) ->
+                Box(Modifier.weight(1f)) { CorpsZone(zone, blocs) }
             }
             // La rangée impaire garde sa moitié vide, pour que la colonne de
             // gauche reste alignée d'une rangée à l'autre.
@@ -375,52 +359,39 @@ private fun CeQuiSort(releve: MeteoAtys) {
 }
 
 /**
- * Ce que la saison fait sortir d'excellent.
- *
- * Le tableau des suprêmes de la saison a été retiré : « ce qui sort » les donne
- * déjà, et au temps qu'il fait plutôt qu'à la saison entière — c'est la même
- * liste, mais à jour. Les excellentes restent, seules et sur toute la largeur :
- * elles ne dépendent que du jour et de la nuit, que la météo ne change pas.
+ * Une zone : son nom, puis un bloc par qualité qu'elle sort, la meilleure
+ * d'abord. Chaque bloc porte le nom de sa qualité : rien ne se lit comme
+ * suprême sans l'être.
  */
 @Composable
-private fun TableauxMatieres(releve: MeteoAtys) {
-    val saison = saisonCle(releve.saison)
-    val moments = EXCELLENTES[saisonCle(releve.saison)]?.entries?.toList().orEmpty()
-    Column(Modifier.fillMaxWidth()) {
-        TitreTableau("Cette saison")
-        TitreTableau("Excellentes — " + nomSaison(releve.saison))
-        // Il fait nuit sur Atys de 22 h à 3 h, et le jeu n'y fait pas sortir
-        // les mêmes matières. Les deux listes sont montrées — ce qui sortira
-        // dans une heure vaut la peine d'être su —, et celle qui vaut
-        // maintenant est dite et mise en couleur : sans cela, il fallait
-        // connaître l'heure d'Atys pour savoir laquelle lire.
-        //
-        // Jour à gauche, nuit à droite. L'un sous l'autre, il fallait dérouler
-        // la liste de jour pour atteindre celle de nuit, alors que le seul
-        // geste utile est de les comparer. Le fond teinté est porté par la
-        // rangée et non par chaque moitié : l'une est bien plus courte que
-        // l'autre, et deux fonds séparés laissaient un trou sous la plus
-        // courte — c'est la leçon des zones de « ce qui sort ».
-        Row(
-            Modifier.fillMaxWidth()
-                .background(fondZebre(true))
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-        ) {
-            listOf("JOUR", "NUIT").forEach { moment ->
-                val groupes = moments.firstOrNull { it.key == moment }?.value
-                val maintenant = (moment == "NUIT") == releve.nuit
-                Box(Modifier.weight(1f)) {
-                    CorpsMatieres(
-                        titre = (if (moment == "JOUR") "De jour" else "De nuit") +
-                            if (maintenant) " · en ce moment" else "",
-                        groupes = groupes.orEmpty(),
-                        souligne = maintenant,
-                        qualite = "excellent",
-                    )
-                }
-            }
+private fun CorpsZone(zone: String, blocs: List<Pair<String, Map<String, List<String>>>>) {
+    Column {
+        Text(
+            zone,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        if (blocs.isEmpty()) {
+            Text(
+                "Rien de relevé à ce créneau.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+        blocs.forEach { (qualite, groupes) ->
+            Text(
+                Forage.nomQualite(qualite),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (qualite == Forage.SUPREME) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            // Un gisement ne change pas de place en changeant de qualité : les
+            // positions des Primes sont rangées sous « supreme », pour l'XL
+            // comme pour le suprême — voir `positions_des_primes` dans GTK.
+            CorpsMatieres(null, groupes, qualite = "supreme")
+        }
     }
 }
 
@@ -546,8 +517,6 @@ private fun couleurCondition(condition: String) = when (condition.lowercase()) {
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
-/** La clé de saison du relevé, « PRINTEMPS »… */
-private fun saisonCle(saison: Int): String = SAISONS.getOrElse(saison) { "" }
 
 /**
  * Minutes réelles avant le début d'un cycle à venir.
