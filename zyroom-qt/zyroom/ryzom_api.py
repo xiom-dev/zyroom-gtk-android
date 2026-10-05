@@ -756,6 +756,37 @@ def parse_time(xml_bytes: bytes) -> dict:
     }
 
 
+#: L'état du serveur, tel que le lit Ryztart, le lanceur officiel.
+#:
+#: Ni clé ni compte. La réponse tient en quatre cases :
+#: `["ds_open", "<icône>", "12d 19h", "10d 13h"]` -- l'état, une icône, le
+#: temps depuis le dernier redémarrage et l'âge de la dernière sauvegarde.
+#: L'API de api.ryzom.com, elle, ne dit rien du redémarrage.
+STATUT_SERVEUR_URL = ("https://app.ryzom.com/app_arcc/get_services_status.php"
+                      "?command=status&shard=atys")
+
+_DUREE_SERVEUR = re.compile(r"(?:(\d+)\s*d)?\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?")
+
+
+def minutes_depuis_redemarrage() -> int | None:
+    """Les minutes écoulées depuis le dernier redémarrage du serveur Atys.
+
+    Le serveur ne rend qu'une durée arrondie à l'heure (« 12d 19h »), jamais
+    une date. Rend `None` si la réponse ne se lit pas ; lève `ApiError` si le
+    serveur ne répond pas.
+    """
+    import json
+    try:
+        etat = json.loads(_http_get(STATUT_SERVEUR_URL))
+        duree = _DUREE_SERVEUR.fullmatch(str(etat[2]).strip())
+    except (ValueError, IndexError, TypeError):
+        return None
+    if duree is None or not any(duree.groups()):
+        return None
+    jours, heures, minutes = (int(x or 0) for x in duree.groups())
+    return (jours * 24 + heures) * 60 + minutes
+
+
 _FORMAT_XML = "xml"
 
 

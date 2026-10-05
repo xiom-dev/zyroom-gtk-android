@@ -892,6 +892,13 @@ class FenetrePrincipale(QMainWindow):
         ligne.addWidget(self._tourniquet)
 
         ligne.addStretch(1)
+        # Le dernier redemarrage du serveur, avant la saison : la meme
+        # information que Ryztart, voir `ryzom_api.minutes_depuis_redemarrage`.
+        self._lbl_reboot = QLabel()
+        self._lbl_reboot.setContentsMargins(0, 0, 18, 0)
+        self._lbl_reboot.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        ligne.addWidget(self._lbl_reboot)
         self._lbl_saison = QLabel()
         self._lbl_saison.setObjectName("valeur")
         # Selectionnable a la souris, comme la `Gtk.Label` de la version GTK :
@@ -2577,7 +2584,14 @@ class FenetrePrincipale(QMainWindow):
         que l'on relève ou non.
         """
         def travail():
-            return ryzom_api.parse_time(ryzom_api.fetch_time_xml())
+            saison = ryzom_api.parse_time(ryzom_api.fetch_time_xml())
+            # Un autre serveur que l'API : sa panne ne doit pas couter la
+            # saison.
+            try:
+                saison["depuis_reboot"] = ryzom_api.minutes_depuis_redemarrage()
+            except ryzom_api.ApiError:
+                saison["depuis_reboot"] = None
+            return saison
 
         def apres(saison, erreur):
             if erreur or not saison:
@@ -2589,6 +2603,11 @@ class FenetrePrincipale(QMainWindow):
     def _maj_saison(self, saison: dict) -> None:
         # Voir `window.py` du cote GTK : la minute et la date plutot que
         # l'heure seule, a la demande des joueurs de la guilde.
+        # Seul `_rafraichir_saison` le demande : le releve d'une guilde passe
+        # la saison sans lui, et l'on garde alors ce qui est affiche.
+        if saison.get("depuis_reboot") is not None:
+            self._lbl_reboot.setText(
+                "Reboot " + meteo.moment_du_redemarrage(saison["depuis_reboot"]))
         minutes = int(round(saison["minutes_to_next"]))
         # **Sans la saison en cours.** "Ete · Automne dans 16 h 06" posait deux
         # saisons cote a cote sans dire laquelle etait laquelle : on pouvait

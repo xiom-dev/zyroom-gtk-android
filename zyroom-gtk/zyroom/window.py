@@ -408,6 +408,11 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         self._maj_en_cours = False
         spacer = Gtk.Label(hexpand=True)
         bar1.append(spacer)
+        # Le dernier redemarrage du serveur, avant la saison : la meme
+        # information que Ryztart, voir `ryzom_api.minutes_depuis_redemarrage`.
+        self._reboot_lbl = Gtk.Label(label="", margin_end=18)
+        self._reboot_lbl.set_selectable(True)
+        bar1.append(self._reboot_lbl)
         self._season_lbl = Gtk.Label(label="")
         # Sélectionnable à la souris, comme la MOTD. La ligne porte désormais
         # une date et une heure de changement de saison : c'est ce qu'on colle
@@ -2991,11 +2996,21 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
 
     def _refresh_season(self) -> None:
         def work():
-            return ryzom_api.parse_time(ryzom_api.fetch_time_xml())
+            td = ryzom_api.parse_time(ryzom_api.fetch_time_xml())
+            # Un autre serveur que l'API : sa panne ne doit pas couter la
+            # saison.
+            try:
+                td["depuis_reboot"] = ryzom_api.minutes_depuis_redemarrage()
+            except ryzom_api.ApiError:
+                td["depuis_reboot"] = None
+            return td
 
         def done(td, err):
             if err or not td:
                 return
+            if td.get("depuis_reboot") is not None:
+                self._reboot_lbl.set_text(
+                    "Reboot " + meteo.moment_du_redemarrage(td["depuis_reboot"]))
             # **La minute et la date, et non l'heure seule.** « dans 21 h »
             # laissait ignorer s'il restait une minute ou cinquante-neuf, et
             # obligeait a poser l'addition pour savoir quand se tenir pret --

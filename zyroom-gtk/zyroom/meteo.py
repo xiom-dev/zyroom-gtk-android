@@ -400,6 +400,27 @@ def moment_du_changement(minutes: float, maintenant=None) -> str:
     return quand.strftime("le %d/%m à ") + heure
 
 
+def moment_du_redemarrage(minutes: float, maintenant=None) -> str:
+    """Quand le serveur a redémarré : « aujourd'hui vers 14 h », « le 23/09
+    vers 0 h ».
+
+    **« vers » et l'heure seule.** Le serveur ne donne qu'une durée arrondie
+    à l'heure : écrire des minutes promettrait une précision qu'on n'a pas.
+    Le redémarrage tombe dans l'heure qui précède `maintenant - minutes` ;
+    le milieu de cette heure, arrondi à l'heure pleine, revient à tronquer.
+    """
+    maintenant = maintenant or datetime.now()
+    quand = (maintenant - timedelta(minutes=max(0.0, minutes))).replace(
+        minute=0, second=0, microsecond=0)
+    heure = f"vers {quand.hour} h"
+    jours = (maintenant.date() - quand.date()).days
+    if jours <= 0:
+        return f"aujourd'hui {heure}"
+    if jours == 1:
+        return f"hier {heure}"
+    return quand.strftime("le %d/%m ") + heure
+
+
 def nom_saison(index: int) -> str:
     return ("Printemps", "Été", "Automne", "Hiver")[index] if 0 <= index < 4 else "?"
 
