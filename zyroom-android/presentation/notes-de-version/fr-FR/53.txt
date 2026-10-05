@@ -1,0 +1,5 @@
+* Les spots de forage trouvés par la guilde arrivent sans mise à jour :
+  l'écran météo relit le relevé de xiom.be/forage, recopié toutes les
+  quinze minutes, et ne garde la table embarquée que hors ligne.
+* La table embarquée est celle du 5 octobre 2026 : seize XL de printemps
+  de plus, dont sept à vérifier confirmées en jeu.
