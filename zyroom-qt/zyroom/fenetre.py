@@ -895,6 +895,7 @@ class FenetrePrincipale(QMainWindow):
         # Le dernier redemarrage du serveur, avant la saison : la meme
         # information que Ryztart, voir `ryzom_api.minutes_depuis_redemarrage`.
         self._lbl_reboot = QLabel()
+        self._lbl_reboot.setObjectName("fini")     # le vert de l'application
         self._lbl_reboot.setContentsMargins(0, 0, 18, 0)
         self._lbl_reboot.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse)

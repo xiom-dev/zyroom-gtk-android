@@ -412,6 +412,7 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         # information que Ryztart, voir `ryzom_api.minutes_depuis_redemarrage`.
         self._reboot_lbl = Gtk.Label(label="", margin_end=18)
         self._reboot_lbl.set_selectable(True)
+        self._reboot_lbl.add_css_class("fini")     # le vert de l'application
         bar1.append(self._reboot_lbl)
         self._season_lbl = Gtk.Label(label="")
         # Sélectionnable à la souris, comme la MOTD. La ligne porte désormais
