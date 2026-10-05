@@ -3,6 +3,8 @@ package net.ryzom.zyroom.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.ryzom.zyroom.model.Entity
+import net.ryzom.zyroom.model.Forage
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -144,5 +146,41 @@ object Partage {
             }
         }.getOrDefault(0L)
         if (quand > 0L) roster.noterRelevePublie(guildId, quand)
+    }
+
+    /**
+     * Le relevé du forage, tel que le relevé local le recopie de
+     * xiom.be/forage toutes les quinze minutes — les seules croix, ni les
+     * noms des foreuses ni les heures. Le site demande un mot de passe que
+     * le téléphone n'a pas, et n'a pas à avoir.
+     */
+    private const val URL_DU_FORAGE = "${BASE}forage.json"
+
+    /**
+     * Relit le relevé du forage publié et le pose à la place de l'instantané
+     * embarqué (`Forage.poserPublie`).
+     *
+     * Ne lève jamais : sans réseau, ou devant un fichier bancal, l'instantané
+     * reste en place et l'écran n'en sait rien.
+     */
+    suspend fun recupererForage(): Boolean = withContext(Dispatchers.IO) {
+        val texte = runCatching {
+            val lien = URL(URL_DU_FORAGE).openConnection() as HttpURLConnection
+            lien.connectTimeout = DELAI
+            lien.readTimeout = DELAI
+            try {
+                if (lien.responseCode != HttpURLConnection.HTTP_OK) null
+                else lien.inputStream.bufferedReader().readText()
+            } finally {
+                lien.disconnect()
+            }
+        }.getOrNull() ?: return@withContext false
+
+        runCatching {
+            val publie = JSONObject(texte)
+            fun liste(cle: String): List<String> =
+                publie.getJSONArray(cle).let { a -> List(a.length()) { a.getString(it) } }
+            Forage.poserPublie(liste("supreme"), liste("excellente"), liste("a_confirmer"))
+        }.getOrDefault(false)
     }
 }

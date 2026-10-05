@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from gi.repository import GLib, Gtk
 
-from . import forage_releve, gisements, meteo, ryzom_api
+from . import forage_releve, gisements, meteo, partage, ryzom_api
 from .i18n import _
 from .ui_commun import run_async
 
@@ -209,6 +209,9 @@ class PageMeteo:
         self._meteo_en_cours = True
         self._meteo_refresh.set_sensitive(False)
         self._meteo_entete.set_text(_("Lecture de la météo…"))
+        # Le releve du forage publie sur GitHub, lu hors du fil de l'interface
+        # et pose dans `done` : voir `partage.tables_du_forage`.
+        publie = [None]
 
         def work():
             continents = sorted(set(meteo.CONTINENT_DE_ZONE.values()))
@@ -238,6 +241,11 @@ class PageMeteo:
                     forage_releve.relire()
                 except (OSError, ValueError):
                     pass
+            # Les autres n'ont pas le mot de passe du site : ils relisent la
+            # copie que le releve local publie, un quart d'heure de retard au
+            # plus. Sans elle, chaque nouveau spot attendait une livraison.
+            else:
+                publie[0] = partage.tables_du_forage()
             return meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys,
                                    saison, releve.continents, releve.pris_a,
                                    saison_dans=dans)
@@ -263,6 +271,8 @@ class PageMeteo:
                     forage_releve.appliquer_tables()
                 except (OSError, ValueError):
                     pass        # un carnet qui ne s'écrit pas ne doit rien casser
+            elif publie[0] is not None:
+                meteo.poser_tables(publie[0])
             self._meteo_affiche = res
             self._refresh_meteo()
             # Le temps d'Atys avance tout seul : on ne redemande rien, on

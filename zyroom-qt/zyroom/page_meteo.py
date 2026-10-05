@@ -20,7 +20,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QLabel, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import gisements, meteo, page_gisements, ryzom_api
+from . import gisements, meteo, page_gisements, partage, ryzom_api
 from . import theme
 from .i18n import _
 
@@ -376,6 +376,9 @@ class PageMeteo(QWidget):
         self._en_cours = True
         self._btn_actualiser.setEnabled(False)
         self._entete.setText(_("Lecture de la météo…"))
+        # Le releve du forage publie sur GitHub, lu hors du fil de l'interface
+        # et pose dans `apres` : voir `partage.tables_du_forage`.
+        publie = [None]
 
         def travail():
             continents = sorted(set(meteo.CONTINENT_DE_ZONE.values()))
@@ -397,6 +400,10 @@ class PageMeteo(QWidget):
                         + (time.monotonic() - releve.pris_a) / 60.0)
             except Exception:                           # noqa: BLE001
                 saison, dans = -1, -1.0
+            # La table embarquee est un instantane fige a la livraison : la
+            # copie publiee du releve, un quart d'heure de retard au plus,
+            # apporte les spots trouves depuis.
+            publie[0] = partage.tables_du_forage()
             return meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys,
                                    saison, releve.continents, releve.pris_a,
                                    saison_dans=dans)
@@ -407,6 +414,8 @@ class PageMeteo(QWidget):
             if erreur:
                 self._entete.setText(_("Météo indisponible : %s") % erreur)
                 return
+            if publie[0] is not None:
+                meteo.poser_tables(publie[0])
             self._releve = resultat
             self._affiche = resultat
             self.rafraichir()

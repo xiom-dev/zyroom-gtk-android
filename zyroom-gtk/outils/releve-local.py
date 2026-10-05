@@ -116,6 +116,49 @@ def relever(cles: list[str]) -> int:
     return fait.returncode
 
 
+def relever_forage() -> None:
+    """Recopie sur la branche les croix du relevé de forage de xiom.be.
+
+    Le site demande un mot de passe, et il n'est que sur cette machine : les
+    applications des joueurs relisent donc cette copie
+    (`partage.tables_du_forage`). Une ligne par créneau, la même que dans
+    `ForageTable.kt` : « zone|famille|matière|SAISON|CONDITION ».
+
+    **Rien que les croix.** Ni qui les a posées, ni quand, ni date de relevé :
+    un fichier qui ne change pas ne fait pas de commit, et le minuteur reste
+    muet tant que personne ne coche rien.
+
+    Une panne du site n'arrête pas le relevé des guildes : la copie publiée
+    reste alors celle du passage précédent.
+    """
+    from zyroom import forage_releve, meteo
+    try:
+        tables = forage_releve._depuis_le_site(forage_releve._lire_le_site())
+    except (OSError, ValueError) as souci:
+        print(f"Forage : site illisible ({souci}), copie gardée.")
+        return
+    publie = {}
+    for cle, qualite in (("supreme", meteo.SUPREME),
+                         ("excellente", meteo.EXCELLENTE),
+                         ("a_confirmer", meteo.A_CONFIRMER)):
+        publie[cle] = sorted(
+            "|".join((zone, famille, matiere, saison, condition))
+            for zone, matieres in tables[qualite].items()
+            for (famille, matiere), creneaux in matieres.items()
+            for saison, condition in creneaux)
+    # Meme garde que l'ecran : un releve tronque ne doit rien ecraser.
+    if len(publie["supreme"]) < meteo.PLANCHER_SUPREMES:
+        print(f"Forage : {len(publie['supreme'])} suprêmes seulement, "
+              "copie gardée.")
+        return
+    import json
+    with open(os.path.join(TRAVAIL, "forage.json"), "w", encoding="utf-8") as fh:
+        json.dump(publie, fh, ensure_ascii=False, indent=0)
+        fh.write("\n")
+    print(f"Forage : {len(publie['supreme'])} créneaux suprêmes, "
+          f"{len(publie['excellente'])} XL.")
+
+
 def publier() -> int:
     """Pousse ce qui a bougé, et se tait quand rien n'a bougé.
 
@@ -225,6 +268,7 @@ def main() -> int:
         return 1
     if relever(cles) != 0:
         return 1
+    relever_forage()
     if "--a-blanc" in sys.argv[1:]:
         etat = git("status", "--short")
         print("À blanc — rien n'a été envoyé."

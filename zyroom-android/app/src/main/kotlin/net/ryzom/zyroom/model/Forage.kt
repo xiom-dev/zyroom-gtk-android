@@ -31,9 +31,53 @@ object Forage {
         return table
     }
 
-    private val supremes by lazy { ranger(RELEVE_SUPREME) }
-    private val excellentes by lazy { ranger(RELEVE_EXCELLENTE) }
-    private val aConfirmer by lazy { ranger(RELEVE_A_CONFIRMER) }
+    private class Tables(
+        val supremes: Map<String, Map<Pair<String, String>, Set<Pair<String, String>>>>,
+        val excellentes: Map<String, Map<Pair<String, String>, Set<Pair<String, String>>>>,
+        val aConfirmer: Map<String, Map<Pair<String, String>, Set<Pair<String, String>>>>,
+    ) {
+        constructor(supreme: List<String>, excellente: List<String>, aConfirmer: List<String>) :
+            this(ranger(supreme), ranger(excellente), ranger(aConfirmer))
+    }
+
+    /** L'instantané figé à la livraison : `ForageTable.kt`. */
+    private val embarque by lazy {
+        Tables(RELEVE_SUPREME, RELEVE_EXCELLENTE, RELEVE_A_CONFIRMER)
+    }
+
+    /** Le relevé publié sur GitHub, une fois lu ; sinon l'instantané sert. */
+    @Volatile
+    private var publie: Tables? = null
+
+    /**
+     * Combien de créneaux suprêmes au minimum pour croire un relevé publié.
+     * Une réponse tronquée ne doit pas vider l'écran : le relevé en porte
+     * plus de quatre cents. Le même plancher que `meteo.PLANCHER_SUPREMES`.
+     */
+    const val PLANCHER_SUPREMES = 300
+
+    /**
+     * Remplace l'instantané par le relevé que la machine de Ludo recopie de
+     * xiom.be/forage (`Partage.recupererForage`). Sans lui, chaque nouveau
+     * spot attendait une livraison.
+     *
+     * Rend `false`, et ne change rien, si le relevé paraît tronqué ou bancal.
+     */
+    fun poserPublie(
+        supreme: List<String>,
+        excellente: List<String>,
+        aConfirmer: List<String>,
+    ): Boolean {
+        if (supreme.size < PLANCHER_SUPREMES) return false
+        publie = runCatching { Tables(supreme, excellente, aConfirmer) }
+            .getOrNull() ?: return false
+        return true
+    }
+
+    /** Revient à l'instantané embarqué. */
+    internal fun oublierPublie() {
+        publie = null
+    }
 
     /**
      * Tout ce qui sort dans une zone à ce créneau, qualité par qualité.
@@ -63,15 +107,16 @@ object Forage {
                 .groupBy({ it.first }, { it.second })
                 .mapValues { (_, matieres) -> matieres.sorted() }
 
-        val douteuses = groupesDe(aConfirmer)
-        val vues = groupesDe(excellentes)
+        val tables = publie ?: embarque
+        val douteuses = groupesDe(tables.aConfirmer)
+        val vues = groupesDe(tables.excellentes)
             .mapValues { (famille, matieres) ->
                 matieres.filter { it !in douteuses[famille].orEmpty() }
             }
             .filterValues { it.isNotEmpty() }
 
         return buildList {
-            groupesDe(supremes).takeIf { it.isNotEmpty() }?.let { add(SUPREME to it) }
+            groupesDe(tables.supremes).takeIf { it.isNotEmpty() }?.let { add(SUPREME to it) }
             if (vues.isNotEmpty()) add(EXCELLENTE to vues)
             if (voirAVerifier && douteuses.isNotEmpty()) add(A_CONFIRMER to douteuses)
         }

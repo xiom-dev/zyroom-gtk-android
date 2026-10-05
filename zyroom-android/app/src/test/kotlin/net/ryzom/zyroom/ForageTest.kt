@@ -2,7 +2,11 @@ package net.ryzom.zyroom
 
 import net.ryzom.zyroom.model.Forage
 import net.ryzom.zyroom.model.RELEVE_A_CONFIRMER
+import net.ryzom.zyroom.model.RELEVE_EXCELLENTE
+import net.ryzom.zyroom.model.RELEVE_SUPREME
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,6 +16,9 @@ import org.junit.Test
  * même table le 4 octobre 2026.
  */
 class ForageTest {
+
+    @After
+    fun instantane() = Forage.oublierPublie()
 
     @Test
     fun `printemps aux Sources Interdites par bon temps`() {
@@ -82,5 +89,21 @@ class ForageTest {
     @Test
     fun `une saison inconnue ne sort rien`() {
         assertTrue(Forage.sortiesDe(-1, "Sources Interdites", "good").isEmpty())
+    }
+
+    @Test
+    fun `un releve publie apporte un spot absent de l'instantane`() {
+        val neuf = "Sources Interdites|Bois|Tama|PRINTEMPS|BEST"
+        assertFalse(neuf in RELEVE_SUPREME)
+        assertTrue(Forage.poserPublie(RELEVE_SUPREME + neuf, RELEVE_EXCELLENTE, RELEVE_A_CONFIRMER))
+        val sorties = Forage.sortiesDe(0, "Sources Interdites", "best")
+        assertTrue("Tama" in sorties.first { it.first == Forage.SUPREME }.second["Bois"].orEmpty())
+    }
+
+    @Test
+    fun `un releve publie tronque est refuse`() {
+        val avant = Forage.sortiesDe(0, "Sources Interdites", "good")
+        assertFalse(Forage.poserPublie(RELEVE_SUPREME.take(10), emptyList(), emptyList()))
+        assertEquals(avant, Forage.sortiesDe(0, "Sources Interdites", "good"))
     }
 }

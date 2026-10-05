@@ -26,7 +26,7 @@ from __future__ import annotations
 import urllib.error
 import urllib.request
 
-from . import movements
+from . import meteo, movements
 
 #: La branche `journaux`, servie telle quelle par GitHub.
 #:
@@ -191,3 +191,51 @@ def _noter_releve_publie(guild_id: str, chemin_local: str) -> None:
             fh.write(str(quand))
     except OSError:
         pass
+
+
+#: Le relevé du forage, tel que le relevé local le recopie de xiom.be/forage.
+#:
+#: Les applications des joueurs n'ont pas le mot de passe du site, et n'ont
+#: pas à l'avoir : la machine de Ludo le lit toutes les quinze minutes et en
+#: publie ici les seules croix — ni les noms des foreuses, ni les heures.
+#: Sans ce relais, chaque nouveau spot attendait une livraison.
+URL_DU_FORAGE = f"{BASE}forage.json"
+
+#: Les listes du fichier publié, vers les qualités de `meteo`.
+_QUALITES_DU_FORAGE = (("supreme", meteo.SUPREME),
+                       ("excellente", meteo.EXCELLENTE),
+                       ("a_confirmer", meteo.A_CONFIRMER))
+
+
+def tables_du_forage():
+    """Le relevé du forage publié, rangé comme les tables de `forage.py`.
+
+    Chaque ligne du fichier se lit « zone|famille|matière|SAISON|CONDITION ».
+    Rend `None` si le fichier manque ou ne se lit pas : l'instantané embarqué
+    reste alors en place. `meteo.poser_tables` refuse de son côté un relevé
+    qui paraît tronqué.
+
+    Ne lève jamais : c'est un confort de fond, appelé à chaque lecture de la
+    météo, hors du fil de l'interface.
+    """
+    import json
+
+    try:
+        with urllib.request.urlopen(URL_DU_FORAGE, timeout=_DELAI) as reponse:
+            publie = json.load(reponse)
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    tables = {q: {zone: {} for zone in meteo.ZONES}
+              for q in (meteo.SUPREME, meteo.EXCELLENTE, meteo.CHOIX,
+                        meteo.A_CONFIRMER)}
+    try:
+        for cle, qualite in _QUALITES_DU_FORAGE:
+            table = tables[qualite]
+            for ligne in publie[cle]:
+                zone, famille, matiere, saison, condition = ligne.split("|")
+                if zone in table:
+                    table[zone].setdefault((famille, matiere), set()).add(
+                        (saison, condition))
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return None
+    return tables

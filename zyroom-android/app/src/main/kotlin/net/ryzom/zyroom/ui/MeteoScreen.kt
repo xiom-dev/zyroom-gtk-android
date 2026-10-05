@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.ryzom.zyroom.api.ApiException
+import net.ryzom.zyroom.data.Partage
 import net.ryzom.zyroom.data.Repository
 import net.ryzom.zyroom.model.CONTINENT_DE_ZONE
 import net.ryzom.zyroom.model.Forage
@@ -92,7 +93,12 @@ fun MeteoScreen(repository: Repository, onBack: () -> Unit) {
         occupe = true
         erreur = null
         try {
-            releve = repository.meteo()
+            val lu = repository.meteo()
+            // Les spots trouves depuis la livraison : le releve publie sur
+            // GitHub, un quart d'heure de retard au plus. Lu avant de poser
+            // la meteo, pour que l'ecran se recompose une seule fois.
+            Partage.recupererForage()
+            releve = lu
             affiche = releve
         } catch (echec: ApiException) {
             erreur = echec.message
