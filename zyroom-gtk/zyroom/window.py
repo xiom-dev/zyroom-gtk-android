@@ -3670,22 +3670,58 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         remercier d'avoir mis à jour. Le portail sait relancer la version
         fraîche ; s'il refuse, on laisse l'application ouverte en le disant,
         plutôt que de la fermer sans rien relancer.
-        """
-        dlg = Gtk.AlertDialog()
-        dlg.set_message(_("Mise à jour installée"))
-        dlg.set_detail(_("Elle ne prendra effet qu'au prochain lancement. "
-                         "Relancer maintenant ?"))
-        dlg.set_buttons([_("Plus tard"), _("Relancer")])
-        dlg.set_default_button(1)
-        dlg.set_cancel_button(0)
 
-        def repondu(source, resultat):
-            try:
-                choix = source.choose_finish(resultat)
-            except GLib.Error:
-                return
-            if choix != 1:
-                return
+        **Une fenêtre faite main, et non `Gtk.AlertDialog`.** Celle-là ne se
+        met pas en forme — texte centré, sans icône, boutons soudés — et ne
+        ressemblait donc pas à celle de Qt. Celle-ci en reprend la mise en
+        page : l'ampoule à gauche, le texte aligné, deux boutons séparés.
+        """
+        dlg = Gtk.Window(title=_("Mise à jour installée"), transient_for=self,
+                         modal=True, resizable=False)
+        racine = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        racine.props.margin_top = racine.props.margin_bottom = 12
+        racine.props.margin_start = racine.props.margin_end = 12
+        dlg.set_child(racine)
+
+        # L'ampoule de QMessageBox.Information, embarquee : le Flatpak a pour
+        # theme Adwaita, qui n'a que la version monochrome de cette icone --
+        # on aurait vu l'image manquante. Icone du theme "gnome", GPL-2+.
+        corps = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+        icone = Gtk.Image.new_from_file(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "symboles", "ampoule.png"))
+        icone.set_pixel_size(48)
+        icone.set_valign(Gtk.Align.START)
+        corps.append(icone)
+        textes = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        textes.append(Gtk.Label(label=_("Mise à jour installée"), xalign=0.0))
+        detail = Gtk.Label(label=_("Elle ne prendra effet qu'au prochain "
+                                   "lancement. Relancer maintenant ?"),
+                           xalign=0.0, wrap=True, max_width_chars=22)
+        textes.append(detail)
+        corps.append(textes)
+        racine.append(corps)
+
+        # Deux boutons de meme largeur, comme dans Qt
+        pied = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6,
+                       homogeneous=True)
+        plus_tard = Gtk.Button(label=_("Plus tard"))
+        relancer = Gtk.Button(label=_("Relancer"))
+        pied.append(plus_tard)
+        pied.append(relancer)
+        racine.append(pied)
+        # Entree valide "Relancer", Echap ferme : les memes touches qu'avant
+        dlg.set_default_widget(relancer)
+        relancer.grab_focus()
+        echap = Gtk.ShortcutController()
+        echap.add_shortcut(Gtk.Shortcut.new(
+            Gtk.ShortcutTrigger.parse_string("Escape"),
+            Gtk.CallbackAction.new(lambda *_a: (dlg.close(), True)[1])))
+        dlg.add_controller(echap)
+        plus_tard.connect("clicked", lambda *_a: dlg.close())
+        relancer.connect("clicked", lambda *_a: (dlg.close(), repondu()))
+
+        def repondu():
             # **Ce qu'on retient avant de relancer.** La nouvelle version
             # demarre avant que celle-ci ne se ferme : elle lisait donc les
             # reglages avant que la taille n'y soit ecrite, et s'ouvrait a
@@ -3704,7 +3740,7 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
                     _("Impossible de relancer automatiquement : fermez et "
                       "rouvrez l'application pour utiliser la nouvelle version."))
 
-        dlg.choose(self, None, repondu)
+        dlg.present()
 
     # ------------------------------------------------------------- États
     def _set_busy(self, busy: bool, message: str = "") -> None:
