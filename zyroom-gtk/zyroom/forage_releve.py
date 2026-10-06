@@ -111,14 +111,6 @@ CONDITIONS_PAGE = {"worst": "Worst", "bad": "Bad",
 #: est laissée de côté comme une prise illisible.
 QUALITES_PAGE = (("supr", "Supp"), ("excellent", "XL"))
 
-#: La coquille de Ryzom, portée des deux côtés mais pas de la même façon.
-#:
-#: Le jeu et Armory écrivent « Scrath », le relevé de la guilde « Scratch ».
-#: Sans ce pont, cinq croix oranges restaient invisibles à l'écran, et une
-#: prise de Scrath se serait fait refuser par le site — « case inconnue ».
-NOM_PAGE = {"Scrath": "Scratch"}
-NOM_TABLE = {v: k for k, v in NOM_PAGE.items()}
-
 
 def dossier() -> str:
     chemin = os.path.join(data_dir(), "forage")
@@ -338,7 +330,7 @@ def prises() -> list:
         if condition is None or not 0 <= saison < 4:
             continue            # hors du carnet : on n'approxime pas
         sortie.append("|".join((zone, SAISONS_PAGE[saison],
-                                NOM_PAGE.get(matiere, matiere), qualite,
+                                matiere, qualite,
                                 CONDITIONS_PAGE[condition])))
     if zone:
         _ecrire("zone.json", zone)
@@ -369,9 +361,6 @@ def _familles() -> dict:
         for zone in t.values():
             for f, m in zone:
                 sortie[m] = f
-                # Le relevé écrit « Scratch » là où le jeu écrit « Scrath ».
-                if m in NOM_PAGE:
-                    sortie[NOM_PAGE[m]] = f
     return sortie
 
 
@@ -402,7 +391,7 @@ def _depuis_le_site(cases: dict) -> dict:
                 or matiere not in familles or saison not in saisons
                 or condition not in conditions):
             continue
-        couple = (familles[matiere], NOM_TABLE.get(matiere, matiere))
+        couple = (familles[matiere], matiere)
         creneau = (saisons[saison], conditions[condition])
         tables[colonnes[qualite]][zone].setdefault(couple, set()).add(creneau)
         # Une orange est de la XL qu'on n'a pas encore vue : elle compte dans
