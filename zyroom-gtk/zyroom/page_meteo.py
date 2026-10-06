@@ -424,8 +424,12 @@ class PageMeteo:
             self._refresh_meteo()
             if bilan["posees"]:
                 # « Sources Interdites|Automne|Glue|XL|Worst » -> « Glue XL (Worst) »
-                noms = ", ".join("%s %s (%s)" % tuple(c.split("|")[2:5])
-                                 for c in bilan.get("cochees", []))
+                # La case porte le nom du site (Scratch) : on affiche celui
+                # du jeu (Scrath), voir `forage_releve.NOM_PAGE`.
+                noms = ", ".join(
+                    "%s %s (%s)" % (forage_releve.NOM_TABLE.get(m, m), q, c)
+                    for m, q, c in (case.split("|")[2:5]
+                                    for case in bilan.get("cochees", [])))
                 dire("✓ " + _("cochée(s) sur le relevé : %s") % noms, "#4bbf72")
             elif bilan["prises"]:
                 pass            # rien de neuf : rien a dire
