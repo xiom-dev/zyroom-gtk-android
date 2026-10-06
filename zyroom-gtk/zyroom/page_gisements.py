@@ -51,9 +51,8 @@ class PageGisements:
         attendue = _QUALITE.get(qualite)
         actifs = {lieu for lieu in lieux
                   if lieu not in meteo.ZONES
-                  or meteo.qualite_de(lieu, famille, matiere,
-                                      releve.saison, actuelle.condition)
-                  == attendue}
+                  or meteo.sort_en(attendue, lieu, famille, matiere,
+                                   releve.saison, actuelle.condition)}
         return actifs, actuelle
 
     def _prochaine_sortie(self, qualite: str, famille: str, matiere: str,
@@ -77,8 +76,8 @@ class PageGisements:
         for cycle in releve.cycles_des_primes():
             if cycle.cycle <= releve.cycle_courant:
                 continue
-            if any(meteo.qualite_de(lieu, famille, matiere, releve.saison,
-                                    cycle.condition) == attendue
+            if any(meteo.sort_en(attendue, lieu, famille, matiere,
+                                 releve.saison, cycle.condition)
                    for lieu in zones):
                 return releve.minutes_avant(cycle.cycle)
         return None

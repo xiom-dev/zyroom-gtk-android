@@ -491,6 +491,19 @@ def qualite_de(zone: str, famille: str, matiere: str,
     return None
 
 
+def sort_en(qualite: str, zone: str, famille: str, matiere: str,
+            saison: int, condition: str) -> bool:
+    """Cette matière sort-elle dans cette qualité-là, à cet instant ?
+
+    **Pas `qualite_de` == qualité.** Un même créneau peut donner les deux :
+    aux Sources Interdites, l'été par temps Worst, la Sha sort en suprême
+    *et* en excellente. `qualite_de` ne rend que la meilleure, et la carte de
+    la Sha excellente grisait donc un gisement qui sortait.
+    """
+    return _creneau(saison, condition) in table_de(qualite).get(
+        zone, {}).get((famille, matiere), ())
+
+
 #: Les tables réellement employées par l'écran, ou `None` pour l'instantané.
 #:
 #: **`forage.py` est un instantané**, figé le jour de la livraison. Le relevé
