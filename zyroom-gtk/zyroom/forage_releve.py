@@ -355,8 +355,14 @@ def _poste(corps: dict) -> dict:
 
 
 def _familles() -> dict:
-    """{matiere: famille} — pour relire les clefs du relevé commun."""
-    sortie = {}
+    """{matiere: famille} — pour relire les clefs du relevé commun.
+
+    **Toutes les matières, et non celles des seules tables des Primes.** Une
+    matière qui sort pour la première fois aux Primes n'y figure pas encore :
+    sa case était jetée sans un mot. La Smart, cochée le 7 octobre aux
+    Sources Interdites, n'arrivait ainsi ni à l'écran ni au relevé publié.
+    """
+    sortie = {m: f for f, m in gisements.LIBELLES}
     for t in (forage.SUPREMES, forage.EXCELLENTES):
         for zone in t.values():
             for f, m in zone:
