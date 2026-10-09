@@ -840,7 +840,7 @@ function vueBase() {
     + '<label><input type="checkbox" data-kb="hall"' + (f.hall ? " checked" : "") + "> Au hall</label>"
     + '<label><input type="checkbox" data-kb="ecartes"' + (f.ecartes ? " checked" : "") + "> Écartés</label>"
     + '<span class="faible">' + liste.length + " matériau(x)</span></div>"
-    + '<p class="faible">Cocher une ligne écarte le matériau du sélecteur et de la Bijouterie, dans ce navigateur seulement.</p>'
+    + '<p class="faible">Cocher une ligne écarte la MP des recherches, dans ce navigateur seulement.</p>'
     + '<div class="cadre collant"><table class="kc-base"><thead><tr><th title="Écarté"></th><th>Matériau</th><th class="n">Q</th><th class="n">Hall</th>'
     + stats.map((s) => '<th class="n" title="' + esc(S.meta.stats[s][0]) + '">' + esc(S.meta.stats[s][1]) + "</th>").join("")
     + "</tr></thead><tbody>" + lignes + "</tbody></table></div>";
