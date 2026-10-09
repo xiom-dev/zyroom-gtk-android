@@ -26,6 +26,10 @@ async function demarrer() {
 const OPERATIONS = {
   entite: (xml, sorte) => zr.entite(xml, sorte),
   saison: (xml) => zr.saison(xml),
+  releve: (xml, sorte, avant) => zr.releve(xml, sorte, avant),
+  charger_journal: (cle, texte, depuis) => zr.charger_journal(cle, texte, depuis),
+  vue_journal: (cle, cherche, mode) => zr.vue_journal(cle, cherche, mode),
+  copier_journal: (cle, cherche, mode) => zr.copier_journal(cle, cherche, mode),
 };
 
 onmessage = async (ev) => {

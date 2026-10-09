@@ -14,10 +14,10 @@ from __future__ import annotations
 import json
 import unicodedata
 
-from zyroom import ryzom_api, sorting
+from zyroom import alerts, movements, ryzom_api, sorting
 from zyroom.categorydb import CategoryDb
-from zyroom.models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, ItemType,
-                           categorie_item)
+from zyroom.models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, ItemInfo,
+                           ItemType, categorie_item)
 from zyroom.movements import sans_parenthese
 from zyroom.namedb import NameDb, nom_anglais
 from zyroom.sheetdb import SheetDb
@@ -153,3 +153,122 @@ def entite(xml: str, sorte: str) -> str:
 
 def saison(xml: str) -> str:
     return json.dumps(ryzom_api.parse_time(xml.encode("utf-8")), ensure_ascii=False)
+
+
+# ------------------------------------------------------------ le journal
+#
+# Le journal d'un personnage se tient dans le navigateur : a chaque relevé,
+# on compare l'instantane au precedent, comme window._relever_en_silence.
+# Celui du hall est celui que le releve publie (guild-<id>.jsonl) : il voit
+# passer la guilde tous les quarts d'heure, la page ne le ferait pas mieux.
+
+# **L'heure du navigateur, pas celle de Pyodide.** Movement.when passe par
+# time.localtime, qui vaut UTC dans Pyodide : le journal aurait ete decale de
+# deux heures l'ete. La date de JavaScript connait le fuseau du joueur, ete
+# et hiver compris.
+try:
+    from js import Date
+
+    def _quand(mv) -> str:
+        d = Date.new(mv.ts * 1000)
+        return (f"{int(d.getFullYear())}-{int(d.getMonth()) + 1:02d}-{int(d.getDate()):02d} "
+                f"{int(d.getHours()):02d}:{int(d.getMinutes()):02d}")
+
+    movements.Movement.when = property(_quand)
+except ImportError:
+    pass            # hors du navigateur (essais) : l'heure locale suffit
+
+#: Comme window._LOG_JOURS, _LOG_MINIMUM et _LOG_MAX.
+JOURS, MINIMUM, MAXIMUM = 30, 400, 8000
+
+#: Les journaux lus, par entite : la recherche refiltre sans tout relire.
+journaux: dict[str, list] = {}
+
+
+def releve(xml: str, sorte: str, avant: str) -> str:
+    """Les mouvements depuis le releve precedent, et le nouvel instantane."""
+    lire = ryzom_api.parse_character if sorte == "character" else ryzom_api.parse_guild
+    ent = lire(xml.encode("utf-8"), fiches.name)
+    apres = alerts.build_snapshot(ent)
+    precedent = json.loads(avant) if avant else {}
+    nouveaux = movements.diff(precedent, apres, ent) if precedent else []
+    return json.dumps({"instantane": apres,
+                       "lignes": [json.dumps(m.as_dict(), ensure_ascii=False) for m in nouveaux]},
+                      ensure_ascii=False)
+
+
+def charger_journal(cle: str, texte: str, depuis: float) -> int:
+    """Lit un journal (.jsonl), du plus recent au plus ancien.
+
+    `depuis` : ce que « Vider » a efface dans ce navigateur -- on ne garde
+    que ce qui est plus recent.
+    """
+    out = []
+    for ligne in texte.splitlines():
+        ligne = ligne.strip()
+        if not ligne:
+            continue
+        try:
+            mv = movements.lire_etranger(json.loads(ligne))
+        except Exception:
+            continue
+        if mv.ts > depuis:
+            out.append(mv)
+    out.sort(key=lambda m: -m.ts)
+    journaux[cle] = out
+    return len(out)
+
+
+def _filtre(cle: str, cherche: str, mode: int) -> list:
+    """Comme window._filtered_log."""
+    qualite = movements.qualite_cherchee(cherche)
+    aiguille = "" if qualite is not None else _norm(cherche.strip())
+    out = []
+    for mv in journaux.get(cle, []):
+        if mode == 1 and mv.delta <= 0:
+            continue
+        if mode == 2 and mv.delta >= 0:
+            continue
+        if qualite is not None and mv.quality != qualite:
+            continue
+        if aiguille and aiguille not in _norm(f"{noms.name(mv.sheet)} {mv.sheet} {mv.inv_label}"):
+            continue
+        out.append(mv)
+    return out
+
+
+def vue_journal(cle: str, cherche: str, mode: int) -> str:
+    """Les lignes a montrer et la ligne d'etat, comme window._refresh_log."""
+    tous = journaux.get(cle, [])
+    retenus = _filtre(cle, cherche, mode)
+    montrees = movements.lignes_recentes(retenus, JOURS, MINIMUM, MAXIMUM)
+    lignes, jour_precedent = [], None
+    for mv in retenus[:montrees]:
+        argent = mv.inv_key == movements.MONEY_KEY
+        jour = mv.when[:10]
+        lignes.append({
+            "quand": mv.when, "contenant": sans_parenthese(mv.inv_label),
+            "delta": mv.delta,
+            "quantite": f"{mv.delta:+,}".replace(",", " ") if argent else f"{mv.delta:+d}",
+            "nom": "Dappers" if argent else noms.name(mv.sheet),
+            "q": mv.quality, "argent": argent,
+            "icone": "" if argent else ryzom_api.item_icon_url(
+                ItemInfo(sheet=mv.sheet, quality=mv.quality)),
+            "jour": jour_precedent is not None and jour != jour_precedent,
+            "texte": movements.describe(mv, noms.name),
+        })
+        jour_precedent = jour
+    if not tous:
+        etat = ("Aucun mouvement enregistré. Le journal se remplit à chaque "
+                "synchronisation où quelque chose a bougé.")
+    elif len(retenus) > montrees:
+        etat = (f"{montrees} lignes affichées sur {len(retenus)} retenues "
+                f"({len(tous)} au journal) — affinez la recherche.")
+    else:
+        etat = f"{len(retenus)} lignes sur {len(tous)} au journal"
+    return json.dumps({"lignes": lignes, "etat": etat}, ensure_ascii=False)
+
+
+def copier_journal(cle: str, cherche: str, mode: int) -> str:
+    """Le texte du bouton « Copier » : toutes les lignes retenues."""
+    return "\n".join(movements.describe(mv, noms.name) for mv in _filtre(cle, cherche, mode))

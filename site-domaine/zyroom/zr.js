@@ -188,6 +188,7 @@ async function synchroniser() {
     const flux = await telecharger(e);
     const ent = await lireFlux(e, flux);
     garder(cacheXml(e), flux);
+    await journaliser(e, flux.xml);
     if (Z.courante === e.sorte + ":" + e.id) montrer(e, ent, true);
   } catch (souci) {
     if (souci.porte) ouvrirPorte("Connexion requise.");
@@ -277,6 +278,7 @@ function dessinerTout() {
   dessinerContenants();
   dessinerEntete();
   if (Z.page === "inventaire") dessinerInventaire();
+  else if (Z.page === "journal") dessinerJournal(true);
   else dessinerAutrePage();
 }
 
@@ -610,6 +612,111 @@ async function majSaison() {
   } catch (souci) { /* idem */ }
 }
 
+// ------------------------------------------------------------ le journal
+//
+// Un personnage : le navigateur tient son journal, en comparant chaque releve
+// au precedent (window._relever_en_silence). Le hall : celui que le releve
+// publie tous les quarts d'heure sur GitHub, qui voit plus que la page.
+
+const DEPOT = "https://raw.githubusercontent.com/xiom-dev/zyroom-gtk-android/journaux/";
+// Comme movements._MAX_LINES et _TRIM_TO, a l'echelle du stockage d'un navigateur.
+const MAX_LIGNES = 6000, GARDEES = 4000;
+const J = { cle: "", cherche: "", mode: 0, compte: 0 };
+
+function cleJournal(e) { return e.sorte + "-" + e.id; }
+
+async function journaliser(e, xml) {
+  if (e.sorte !== "character") return;
+  const cle = cleJournal(e);
+  let avant = "";
+  try { avant = localStorage.getItem("zr-instantane-" + cle) || ""; } catch (er) {}
+  const r = JSON.parse(await appeler("releve", xml, e.sorte, avant));
+  let lignes = [];
+  try { lignes = (localStorage.getItem("zr-journal-" + cle) || "").split("\n").filter(Boolean); } catch (er) {}
+  if (r.lignes.length) {
+    lignes = lignes.concat(r.lignes);
+    if (lignes.length > MAX_LIGNES) lignes = lignes.slice(-GARDEES);
+    try { localStorage.setItem("zr-journal-" + cle, lignes.join("\n")); } catch (er) {}
+  }
+  try { localStorage.setItem("zr-instantane-" + cle, JSON.stringify(r.instantane)); } catch (er) {}
+  if (Z.page === "journal" && J.cle === cle) chargerJournal();
+}
+
+async function chargerJournal() {
+  const e = entiteCourante();
+  const cle = cleJournal(e);
+  J.cle = cle;
+  let texte = "";
+  if (e.sorte === "guild") {
+    attendre(true);
+    try {
+      const r = await fetch(DEPOT + "guild-" + e.id + ".jsonl", { cache: "no-cache" });
+      if (r.ok) texte = await r.text();
+    } catch (er) { /* pas de reseau : journal vide */ }
+    attendre(false);
+  } else {
+    try { texte = localStorage.getItem("zr-journal-" + cle) || ""; } catch (er) {}
+  }
+  if (J.cle !== cle) return;
+  J.compte = await appeler("charger_journal", cle, texte, lire("zr-journal-vide-" + cle, 0));
+  montrerJournal();
+}
+
+function pageJournal() {
+  if ($("#journal-zone")) return;
+  $("#page").innerHTML = '<div class="outils"><input type="search" id="j-cherche" placeholder="Rechercher dans le journal…">'
+    + '<select id="j-mode"><option value="0">Tout</option><option value="1">Entrées</option><option value="2">Sorties</option></select>'
+    + '<button type="button" id="j-copier" title="Copier les lignes affichées">Copier</button>'
+    + '<button type="button" id="j-vider" title="Effacer le journal de cette entité">Vider</button></div>'
+    + '<div class="grille-zone" id="journal-zone"></div><div class="j-etat" id="j-etat"></div>';
+  $("#j-cherche").value = J.cherche;
+  $("#j-mode").value = String(J.mode);
+  $("#j-cherche").addEventListener("input", () => { J.cherche = $("#j-cherche").value; montrerJournal(); });
+  $("#j-mode").addEventListener("change", () => { J.mode = Number($("#j-mode").value); montrerJournal(); });
+  $("#j-copier").addEventListener("click", async () => {
+    const texte = await appeler("copier_journal", J.cle, J.cherche, J.mode);
+    if (!texte) return;
+    try {
+      await navigator.clipboard.writeText(texte);
+      $("#j-etat").textContent = texte.split("\n").length + " lignes copiées.";
+    } catch (er) { $("#j-etat").textContent = "Copie refusée par le navigateur."; }
+  });
+  $("#j-vider").addEventListener("click", () => {
+    const e = entiteCourante();
+    if (!confirm("Vider le journal ?\n\nLes " + J.compte + " mouvements enregistrés pour " + e.nom
+      + " seront perdus. L'API ne permet pas de les reconstruire.")) return;
+    // Le hall vient du releve publie : on retient jusqu'ou il a ete vide.
+    garder("zr-journal-vide-" + J.cle, Date.now() / 1000);
+    try { localStorage.removeItem("zr-journal-" + J.cle); } catch (er) {}
+    chargerJournal();
+  });
+}
+
+function dessinerJournal(recharger) {
+  pageJournal();
+  if (recharger || J.cle !== cleJournal(entiteCourante())) {
+    $("#journal-zone").innerHTML = '<div class="vide">Lecture du journal…</div>';
+    $("#j-etat").textContent = "";
+    if (Z.pret) chargerJournal();
+  }
+  majEtat();
+}
+
+async function montrerJournal() {
+  const cle = J.cle;
+  const v = JSON.parse(await appeler("vue_journal", cle, J.cherche, J.mode));
+  if (cle !== J.cle || !$("#journal-zone")) return;
+  // Un tableau sans en-tetes, comme le Gtk.ColumnView du journal.
+  $("#journal-zone").innerHTML = '<table class="journal"><tbody>' + v.lignes.map((l) =>
+    '<tr' + (l.jour ? ' class="jour"' : "") + ' title="' + esc(l.texte) + '">'
+    + '<td class="date">' + esc(l.quand) + '</td><td class="faible">' + esc(l.contenant) + "</td>"
+    + '<td class="qte ' + (l.delta > 0 ? "plus" : "moins") + '">' + esc(l.quantite) + "</td>"
+    + "<td>" + esc(l.nom) + '</td><td class="ico-j"><img loading="lazy" src="' + esc(l.argent ? "symboles/dappers.png" : l.icone) + '" alt=""></td>'
+    + '<td class="faible">' + (l.q ? "Q" + l.q : "") + "</td></tr>").join("") + "</tbody></table>";
+  $("#journal-zone").scrollTop = 0;
+  $("#j-etat").textContent = v.etat;
+}
+
 // ------------------------------------------------------------ les autres pages
 
 function dessinerAutrePage() {
@@ -622,7 +729,10 @@ function allerA(page) {
   Z.page = page;
   document.querySelectorAll(".nav [data-page]").forEach((b) => b.setAttribute("aria-pressed",
     String(b.dataset.page === page || (b.dataset.page === "bonus" && !["inventaire", "journal"].includes(page)))));
-  if (page === "inventaire") { $("#page").innerHTML = ""; dessinerInventaire(); } else dessinerAutrePage();
+  $("#page").innerHTML = "";
+  if (page === "inventaire") dessinerInventaire();
+  else if (page === "journal") dessinerJournal(true);
+  else dessinerAutrePage();
 }
 document.querySelectorAll(".nav [data-page]").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.page === "bonus") { const p = $("#pop-bonus"); fermerPops(p); p.hidden = !p.hidden; return; }
@@ -687,6 +797,7 @@ $("#ajout-form").addEventListener("submit", async (ev) => {
     if (!Z.persos.some((p) => p.id === ent.id)) Z.persos.push({ id: ent.id, nom: ent.nom, cle, image: ent.portrait });
     garder("zr-persos", Z.persos);
     garder(cacheXml({ sorte: "character", id: ent.id }), flux);
+    await journaliser({ sorte: "character", id: ent.id }, flux.xml);
     $("#ajout").close();
     Z.synchro.add("character:" + ent.id);
     Z.courante = "character:" + ent.id;
