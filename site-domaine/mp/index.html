@@ -20,7 +20,18 @@
     --texte: #e2e8e6; --faible: #9aa8a5;
     --oui: #4bbf72; --non: #55605e; --alerte: #e8a13a; --rupture: #e2604f;
     --stop: #6fa8dc;
+    /* La provenance d'une MP, en teintes douces du meme theme (Ludo) : foret
+       verte, jungle mauve, desert rouge, lacs bleus, primes blanches. */
+    --eco-Forest: #9fd8a8; --eco-Jungle: #c9a8e6; --eco-Desert: #ec9e94;
+    --eco-Lake: #93bfec; --eco-PrimeRoots: #f4f4ee;
+    /* Les trois poids d'armure. */
+    --poids-l: #9ad9d2; --poids-m: #ecd08a; --poids-h: #e0aa86;
   }
+  .eco-Forest { color: var(--eco-Forest); } .eco-Jungle { color: var(--eco-Jungle); }
+  .eco-Desert { color: var(--eco-Desert); } .eco-Lake { color: var(--eco-Lake); }
+  .eco-PrimeRoots { color: var(--eco-PrimeRoots); }
+  .poids-l { color: var(--poids-l); } .poids-m { color: var(--poids-m); }
+  .poids-h { color: var(--poids-h); }
   * { box-sizing: border-box; }
   body {
     margin: 0; padding: 0 16px 48px;
@@ -164,7 +175,7 @@
     <button type="button" data-onglet="stop" aria-pressed="false">Ne plus stocker <span class="compte" id="n-stop"></span></button>
     <button type="button" data-onglet="inutiles" aria-pressed="false">MP inutilisées <span class="compte" id="n-inutiles"></span></button>
     <button type="button" data-onglet="toutes" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
-    <button type="button" data-onglet="tenues" aria-pressed="false">Tenues <span class="compte" id="n-tenues"></span></button>
+    <button type="button" data-onglet="tenues" aria-pressed="false">Armures <span class="compte" id="n-tenues"></span></button>
     <button type="button" data-onglet="bijoux" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
     <button type="button" data-onglet="recettes" aria-pressed="false">Recettes <span class="compte" id="n-recettes"></span></button>
     <button type="button" data-onglet="reglages" aria-pressed="false" hidden id="onglet-reglages">Réglages</button>
@@ -406,9 +417,19 @@ const ETOILES = { Basic: "", Fine: "★", Choice: "★★", Excellent: "★★�
 // "dessous" : la ligne de detail (ecosysteme, qualite, recettes), en HTML.
 function nomMp(mp, dessous) {
   const n = (noms.mp[mp] || {}).nom;
-  return etiquette(mp.split("_")[0], n ? esc(n)
+  return etiquette(mp.split("_")[0], n ? enCouleur(mp.split("_")[1], esc(n))
     : '<span class="inconnue" title="Aucune fiche du jeu ne porte ce nom">' + esc(mp) + "</span>",
     dessous);
+}
+// Le nom dans la couleur de sa provenance.
+function enCouleur(eco, html) {
+  return '<span class="eco-' + esc(eco) + '">' + html + "</span>";
+}
+// Dans un type, les MP par provenance (dans l'ordre des filtres), puis par nom.
+const ORDRE_ECOS = ["PrimeRoots", "Desert", "Forest", "Jungle", "Lake", "none"];
+function parProvenance(a, b) {
+  return ORDRE_ECOS.indexOf(a.eco) - ORDRE_ECOS.indexOf(b.eco)
+    || (a.nom || a.mp).localeCompare(b.nom || b.mp);
 }
 // La sorte (nom court et etoiles) a gauche, le nom et sa ligne de detail a
 // droite. `nomHtml` est deja echappe.
@@ -539,12 +560,12 @@ function tableInutiles(liste, boss) {
     groupes.get(m.type).push(m);
   }
   const lignes = [...groupes.keys()].sort((a, b) => a.localeCompare(b)).map((t) => {
-    const membres = groupes.get(t).sort((a, b) => b.stock - a.stock);
+    const membres = groupes.get(t).sort(parProvenance);
     const symbole = '<span class="symbole" style="background-image:url(\''
       + "https://api.ryzom.com/item_icon.php?sheetid=" + encodeURIComponent(membres[0].fiche)
       + '&c=1\')"></span>';
     return '<tr class="type"><td colspan="3">' + symbole + esc(t) + "</td></tr>"
-      + membres.map((m) => "<tr><td>" + etiquette(m.sorte, esc(m.nom), ECOS[m.eco] || "")
+      + membres.map((m) => "<tr><td>" + etiquette(m.sorte, enCouleur(m.eco, esc(m.nom)), ECOS[m.eco] || "")
         + '</td><td class="n"><b>' + nombre(m.stock) + "</b></td>"
         + '<td class="faible">' + m.piles.map(([q, n]) => "Q" + q + " ×" + nombre(n)).join(" · ")
         + "</td></tr>").join("");
@@ -620,7 +641,7 @@ function nomEnsemble(g, bijoux) {
   const n = (noms.equipements || {})[g.fiches[0]] || g.base;
   let reste = bijoux
     ? n.replace(/^(Diadème|Boucle d'oreille|Pendentif|Bague|Bracelet|Anneau de cheville)\s+/i, "")
-    : n.replace(/^\S+\s+/, "").replace(/^(lourde?|légère|léger|moyenne?)\s*\/\s*/i, "");
+    : n.replace(/^\S+\s+/, "").replace(/^(lourde?s?|légères?|légers?|moyennes?)\s*\/\s*/i, "");
   reste = reste.charAt(0).toUpperCase() + reste.slice(1);
   return bijoux ? reste : POIDS[g.poids] + " · " + reste;
 }
@@ -634,11 +655,15 @@ function vueEnsembles(bijoux) {
   const pieces = bijoux ? PIECES_BIJOU : PIECES_ARMURE;
   const motDe = Object.fromEntries(pieces.map(([p, , , un, plusieurs]) => [p, [un, plusieurs]]));
   const liste = ensembles(bijoux).filter((g) => retenue(g.nom + " " + g.base))
-    .sort((a, b) => b.q - a.q || a.nom.localeCompare(b.nom) || a.bonus.localeCompare(b.bonus));
+    // Legeres, moyennes puis lourdes ; dans chaque poids, des plus basses
+    // qualites aux plus hautes (Ludo).
+    .sort((a, b) => "lmh".indexOf(a.poids) - "lmh".indexOf(b.poids) || a.q - b.q
+                    || a.nom.localeCompare(b.nom) || a.bonus.localeCompare(b.bonus));
   if (!equipement.size) return "<p>Le relevé du hall ne publie pas encore les armures et les bijoux.</p>";
   if (!liste.length) return "<p>Aucun ensemble.</p>";
   const resume = (paires) => paires.map(([p, x]) => x + " " + motDe[p][x > 1 ? 1 : 0]).join(", ");
-  const lignes = liste.map((g) => "<tr><td>" + esc(g.nom)
+  const lignes = liste.map((g) => "<tr><td>"
+      + (bijoux ? esc(g.nom) : '<span class="poids-' + g.poids + '">' + esc(g.nom) + "</span>")
       + '<div class="faible">Q' + g.q + " " + gouttes(g.bonus) + "</div></td>"
       + '<td class="n"><b>' + g.complets + "</b></td>"
       + pieces.map(([p]) => {
@@ -648,11 +673,11 @@ function vueEnsembles(bijoux) {
         const classe = g.manque.some(([b]) => b === p) ? " manque" : g.trop.some(([b]) => b === p) ? " trop" : "";
         return '<td class="n' + classe + '">' + n + "</td>";
       }).join("")
-      + "<td>" + (g.manque.length ? '<div class="manque">Pour ' + (bijoux ? "une parure" : "une tenue")
+      + "<td>" + (g.manque.length ? '<div class="manque">Pour ' + (bijoux ? "une parure" : "une armure")
         + " de plus : " + esc(resume(g.manque)) + "</div>" : "")
       + (g.trop.length ? '<div class="trop">Ne vont nulle part : ' + esc(resume(g.trop)) + "</div>" : "")
       + "</td></tr>").join("");
-  return '<div class="cadre"><table><thead><tr><th>' + (bijoux ? "Parure" : "Tenue") + "</th>"
+  return '<div class="cadre"><table><thead><tr><th>' + (bijoux ? "Parure" : "Armure") + "</th>"
     + '<th class="n" title="Ensembles complets">Complets</th>'
     + pieces.map(([, nom, n]) => '<th class="n">' + nom + (n > 1 ? " (×" + n + ")" : "") + "</th>").join("")
     + "<th></th></tr></thead><tbody>" + lignes + "</tbody></table></div>";
@@ -736,7 +761,8 @@ function tableMps(liste, quoi, boss) {
       + "https://api.ryzom.com/item_icon.php?sheetid=" + encodeURIComponent(fiche)
       + '&c=1\')"></span>' : "";
     return '<tr class="type"><td colspan="' + colonnes + '">' + symbole + esc(typeFr(t))
-      + "</td></tr>" + groupes.get(t).map(ligneMp).join("");
+      + "</td></tr>" + (quoi === "toutes" ? groupes.get(t) : groupes.get(t).sort(parProvenance))
+        .map(ligneMp).join("");
   }).join("");
   function ligneMp(m) {
     return "<tr><td>" + nomMp(m.mp, ECOS[m.eco]
