@@ -1,0 +1,2 @@
+* Au lancement, le message qui annonce les mouvements repris du dépôt tient
+  en une phrase : « Journal mis à jour, N mouvement(s) ajoutés ».
