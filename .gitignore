@@ -58,3 +58,6 @@ site-domaine/mp/mp.json
 site-domaine/mp/noms.json
 site-domaine/mp/mp.depart.json
 site-domaine/mp/sauvegardes/
+# Fabriques par outils/page-kc.py depuis kipeecraft-py
+site-domaine/mp/kc/kipeecraft.zip
+site-domaine/mp/kc/icones/

@@ -33,6 +33,9 @@
   .poids-l { color: var(--poids-l); } .poids-m { color: var(--poids-m); }
   .poids-h { color: var(--poids-h); }
   * { box-sizing: border-box; }
+  /* Un "display: flex" l'emporterait sur l'attribut hidden : la barre des
+     filtres restait visible dans les onglets qui la cachent. */
+  [hidden] { display: none !important; }
   body {
     margin: 0; padding: 0 16px 48px;
     background: var(--fond); color: var(--texte);
@@ -185,6 +188,7 @@
     <button type="button" data-onglet="toutes" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
     <button type="button" data-onglet="tenues" aria-pressed="false">Armures <span class="compte" id="n-tenues"></span></button>
     <button type="button" data-onglet="bijoux" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
+    <button type="button" data-onglet="kc" aria-pressed="false">KipeeCraft</button>
     <button type="button" data-onglet="recettes" aria-pressed="false" hidden id="onglet-recettes">Recettes <span class="compte" id="n-recettes"></span></button>
     <button type="button" data-onglet="reglages" aria-pressed="false" hidden id="onglet-reglages">Réglages</button>
   </div>
@@ -497,16 +501,38 @@ function recalculer() {
 function afficher() {
   document.querySelectorAll("[data-onglet]").forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.onglet === onglet)));
-  $("#filtres").hidden = onglet === "reglages";
+  $("#filtres").hidden = onglet === "reglages" || onglet === "kc";
   // Les ecosystemes ne disent rien d'une armure ni d'un bijou.
   document.querySelectorAll("[data-eco]").forEach((b) =>
     { b.hidden = onglet === "tenues" || onglet === "bijoux"; });
   const vue = $("#vue");
-  if (onglet === "recettes") vue.innerHTML = vueRecettes();
+  if (onglet === "kc") vueKc(vue);
+  else if (onglet === "recettes") vue.innerHTML = vueRecettes();
   else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
   else if (onglet === "inutiles") vue.innerHTML = vueInutiles();
   else if (onglet === "tenues" || onglet === "bijoux") vue.innerHTML = vueEnsembles(onglet === "bijoux");
   else vue.innerHTML = vueMps(onglet);
+}
+
+// ------------------------------------------------------- KipeeCraft
+//
+// Le simulateur vit dans kc/ : son script et Python (Pyodide) ne se chargent
+// qu'a la premiere ouverture de l'onglet. La date dans l'adresse fait
+// relire le script a chaque visite : il change plus souvent que le cache
+// du navigateur ne le croit.
+
+let kcCharge = null;
+function vueKc(vue) {
+  vue.innerHTML = "";
+  kcCharge = kcCharge || new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.src = "kc/kc.js?v=" + Date.now();
+    s.onload = ok;
+    s.onerror = () => { kcCharge = null; ko(new Error("kc/kc.js introuvable")); };
+    document.head.appendChild(s);
+  });
+  kcCharge.then(() => { if (onglet === "kc") { vue.innerHTML = ""; window.KC.afficher(vue); } })
+    .catch((souci) => { vue.innerHTML = '<p class="inconnue">' + esc(souci.message) + "</p>"; });
 }
 
 // ------------------------------------------------------- MP inutilisees
