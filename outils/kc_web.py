@@ -355,7 +355,7 @@ def kce_vers_page(texte: str) -> str:
     except proj.ProjectError as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
     if not isinstance(p, proj.EvolverProject):
-        return json.dumps({"erreur": "projet Bijouterie, pas Évolveur"}, ensure_ascii=False)
+        return json.dumps({"erreur": "projet Bijouterie, pas Armurerie"}, ensure_ascii=False)
     return json.dumps({"projet": {
         "plan": p.pattern_id, "conditions": _conditions_vers_page(p.conditions),
         "filtres": _filtres_vers_page(p.filters), "maitre": _maitre_vers_page(p.master_filter),
@@ -394,7 +394,7 @@ async def evoluer(demande: str, avancer) -> str:
     if solution is None:
         return json.dumps({"erreur": "aucune recette trouvée"})
     recette = solution.recipe
-    recette.comment = "Créée par l'Évolveur"
+    recette.comment = "Créée par l'Armurerie"
     try:
         r = _craft(recette, postcraft.get(plan.id, recette.option))
     except PostcraftError:

@@ -209,7 +209,7 @@ function dessiner() {
       + "télécharge Python (une dizaine de Mo) ; ensuite il le garde.</p>";
     return;
   }
-  const onglets = [["simu", "Simulateur"], ["evo", "Évolveur"], ["bij", "Bijouterie"], ["base", "Base de matériaux"],
+  const onglets = [["simu", "Simulateur"], ["evo", "Armurerie"], ["bij", "Bijouterie"], ["base", "Base de matériaux"],
                    ["form", "Formules"], ["audit", "Audit"]];
   racine.innerHTML = '<div class="onglets kc-sous">' + onglets.map(([k, t]) =>
     '<button type="button" data-kc="sous" data-v="' + k + '" aria-pressed="' + (S.sous === k) + '">'
@@ -1105,6 +1105,19 @@ window.KC = {
 const style = document.createElement("style");
 style.textContent = `
 .kc h2 { font-size: 1.05rem; color: var(--or); margin: 4px 0 8px; }
+/* Le kipee en filigrane derriere les cadres de KipeeCraft, comme derriere
+   les pieces de l'original. Bords fondus : son fond olive ne fait pas de
+   rectangle. Les cadres deviennent translucides pour le laisser voir. */
+.kc { position: relative; isolation: isolate; }
+.kc::before { content: ""; position: absolute; z-index: -1; pointer-events: none;
+              left: 50%; top: 40px; transform: translateX(-50%);
+              width: min(760px, 100%); aspect-ratio: 280 / 351;
+              background: url("kc/kipee.png") center / contain no-repeat; opacity: .22;
+              -webkit-mask-image: radial-gradient(ellipse closest-side, #000 55%, transparent 100%);
+              mask-image: radial-gradient(ellipse closest-side, #000 55%, transparent 100%); }
+.kc section.panneau, .kc table th { background: rgba(23, 34, 38, .6); }
+.kc select, .kc input, .kc textarea, .kc button:not([aria-pressed="true"]):not(.principal) {
+  background-color: rgba(23, 34, 38, .85); }
 .kc-sous { align-items: baseline; }
 .kc-resume { margin-left: auto; font-size: .8rem; }
 .kc-attente { color: var(--clair); }
