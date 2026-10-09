@@ -39,6 +39,7 @@ const OPERATIONS = {
   projet_kcj: (d) => kc.projet_kcj(JSON.stringify(d)),
   projet_kce: (d) => kc.projet_kce(JSON.stringify(d)),
   kce_vers_page: (texte) => kc.kce_vers_page(texte),
+  assistant: (d) => kc.assistant(JSON.stringify(d)),
   evoluer: (d) => kc.evoluer(JSON.stringify(d),
     (avance) => postMessage({ avance: JSON.parse(avance) })),
   bijouter: (d) => kc.bijouter(JSON.stringify(d),

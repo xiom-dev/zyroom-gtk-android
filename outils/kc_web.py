@@ -20,6 +20,7 @@ from kipeecraft.core import audit as _audit
 from kipeecraft.core.craft import Ingredient, Recipe, craft as _craft
 from kipeecraft.core.enums import Color, Ecosystem, Grade, Origin, Part, Stat, Tier
 from kipeecraft.core.evolver import Evolver, EvolverError, Settings, build_pools
+from kipeecraft.core.wizard import Choices, Level, Sources, Wish, Wizard, WizardError
 from kipeecraft.core.jeweler import (Jeweler, JewelerError, JewelerSettings,
                                      shopping_list)
 from kipeecraft.core.materials import MaterialDatabase, type_label
@@ -356,12 +357,38 @@ def kce_vers_page(texte: str) -> str:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
     if not isinstance(p, proj.EvolverProject):
         return json.dumps({"erreur": "projet Bijouterie, pas Armurerie"}, ensure_ascii=False)
-    return json.dumps({"projet": {
+    return json.dumps({"projet": _evolver_vers_page(p)}, ensure_ascii=False)
+
+
+def _evolver_vers_page(p: proj.EvolverProject) -> dict:
+    return {
         "plan": p.pattern_id, "conditions": _conditions_vers_page(p.conditions),
         "filtres": _filtres_vers_page(p.filters), "maitre": _maitre_vers_page(p.master_filter),
         "qmin": max(0, p.min_quality), "qmax": max(0, p.max_quality),
         "couleur": p.forced_color, "ecartes": p.use_ignored, "boost": p.prefer_boost,
-    }}, ensure_ascii=False)
+    }
+
+
+def assistant(demande: str) -> str:
+    """Les trois reponses de l'assistant, traduites en formulaire complet.
+
+    C'est `core.wizard` qui traduit : priorites selon le rang, grade minimal
+    sur les deux origines, meme filtre d'origine sur chaque piece.
+    """
+    d = json.loads(demande)
+    try:
+        choix = Choices(
+            plan=plans[int(d["plan"])],
+            wishes=tuple(Wish(Stat(int(w["stat"])), Level[w.get("niveau", "MAXIMUM")])
+                         for w in d.get("souhaits", ()) if w.get("stat")),
+            min_grade=Grade(int(d.get("grade", 1))),
+            sources=Sources[d.get("sources", "ANY")],
+            prime_roots=bool(d.get("primes", True)),
+            min_quality=int(d.get("qmin", 0)) or -1)
+    except (WizardError, ValueError, KeyError) as exc:
+        return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
+    return json.dumps({"projet": _evolver_vers_page(Wizard(choix).to_project())},
+                      ensure_ascii=False)
 
 
 async def evoluer(demande: str, avancer) -> str:

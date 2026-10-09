@@ -104,8 +104,12 @@ function preparer(meta) {
   S.base.piece = S.base.piece || "blade";
   const bijoux = plansBijoux();
   S.bij = Object.assign(bijVierge(bijoux[bijoux.length - 1].id), lire("kc-bijouterie", {}));
+  S.evoMode = lire("kc-evo-mode", "formulaire");
+  S.assist = lire("kc-assistant", null);
   const evo = lire("kc-evolveur", null);
   S.evo = evo && planDe(evo.plan) ? Object.assign(evoVierge(evo.plan), evo) : evoVierge(S.recette.plan);
+  if (!S.assist) S.assist = { souhaits: [], grade: 1, sources: "ANY", primes: true };
+  ajusterAssistant();
 }
 
 function planDe(id) { return S.meta.plans.find((p) => p.id === Number(id)); }
@@ -648,7 +652,19 @@ function evoVierge(planId) {
 }
 function sauverEvo() { garder("kc-evolveur", S.evo); }
 
+// Les deux facons de regler l'Armurerie ; le choix du joueur est garde.
+function basculeEvo() {
+  return '<div class="kc-barre kc-mode">' + [["assistant", "Assistant"], ["formulaire", "Formulaire complet"]]
+    .map(([k, t]) => '<button type="button" data-kc="evo-mode" data-v="' + k + '" aria-pressed="' + (S.evoMode === k) + '">'
+      + t + "</button>").join("") + "</div>";
+}
+
 function vueEvo() {
+  if (S.evoMode === "assistant") return basculeEvo() + vueAssistant();
+  return basculeEvo() + vueFormulaire();
+}
+
+function vueFormulaire() {
   const e = S.evo;
   const plan = planDe(e.plan);
   const plans = S.meta.plans.filter((x) => x.palier === plan.palier);
@@ -684,6 +700,83 @@ function vueEvo() {
     + filtresHtml(e, "e", plan, "unités")
     + maitreHtml(e, "e")
     + "</div></div>";
+}
+
+// ------------------------------------------------------------ assistant
+//
+// Les trois questions de l'assistant de kipeecraft-py (core/wizard.py). Ses
+// reponses remplissent le formulaire complet, qui reste la pour affiner.
+
+const NIVEAUX = [["MAXIMUM", "au maximum"], ["HIGH", "élevée"], ["DECENT", "correcte"]];
+const SOURCES = [["ANY", "toutes"], ["HARVESTED", "forage seulement"], ["LOOTED", "dépouille seulement"]];
+
+// Meme amorce que wizard.suggest : les premieres caracteristiques du plan,
+// sans la durabilite, a des niveaux decroissants.
+function suggerer(plan) {
+  return plan.stats.filter((x) => x !== 1).slice(0, 3)
+    .map((x, i) => ({ stat: x, niveau: NIVEAUX[i][0] }));
+}
+function ajusterAssistant() {
+  const plan = planDe(S.evo.plan);
+  const gardes = S.assist.souhaits.filter((w) => w.stat && plan.stats.includes(w.stat));
+  S.assist.souhaits = gardes.length ? gardes : suggerer(plan);
+  while (S.assist.souhaits.length < 5) S.assist.souhaits.push({ stat: 0, niveau: "MAXIMUM" });
+  garder("kc-assistant", S.assist);
+}
+
+function vueAssistant() {
+  const e = S.evo;
+  const a = S.assist;
+  const plan = planDe(e.plan);
+  const plans = S.meta.plans.filter((x) => x.palier === plan.palier);
+  const stats = [[0, "— aucune —"], ...plan.stats.map((x) => [x, S.meta.stats[x][0]])];
+  const souhaits = a.souhaits.map((w, i) => '<div class="kc-barre"><span class="kc-rang">' + (i + 1) + "</span>"
+    + selecteur('data-a="stat" data-i="' + i + '"', stats, w.stat)
+    + selecteur('data-a="niveau" data-i="' + i + '"', NIVEAUX, w.niveau) + "</div>").join("");
+  return '<div class="kc-barre">' + boutonChercher("evo").replace('data-v="evo"', 'data-v="assist"')
+    + avanceHtml("evo") + "</div>"
+    + '<div class="kc-assistant">'
+    + '<section class="panneau"><h2>1. Que veux-tu fabriquer ?</h2><div class="kc-barre">'
+    + selecteur('data-e="palier"', S.meta.paliers, plan.palier, ' title="Palier de qualité"')
+    + selecteur('data-e="plan"', plans.map((x) => [x.id, x.intitule]), plan.id, ' title="Objet à fabriquer"')
+    + '</div><p class="faible">Le palier fixe le niveau du plan ; l\'objet fixe les pièces à remplir.</p></section>'
+    + '<section class="panneau"><h2>2. Qu\'est-ce qui compte ?</h2>'
+    + '<p class="faible">Jusqu\'à cinq caractéristiques, la plus importante en premier. Tout ce qu\'on gagne '
+    + "sur l'une se perd sur une autre : demander trois fois « au maximum » ne peut pas aboutir.</p>"
+    + souhaits + '<button type="button" data-kc="assist-proposer">Proposer selon l\'objet</button></section>'
+    + '<section class="panneau"><h2>3. Avec quelles MP ?</h2><div class="kc-barre">'
+    + "<label>Grade minimal " + selecteur('data-a="grade"', [5, 4, 3, 2, 1].map((g) => [g, S.meta.grades[g][0]]), a.grade) + "</label>"
+    + "<label>Sources " + selecteur('data-a="sources"', SOURCES, a.sources) + "</label>"
+    + '<label><input type="checkbox" data-a="primes"' + (a.primes ? " checked" : "") + "> Primes Racines</label>"
+    + "</div><div class=\"kc-barre\">"
+    + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
+    + champNombre(e, "e", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
+    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min")
+    + "</div></section></div>"
+    + vueEvoResultat()
+    + '<p class="faible">Tes réponses remplissent aussi le formulaire complet : passe dessus pour affiner.</p>';
+}
+
+async function lancerAssistant() {
+  if (S.enCours) { chercher("evo"); return; }
+  const r = await appelerJson("assistant", Object.assign({}, S.assist, { plan: S.evo.plan, qmin: S.evo.qmin }));
+  if (r.erreur) { bandeau(r.erreur, true); return; }
+  appliquerProjetEvo(r.projet);
+  chercher("evo");
+}
+
+// Un projet (fichier .kce ou assistant) dans le formulaire. Duree, variete
+// et stock du hall ne sont pas dans le projet : on garde ceux du joueur.
+function appliquerProjetEvo(p) {
+  const vierge = evoVierge(planDe(p.plan) ? p.plan : S.evo.plan);
+  S.evo = Object.assign(vierge, {
+    duree: S.evo.duree, variete: S.evo.variete, hall: S.evo.hall, tot: S.evo.tot,
+    qmin: p.qmin, qmax: p.qmax, couleur: p.couleur, ecartes: p.ecartes, boost: p.boost, maitre: p.maitre,
+    conditions: vierge.conditions.map((c, i) => p.conditions[i] ? Object.assign({}, p.conditions[i],
+      { priorite: Math.max(1, p.conditions[i].priorite) }) : c),
+    filtres: vierge.filtres.map((x, i) => p.filtres[i] || x),
+  });
+  sauverEvo();
 }
 
 function vueEvoResultat() {
@@ -948,21 +1041,16 @@ async function surClic(ev) {
   } else if (quoi === "enregistrer") {
     const plan = planDe(S.recette.plan);
     telecharger(plan.intitule + ".kc", await appeler("ecrire_kc", S.recette));
-  } else if (quoi === "chercher") chercher(b.dataset.v);
+  } else if (quoi === "chercher") { if (b.dataset.v === "assist") lancerAssistant(); else chercher(b.dataset.v); }
+  else if (quoi === "evo-mode") { S.evoMode = b.dataset.v; garder("kc-evo-mode", S.evoMode); dessiner(); }
+  else if (quoi === "assist-proposer") { S.assist.souhaits = []; ajusterAssistant(); dessiner(); }
   else if (quoi === "evo-zero") { S.evo = evoVierge(S.evo.plan); S.evoRes = null; sauverEvo(); dessiner(); }
   else if (quoi === "kce-enregistrer") telecharger("projet.kce", await appeler("projet_kce", S.evo));
   else if (quoi === "kce-ouvrir") {
     const f = await choisirFichier(".kce");
     const r = await appelerJson("kce_vers_page", f.texte);
     if (r.erreur) { bandeau(f.nom + " : " + r.erreur, true); return; }
-    const p = r.projet;
-    const vierge = evoVierge(planDe(p.plan) ? p.plan : S.evo.plan);
-    S.evo = Object.assign(vierge, {
-      qmin: p.qmin, qmax: p.qmax, couleur: p.couleur, ecartes: p.ecartes, boost: p.boost, maitre: p.maitre,
-      conditions: vierge.conditions.map((c, i) => p.conditions[i] ? Object.assign({}, p.conditions[i],
-        { priorite: Math.max(1, p.conditions[i].priorite) }) : c),
-      filtres: vierge.filtres.map((x, i) => p.filtres[i] || x),
-    });
+    appliquerProjetEvo(r.projet);
     S.evoRes = null;
     sauverEvo();
     dessiner();
@@ -1050,6 +1138,15 @@ function surChangement(ev) {
   else if (d.kf === "option") chargerFormules(S.form.plan, Number(v));
   else if (d.b) surBij(ev, t, d, v);
   else if (d.e) surEvo(ev, t, d, v);
+  else if (d.a) {
+    const x = S.assist;
+    if (d.a === "stat") x.souhaits[Number(d.i)].stat = Number(v);
+    else if (d.a === "niveau") x.souhaits[Number(d.i)].niveau = v;
+    else if (d.a === "grade") x.grade = Number(v);
+    else if (d.a === "sources") x.sources = v;
+    else if (d.a === "primes") x.primes = v;
+    garder("kc-assistant", x);
+  }
 }
 
 function surBij(ev, t, d, v) {
@@ -1076,6 +1173,7 @@ function surEvo(ev, t, d, v) {
       ? { stat: 0, priorite: 1, op: 0, valeur: 0 } : c));
     S.evoRes = null;
     sauverEvo();
+    ajusterAssistant();
     dessiner();
     return;
   }
@@ -1209,6 +1307,11 @@ tr.kc-ecarte td { opacity: .5; }
 .kc-bijou button { padding: 2px 8px; font-size: .85rem; }
 .kc-ingr { margin-left: 12px; }
 tr.kc-voulue td { color: var(--or); }
+.kc-mode button { padding: 4px 14px; }
+.kc-assistant { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1100px) { .kc-assistant { grid-template-columns: 1fr; } }
+.kc-assistant .kc-barre { margin-bottom: 6px; }
+.kc-rang { color: var(--or); font-weight: 700; width: 1.2em; }
 .kc-base td, .kc-base th { padding: 3px 6px; }
 .kc-formules { min-height: 360px; font-family: ui-monospace, monospace !important; font-size: .9rem !important; }
 `;
