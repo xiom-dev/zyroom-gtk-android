@@ -75,7 +75,9 @@ const S = {
   ecartes: new Set(lire("kc-ecartes", [])),
   choix: null,
   dernierGrade: 5,
-  bij: null, bijRes: null, bijEnCours: false, bijAvance: "",
+  bij: null, bijRes: null, evo: null, evoRes: null,
+  // Une seule recherche a la fois : le worker n'a qu'un fil.
+  enCours: "", avance: "",
   base: { piece: "", grade: 0, eco: 0, origine: 0, texte: "", hall: false, ecartes: true },
   form: null,
   audit: null, auditEnCours: false,
@@ -102,6 +104,8 @@ function preparer(meta) {
   S.base.piece = S.base.piece || "blade";
   const bijoux = plansBijoux();
   S.bij = Object.assign(bijVierge(bijoux[bijoux.length - 1].id), lire("kc-bijouterie", {}));
+  const evo = lire("kc-evolveur", null);
+  S.evo = evo && planDe(evo.plan) ? Object.assign(evoVierge(evo.plan), evo) : evoVierge(S.recette.plan);
 }
 
 function planDe(id) { return S.meta.plans.find((p) => p.id === Number(id)); }
@@ -205,12 +209,12 @@ function dessiner() {
       + "télécharge Python (une dizaine de Mo) ; ensuite il le garde.</p>";
     return;
   }
-  const onglets = [["simu", "Simulateur"], ["bij", "Bijouterie"], ["base", "Base de matériaux"],
+  const onglets = [["simu", "Simulateur"], ["evo", "Évolveur"], ["bij", "Bijouterie"], ["base", "Base de matériaux"],
                    ["form", "Formules"], ["audit", "Audit"]];
   racine.innerHTML = '<div class="onglets kc-sous">' + onglets.map(([k, t]) =>
     '<button type="button" data-kc="sous" data-v="' + k + '" aria-pressed="' + (S.sous === k) + '">'
     + t + "</button>").join("") + '<span class="faible kc-resume">' + esc(S.meta.resume) + "</span></div>"
-    + '<div id="kc-corps">' + ({ simu: vueSimu, bij: vueBij, base: vueBase, form: vueForm,
+    + '<div id="kc-corps">' + ({ simu: vueSimu, evo: vueEvo, bij: vueBij, base: vueBase, form: vueForm,
                                  audit: vueAudit }[S.sous] || vueSimu)() + "</div>";
   if (S.sous === "form" && !S.form) chargerFormules();
 }
@@ -505,19 +509,18 @@ function retirer(i, j) {
   apresChangement();
 }
 
-// ------------------------------------------------------------ bijouterie
+// ------------------------------------------------------------ formulaires de recherche
+//
+// L'Evolver et la Bijouterie partagent leurs conditions, leurs filtres par
+// piece et leur filtre general. `a` est la lettre de leurs attributs :
+// data-e pour l'un, data-b pour l'autre.
 
-function bijVierge(plan) {
-  const p = planDe(plan);
-  return {
-    plan, nombre: 10, qmin: 0, variete: 2, duree: 30, ecartes: false, tot: false, hall: false,
-    conditions: Array.from({ length: 14 }, () => ({ stat: 0, priorite: 1, op: 0, valeur: 0 })),
-    filtres: p.pieces.map(() => ({ grade: 0, ecosystem: 0, name: 0, type: 0, color: 0, origin: 0 })),
-    maitre: { fores: [], lootes: [], ecos: [] },
-    races: Array(10).fill(0),
-  };
+const OPS = [[0, ">"], [1, "="], [2, "<"]];
+const GRADES = [1, 2, 3, 4, 5];
+
+function filtresVierges(plan) {
+  return plan.pieces.map(() => ({ grade: 0, ecosystem: 0, name: 0, type: 0, color: 0, origin: 0 }));
 }
-function sauverBij() { garder("kc-bijouterie", S.bij); }
 
 function choixDePiece(piece) {
   const liste = S.meta.materiaux[piece];
@@ -525,68 +528,232 @@ function choixDePiece(piece) {
           [...new Set(liste.map((m) => m.t))].sort()];
 }
 
-function vueBij() {
-  const b = S.bij;
-  const plan = planDe(b.plan);
-  const ops = [[0, ">"], [1, "="], [2, "<"]];
-  const stats = [[0, "— aucune —"], ...S.meta.bijou.map((s) => [s, S.meta.stats[s][0]])];
-  const conditions = b.conditions.map((c, i) => "<tr><td>"
-    + '<input type="number" data-b="priorite" data-i="' + i + '" min="1" max="8" value="' + c.priorite + '" title="1 : la priorité la plus faible"></td><td>'
-    + selecteur('data-b="stat" data-i="' + i + '"', stats, c.stat) + "</td><td>"
-    + selecteur('data-b="op" data-i="' + i + '"', ops, c.op) + "</td><td>"
-    + '<input type="number" data-b="valeur" data-i="' + i + '" min="0" max="10000" step="1" value="' + c.valeur + '"></td></tr>').join("");
-  const grades = [1, 2, 3, 4, 5];
-  const cases = (cle, valeurs, libelle) => valeurs.map((v) => '<label><input type="checkbox" data-b="maitre" data-m="'
-    + cle + '" data-v="' + v + '"' + (b.maitre[cle].includes(v) ? " checked" : "") + "> " + esc(libelle(v)) + "</label>").join("");
-  const filtres = plan.pieces.map(([piece, n], i) => {
+function conditionsHtml(f, a, stats, maxi, entete) {
+  const choix = [[0, "— aucune —"], ...stats.map((x) => [x, S.meta.stats[x][0]])];
+  return '<table class="kc-conditions"><thead><tr><th>Priorité</th><th>Caractéristique</th><th></th><th>'
+    + entete + "</th></tr></thead><tbody>" + f.conditions.map((c, i) => "<tr><td>"
+    + '<input type="number" data-' + a + '="priorite" data-i="' + i + '" min="1" max="8" value="' + c.priorite + '" title="1 : la priorité la plus faible"></td><td>'
+    + selecteur("data-" + a + '="stat" data-i="' + i + '"', choix, c.stat) + "</td><td>"
+    + selecteur("data-" + a + '="op" data-i="' + i + '"', OPS, c.op) + "</td><td>"
+    + '<input type="number" data-' + a + '="valeur" data-i="' + i + '" min="0" max="' + maxi + '" step="1" value="' + c.valeur + '"></td></tr>').join("")
+    + "</tbody></table>";
+}
+
+function maitreHtml(f, a) {
+  const cases = (cle, valeurs, libelle) => valeurs.map((v) => '<label><input type="checkbox" data-' + a + '="maitre" data-m="'
+    + cle + '" data-v="' + v + '"' + (f.maitre[cle].includes(v) ? " checked" : "") + "> " + esc(libelle(v)) + "</label>").join("");
+  return '<section class="panneau"><h2>Filtre pour toutes les pièces</h2><div class="kc-maitre">'
+    + "<div><b>Foragé</b>" + cases("fores", GRADES, (g) => S.meta.grades[g][0]) + "</div>"
+    + "<div><b>Looté</b>" + cases("lootes", GRADES, (g) => S.meta.grades[g][0]) + "</div>"
+    + "<div><b>Écosystème</b>" + cases("ecos", [0, 1, 2, 3, 4, 5, 6], (e) => S.meta.ecos[e + 1][0]) + "</div>"
+    + '</div><p class="faible">Une colonne sans case cochée ne restreint rien.</p></section>';
+}
+
+function filtresHtml(f, a, plan, unite) {
+  return plan.pieces.map(([piece, n], i) => {
     const [noms_, types] = choixDePiece(piece);
-    const f = b.filtres[i] || {};
-    const liste = (cle, entrees) => selecteur('data-b="filtre" data-i="' + i + '" data-f="' + cle + '" title="' + cle + '"', entrees, f[cle] || 0);
-    return '<section class="panneau"><h2>' + esc(S.meta.pieces[piece].nom) + " — " + n + " unités par bijou</h2><div class=\"kc-filtres\">"
-      + liste("grade", [[0, "Tous grades"], ...grades.map((g) => [g, S.meta.grades[g][0]])])
-      + liste("ecosystem", [[0, "Toutes régions"], ...Object.entries(S.meta.ecos).map(([e, x]) => [e, x[0]])])
-      + liste("name", [[0, "Tous noms"], ...noms_.map((x, k) => [k + 1, x])])
-      + liste("type", [[0, "Tous types"], ...types.map((x, k) => [k + 1, (S.meta.materiaux[piece].find((m) => m.t === x) || {}).tl || x])])
-      + liste("color", [[0, "Toutes couleurs"], ...Object.entries(S.meta.couleurs).map(([c, x]) => [c, x[0]])])
+    const x = f.filtres[i] || {};
+    const liste = (cle, entrees) => selecteur("data-" + a + '="filtre" data-i="' + i + '" data-f="' + cle + '"', entrees, x[cle] || 0);
+    return '<section class="panneau"><h2>' + esc(S.meta.pieces[piece].nom) + " — " + n + " " + unite + '</h2><div class="kc-filtres">'
+      + liste("grade", [[0, "Tous grades"], ...GRADES.map((g) => [g, S.meta.grades[g][0]])])
+      + liste("ecosystem", [[0, "Toutes régions"], ...Object.entries(S.meta.ecos).map(([e, y]) => [e, y[0]])])
+      + liste("name", [[0, "Tous noms"], ...noms_.map((y, k) => [k + 1, y])])
+      + liste("type", [[0, "Tous types"], ...types.map((y, k) => [k + 1, (S.meta.materiaux[piece].find((m) => m.t === y) || {}).tl || y])])
+      + liste("color", [[0, "Toutes couleurs"], ...Object.entries(S.meta.couleurs).map(([c, y]) => [c, y[0]])])
       + liste("origin", [[0, "Foragé et looté"], [1, "Foragé"], [2, "Looté"]])
       + "</div></section>";
   }).join("");
-  const nombreChamp = (cle, texte, min, max, pas, aide) => '<label title="' + esc(aide) + '">' + texte
-    + ' <input type="number" data-b="' + cle + '" min="' + min + '" max="' + max + '" step="' + pas + '" value="' + b[cle] + '"></label>';
-  const coche = (cle, texte, aide) => '<label title="' + esc(aide || "") + '"><input type="checkbox" data-b="' + cle + '"'
-    + (b[cle] ? " checked" : "") + "> " + texte + "</label>";
+}
+
+function champNombre(f, a, cle, texte, min, max, pas, aide) {
+  return '<label title="' + esc(aide) + '">' + texte + ' <input type="number" data-' + a + '="' + cle
+    + '" min="' + min + '" max="' + max + '" step="' + pas + '" value="' + f[cle] + '"></label>';
+}
+function champCoche(f, a, cle, texte, aide) {
+  return '<label title="' + esc(aide || "") + '"><input type="checkbox" data-' + a + '="' + cle + '"'
+    + (f[cle] ? " checked" : "") + "> " + texte + "</label>";
+}
+function boutonChercher(quoi) {
+  const autre = S.enCours && S.enCours !== quoi;
+  return '<button type="button" class="principal" data-kc="chercher" data-v="' + quoi + '"'
+    + (autre ? ' disabled title="Une autre recherche tourne déjà"' : "") + ">"
+    + (S.enCours === quoi ? "Arrêter" : "Chercher") + "</button>";
+}
+function avanceHtml(quoi) {
+  return '<span class="faible" id="kc-avance">' + (S.enCours === quoi || S.dernier === quoi ? esc(S.avance) : "") + "</span>";
+}
+
+// Une saisie dans l'un des deux formulaires. Rend vrai si elle est traitee.
+function surFormulaire(f, cle, d, t, v) {
+  const n = Number(v);
+  if (["priorite", "stat", "op", "valeur"].includes(cle)) f.conditions[Number(d.i)][cle] = n;
+  else if (cle === "filtre") f.filtres[Number(d.i)][d.f] = n;
+  else if (cle === "maitre") {
+    const liste = f.maitre[d.m].filter((x) => x !== Number(d.v));
+    if (v) liste.push(Number(d.v));
+    f.maitre[d.m] = liste.sort((x, y) => x - y);
+  } else if (t.type === "checkbox") f[cle] = v;
+  else f[cle] = n;
+}
+
+// Les MP que le hall a, en qualite >= qmin, pour les pieces d'un plan.
+function permisDuHall(plan, qmin) {
+  return [...new Set(plan.pieces.flatMap(([p]) => S.meta.materiaux[p]
+    .filter((m) => auHall(m.k, qmin) > 0).map((m) => m.k)))];
+}
+
+async function chercher(quoi) {
+  if (S.enCours) {
+    if (S.enCours === quoi) { travail.postMessage({ op: "arreter" }); S.avance = "Arrêt demandé…"; majAvance(); }
+    return;
+  }
+  const f = quoi === "bij" ? S.bij : S.evo;
+  const demande = Object.assign({}, f, { liste_ecartes: [...S.ecartes] });
+  if (f.hall) demande.permis = permisDuHall(planDe(f.plan), f.qmin);
+  S.enCours = quoi;
+  S.dernier = quoi;
+  if (quoi === "bij") S.bijRes = null; else S.evoRes = null;
+  S.avance = "Recherche…";
+  dessiner();
+  surAvance = (x) => { S.avance = "génération " + x.generation + " — " + x.etat; majAvance(); };
+  let r;
+  try {
+    r = await appelerJson(quoi === "bij" ? "bijouter" : "evoluer", demande);
+    S.avance = r.erreur ? "" : "Terminé";
+  } catch (souci) {
+    r = { erreur: "La recherche a échoué : " + souci.message };
+    S.avance = "";
+  }
+  if (quoi === "bij") S.bijRes = r; else S.evoRes = r;
+  S.enCours = "";
+  surAvance = null;
+  if (S.sous === "bij" || S.sous === "evo") dessiner();
+}
+function majAvance() { const z = document.getElementById("kc-avance"); if (z) z.textContent = S.avance; }
+
+// ------------------------------------------------------------ evolveur
+
+function evoVierge(planId) {
+  return {
+    plan: planId, qmin: 0, qmax: 0, couleur: 0, variete: 0, duree: 20,
+    ecartes: false, tot: false, boost: false, hall: false,
+    conditions: Array.from({ length: 10 }, () => ({ stat: 0, priorite: 1, op: 0, valeur: 0 })),
+    filtres: filtresVierges(planDe(planId)),
+    maitre: { fores: [], lootes: [], ecos: [] },
+  };
+}
+function sauverEvo() { garder("kc-evolveur", S.evo); }
+
+function vueEvo() {
+  const e = S.evo;
+  const plan = planDe(e.plan);
+  const plans = S.meta.plans.filter((x) => x.palier === plan.palier);
+  const couleurs = [[0, "Aucune"], ...Object.entries(S.meta.couleurs).map(([c, x]) => [c, x[0]])];
+  return '<div class="kc-barre">'
+    + selecteur('data-e="palier"', S.meta.paliers, plan.palier, ' title="Palier de qualité"')
+    + selecteur('data-e="plan"', plans.map((x) => [x.id, x.intitule]), plan.id, ' title="Objet à fabriquer"')
+    + boutonChercher("evo")
+    + '<button type="button" data-kc="kce-ouvrir">Ouvrir un .kce</button>'
+    + '<button type="button" data-kc="kce-enregistrer">Télécharger le .kce</button>'
+    + '<button type="button" data-kc="evo-zero">Tout remettre à zéro</button>'
+    + avanceHtml("evo") + "</div>"
+    + '<div class="kc-bij"><div>'
+    + '<section class="panneau"><h2>Priorités (1 = la plus faible) et conditions</h2>'
+    + '<p class="faible">Sur les pourcentages de précraft, de 0 à 100 : « esquive = 100, protection &gt; 80 ».</p>'
+    + conditionsHtml(e, "e", plan.stats, 100, "Valeur")
+    + '<div class="kc-barre" style="margin-top:10px">'
+    + '<label>Couleur imposée ' + selecteur('data-e="couleur"', couleurs, e.couleur) + "</label>"
+    + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
+    + champNombre(e, "e", "qmax", "Q max", 0, 500, 5, "Qualité maximale des matériaux. 0 : sans limite.")
+    + "</div></section>"
+    + '<section class="panneau"><h2>Panneau de commande</h2><div class="kc-barre">'
+    + champNombre(e, "e", "variete", "Variété", 0, 12, 1, "Matériaux différents par pièce. 0 : sans limite.")
+    + champNombre(e, "e", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
+    + "</div><div class=\"kc-barre\">"
+    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min")
+    + champCoche(e, "e", "ecartes", "Employer les matériaux écartés")
+    + champCoche(e, "e", "boost", "Privilégier le boost", "À égalité, préférer la recette dont l'excédent est rendu plutôt que perdu")
+    + champCoche(e, "e", "tot", "S'arrêter dès que les conditions sont tenues", "Sinon la recherche va au bout du temps et continue d'enrichir la recette")
+    + "</div></section>"
+    + vueEvoResultat()
+    + "</div><div>"
+    + filtresHtml(e, "e", plan, "unités")
+    + maitreHtml(e, "e")
+    + "</div></div>";
+}
+
+function vueEvoResultat() {
+  const r = S.evoRes;
+  if (!r) return "";
+  if (r.erreur) return '<section class="panneau"><p class="inconnue">' + esc(r.erreur) + "</p></section>";
+  const plan = planDe(r.recette.plan);
+  const res = r.resultat || {};
+  const voulues = new Set(S.evo.conditions.filter((c) => c.stat).map((c) => c.stat));
+  const lignes = plan.stats.map((x) => {
+    const pc = res.precraft ? res.precraft[x] : null;
+    return '<tr class="' + (voulues.has(x) ? "kc-voulue" : "") + '"><td class="n">' + (pc != null ? nfr(pc, 2) : "")
+      + '</td><td class="n">' + (res.postcraft && res.postcraft[x] != null ? nfr(res.postcraft[x], 2) : "")
+      + "</td><td>" + esc(S.meta.stats[x][0]) + "</td></tr>";
+  }).join("");
+  const ingredients = r.recette.cases.map((c, i) => '<div class="faible">' + esc(S.meta.pieces[plan.pieces[i][0]].nom) + "</div>"
+    + c.map(([k, q]) => { const m = materiau(plan.pieces[i][0], k);
+      const hall = auHall(k, S.evo.qmin);
+      return '<div class="kc-ingr">' + q + '× <span class="' + ecoClasse(m) + '">' + esc(nomComplet(m)) + "</span> "
+        + '<span class="faible">hall</span> ' + hallHtml(k, S.evo.qmin)
+        + (hall !== null && hall < q ? ' <span class="kc-bas">manque ' + (q - hall) + "</span>" : "") + "</div>"; }).join("")).join("");
+  return '<section class="panneau"><h2>Résultat</h2><p class="kc-ligne">' + esc(r.verdict) + "</p>"
+    + '<p class="faible">' + (r.manque.length ? "Non tenu : " + r.manque.map(([x, ec]) => esc(x) + " (écart " + nfr(ec, 2) + ")").join(" · ")
+      : "Toutes les conditions sont tenues · " + r.generations + " générations") + "</p>"
+    + '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
+    + '<button type="button" data-kc="evo-kc">Télécharger le .kc</button></p>'
+    + '<div class="kc-res"><table class="kc-stats"><thead><tr><th class="n">Précraft</th><th class="n">Postcraft</th><th></th></tr></thead><tbody>'
+    + lignes + "</tbody></table><div>" + ingredients + "</div></div></section>";
+}
+
+// ------------------------------------------------------------ bijouterie
+
+function bijVierge(plan) {
+  return {
+    plan, nombre: 10, qmin: 0, variete: 2, duree: 30, ecartes: false, tot: false, hall: false,
+    conditions: Array.from({ length: 14 }, () => ({ stat: 0, priorite: 1, op: 0, valeur: 0 })),
+    filtres: filtresVierges(planDe(plan)),
+    maitre: { fores: [], lootes: [], ecos: [] },
+    races: Array(10).fill(0),
+  };
+}
+function sauverBij() { garder("kc-bijouterie", S.bij); }
+
+function vueBij() {
+  const b = S.bij;
+  const plan = planDe(b.plan);
   return '<div class="kc-barre">'
     + selecteur('data-b="plan"', plansBijoux().map((p) => [p.id, p.complet]), b.plan)
-    + '<button type="button" class="principal" data-kc="chercher">' + (S.bijEnCours ? "Arrêter" : "Chercher") + "</button>"
+    + boutonChercher("bij")
     + '<button type="button" data-kc="kcj-ouvrir">Ouvrir un .kcj</button>'
     + '<button type="button" data-kc="kcj-enregistrer">Télécharger le .kcj</button>'
     + '<button type="button" data-kc="bij-zero">Tout remettre à zéro</button>'
-    + '<span class="faible" id="kc-avance">' + esc(S.bijAvance) + "</span></div>"
+    + avanceHtml("bij") + "</div>"
     + '<div class="kc-bij"><div>'
     + '<section class="panneau"><h2>Panneau de commande</h2><div class="kc-barre">'
-    + nombreChamp("nombre", "Bijoux", 1, 10, 1, "Ryzom compte dix emplacements")
-    + nombreChamp("qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
-    + nombreChamp("variete", "Variété", 0, 12, 1, "Matériaux différents par pièce. 0 : sans limite.")
-    + nombreChamp("duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
+    + champNombre(b, "b", "nombre", "Bijoux", 1, 10, 1, "Ryzom compte dix emplacements")
+    + champNombre(b, "b", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
+    + champNombre(b, "b", "variete", "Variété", 0, 12, 1, "Matériaux différents par pièce. 0 : sans limite.")
+    + champNombre(b, "b", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
     + "</div><div class=\"kc-barre\">"
-    + coche("hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min")
-    + coche("ecartes", "Employer les matériaux écartés")
-    + coche("tot", "S'arrêter dès que les conditions sont tenues", "Sinon la recherche emploie tout son temps à les dépasser")
+    + champCoche(b, "b", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min")
+    + champCoche(b, "b", "ecartes", "Employer les matériaux écartés")
+    + champCoche(b, "b", "tot", "S'arrêter dès que les conditions sont tenues", "Sinon la recherche emploie tout son temps à les dépasser")
     + "</div><details><summary>Race de chaque bijou</summary><div class=\"kc-races\">"
     + b.races.map((r, i) => "<label>" + (i + 1) + " " + selecteur('data-b="race" data-i="' + i + '"', RACES.map((x, k) => [k, x]), r) + "</label>").join("")
     + '</div><p class="faible">Décoratives : elles ne changent aucune valeur, elles sont reportées sur la liste à fabriquer.</p></details></section>'
-    + '<section class="panneau"><h2>Filtre pour toutes les pièces</h2><div class="kc-maitre">'
-    + "<div><b>Foragé</b>" + cases("fores", grades, (g) => S.meta.grades[g][0]) + "</div>"
-    + "<div><b>Looté</b>" + cases("lootes", grades, (g) => S.meta.grades[g][0]) + "</div>"
-    + "<div><b>Écosystème</b>" + cases("ecos", [0, 1, 2, 3, 4, 5, 6], (e) => S.meta.ecos[e + 1][0]) + "</div>"
-    + '</div><p class="faible">Une colonne sans case cochée ne restreint rien.</p></section>'
+    + maitreHtml(b, "b")
     + vueBijResultat()
     + "</div><div>"
     + '<section class="panneau"><h2>Priorités (1 = la plus faible) et conditions</h2>'
     + '<p class="faible">Sur ce que la parure totalise, une fois les dix bijoux portés : un bijou apporte au plus 8 '
     + "sur une caractéristique, donc 80 pour la parure entière.</p>"
-    + '<table class="kc-conditions"><thead><tr><th>Priorité</th><th>Caractéristique</th><th></th><th>Total visé</th></tr></thead><tbody>'
-    + conditions + "</tbody></table></section>" + filtres + "</div></div>";
+    + conditionsHtml(b, "b", S.meta.bijou, 10000, "Total visé") + "</section>"
+    + filtresHtml(b, "b", plan, "unités par bijou") + "</div></div>";
 }
 
 function vueBijResultat() {
@@ -640,33 +807,6 @@ function vueBijResultat() {
     + '<h2>À récolter</h2><table class="kc-stats"><thead><tr><th class="n">Il faut</th><th>MP</th><th class="n">Hall</th><th></th></tr></thead><tbody>'
     + lignes + "</tbody></table></section>";
 }
-
-async function chercher() {
-  if (S.bijEnCours) { travail.postMessage({ op: "arreter" }); S.bijAvance = "Arrêt demandé…"; majAvance(); return; }
-  const b = S.bij;
-  const demande = Object.assign({}, b, { liste_ecartes: [...S.ecartes] });
-  if (b.hall) {
-    const plan = planDe(b.plan);
-    demande.permis = [...new Set(plan.pieces.flatMap(([p]) => S.meta.materiaux[p]
-      .filter((m) => auHall(m.k, b.qmin) > 0).map((m) => m.k)))];
-  }
-  S.bijEnCours = true;
-  S.bijRes = null;
-  S.bijAvance = "Recherche…";
-  dessiner();
-  surAvance = (a) => { S.bijAvance = "génération " + a.generation + " — " + a.etat; majAvance(); };
-  try {
-    S.bijRes = await appelerJson("bijouter", demande);
-    S.bijAvance = S.bijRes.erreur ? "" : "Terminé";
-  } catch (souci) {
-    S.bijRes = { erreur: "La recherche a échoué : " + souci.message };
-    S.bijAvance = "";
-  }
-  S.bijEnCours = false;
-  surAvance = null;
-  if (S.sous === "bij") dessiner();
-}
-function majAvance() { const z = document.getElementById("kc-avance"); if (z) z.textContent = S.bijAvance; }
 
 // ------------------------------------------------------------ base de materiaux
 
@@ -803,7 +943,34 @@ async function surClic(ev) {
   } else if (quoi === "enregistrer") {
     const plan = planDe(S.recette.plan);
     telecharger(plan.intitule + ".kc", await appeler("ecrire_kc", S.recette));
-  } else if (quoi === "chercher") chercher();
+  } else if (quoi === "chercher") chercher(b.dataset.v);
+  else if (quoi === "evo-zero") { S.evo = evoVierge(S.evo.plan); S.evoRes = null; sauverEvo(); dessiner(); }
+  else if (quoi === "kce-enregistrer") telecharger("projet.kce", await appeler("projet_kce", S.evo));
+  else if (quoi === "kce-ouvrir") {
+    const f = await choisirFichier(".kce");
+    const r = await appelerJson("kce_vers_page", f.texte);
+    if (r.erreur) { bandeau(f.nom + " : " + r.erreur, true); return; }
+    const p = r.projet;
+    const vierge = evoVierge(planDe(p.plan) ? p.plan : S.evo.plan);
+    S.evo = Object.assign(vierge, {
+      qmin: p.qmin, qmax: p.qmax, couleur: p.couleur, ecartes: p.ecartes, boost: p.boost, maitre: p.maitre,
+      conditions: vierge.conditions.map((c, i) => p.conditions[i] ? Object.assign({}, p.conditions[i],
+        { priorite: Math.max(1, p.conditions[i].priorite) }) : c),
+      filtres: vierge.filtres.map((x, i) => p.filtres[i] || x),
+    });
+    S.evoRes = null;
+    sauverEvo();
+    dessiner();
+    bandeau(f.nom + " ouvert");
+  } else if (quoi === "evo-simuler") {
+    S.recette = Object.assign({}, S.evoRes.recette);
+    S.palier = planDe(S.recette.plan).palier;
+    S.sous = "simu";
+    garder("kc-sous", S.sous);
+    sauverRecette();
+    dessiner();
+    recalculer();
+  } else if (quoi === "evo-kc") telecharger(planDe(S.evoRes.recette.plan).intitule + ".kc", S.evoRes.kc);
   else if (quoi === "bij-zero") { S.bij = bijVierge(S.bij.plan); S.bijRes = null; sauverBij(); dessiner(); }
   else if (quoi === "kcj-enregistrer") telecharger("parure.kcj", await appeler("projet_kcj", S.bij));
   else if (quoi === "kcj-ouvrir") {
@@ -877,29 +1044,38 @@ function surChangement(ev) {
   } else if (d.kf === "plan") chargerFormules(Number(v), null);
   else if (d.kf === "option") chargerFormules(S.form.plan, Number(v));
   else if (d.b) surBij(ev, t, d, v);
+  else if (d.e) surEvo(ev, t, d, v);
 }
 
 function surBij(ev, t, d, v) {
   const b = S.bij;
-  const n = Number(v);
   if (d.b === "plan") {
     // Les memes deux pieces d'un palier a l'autre : on garde le formulaire.
-    b.plan = n;
+    b.plan = Number(v);
     S.bijRes = null;
-    sauverBij();
+  } else if (d.b === "race") b.races[Number(d.i)] = Number(v);
+  else surFormulaire(b, d.b, d, t, v);
+  sauverBij();
+  if (d.b === "plan") dessiner();
+}
+
+function surEvo(ev, t, d, v) {
+  const e = S.evo;
+  if (d.e === "palier" || d.e === "plan") {
+    const plan = d.e === "plan" ? planDe(v) : S.meta.plans.find((p) => p.palier === v);
+    // Les pieces changent : leurs filtres repartent de zero. Les conditions
+    // restent, sauf celles que le nouvel objet ne porte pas.
+    e.plan = plan.id;
+    e.filtres = filtresVierges(plan);
+    e.conditions = e.conditions.map((c) => (c.stat && !plan.stats.includes(c.stat)
+      ? { stat: 0, priorite: 1, op: 0, valeur: 0 } : c));
+    S.evoRes = null;
+    sauverEvo();
     dessiner();
     return;
   }
-  if (["priorite", "stat", "op", "valeur"].includes(d.b)) b.conditions[Number(d.i)][d.b] = n;
-  else if (d.b === "filtre") b.filtres[Number(d.i)][d.f] = n;
-  else if (d.b === "race") b.races[Number(d.i)] = n;
-  else if (d.b === "maitre") {
-    const liste = b.maitre[d.m].filter((x) => x !== Number(d.v));
-    if (v) liste.push(Number(d.v));
-    b.maitre[d.m] = liste.sort((x, y) => x - y);
-  } else if (t.type === "checkbox") b[d.b] = v;
-  else b[d.b] = n;
-  sauverBij();
+  surFormulaire(e, d.e, d, t, v);
+  sauverEvo();
 }
 
 function surMenu(ev) {
@@ -1004,6 +1180,7 @@ tr.kc-ecarte td { opacity: .5; }
 .kc-bijou { margin-bottom: 10px; }
 .kc-bijou button { padding: 2px 8px; font-size: .85rem; }
 .kc-ingr { margin-left: 12px; }
+tr.kc-voulue td { color: var(--or); }
 .kc-base td, .kc-base th { padding: 3px 6px; }
 .kc-formules { min-height: 360px; font-family: ui-monospace, monospace !important; font-size: .9rem !important; }
 `;

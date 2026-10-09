@@ -19,7 +19,7 @@ from pathlib import Path
 from kipeecraft.core import audit as _audit
 from kipeecraft.core.craft import Ingredient, Recipe, craft as _craft
 from kipeecraft.core.enums import Color, Ecosystem, Grade, Origin, Part, Stat, Tier
-from kipeecraft.core.evolver import EvolverError, build_pools
+from kipeecraft.core.evolver import Evolver, EvolverError, Settings, build_pools
 from kipeecraft.core.jeweler import (Jeweler, JewelerError, JewelerSettings,
                                      shopping_list)
 from kipeecraft.core.materials import MaterialDatabase, type_label
@@ -207,20 +207,7 @@ def auditer() -> str:
 # ------------------------------------------------------------------ bijouterie
 
 def _projet(d: dict) -> proj.JewelerProject:
-    conditions = tuple(proj.Condition(
-        stat=Stat(c["stat"]) if c.get("stat") else None,
-        weight=int(c.get("priorite", 1)) if c.get("stat") else 0,
-        operator=proj.Operator(int(c.get("op", 0))),
-        value=float(c.get("valeur", 0))) for c in d.get("conditions", ()))
-    filtres = tuple(proj.MaterialFilter(**{k: int(f.get(k, 0)) for k in
-                    ("grade", "ecosystem", "name", "type", "color", "origin")})
-                    for f in d.get("filtres", ()))
-    maitre = d.get("maitre", {})
-    master = proj.MasterFilter(
-        harvested_grades=frozenset(maitre.get("fores", ())),
-        looted_grades=frozenset(maitre.get("lootes", ())),
-        ecosystems=frozenset(maitre.get("ecos", ())))
-    return proj.build_jeweler(int(d["plan"]), conditions, filtres, master,
+    return proj.build_jeweler(int(d["plan"]), _conditions(d), _filtres(d), _maitre(d),
                               min_quality=int(d.get("qmin", 0)) or -1,
                               use_ignored=bool(d.get("ecartes")),
                               jewel_races=tuple(d.get("races", ())))
@@ -235,17 +222,11 @@ def projet_vers_page(texte: str) -> str:
     if not isinstance(p, proj.JewelerProject):
         return json.dumps({"erreur": "projet Armurerie, pas Bijouterie"},
                           ensure_ascii=False)
-    m = p.master_filter
     return json.dumps({"projet": {
         "plan": p.pattern_id,
-        "conditions": [{"stat": c.stat.value if c.stat else 0, "priorite": c.weight,
-                        "op": int(c.operator), "valeur": c.value}
-                       for c in p.conditions],
-        "filtres": [{k: getattr(f, k) for k in
-                     ("grade", "ecosystem", "name", "type", "color", "origin")}
-                    for f in p.filters],
-        "maitre": {"fores": sorted(m.harvested_grades),
-                   "lootes": sorted(m.looted_grades), "ecos": sorted(m.ecosystems)},
+        "conditions": _conditions_vers_page(p.conditions),
+        "filtres": _filtres_vers_page(p.filters),
+        "maitre": _maitre_vers_page(p.master_filter),
         "qmin": max(0, p.min_quality), "ecartes": p.use_ignored,
         "races": list(p.jewel_races),
     }}, ensure_ascii=False)
@@ -260,56 +241,15 @@ def arreter() -> None:
     arret = True
 
 
-async def bijouter(demande: str, avancer) -> str:
-    """Cherche une parure, en rendant la main au navigateur regulierement.
+async def _derouler(moteur, reglages, avancer) -> None:
+    """La boucle de `run`, commune a l'Evolver et a la Bijouterie.
 
-    `Jeweler.run` est une boucle d'un seul tenant : dans un worker, elle
-    empecherait le message « arreter » d'arriver. On deroule donc ses tours
-    ici, avec un `await` toutes les 150 ms -- la boucle est la meme, seule la
-    respiration change.
+    `run` est d'un seul tenant : dans un worker, elle empecherait le message
+    « arreter » d'arriver. On deroule donc ses tours ici, avec un `await`
+    toutes les 150 ms -- la boucle est la meme, seule la respiration change.
     """
     global arret
     arret = False
-    d = json.loads(demande)
-    plan = plans[int(d["plan"])]
-    formules_ = postcraft.get(plan.id, 0)
-    if formules_ is None:
-        return json.dumps({"erreur": f"aucune formule de postcraft pour {plan.full_label}"})
-    projet = _projet(d)
-    reglages = JewelerSettings.from_project(
-        projet, plan, formules_, count=int(d.get("nombre", 10)),
-        max_distinct=int(d.get("variete", 0)),
-        time_limit=float(d.get("duree", 30)),
-        stop_when_satisfied=bool(d.get("tot")))
-    if not reglages.active_conditions:
-        return json.dumps({"erreur": "aucune condition : ajoute au moins une caractéristique"})
-    manquent = reglages.unreachable()
-    if manquent:
-        return json.dumps({"erreur": f"{plan.full_label} ne produit pas "
-                           + ", ".join(c.stat.label for c in manquent)})
-
-    ecartes = {tuple(x.split("|", 1)) for x in d.get("liste_ecartes", ())}
-    permis = set(d["permis"]) if d.get("permis") is not None else None
-    try:
-        pools = build_pools(plan, database, filters=projet.filters,
-                            master=projet.master_filter,
-                            use_ignored=projet.use_ignored,
-                            min_quality=projet.min_quality)
-        # Ce que la page ajoute : les materiaux ecartes par le joueur, et le
-        # stock du hall quand on ne veut que lui.
-        pieces = [pp.part for pp in plan.parts]
-        pools = tuple(tuple(m for m in pool
-                            if (projet.use_ignored or (part.value, m.legacy_key) not in ecartes)
-                            and (permis is None or m.legacy_key in permis))
-                      for pool, part in zip(pools, pieces))
-        if any(not pool for pool in pools):
-            raise JewelerError("aucun matériau ne passe les filtres pour "
-                               + ", ".join(p.label for p, pool in zip(pieces, pools) if not pool))
-        moteur = Jeweler(reglages, pools)
-    except (JewelerError, EvolverError) as exc:
-        return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
-
-    # Meme deroule que Jeweler.run.
     debut = time.monotonic()
     souffle = debut
     oisif = 0
@@ -339,6 +279,169 @@ async def bijouter(demande: str, avancer) -> str:
                                ensure_ascii=False))
             await asyncio.sleep(0)
 
+
+def _filtrer(pools, plan, ecartes_, permis, employer_ecartes):
+    """Ce que la page ajoute aux filtres : les materiaux ecartes par le
+    joueur, et le stock du hall quand on ne veut que lui."""
+    ecartes = {tuple(x.split("|", 1)) for x in ecartes_}
+    pieces = [pp.part for pp in plan.parts]
+    pools = tuple(tuple(m for m in pool
+                        if (employer_ecartes or (part.value, m.legacy_key) not in ecartes)
+                        and (permis is None or m.legacy_key in permis))
+                  for pool, part in zip(pools, pieces))
+    vides = [p.label for p, pool in zip(pieces, pools) if not pool]
+    if vides:
+        raise EvolverError("aucun matériau ne passe les filtres pour " + ", ".join(vides))
+    return pools
+
+
+def _conditions(d: dict):
+    return tuple(proj.Condition(
+        stat=Stat(c["stat"]) if c.get("stat") else None,
+        weight=int(c.get("priorite", 1)) if c.get("stat") else 0,
+        operator=proj.Operator(int(c.get("op", 0))),
+        value=float(c.get("valeur", 0))) for c in d.get("conditions", ()))
+
+
+def _filtres(d: dict):
+    return tuple(proj.MaterialFilter(**{k: int(f.get(k, 0)) for k in
+                 ("grade", "ecosystem", "name", "type", "color", "origin")})
+                 for f in d.get("filtres", ()))
+
+
+def _maitre(d: dict):
+    maitre = d.get("maitre", {})
+    return proj.MasterFilter(
+        harvested_grades=frozenset(maitre.get("fores", ())),
+        looted_grades=frozenset(maitre.get("lootes", ())),
+        ecosystems=frozenset(maitre.get("ecos", ())))
+
+
+def _maitre_vers_page(m) -> dict:
+    return {"fores": sorted(m.harvested_grades), "lootes": sorted(m.looted_grades),
+            "ecos": sorted(m.ecosystems)}
+
+
+def _filtres_vers_page(filtres) -> list:
+    return [{k: getattr(f, k) for k in
+             ("grade", "ecosystem", "name", "type", "color", "origin")} for f in filtres]
+
+
+def _conditions_vers_page(conditions) -> list:
+    return [{"stat": c.stat.value if c.stat else 0, "priorite": c.weight,
+             "op": int(c.operator), "valeur": c.value} for c in conditions]
+
+
+# ------------------------------------------------------------------ evolver
+
+def _projet_evolver(d: dict) -> proj.EvolverProject:
+    p = proj.build_evolver(int(d["plan"]), _conditions(d), _filtres(d), _maitre(d),
+                           min_quality=int(d.get("qmin", 0)) or -1,
+                           max_quality=int(d.get("qmax", 0)) or -1,
+                           forced_color=int(d.get("couleur", 0)),
+                           use_ignored=bool(d.get("ecartes")))
+    # build_evolver ne l'ecrit pas ; la cle est celle de l'original.
+    p.raw["CB_force_boost"] = str(int(bool(d.get("boost"))))
+    return p
+
+
+def projet_kce(demande: str) -> str:
+    return proj.dumps(_projet_evolver(json.loads(demande)))
+
+
+def kce_vers_page(texte: str) -> str:
+    try:
+        p = proj.loads(texte)
+    except proj.ProjectError as exc:
+        return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
+    if not isinstance(p, proj.EvolverProject):
+        return json.dumps({"erreur": "projet Bijouterie, pas Évolveur"}, ensure_ascii=False)
+    return json.dumps({"projet": {
+        "plan": p.pattern_id, "conditions": _conditions_vers_page(p.conditions),
+        "filtres": _filtres_vers_page(p.filters), "maitre": _maitre_vers_page(p.master_filter),
+        "qmin": max(0, p.min_quality), "qmax": max(0, p.max_quality),
+        "couleur": p.forced_color, "ecartes": p.use_ignored, "boost": p.prefer_boost,
+    }}, ensure_ascii=False)
+
+
+async def evoluer(demande: str, avancer) -> str:
+    """Cherche une recette qui tient les conditions (pourcentages de precraft)."""
+    d = json.loads(demande)
+    plan = plans[int(d["plan"])]
+    projet = _projet_evolver(d)
+    reglages = Settings.from_project(
+        projet, plan, max_distinct=int(d.get("variete", 0)),
+        time_limit=float(d.get("duree", 20)), stop_when_satisfied=bool(d.get("tot")))
+    if not reglages.active_conditions:
+        return json.dumps({"erreur": "aucune condition : ajoute au moins une caractéristique"})
+    manquent = reglages.unreachable()
+    if manquent:
+        return json.dumps({"erreur": f"{plan.full_label} ne porte pas "
+                           + ", ".join(c.stat.label for c in manquent)}, ensure_ascii=False)
+    try:
+        pools = build_pools(plan, database, filters=projet.filters,
+                            master=projet.master_filter, use_ignored=projet.use_ignored,
+                            min_quality=projet.min_quality, max_quality=projet.max_quality)
+        pools = _filtrer(pools, plan, d.get("liste_ecartes", ()),
+                         set(d["permis"]) if d.get("permis") is not None else None,
+                         projet.use_ignored)
+        moteur = Evolver(reglages, pools)
+    except EvolverError as exc:
+        return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
+
+    await _derouler(moteur, reglages, avancer)
+    solution = moteur.best
+    if solution is None:
+        return json.dumps({"erreur": "aucune recette trouvée"})
+    recette = solution.recipe
+    recette.comment = "Créée par l'Évolveur"
+    try:
+        r = _craft(recette, postcraft.get(plan.id, recette.option))
+    except PostcraftError:
+        r = _craft(recette, None)
+    return json.dumps({
+        "verdict": solution.score.describe(),
+        "manque": [[c.stat.label, ecart] for c, ecart in solution.unmet(projet.conditions)],
+        "generations": solution.generation,
+        "recette": _vers_page(recette),
+        "resultat": {"precraft": _nombres(r.precraft), "postcraft": _nombres(r.postcraft)},
+        "kc": kc.dumps(recette),
+    }, ensure_ascii=False)
+
+
+async def bijouter(demande: str, avancer) -> str:
+    """Cherche une parure dont les totaux tiennent les conditions."""
+    d = json.loads(demande)
+    plan = plans[int(d["plan"])]
+    formules_ = postcraft.get(plan.id, 0)
+    if formules_ is None:
+        return json.dumps({"erreur": f"aucune formule de postcraft pour {plan.full_label}"})
+    projet = _projet(d)
+    reglages = JewelerSettings.from_project(
+        projet, plan, formules_, count=int(d.get("nombre", 10)),
+        max_distinct=int(d.get("variete", 0)),
+        time_limit=float(d.get("duree", 30)),
+        stop_when_satisfied=bool(d.get("tot")))
+    if not reglages.active_conditions:
+        return json.dumps({"erreur": "aucune condition : ajoute au moins une caractéristique"})
+    manquent = reglages.unreachable()
+    if manquent:
+        return json.dumps({"erreur": f"{plan.full_label} ne produit pas "
+                           + ", ".join(c.stat.label for c in manquent)})
+
+    try:
+        pools = build_pools(plan, database, filters=projet.filters,
+                            master=projet.master_filter,
+                            use_ignored=projet.use_ignored,
+                            min_quality=projet.min_quality)
+        pools = _filtrer(pools, plan, d.get("liste_ecartes", ()),
+                         set(d["permis"]) if d.get("permis") is not None else None,
+                         projet.use_ignored)
+        moteur = Jeweler(reglages, pools)
+    except (JewelerError, EvolverError) as exc:
+        return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
+
+    await _derouler(moteur, reglages, avancer)
     parure = moteur.best
     if parure is None:
         return json.dumps({"erreur": "aucune parure trouvée"})
