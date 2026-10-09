@@ -533,6 +533,7 @@ fun InventoryScreen(
                         nameOf = { repository.nameOf(it.sheet) },
                         normalise = ::normalise,
                         filtres = filtres,
+                        autreNom = { repository.nomAnglais(it.sheet) },
                     )
                     val items = parContenant.flatMap { it.second }
                     OutlinedTextField(

@@ -55,6 +55,22 @@ class Repository(
 
     fun nameOf(sheet: String): String = names.nameOf(sheet)
 
+    /** Fiche -> nom anglais des MP, tiré de KipeeCraft (outils/page-mp.py). */
+    private var anglais: Map<String, String> = emptyMap()
+
+    suspend fun loadAnglais(bundled: () -> InputStream?) =
+        withContext(Dispatchers.IO) {
+            anglais = runCatching {
+                bundled()?.use { flux ->
+                    val json = org.json.JSONObject(flux.readBytes().decodeToString())
+                    json.keys().asSequence().associateWith { json.getString(it) }
+                }
+            }.getOrNull() ?: emptyMap()
+        }
+
+    /** Le nom anglais d'une MP, ou une chaîne vide pour tout autre objet. */
+    fun nomAnglais(sheet: String): String = anglais[sheet] ?: ""
+
     private fun fileFor(entry: EntityStore.Suivie) =
         File(cacheDir, "${entry.kind.name.lowercase()}-${entry.id}.xml")
 

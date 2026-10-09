@@ -97,6 +97,26 @@ def _parse_pack(data: bytes) -> dict[str, str]:
     return out
 
 
+#: Le nom anglais des MP, tiré de KipeeCraft par outils/page-mp.py : la
+#: recherche le prend aussi, des joueurs retenant mieux « Smart Shell » que
+#: « carapace Intelligente ». Le pack du jeu n'existe qu'en une langue.
+_NOMS_ANGLAIS = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "data", "noms-anglais.json")
+_anglais: dict[str, str] | None = None
+
+
+def nom_anglais(sheet: str) -> str:
+    """Le nom anglais d'une MP, ou une chaîne vide pour tout autre objet."""
+    global _anglais
+    if _anglais is None:
+        try:
+            with open(_NOMS_ANGLAIS, "r", encoding="utf-8") as fh:
+                _anglais = json.load(fh)
+        except (OSError, ValueError):
+            _anglais = {}
+    return _anglais.get(sheet, "")
+
+
 class NameDb:
     """Table fiche -> nom lisible. Vide tant qu'aucun pack n'est chargé."""
 

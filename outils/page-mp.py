@@ -205,16 +205,21 @@ def lire_recette(chemin: str) -> dict | None:
 #: Ce qui a ete decide pour une recette precise et que le `.kc` ne dit pas.
 #: Le site, lui, garde ces reglages dans son `mp.json` ; ceci n'est que le
 #: point de depart.
-MINIMUMS_DE_DEPART = {
-    # La Sha doit etre en 250 pour donner le bonus (Ludo, 9 octobre 2026).
-    "parrure-210-xlsup-pvp-matis": {"Supreme_PrimeRoots_Sha_Amber": 250},
+RECETTES_REGLEES = {
+    # Craftee en 210 (ses stats sont meilleures ainsi), mais la Sha doit etre
+    # en 250 pour donner le bonus (Ludo, 9 octobre 2026).
+    "parrure-210-xlsup-pvp-matis": {
+        "qualite": 210,
+        "minimums": {"Supreme_PrimeRoots_Sha_Amber": 250},
+    },
 }
 
 
 #: Decides avec Ludo le 9 octobre 2026 : dix crafts par recette, craft en
-#: qualite 210, "stop forage" au-dela de trois fois le besoin, "bientot en
-#: rupture" sous trois crafts. La guilde est La Lune Eternelle.
-REGLAGES_DE_DEPART = {"objectif": 10, "qualite": 210, "stop": 3, "rupture": 3,
+#: qualite 250, "ne plus forer" au-dela de cinquante fois le besoin (des MP
+#: a ecouler, voire a supprimer), "bientot en rupture" sous trois crafts. La
+#: guilde est La Lune Eternelle.
+REGLAGES_DE_DEPART = {"objectif": 10, "qualite": 250, "stop": 50, "rupture": 3,
                       "guilde": 105906237}
 
 
@@ -230,7 +235,7 @@ def recettes_de_depart() -> list[dict]:
         if recette["id"] in vus:
             raise SystemExit(f"Deux recettes donnent l'identifiant {recette['id']}")
         vus.add(recette["id"])
-        recette["minimums"] = MINIMUMS_DE_DEPART.get(recette["id"], {})
+        recette.update(RECETTES_REGLEES.get(recette["id"], {}))
         recettes.append(recette)
     return recettes
 
@@ -282,10 +287,61 @@ def ecrire(nom: str, donnees) -> None:
         fh.write("\n")
 
 
+#: La table des noms anglais des MP, pour la recherche des applications :
+#: les joueurs retiennent parfois mieux « Smart Shell » que « carapace
+#: Intelligente » (Ludo, 9 octobre 2026). GTK la porte dans ses donnees, Qt la
+#: recopie avec elles, Android dans ses assets.
+NOMS_ANGLAIS = [
+    os.path.join(RACINE, "zyroom-gtk", "zyroom", "data", "noms-anglais.json"),
+    os.path.join(RACINE, "zyroom-android", "app", "src", "main", "assets",
+                 "noms-anglais.json"),
+]
+
+
+def noms_anglais(table: dict) -> dict[str, str]:
+    """Fiche du jeu -> nom anglais, tire des noms KipeeCraft.
+
+    "Supreme_PrimeRoots_Smart_Shell" donne "Smart Shell Supreme Prime Roots" :
+    la matiere et le type d'abord, la sorte et l'ecosysteme ensuite.
+
+    KipeeCraft ne connait pas toutes les variantes (la carapace Intelligente
+    supreme du Desert lui manque, par exemple). Le nom se retient donc par
+    matiere -- "m0123dxa" -> "Smart Shell" -- puis se pose sur toutes les
+    fiches du jeu de cette matiere, la sorte et l'ecosysteme lus dans les
+    deux lettres qui suivent.
+    """
+    matieres = {}
+    for cle, entree in table.items():
+        _sorte, _eco, matiere, type_ = cle.split("_")
+        for fiche in entree.get("fiches", []):
+            matieres.setdefault(fiche[:8], f"{matiere} {type_}")
+    lettres_eco = {v: re.sub(r"(?<=[a-z])(?=[A-Z])", " ", k)
+                   for k, v in ECOSYSTEMES.items() if k != "none"}
+    sortie = {}
+    for fiche in lire_noms_du_jeu():
+        if not re.match(r"m\d{4}[a-z]{3}[a-z]{2}01\.sitem$", fiche):
+            continue
+        matiere = matieres.get(fiche[:8])
+        if not matiere:
+            continue
+        grades = GRADES_FORAGE if fiche[5:8] == "dxa" else GRADES_CHASSE
+        sorte = {v: k for k, v in grades.items()}.get(fiche[9], "")
+        eco = lettres_eco.get(fiche[8], "")
+        sortie[fiche] = " ".join(x for x in (matiere, sorte, eco) if x)
+    return dict(sorted(sortie.items()))
+
+
 def main() -> int:
     table, manquent = table_des_noms()
     ecrire("noms.json", {"mp": table, "plans": intitules_des_plans()})
     print(f"→ noms.json : {len(table)} MP ({len(manquent)} sans fiche dans le jeu)")
+    anglais = noms_anglais(table)
+    for chemin in NOMS_ANGLAIS:
+        with open(chemin, "w", encoding="utf-8") as fh:
+            json.dump(anglais, fh, ensure_ascii=False, separators=(",", ":"))
+            fh.write("\n")
+        os.chmod(chemin, 0o644)
+    print(f"→ noms-anglais.json : {len(anglais)} fiches (GTK et Android)")
 
     recettes = recettes_de_depart()
     inconnues = sorted({p["mp"] for r in recettes for p in r["pieces"]

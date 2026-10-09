@@ -58,7 +58,7 @@ from .jauge import PLEIN, Jauge
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
                      categorie_item, decouper_recherche,
                      ItemInfo, ItemType)
-from .namedb import NameDb
+from .namedb import NameDb, nom_anglais
 from .options import FenetreOptions
 from .page_alertes import DialogueSurveillance, FenetreAlertes
 from .page_betes import PageBetes
@@ -2821,7 +2821,9 @@ class FenetrePrincipale(QMainWindow):
             # La cle de recherche est calculee une fois, a la creation : la
             # recalculer a chaque frappe ferait ramer un coffre de deux cents.
             nom = self._names.name(objet.sheet)
-            cle = _norm(f"{nom} {objet.sheet}")
+            # Le nom anglais aussi, pour les MP : « smart » trouve la
+            # carapace Intelligente.
+            cle = _norm(f"{nom} {objet.sheet} {nom_anglais(objet.sheet)}")
             self._cases.append((case, objet, cle, categorie_item(objet, nom)))
             self._icones_en_vol += 1
             self._attendre(True)

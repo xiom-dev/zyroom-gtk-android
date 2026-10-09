@@ -159,6 +159,9 @@ fun chercheDansTout(
     nameOf: (Item) -> String,
     normalise: (String) -> String,
     filtres: Filtres = Filtres(),
+    // Le nom anglais d'une MP, que la recherche prend aussi : des joueurs
+    // retiennent mieux « Smart Shell » que « carapace Intelligente ».
+    autreNom: (Item) -> String = { "" },
 ): List<Pair<String, List<Item>>> {
     if (inventaires.isEmpty()) return emptyList()
     val cherche = normalise(recherche.trim())
@@ -174,7 +177,8 @@ fun chercheDansTout(
     return inventaires.mapNotNull { inventaire ->
         val trouves = inventaire.items.filter {
             filtres.passe(it) &&
-                (cherche in normalise(nameOf(it)) || cherche in normalise(it.sheet))
+                (cherche in normalise(nameOf(it)) || cherche in normalise(it.sheet) ||
+                    cherche in normalise(autreNom(it)))
         }
         if (trouves.isEmpty()) null
         else inventaire.label to sortItems(trouves, order, nameOf)

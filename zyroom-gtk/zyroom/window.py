@@ -38,7 +38,7 @@ from .page_skills import PageSkills
 from .page_alertes import PageAlertes
 from .icons import IconLoader
 from .options import OptionsWindow
-from .namedb import NameDb
+from .namedb import NameDb, nom_anglais
 from .models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, TYPE_NAMES,
                      categorie_item, decouper_recherche,
                      ItemInfo, ItemType)
@@ -1972,7 +1972,9 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
                 child.set_child(pile)
             flow.append(child)
             nom = self._names.name(item.sheet)
-            search_key = _norm(f"{nom} {item.sheet}")
+            # Le nom anglais aussi, pour les MP : « smart » trouve la
+            # carapace Intelligente.
+            search_key = _norm(f"{nom} {item.sheet} {nom_anglais(item.sheet)}")
             self._rows.append((child, item, search_key,
                                categorie_item(item, nom)))
 

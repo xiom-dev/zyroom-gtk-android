@@ -52,6 +52,9 @@ class MainActivity : ComponentActivity() {
             repository.loadNames(File(filesDir, PACK_NAME)) {
                 runCatching { assets.open(PACK_NAME) }.getOrNull()
             }
+            repository.loadAnglais {
+                runCatching { assets.open("noms-anglais.json") }.getOrNull()
+            }
         }
 
         setContent {

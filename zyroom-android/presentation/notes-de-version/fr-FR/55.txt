@@ -1,0 +1,2 @@
+* La recherche de l'inventaire comprend aussi le nom anglais des matières
+  premières : « smart » trouve la carapace Intelligente.
