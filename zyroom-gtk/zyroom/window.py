@@ -528,19 +528,17 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         reset.connect("clicked", self._on_reset_filter)
         bar2.append(reset)
 
-        # Grille d'items
-        self._flow = Gtk.FlowBox()
-        self._flow.set_valign(Gtk.Align.START)
-        self._flow.set_selection_mode(Gtk.SelectionMode.NONE)
-        self._flow.set_max_children_per_line(64)
-        self._flow.set_column_spacing(4)
-        self._flow.set_row_spacing(4)
-        self._pad(self._flow)
+        # Grille d'items : une seule d'ordinaire, celle du contenant choisi ;
+        # une par contenant pendant une recherche, chacune sous son titre.
+        self._colonne = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self._colonne.set_valign(Gtk.Align.START)
+        self._flow = self._nouvelle_grille()
+        self._colonne.append(self._flow)
 
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.set_vexpand(True)
-        scrolled.set_child(self._flow)
+        scrolled.set_child(self._colonne)
         inv_page.append(scrolled)
 
         # Onglet « Journal » + bascule dans la barre de titre.
@@ -1897,6 +1895,16 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         if idx != Gtk.INVALID_LIST_POSITION:
             self._display_inventory(idx)
 
+    def _nouvelle_grille(self) -> Gtk.FlowBox:
+        flow = Gtk.FlowBox()
+        flow.set_valign(Gtk.Align.START)
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_max_children_per_line(64)
+        flow.set_column_spacing(4)
+        flow.set_row_spacing(4)
+        self._pad(flow)
+        return flow
+
     def _display_inventory(self, index: int) -> None:
         ent = self._entity
         if not ent or not (0 <= index < len(ent.inventories)):
@@ -1909,7 +1917,34 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         gen = self._generation
         self._clear_flow()
         self._rows = []
+        self._sections = []
+        # Une recherche en cours cherche dans tous les contenants a la fois
+        # (demande de Ludo) : sinon, seul celui du menu.
+        if self._search.get_text().strip():
+            for rang, contenant in enumerate(ent.inventories):
+                titre = Gtk.Label(xalign=0.0)
+                titre.add_css_class("heading")
+                titre.set_margin_start(8)
+                titre.set_margin_top(4 if rang == 0 else 12)
+                flow = self._nouvelle_grille()
+                self._colonne.append(titre)
+                self._colonne.append(flow)
+                debut = len(self._rows)
+                self._remplir_grille(flow, contenant, gen)
+                self._sections.append(
+                    (titre, flow, self._sans_parenthese(contenant.label),
+                     debut, len(self._rows)))
+            self._tous_les_contenants = True
+        else:
+            self._flow = self._nouvelle_grille()
+            self._colonne.append(self._flow)
+            self._remplir_grille(self._flow, inv, gen)
+            self._tous_les_contenants = False
 
+        self._maj_categories()
+        self._apply_filter()
+
+    def _remplir_grille(self, flow: Gtk.FlowBox, inv, gen: int) -> None:
         for item in self._sorted(inv.items):
             image = Gtk.Image.new_from_icon_name("image-x-generic-symbolic")
             image.set_pixel_size(self._settings.icon_size)
@@ -1935,7 +1970,7 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
                 if sort:
                     pile.add_overlay(self._icone_sort(gen, sort))
                 child.set_child(pile)
-            self._flow.append(child)
+            flow.append(child)
             nom = self._names.name(item.sheet)
             search_key = _norm(f"{nom} {item.sheet}")
             self._rows.append((child, item, search_key,
@@ -1952,9 +1987,6 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             dclick.set_button(Gdk.BUTTON_PRIMARY)     # double-clic gauche
             dclick.connect("released", self._on_item_activate, item)
             image.add_controller(dclick)
-
-        self._maj_categories()
-        self._apply_filter()
 
     def _maj_categories(self) -> None:
         """Refait la liste du filtre par type avec ce que l'inventaire contient.
@@ -2089,10 +2121,10 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         return boite
 
     def _clear_flow(self) -> None:
-        child = self._flow.get_first_child()
+        child = self._colonne.get_first_child()
         while child is not None:
             nxt = child.get_next_sibling()
-            self._flow.remove(child)
+            self._colonne.remove(child)
             child = nxt
 
     def _update_volume_gauge(self, inv) -> None:
@@ -2208,6 +2240,14 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         self._apply_filter()
 
     def _apply_filter(self) -> None:
+        # Entrer dans une recherche, ou en sortir, change ce qui est affiche :
+        # tous les contenants, ou celui du menu seulement.
+        cherche = bool(self._search.get_text().strip())
+        if cherche != getattr(self, "_tous_les_contenants", False):
+            idx = self._inv_dd.get_selected()
+            if idx != Gtk.INVALID_LIST_POSITION and self._entity:
+                self._display_inventory(idx)    # rappelle ce filtre
+                return
         # Un nombre isole dans la recherche vaut une qualite : « oeil 220 »
         # trouve les yeux de 220 sans passer par les bornes du menu.
         needle, qualites = decouper_recherche(_norm(self._search.get_text()))
@@ -2247,6 +2287,14 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             child.set_visible(ok)
             if ok:
                 visible += 1
+
+        # Pendant une recherche : un titre par contenant qui a un resultat,
+        # avec leur nombre ; les contenants sans resultat disparaissent.
+        for titre, flow, nom, debut, fin in getattr(self, "_sections", []):
+            trouves = sum(1 for c, *_r in self._rows[debut:fin] if c.get_visible())
+            titre.set_label(f"{nom} — {trouves} " + _("résultat(s)"))
+            titre.set_visible(trouves > 0)
+            flow.set_visible(trouves > 0)
 
         self._update_status()
 

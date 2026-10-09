@@ -1079,7 +1079,20 @@ class FenetrePrincipale(QMainWindow):
         # cette largeur a la grille ; la derniere vignette, centree dans sa
         # cellule, s'arrete avant l'ascenseur sans passer dessous.
         self._grille.setViewportMargins(*self._marges_grille())
-        colonne.addWidget(self._grille, 1)
+        # Pendant une recherche, la grille cede la place a une grille par
+        # contenant, chacune sous son titre -- comme dans la version GTK.
+        self._pile_grilles = QStackedWidget()
+        self._pile_grilles.addWidget(self._grille)
+        self._zone_sections = QScrollArea()
+        self._zone_sections.setWidgetResizable(True)
+        self._zone_sections.setFrameShape(QFrame.Shape.NoFrame)
+        self._zone_sections.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._zone_sections.viewport().installEventFilter(self)
+        self._pile_grilles.addWidget(self._zone_sections)
+        self._sections: list = []
+        self._tous_les_contenants = False
+        colonne.addWidget(self._pile_grilles, 1)
         return page
 
     def _page_bonus(self) -> QWidget:
@@ -1693,6 +1706,9 @@ class FenetrePrincipale(QMainWindow):
         if (evenement.type() == QEvent.Type.Resize
                 and objet is self._grille.viewport()):
             self._caler_grille()
+        if (evenement.type() == QEvent.Type.Resize
+                and objet is self._zone_sections.viewport()):
+            self._caler_sections()
         return super().eventFilter(objet, evenement)
 
     def _recaler_largeurs(self) -> None:
@@ -1777,6 +1793,9 @@ class FenetrePrincipale(QMainWindow):
         self._grille.setIconSize(QSize(taille, taille))
         self._grille.setViewportMargins(*self._marges_grille())
         self._caler_grille()
+        for _titre, liste, *_reste in self._sections:
+            liste.setIconSize(QSize(taille, taille))
+        self._caler_sections()
         # Le journal et les ecrans de "Bonus" suivent : les boutons de zoom
         # valent pour toutes les icones, pas seulement pour l'inventaire.
         cote = self._settings.icone(PART_ICONE_JOURNAL)
@@ -2153,6 +2172,14 @@ class FenetrePrincipale(QMainWindow):
         self._appliquer_filtre()
 
     def _appliquer_filtre(self) -> None:
+        # Entrer dans une recherche, ou en sortir, change ce qui est affiche :
+        # tous les contenants, ou celui du menu seulement.
+        cherche = bool(self._recherche.text().strip())
+        if cherche != self._tous_les_contenants and self._entite:
+            rang = self._dd_inv.currentIndex()
+            if rang >= 0:
+                self._afficher_contenant(rang)    # rappelle ce filtre
+                return
         # Un nombre isole dans la recherche vaut une qualite : « oeil 220 »
         # trouve les yeux de 220 sans passer par les bornes du menu.
         motif, qualites = decouper_recherche(_norm(self._recherche.text()))
@@ -2188,6 +2215,14 @@ class FenetrePrincipale(QMainWindow):
             elif en_vente and objet.expires <= 0:
                 ok = False
             case.setHidden(not ok)
+        # Pendant une recherche : un titre par contenant qui a un resultat,
+        # avec leur nombre ; les contenants sans resultat disparaissent.
+        for titre, liste, nom, debut, fin in self._sections:
+            trouves = sum(1 for c, *_r in self._cases[debut:fin] if not c.isHidden())
+            titre.setText(f"{nom} — {trouves} " + _("résultat(s)"))
+            titre.setVisible(trouves > 0)
+            liste.setVisible(trouves > 0)
+        self._caler_sections()
         self._maj_statut()
 
     def _maj_categories(self) -> None:
@@ -2650,6 +2685,7 @@ class FenetrePrincipale(QMainWindow):
         else:
             self._grille.clear()
             self._cases = []
+            self._vider_sections()
             self._jauge.setVisible(False)
             self._lbl_volume.clear()
 
@@ -2686,14 +2722,102 @@ class FenetrePrincipale(QMainWindow):
         generation = self._generation
         self._grille.clear()
         self._cases = []
+        self._vider_sections()
 
+        # Une recherche en cours cherche dans tous les contenants a la fois
+        # (demande de Ludo) : sinon, seul celui du menu.
+        if self._recherche.text().strip():
+            disposition = self._zone_sections.widget().layout()
+            for numero, contenant in enumerate(ent.inventories):
+                titre = QLabel()
+                titre.setStyleSheet("font-weight: bold;")
+                titre.setContentsMargins(theme.px(8),
+                                         theme.px(4 if numero == 0 else 12),
+                                         0, 0)
+                liste = self._nouvelle_liste()
+                disposition.insertWidget(disposition.count() - 1, titre)
+                disposition.insertWidget(disposition.count() - 1, liste)
+                debut = len(self._cases)
+                self._remplir_liste(liste, contenant, generation)
+                self._sections.append(
+                    (titre, liste, movements.sans_parenthese(contenant.label),
+                     debut, len(self._cases)))
+            self._tous_les_contenants = True
+            self._pile_grilles.setCurrentWidget(self._zone_sections)
+        else:
+            self._remplir_liste(self._grille, inv, generation)
+            self._tous_les_contenants = False
+            self._pile_grilles.setCurrentWidget(self._grille)
+
+        self._maj_categories()
+        self._appliquer_filtre()
+
+    def _vider_sections(self) -> None:
+        """Retire les grilles par contenant d'une recherche precedente."""
+        self._sections = []
+        ancien = self._zone_sections.widget()
+        if ancien is not None:
+            ancien.deleteLater()
+        support = QWidget()
+        disposition = QVBoxLayout(support)
+        disposition.setContentsMargins(0, 0, 0, 0)
+        disposition.setSpacing(0)
+        disposition.addStretch(1)
+        self._zone_sections.setWidget(support)
+
+    def _nouvelle_liste(self) -> QListWidget:
+        """Une grille d'objets comme la principale, mais sans ascenseur :
+        c'est la zone des sections qui defile, d'un seul tenant."""
+        liste = QListWidget()
+        liste.setViewMode(QListWidget.ViewMode.IconMode)
+        taille = self._settings.icon_size
+        liste.setIconSize(QSize(taille, taille))
+        liste.setGridSize(self._grille.gridSize())
+        liste.setResizeMode(QListWidget.ResizeMode.Adjust)
+        liste.setMovement(QListWidget.Movement.Static)
+        liste.setUniformItemSizes(True)
+        liste.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        liste.setFrameShape(QFrame.Shape.NoFrame)
+        liste.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        liste.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        liste.setViewportMargins(theme.px(11), theme.px(4), 0, theme.px(4))
+        liste.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        liste.customContextMenuRequested.connect(
+            lambda position, l=liste: self._menu_objet(position, l))
+        liste.itemDoubleClicked.connect(
+            lambda case: self._afficher_details(self._objet_de(case)))
+        return liste
+
+    def _caler_sections(self) -> None:
+        """Le pas des colonnes et la hauteur de chaque grille de section.
+
+        Une grille sans ascenseur doit avoir la hauteur de ses rangees : Qt
+        ne la deduit pas de son contenu.
+        """
+        if not self._sections:
+            return
+        taille = self._settings.icon_size
+        pas_mini = taille + theme.px(11)
+        large = self._zone_sections.viewport().width() - theme.px(11)
+        if large <= 0:
+            return
+        colonnes = max(1, large // pas_mini)
+        pas = max(pas_mini, large // colonnes)
+        for _titre, liste, _nom, debut, fin in self._sections:
+            if liste.gridSize() != QSize(pas, pas_mini):
+                liste.setGridSize(QSize(pas, pas_mini))
+            vus = sum(1 for c, *_r in self._cases[debut:fin] if not c.isHidden())
+            rangees = -(-vus // colonnes)
+            liste.setFixedHeight(rangees * pas_mini + theme.px(8))
+
+    def _remplir_liste(self, liste: QListWidget, inv, generation: int) -> None:
         generique = self.style().standardIcon(
             self.style().StandardPixmap.SP_FileIcon)
         for objet in self._trie(inv.items):
             case = QListWidgetItem(generique, "")
             case.setToolTip(self._infobulle(objet))
             case.setData(_ROLE_OBJET, objet)
-            self._grille.addItem(case)
+            liste.addItem(case)
             # La cle de recherche est calculee une fois, a la creation : la
             # recalculer a chaque frappe ferait ramer un coffre de deux cents.
             nom = self._names.name(objet.sheet)
@@ -2703,9 +2827,6 @@ class FenetrePrincipale(QMainWindow):
             self._attendre(True)
             self._icones.demander(objet,
                                   self._rappel_icone(generation, case, objet))
-
-        self._maj_categories()
-        self._appliquer_filtre()
 
     def _rappel_icone(self, generation: int, case: QListWidgetItem, objet):
         """Le retour d'une icône : elle se pose, et l'attente diminue d'autant.
@@ -2956,13 +3077,14 @@ class FenetrePrincipale(QMainWindow):
     def _objet_de(case: QListWidgetItem):
         return case.data(_ROLE_OBJET) if case is not None else None
 
-    def _menu_objet(self, position) -> None:
+    def _menu_objet(self, position, liste=None) -> None:
         """Le menu du clic droit sur un objet de la grille."""
-        case = self._grille.itemAt(position)
+        liste = liste or self._grille
+        case = liste.itemAt(position)
         objet = self._objet_de(case)
         if objet is None:
             return
-        menu = QMenu(self._grille)
+        menu = QMenu(liste)
         menu.addAction(_("Détails…"),
                        lambda: self._afficher_details(objet))
         if objet.item_id:
@@ -2979,7 +3101,7 @@ class FenetrePrincipale(QMainWindow):
                 menu.addAction(libelle, lambda: self._surveiller(objet))
         menu.addAction(_("Réinitialiser l'icône"),
                        lambda: self._reinitialiser_icone(objet))
-        menu.exec(self._grille.viewport().mapToGlobal(position))
+        menu.exec(liste.viewport().mapToGlobal(position))
 
     def _afficher_details(self, objet) -> None:
         if objet is not None:

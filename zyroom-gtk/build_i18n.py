@@ -107,6 +107,7 @@ EN = {
     # Onglets et journal des mouvements
     "Inventaire": "Inventory", "Journal": "Log",
     "Rechercher dans le journal…": "Search the log…",
+    "résultat(s)": "result(s)",
     "Tout": "All", "Entrées": "In", "Sorties": "Out",
     "Copier": "Copy", "Vider": "Clear",
     "Copier les lignes affichées": "Copy the displayed lines",
@@ -179,6 +180,7 @@ DE = {
     # Reiter und Bewegungsprotokoll
     "Inventaire": "Inventar", "Journal": "Protokoll",
     "Rechercher dans le journal…": "Im Protokoll suchen…",
+    "résultat(s)": "Treffer",
     "Tout": "Alle", "Entrées": "Zugänge", "Sorties": "Abgänge",
     "Copier": "Kopieren", "Vider": "Leeren",
     "Copier les lignes affichées": "Angezeigte Zeilen kopieren",

@@ -121,6 +121,7 @@ EN = {
         "rebuild them.",
     "Journal mis à jour, {} mouvement(s) ajoutés":
         "Log updated, {} movement(s) added",
+    "résultat(s)": "result(s)",
 
     # Effectif
     "Effectif": "Roster", "Effectif · %d": "Roster · %d",
@@ -328,6 +329,7 @@ EN = {
 # GTK a le meme defaut, et ses chaines sont reprises telles quelles. Une
 # tournure qui sonnerait faux se corrige ici, sans toucher au code.
 DE = {
+    "résultat(s)": "Treffer",
     "Entité :": "Einheit:", "Inventaire :": "Inventar:",
     "Clés API": "API-Schlüssel", "Ajouter": "Hinzufügen",
     "Modifier": "Ändern", "Fermer": "Schließen",
