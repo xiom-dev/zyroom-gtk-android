@@ -612,10 +612,11 @@ function ensembles(bijoux) {
     if (!m) continue;
     const piece = bijoux ? m[2] : m[3];
     const base = bijoux ? m[1] + "?" + m[3] : m[1] + "?" + m[4];
-    // Une armure ne se trie pas par bonus : seulement les bijoux.
-    const id = base + "|" + q + "|" + (bijoux ? bonus : "");
+    // Armures comme bijoux se trient aussi par bonus : une piece en vie ne
+    // complete pas une armure en seve.
+    const id = base + "|" + q + "|" + bonus;
     if (!groupes.has(id)) {
-      groupes.set(id, { id, base, q: Number(q), bonus: bijoux ? bonus : "",
+      groupes.set(id, { id, base, q: Number(q), bonus,
                         poids: bijoux ? "" : m[2], pieces: {}, fiches: [] });
     }
     const g = groupes.get(id);
