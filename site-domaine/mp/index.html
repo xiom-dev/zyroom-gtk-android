@@ -119,10 +119,12 @@
   .etat.forer { background: var(--or); }
   .etat.ok { background: var(--oui); }
   .etat.stop { background: var(--stop); }
-  /* Tenues et bijoux : les pieces qui manquent en rouge, celles en trop en
-     orange ; une goutte par bonus, comme dans ZyRoom. */
-  td.manque, div.manque { color: var(--rupture); }
-  td.trop, div.trop { color: var(--alerte); }
+  /* Armures et bijoux : la piece la moins nombreuse en jaune, la plus
+     nombreuse en bleu, ce qui manque pour egaler celle-ci en vert ; une
+     goutte par bonus, comme dans ZyRoom. */
+  td.moins { color: var(--or); }
+  td.plus { color: var(--stop); }
+  div.manque { color: var(--sarcelle); font-weight: 600; }
   .goutte { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
             margin-left: 3px; vertical-align: middle; }
 
@@ -623,13 +625,17 @@ function ensembles(bijoux) {
   return [...groupes.values()].map((g) => {
     const besoin = (bijoux ? PIECES_BIJOU
       : PIECES_ARMURE.filter(([p]) => p !== "h" || g.poids !== "l")).map(([p, , n]) => [p, n]);
-    // Les ensembles complets ; ce qu'il manque pour en faire un de plus ; ce
-    // qui depasse les complets et ne va donc nulle part.
-    const complets = Math.min(...besoin.map(([p, n]) => Math.floor((g.pieces[p] || 0) / n)));
+    // Les ensembles complets, et ce qu'il manque a chaque piece pour egaler
+    // la plus nombreuse -- le "compte juste" (Ludo). Les pieces vont par
+    // paires dans une parure : on compte en ensembles, non en pieces.
+    const ensemblesDe = besoin.map(([p, n]) => (g.pieces[p] || 0) / n);
+    const complets = Math.min(...ensemblesDe.map(Math.floor));
+    const visee = Math.ceil(Math.max(...ensemblesDe));
     g.besoin = besoin;
     g.complets = complets;
-    g.manque = besoin.map(([p, n]) => [p, (complets + 1) * n - (g.pieces[p] || 0)]).filter(([, x]) => x > 0);
-    g.trop = besoin.map(([p, n]) => [p, (g.pieces[p] || 0) - complets * n]).filter(([, x]) => x > 0);
+    g.moins = Math.min(...ensemblesDe);
+    g.plus = Math.max(...ensemblesDe);
+    g.manque = besoin.map(([p, n]) => [p, visee * n - (g.pieces[p] || 0)]).filter(([, x]) => x > 0);
     g.nom = nomEnsemble(g, bijoux);
     return g;
   });
@@ -670,12 +676,11 @@ function vueEnsembles(bijoux) {
         const voulu = g.besoin.find(([b]) => b === p);
         if (!voulu) return '<td class="n faible">·</td>';
         const n = g.pieces[p] || 0;
-        const classe = g.manque.some(([b]) => b === p) ? " manque" : g.trop.some(([b]) => b === p) ? " trop" : "";
+        const e = n / voulu[1];
+        const classe = g.moins === g.plus ? "" : e === g.moins ? " moins" : e === g.plus ? " plus" : "";
         return '<td class="n' + classe + '">' + n + "</td>";
       }).join("")
-      + "<td>" + (g.manque.length ? '<div class="manque">Pour ' + (bijoux ? "une parure" : "une armure")
-        + " de plus : " + esc(resume(g.manque)) + "</div>" : "")
-      + (g.trop.length ? '<div class="trop">Ne vont nulle part : ' + esc(resume(g.trop)) + "</div>" : "")
+      + "<td>" + (g.manque.length ? '<div class="manque">Manque : ' + esc(resume(g.manque)) + "</div>" : "")
       + "</td></tr>").join("");
   return '<div class="cadre"><table><thead><tr><th>' + (bijoux ? "Parure" : "Armure") + "</th>"
     + '<th class="n" title="Ensembles complets">Complets</th>'
