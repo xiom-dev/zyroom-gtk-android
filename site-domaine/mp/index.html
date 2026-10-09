@@ -73,7 +73,7 @@
   /* Le tableau deborde volontiers en largeur sur un telephone : il defile
      seul de ce cote-la, sans pousser la page. */
   .cadre { overflow-x: auto; }
-  /* Armures et bijoux : la ligne des en-tetes reste visible pendant le
+  /* Tableaux des MP, armures et bijoux : la ligne des en-tetes reste visible pendant le
      defilement. Un cadre qui defile de cote retient l'en-tete chez lui ; sur
      un ecran large, rien ne deborde, il laisse donc l'en-tete coller a la
      fenetre. */
@@ -578,7 +578,7 @@ function tableInutiles(liste, boss) {
         + '<td class="faible">' + m.piles.map(([q, n]) => "Q" + q + " ×" + nombre(n)).join(" · ")
         + "</td></tr>").join("");
   }).join("");
-  return "<div>" + titre + '<div class="cadre"><table class="types"><thead><tr><th>MP</th>'
+  return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP</th>'
     + '<th class="n">Stock</th><th>Qualités</th></tr></thead><tbody>' + lignes
     + "</tbody></table></div></div>";
 }
@@ -788,7 +788,7 @@ function tableMps(liste, quoi, boss) {
       + (trop ? '<td class="n"><b>' + nombre(enTrop(m)) + "</b></td>" : "")
       + "</tr>";
   }
-  return "<div>" + titre + '<div class="cadre"><table class="types"><thead><tr><th>MP</th><th>État</th>'
+  return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP</th><th>État</th>'
     + '<th class="n" title="Ce que le hall contient, à la qualité demandée ou plus">Stock</th>'
     + '<th class="n" title="Crafts de toutes les recettes qui utilisent cette MP, faits ensemble">Crafts<br>possibles</th>'
     + (forer ? '<th class="n" title="MP à ' + verbe + ' pour atteindre ' + etat.reglages.objectif
