@@ -931,7 +931,6 @@ style.textContent = `
 .kc h2 { font-size: 1.05rem; color: var(--or); margin: 4px 0 8px; }
 .kc-sous { align-items: baseline; }
 .kc-resume { margin-left: auto; font-size: .8rem; }
-@media (min-width: 901px) { .kc-sous { padding-right: 52px; } }
 .kc-attente { color: var(--clair); }
 .kc-barre { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
 .kc-barre label { display: flex; gap: 6px; align-items: center; color: var(--faible); }

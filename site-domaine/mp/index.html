@@ -69,15 +69,15 @@
   .onglets, .filtres { display: flex; gap: 6px; flex-wrap: wrap;
                        margin: 0 0 10px; align-items: center; }
   .onglets button { font-size: 1rem; }
-  /* KipeeCraft tout a droite, son logo en petit juste dessous ; dans le
-     bouton meme sur un ecran etroit, ou la place manque dessous. */
-  #onglet-kc { margin-left: auto; position: relative; }
-  .logo-kc { position: absolute; top: calc(100% + 6px); right: 0; width: 40px;
-             border-radius: 5px; pointer-events: none; }
-  @media (max-width: 900px) {
-    .logo-kc { position: static; width: 18px; margin-left: 6px; vertical-align: middle;
-               border-radius: 3px; }
-  }
+  /* KipeeCraft tout a droite, le kipee en fond du bouton ; un voile sombre
+     (sarcelle quand l'onglet est ouvert) garde le texte lisible. */
+  #onglet-kc { margin-left: auto; color: #fff; font-weight: 600;
+               text-shadow: 0 0 3px #000, 0 0 3px #000;
+               background: linear-gradient(rgba(16, 23, 26, .15), rgba(16, 23, 26, .15)),
+                           url("kc/kipee.png") center 42% / cover; }
+  #onglet-kc[aria-pressed="true"] {
+    background: linear-gradient(rgba(63, 122, 104, .35), rgba(63, 122, 104, .35)),
+                url("kc/kipee.png") center 42% / cover; }
   .filtres input[type="search"] { flex: 0 1 260px; min-width: 160px; }
   .compte { color: var(--faible); font-size: .85rem; font-weight: 400; }
   [aria-pressed="true"] .compte { color: #08120f; }
@@ -199,7 +199,7 @@
     <button type="button" data-onglet="bijoux" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
     <button type="button" data-onglet="recettes" aria-pressed="false" hidden id="onglet-recettes">Recettes <span class="compte" id="n-recettes"></span></button>
     <button type="button" data-onglet="reglages" aria-pressed="false" hidden id="onglet-reglages">Réglages</button>
-    <button type="button" data-onglet="kc" aria-pressed="false" id="onglet-kc">KipeeCraft<img src="kc/kipee.png" alt="" class="logo-kc"></button>
+    <button type="button" data-onglet="kc" aria-pressed="false" id="onglet-kc">KipeeCraft</button>
   </div>
 
   <div class="filtres" id="filtres">
