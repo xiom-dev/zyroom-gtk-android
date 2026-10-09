@@ -120,11 +120,12 @@
   .etat.ok { background: var(--oui); }
   .etat.stop { background: var(--stop); }
   /* Armures et bijoux : la piece la moins nombreuse en jaune, la plus
-     nombreuse en bleu, ce qui manque pour egaler celle-ci en vert ; une
-     goutte par bonus, comme dans ZyRoom. */
+     nombreuse en bleu, ce qui manque pour egaler celle-ci en blanc, les
+     ensembles complets en vert ; une goutte par bonus, comme dans ZyRoom. */
   td.moins { color: var(--or); }
   td.plus { color: var(--stop); }
-  div.manque { color: var(--sarcelle); font-weight: 600; }
+  div.manque { color: var(--texte); font-weight: 600; }
+  td.complets { color: var(--sarcelle); }
   .goutte { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
             margin-left: 3px; vertical-align: middle; }
 
@@ -672,7 +673,7 @@ function vueEnsembles(bijoux) {
   const lignes = liste.map((g) => "<tr><td>"
       + (bijoux ? esc(g.nom) : '<span class="poids-' + g.poids + '">' + esc(g.nom) + "</span>")
       + '<div class="faible">Q' + g.q + " " + gouttes(g.bonus) + "</div></td>"
-      + '<td class="n"><b>' + g.complets + "</b></td>"
+      + '<td class="n complets"><b>' + g.complets + "</b></td>"
       + pieces.map(([p]) => {
         const voulu = g.besoin.find(([b]) => b === p);
         if (!voulu) return '<td class="n faible">·</td>';
