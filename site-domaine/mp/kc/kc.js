@@ -242,8 +242,8 @@ function vueSimu() {
     + '<label title="Valeur de &lt;quality&gt; dans les formules (dégâts, protections maximales). 0 : part fixe seulement">Q des formules <input type="number" data-kc="pref" data-v="qformule" min="0" max="250" value="' + p.qformule + '"></label>'
     + '<label title="Rite de durabilité : +20 % de durabilité"><input type="checkbox" data-kc="pref" data-v="rite"' + (p.rite ? " checked" : "") + "> Rite</label>"
     + "</div>"
-    + '<div class="kc-simu"><div class="kc-gauche" id="kc-apercu">' + vueApercu() + "</div>"
-    + '<div class="kc-droite" id="kc-pieces">' + vuePieces() + "</div></div>";
+    + '<div class="kc-simu"><section class="panneau kc-gauche" id="kc-apercu">' + vueApercu() + "</section>"
+    + '<section class="panneau kc-droite" id="kc-pieces">' + vuePieces() + "</section></div>";
 }
 
 function vueApercu() {
@@ -841,9 +841,9 @@ function vueBase() {
     + '<label><input type="checkbox" data-kb="ecartes"' + (f.ecartes ? " checked" : "") + "> Écartés</label>"
     + '<span class="faible">' + liste.length + " matériau(x)</span></div>"
     + '<p class="faible">Cocher une ligne écarte la MP des recherches, dans ce navigateur seulement.</p>'
-    + '<div class="cadre collant"><table class="kc-base"><thead><tr><th title="Écarté"></th><th>Matériau</th><th class="n">Q</th><th class="n">Hall</th>'
+    + '<section class="panneau"><div class="cadre collant"><table class="kc-base"><thead><tr><th title="Écarté"></th><th>Matériau</th><th class="n">Q</th><th class="n">Hall</th>'
     + stats.map((s) => '<th class="n" title="' + esc(S.meta.stats[s][0]) + '">' + esc(S.meta.stats[s][1]) + "</th>").join("")
-    + "</tr></thead><tbody>" + lignes + "</tbody></table></div>";
+    + "</tr></thead><tbody>" + lignes + "</tbody></table></div></section>";
 }
 
 // ------------------------------------------------------------ formules
@@ -870,11 +870,12 @@ function vueForm() {
     + "<p class=\"faible\">Une ligne par caractéristique : <code>Caractéristique = formule</code>. Constantes "
     + "<code>&lt;precraft&gt;</code>, <code>&lt;quality&gt;</code>, <code>&lt;rite&gt;</code>. Une retouche ne vaut "
     + "que pour ce navigateur.</p>"
-    + '<textarea class="kc-formules" data-kf="texte" spellcheck="false">' + esc(f.texte) + "</textarea>"
+    + '<section class="panneau"><textarea class="kc-formules" data-kf="texte" spellcheck="false">' + esc(f.texte) + "</textarea>"
     + '<div class="kc-barre"><button type="button" class="principal" data-kc="form-appliquer">Appliquer</button>'
     + (retouchee ? '<button type="button" data-kc="form-retablir">Rétablir l\'original</button>' : "")
     + '<span class="faible">' + esc(f.message || "") + "</span></div>"
-    + (f.problemes.length ? '<ul class="inconnue">' + f.problemes.map((p) => "<li>" + esc(p) + "</li>").join("") + "</ul>" : "");
+    + (f.problemes.length ? '<ul class="inconnue">' + f.problemes.map((p) => "<li>" + esc(p) + "</li>").join("") + "</ul>" : "")
+    + "</section>";
 }
 
 async function appliquerFormules() {
@@ -1109,19 +1110,17 @@ window.KC = {
 const style = document.createElement("style");
 style.textContent = `
 .kc h2 { font-size: 1.05rem; color: var(--or); margin: 4px 0 8px; }
-/* Le kipee en filigrane derriere les cadres de KipeeCraft, comme derriere
-   les pieces de l'original. Bords fondus : son fond olive ne fait pas de
-   rectangle. Les cadres deviennent translucides pour le laisser voir. */
-.kc { position: relative; isolation: isolate; }
-.kc::before { content: ""; position: absolute; z-index: -1; pointer-events: none;
-              left: 50%; top: 40px; transform: translateX(-50%);
-              width: min(760px, 100%); aspect-ratio: 280 / 351;
-              background: url("kc/kipee.png") center / contain no-repeat; opacity: .22;
-              -webkit-mask-image: radial-gradient(ellipse closest-side, #000 55%, transparent 100%);
-              mask-image: radial-gradient(ellipse closest-side, #000 55%, transparent 100%); }
-.kc section.panneau, .kc table th { background: rgba(23, 34, 38, .6); }
+/* Le kipee en fond de chaque cadre de KipeeCraft, comme derriere les pieces
+   de l'original. kipee-fond.png a les bords deja fondus : son fond olive ne
+   fait pas de rectangle. Le pseudo-element passe sous le contenu du cadre
+   (isolation), mais au-dessus de son fond. */
+.kc section.panneau, #kc-choix { position: relative; isolation: isolate; }
+.kc section.panneau::before, #kc-choix::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: url("kc/kipee-fond.png") center / contain no-repeat; opacity: .2; }
+.kc section.panneau th { background: var(--surface); }
 .kc select, .kc input, .kc textarea, .kc button:not([aria-pressed="true"]):not(.principal) {
-  background-color: rgba(23, 34, 38, .85); }
+  background-color: rgba(23, 34, 38, .8); }
 .kc-sous { align-items: baseline; }
 .kc-resume { margin-left: auto; font-size: .8rem; }
 .kc-attente { color: var(--clair); }
