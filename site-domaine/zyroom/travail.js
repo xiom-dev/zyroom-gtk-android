@@ -30,6 +30,8 @@ const OPERATIONS = {
   charger_journal: (cle, texte, depuis) => zr.charger_journal(cle, texte, depuis),
   vue_journal: (cle, cherche, mode) => zr.vue_journal(cle, cherche, mode),
   registre: (gid, texte) => zr.registre(gid, texte),
+  charger_annuaire: (xml, fichiers) => zr.charger_annuaire(xml, fichiers),
+  vue_avant_postes: (fichiers, guilde, journal) => zr.vue_avant_postes(fichiers, guilde, journal),
   copier_journal: (cle, cherche, mode) => zr.copier_journal(cle, cherche, mode),
 };
 

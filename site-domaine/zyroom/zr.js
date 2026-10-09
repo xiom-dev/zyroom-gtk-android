@@ -755,6 +755,7 @@ function dessinerBonus() {
   if (Z.page === "competences") dessinerCompetences();
   else if (Z.page === "effectif") dessinerEffectif();
   else if (Z.page === "perdu") dessinerPerdu();
+  else if (Z.page === "avant-postes") dessinerAvantPostes();
   else dessinerAutrePage();
   majEtat();
 }
@@ -1070,6 +1071,103 @@ async function dessinerPerdu() {
   $("#p-mek").innerHTML = colonne("Mektoubs", betes.filter((b) => !b.zig));
   $("#p-zig").innerHTML = colonne("Zigs", betes.filter((b) => b.zig));
   cartePerdu.dessiner();
+}
+
+// --- Avant-postes (page_outposts.py)
+//
+// L'annuaire public (guilds.php, sans cle) n'est demande qu'a l'ouverture de
+// l'ecran et sur « Actualiser » : il pese un demi-mega-octet.
+
+const OP = { vue: 0, charge: false };
+
+// Les deux fleches qui tournent (page_outposts._dessiner_pastille), en SVG.
+function pastille(texte) {
+  const cote = 20, cx = 10, cy = 10, r = cote * 0.31, t = cote * 0.15, barbe = t * 1.2;
+  const rad = (d) => d * Math.PI / 180;
+  let d = "", pointes = "";
+  for (const [a0, a1] of [[25, 155], [205, 335]]) {
+    d += "M" + (cx + r * Math.cos(rad(a0))) + " " + (cy + r * Math.sin(rad(a0)))
+      + " A" + r + " " + r + " 0 0 1 " + (cx + r * Math.cos(rad(a1))) + " " + (cy + r * Math.sin(rad(a1))) + " ";
+    const a = rad(a1), b = rad(a1 + 28);
+    pointes += '<path d="M' + (cx + (r + barbe) * Math.cos(a)) + " " + (cy + (r + barbe) * Math.sin(a))
+      + " L" + (cx + (r - barbe) * Math.cos(a)) + " " + (cy + (r - barbe) * Math.sin(a))
+      + " L" + (cx + r * Math.cos(b)) + " " + (cy + r * Math.sin(b)) + ' Z" fill="#7fb3a2"/>';
+  }
+  return '<svg class="pastille" viewBox="0 0 20 20"><title>' + esc(texte) + '</title><path d="' + d
+    + '" fill="none" stroke="#7fb3a2" stroke-width="' + t + '" stroke-linecap="round"/>' + pointes + "</svg>";
+}
+function quandCourt(at) {
+  const d = new Date(at * 1000);
+  return deux(d.getDate()) + "/" + deux(d.getMonth() + 1) + " " + deux(d.getHours()) + ":" + deux(d.getMinutes());
+}
+
+async function chargerAnnuaire() {
+  $("#op-etat").textContent = "Lecture de l'annuaire des guildes…";
+  $("#op-actualiser").disabled = true;
+  try {
+    const r = await fetch(API + "/guilds.php", { cache: "no-store" });
+    if (!r.ok) throw new Error("API Ryzom " + r.status);
+    const res = JSON.parse(await appeler("charger_annuaire", await r.text(), JSON.stringify(lire("zr-op", {}))));
+    garder("zr-op", res.fichiers);
+    OP.charge = true;
+  } catch (er) {
+    $("#op-etat").textContent = "Annuaire indisponible : " + er.message;
+  }
+  $("#op-actualiser").disabled = false;
+}
+
+async function dessinerAvantPostes(forcer) {
+  if (!$("#op-zone")) {
+    $("#page").innerHTML = '<div class="outils"><select id="op-vue"><option value="0">Qui tient quoi</option>'
+      + '<option value="1">Journal des prises</option></select>'
+      + '<button type="button" id="op-actualiser" title="Redemander l\'annuaire des guildes">Actualiser</button>'
+      + '<span class="faible op-etat" id="op-etat"></span></div><div class="op-zone" id="op-zone"></div>';
+    $("#op-vue").value = String(OP.vue);
+    $("#op-vue").addEventListener("change", () => { OP.vue = Number($("#op-vue").value); dessinerAvantPostes(); });
+    $("#op-actualiser").addEventListener("click", () => dessinerAvantPostes(true));
+  }
+  if (!Z.pret) return;
+  if (!OP.charge || forcer) await chargerAnnuaire();
+  if (!OP.charge) return;
+  // Sur une guilde son nom, sur un perso celui de sa guilde (_ma_guilde).
+  const ent = Z.ent;
+  const maGuilde = ent ? (ent.sorte === "guild" ? ent.nom : ent.guilde) || "" : "";
+  const v = JSON.parse(await appeler("vue_avant_postes", JSON.stringify(lire("zr-op", {})), maGuilde, OP.vue === 1));
+  garder("zr-op", v.fichiers);
+  // Le compte des prises qui nous concernent, dans le menu (_maj_compteur_prises).
+  $("#op-vue").options[1].textContent = "Journal des prises" + (v.non_lus ? " (" + v.non_lus + ")" : "");
+  const zone = $("#op-zone");
+  if (v.journal) {
+    $("#op-etat").textContent = "";
+    zone.className = "op-zone grille-zone liste";
+    if (!v.prises.length) {
+      zone.innerHTML = '<div class="vide">' + (v.premier ? "Premier relevé : rien à comparer. Les changements de main apparaîtront à partir du prochain."
+        : "Aucun changement de main depuis le premier relevé.") + "</div>";
+      return;
+    }
+    const guilde = (nom, img, gagne) => nom ? '<span class="' + (gagne ? "tri-arrivee" : "tri-depart") + '">' + (gagne ? "▲" : "▼") + "</span> "
+      + (img ? '<img class="embleme" src="' + esc(img) + '" alt="">' : '<span class="embleme"></span>')
+      + ' <span style="color:' + (gagne ? "#4caf50" : "var(--or)") + '">' + esc(nom) + "</span>" : "";
+    zone.innerHTML = '<table class="op-journal"><tbody>' + v.prises.map((c, i) => '<tr class="' + zebre(i) + '"><td>'
+      + quandCourt(c.at) + "&nbsp;&nbsp; " + esc(c.nom) + "</td><td>" + guilde(c.de, c.embleme_de, false) + "</td><td>"
+      + guilde(c.vers, c.embleme_vers, true) + "</td></tr>").join("") + "</tbody></table>";
+    return;
+  }
+  $("#op-etat").textContent = v.entete;
+  zone.className = "op-zone op-colonnes";
+  const colonne = (peuples) => {
+    let rang = 0;
+    return '<div class="grille-zone liste"><table class="op"><tbody>' + peuples.map(([nom, liste]) =>
+      '<tr><td></td><td colspan="' + (v.pastilles ? 5 : 4) + '" class="op-peuple">' + esc(nom) + "</td><td></td></tr>"
+      + liste.map((o) => '<tr class="' + zebre(rang++) + '"><td class="op-bord"></td>'
+        + '<td><img class="embleme" src="' + esc(o.embleme) + '" alt=""></td>'
+        + (v.pastilles ? "<td>" + (o.change ? pastille(o.change.texte + " (" + quandCourt(o.change.at) + ")") : "") + "</td>" : "")
+        + '<td class="' + (o.mien ? "fini" : "") + '">' + esc(o.nom) + '</td><td class="faible op-niv">' + (o.niveau || "—")
+        + '</td><td class="' + (o.mien ? "fini" : "") + '">' + esc(o.guilde) + '</td><td class="op-bord"></td></tr>').join("")).join("")
+      + "</tbody></table>" + (peuples === v.peuples.slice(2) && v.orphelins ? '<div class="faible op-hors">Hors carte : ' + esc(v.orphelins) + "</div>" : "")
+      + "</div>";
+  };
+  zone.innerHTML = colonne(v.peuples.slice(0, 2)) + colonne(v.peuples.slice(2));
 }
 
 // ------------------------------------------------------------ les autres pages

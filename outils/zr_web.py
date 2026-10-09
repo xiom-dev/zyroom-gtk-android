@@ -16,7 +16,7 @@ import unicodedata
 
 import os
 
-from zyroom import alerts, carte, movements, roster, ryzom_api, skills as skills_mod, sorting
+from zyroom import alerts, carte, movements, outposts, roster, ryzom_api, skills as skills_mod, sorting
 from zyroom.categorydb import CategoryDb
 from zyroom.models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, ItemInfo,
                            ItemType, categorie_item)
@@ -320,3 +320,98 @@ def vue_journal(cle: str, cherche: str, mode: int) -> str:
 def copier_journal(cle: str, cherche: str, mode: int) -> str:
     """Le texte du bouton « Copier » : toutes les lignes retenues."""
     return "\n".join(movements.describe(mv, noms.name) for mv in _filtre(cle, cherche, mode))
+
+
+# ------------------------------------------------------------ avant-postes
+#
+# L'annuaire public des guildes (guilds.php) dit qui tient quoi. Le journal
+# des prises, lui, se deduit de deux releves : celui de ce navigateur, tenu
+# dans ses fichiers (outposts-etat.json, outposts.jsonl, outposts-vu.json),
+# que la page garde et nous rend a chaque appel.
+
+PEUPLES = (("fyros", "Fyros"), ("matis", "Matis"), ("tryker", "Tryker"), ("zorai", "Zoraï"))
+DOSSIER_OP = "/tmp/avant-postes"
+annuaire = {"carte": [], "emblemes": {}, "premier": False}
+
+
+def _poser(fichiers: str) -> outposts.OutpostStore:
+    os.makedirs(DOSSIER_OP, exist_ok=True)
+    for nom in os.listdir(DOSSIER_OP):
+        os.remove(os.path.join(DOSSIER_OP, nom))
+    for nom, texte in json.loads(fichiers or "{}").items():
+        with open(os.path.join(DOSSIER_OP, os.path.basename(nom)), "w", encoding="utf-8") as fh:
+            fh.write(texte)
+    return outposts.OutpostStore(DOSSIER_OP)
+
+
+def _relever_fichiers() -> dict:
+    out = {}
+    for nom in os.listdir(DOSSIER_OP):
+        with open(os.path.join(DOSSIER_OP, nom), encoding="utf-8") as fh:
+            out[nom] = fh.read()
+    return out
+
+
+def charger_annuaire(xml: str, fichiers: str) -> str:
+    """Lit l'annuaire et journalise les changements de main."""
+    store = _poser(fichiers)
+    carte_, emblemes = outposts.parse_annuaire(xml.encode("utf-8"))
+    annuaire["premier"] = store.jamais_releve()
+    store.record(carte_)
+    annuaire["carte"], annuaire["emblemes"] = carte_, emblemes
+    return json.dumps({"fichiers": _relever_fichiers()}, ensure_ascii=False)
+
+
+def _embleme(icone: str) -> str:
+    return ryzom_api.guild_icon_url(icone, "s") if icone else ""
+
+
+def _bulle(c) -> str:
+    """Comme page_outposts._infobulle_changement (l'heure est mise par la page)."""
+    if c.taken:
+        return f"Pris par {c.to}"
+    if c.lost:
+        return f"Perdu par {c.frm}"
+    return f"{c.frm} ▸ {c.to}"
+
+
+def vue_avant_postes(fichiers: str, ma_guilde: str, journal: bool) -> str:
+    """La carte par peuple, ou le journal des prises (page_outposts)."""
+    store = _poser(fichiers)
+    carte_ = annuaire["carte"]
+    out = {"journal": journal, "charge": bool(carte_)}
+    if journal:
+        histoire = store.history()
+        out["premier"] = annuaire["premier"]
+        out["prises"] = [{
+            "at": c.at, "nom": noms.name(f"{c.outpost}.outpost"),
+            "de": c.frm, "vers": c.to,
+            "embleme_de": _embleme(annuaire["emblemes"].get(c.frm, "")),
+            "embleme_vers": _embleme(annuaire["emblemes"].get(c.to, "")),
+        } for c in histoire]
+        store.marquer_lu()
+    else:
+        recents = store.recents()
+        miens = sum(1 for o in carte_ if o.guild == ma_guilde)
+        entete = f"{len(carte_)} avant-postes tenus sur Atys"
+        if ma_guilde:
+            entete += f", dont {miens} à {ma_guilde}"
+        out["entete"] = entete + "."
+        out["pastilles"] = bool(recents)
+        out["peuples"] = []
+        for code, nom in PEUPLES:
+            siens = sorted((o for o in carte_ if o.people == code),
+                           key=lambda o: (-o.level, noms.name(o.name_key)))
+            if siens:
+                out["peuples"].append([nom, [{
+                    "nom": noms.name(o.name_key), "niveau": o.level, "guilde": o.guild,
+                    "embleme": _embleme(o.icon), "mien": o.guild == ma_guilde,
+                    "change": ({"at": recents[o.code].at, "texte": _bulle(recents[o.code])}
+                               if o.code in recents else None),
+                } for o in siens]])
+        connus = {c for c, _n in PEUPLES}
+        out["orphelins"] = ", ".join(f"{o.code} ({o.guild})" for o in carte_
+                                      if o.people not in connus)
+    out["non_lus"] = store.non_lus(ma_guilde)
+    out["fichiers"] = _relever_fichiers()
+    return json.dumps(out, ensure_ascii=False)

@@ -165,6 +165,23 @@
   .p-titre { color: var(--or); font-weight: 700; font-size: 1.1em; margin-bottom: 4px; }
   .p-bete { padding: 4px 8px; } .p-bete .faible { opacity: .8; } .p-vide { padding: 4px 8px; }
   .faible { color: var(--faible); }
+  .op-etat { opacity: .8; }
+  .op-zone { flex: 1; min-height: 0; display: flex; }
+  .op-zone.liste { display: block; overflow-y: auto; }
+  .op-colonnes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .op-colonnes > div { overflow-y: auto; }
+  @media (max-width: 1000px) { .op-colonnes { grid-template-columns: 1fr; } }
+  table.op { border-collapse: collapse; width: 100%; font-size: .92em; }
+  table.op td { padding: 3px 4px; white-space: nowrap; }
+  table.op td.op-bord { width: 50%; }
+  table.op tr:not(:has(.op-peuple)):hover td { background: rgba(63, 122, 104, .28); }
+  .op-peuple { color: var(--or); font-weight: 700; font-size: 1.1em; padding-top: 10px !important; }
+  .op-niv { text-align: right; opacity: .8; }
+  .embleme { width: 20px; height: 20px; vertical-align: middle; display: inline-block; }
+  .pastille { width: 20px; height: 20px; vertical-align: middle; }
+  .op-hors { padding: 8px; opacity: .8; }
+  table.op-journal { border-collapse: collapse; }
+  table.op-journal td { padding: 3px 18px 3px 8px; white-space: nowrap; }
   .page-autre { flex: 1; display: grid; place-items: center; color: var(--faible); background: var(--surface); }
 
   /* --- le pied --- */
