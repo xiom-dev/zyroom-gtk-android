@@ -48,3 +48,13 @@ site-domaine/*
 site-domaine/OP/releve.php
 site-domaine/OP/releve.json
 site-domaine/OP/sauvegardes/
+# `mp/` : la page des MP du hall de guilde, ecrite a la main. Ce que
+# `outils/page-mp.py` produit (le PHP aux mots de passe, la table des noms,
+# les recettes de depart) se regenere ; les donnees ecrites par le site ne
+# vivent que sur le serveur.
+!site-domaine/mp/
+site-domaine/mp/mp.php
+site-domaine/mp/mp.json
+site-domaine/mp/noms.json
+site-domaine/mp/mp.depart.json
+site-domaine/mp/sauvegardes/

@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MP du hall de guilde</title>
+<meta name="description" content="Les MP à forer pour les recettes de La Lune Éternelle, calculées sur le stock du hall de guilde.">
+<meta name="theme-color" content="#10171a">
+<!-- Meme raison que la page du forage : l'hebergeur ne relaie pas le
+     Cache-Control du .htaccess, et une page gardee en cache fait croire
+     qu'une correction n'a pas pris. -->
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233f7a68'/><circle cx='20' cy='12' r='11' fill='%2310171a'/></svg>">
+<style>
+  /* Les couleurs de xiom.be et de ZyRoom, reprises de la page du forage. */
+  :root {
+    color-scheme: dark;
+    --fond: #10171a; --surface: #172226; --trait: #24343a;
+    --sarcelle: #3f7a68; --clair: #8fbfae; --or: #e8c15a;
+    --texte: #e2e8e6; --faible: #9aa8a5;
+    --oui: #4bbf72; --non: #55605e; --alerte: #e8a13a; --rupture: #e2604f;
+    --stop: #6fa8dc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 16px 48px;
+    background: var(--fond); color: var(--texte);
+    font-family: system-ui, sans-serif; font-size: 15px;
+  }
+  main, header { max-width: 1180px; margin: 0 auto; }
+  header { padding: 16px 0 4px; display: flex; gap: 12px; flex-wrap: wrap;
+           align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 1.4rem; margin: 0; color: var(--or); }
+  p { margin: 0 0 10px; color: var(--faible); line-height: 1.5; }
+  a { color: var(--clair); }
+  #resume { color: var(--faible); font-size: .9rem; margin: 4px 0 12px; }
+  #resume b { color: var(--texte); font-weight: 600; }
+
+  button, input, select {
+    background: var(--surface); color: var(--texte);
+    border: 1px solid var(--trait); border-radius: 7px; padding: 6px 12px;
+    font: inherit;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--sarcelle); }
+  button[aria-pressed="true"] {
+    background: var(--sarcelle); color: #08120f; border-color: var(--sarcelle);
+    font-weight: 600;
+  }
+  button.principal { background: var(--sarcelle); color: #08120f;
+                     border-color: var(--sarcelle); font-weight: 600; }
+  button.danger:hover { border-color: var(--rupture); color: var(--rupture); }
+  input[type="number"] { width: 5.5em; padding: 4px 6px; }
+
+  .onglets, .filtres { display: flex; gap: 6px; flex-wrap: wrap;
+                       margin: 0 0 10px; align-items: center; }
+  .onglets button { font-size: 1rem; }
+  .filtres input[type="search"] { flex: 0 1 260px; min-width: 160px; }
+  .compte { color: var(--faible); font-size: .85rem; font-weight: 400; }
+  [aria-pressed="true"] .compte { color: #08120f; }
+
+  /* Le tableau deborde volontiers en largeur sur un telephone : il defile
+     seul de ce cote-la, sans pousser la page. */
+  .cadre { overflow-x: auto; }
+  /* Sur un telephone, le nom de la MP garde de quoi tenir sur trois lignes
+     au plus : le reste du tableau defile de cote. */
+  td:first-child { min-width: 190px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border-bottom: 1px solid var(--trait); padding: 5px 8px;
+           text-align: left; vertical-align: top; }
+  th { color: var(--clair); font-weight: 600; white-space: nowrap;
+       position: sticky; top: 0; background: var(--fond); z-index: 1; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums;
+               white-space: nowrap; }
+  tbody tr:hover { background: #142024; }
+  .faible { color: var(--faible); }
+  .inconnue { color: var(--alerte); font-style: italic; }
+
+  .etat { display: inline-block; border-radius: 10px; padding: 1px 8px;
+          font-size: .8rem; font-weight: 600; white-space: nowrap;
+          color: #08120f; }
+  .etat.rupture { background: var(--rupture); }
+  .etat.forer { background: var(--or); }
+  .etat.ok { background: var(--oui); }
+  .etat.stop { background: var(--stop); }
+
+  /* Une recette s'ouvre sur place : le detail de ses pieces, et ses
+     reglages quand on est connecte. */
+  tr.recette { cursor: pointer; }
+  tr.recette td:first-child::before { content: "▸ "; color: var(--faible); }
+  tr.recette.ouverte td:first-child::before { content: "▾ "; }
+  tr.detail > td { background: var(--surface); padding: 10px 12px 14px; }
+  tr.detail table th { position: static; background: transparent; }
+  .edition { display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+             margin: 10px 0 0; color: var(--faible); }
+  .edition label { display: flex; gap: 6px; align-items: center; }
+
+  section.panneau { background: var(--surface); border: 1px solid var(--trait);
+                    border-radius: 10px; padding: 12px 16px; margin: 0 0 14px; }
+  section.panneau h2 { font-size: 1.05rem; color: var(--or); margin: 0 0 8px; }
+  .grille { display: grid; grid-template-columns: max-content max-content;
+            gap: 6px 12px; align-items: center; margin-bottom: 10px; }
+  #apercu li { margin: 2px 0; }
+
+  dialog { background: var(--surface); color: var(--texte);
+           border: 1px solid var(--sarcelle); border-radius: 10px;
+           padding: 16px 18px; max-width: 340px; }
+  dialog::backdrop { background: rgba(0, 0, 0, .55); }
+  dialog form { display: flex; flex-direction: column; gap: 8px; }
+  dialog .boutons { display: flex; gap: 8px; justify-content: flex-end; }
+  #message { min-height: 1.4em; color: var(--alerte); font-size: .9rem; }
+  #bandeau { position: fixed; left: 50%; bottom: 16px;
+             transform: translateX(-50%); background: var(--sarcelle);
+             color: #08120f; padding: 8px 16px; border-radius: 8px;
+             font-weight: 600; display: none; z-index: 5; }
+  #bandeau.erreur { background: var(--rupture); }
+</style>
+</head>
+<body>
+<header>
+  <h1>MP du hall de guilde</h1>
+  <div>
+    <span id="connecte" class="faible"></span>
+    <button id="entrer" type="button">Se connecter pour modifier</button>
+    <button id="sortir" type="button" hidden>Se déconnecter</button>
+  </div>
+</header>
+<main>
+  <p id="resume">Chargement…</p>
+
+  <div class="onglets" role="tablist">
+    <button type="button" data-onglet="forer" aria-pressed="true">À forer <span class="compte" id="n-forer"></span></button>
+    <button type="button" data-onglet="stop" aria-pressed="false">Stop forage <span class="compte" id="n-stop"></span></button>
+    <button type="button" data-onglet="toutes" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
+    <button type="button" data-onglet="recettes" aria-pressed="false">Recettes <span class="compte" id="n-recettes"></span></button>
+    <button type="button" data-onglet="journal" aria-pressed="false">Journal</button>
+    <button type="button" data-onglet="reglages" aria-pressed="false" hidden id="onglet-reglages">Réglages</button>
+  </div>
+
+  <div class="filtres" id="filtres">
+    <input type="search" id="cherche" placeholder="Chercher une MP ou une recette" aria-label="Chercher">
+    <button type="button" data-eco="" aria-pressed="true">Tous</button>
+    <button type="button" data-eco="PrimeRoots" aria-pressed="false">Primes</button>
+    <button type="button" data-eco="Desert" aria-pressed="false">Désert</button>
+    <button type="button" data-eco="Forest" aria-pressed="false">Forêts</button>
+    <button type="button" data-eco="Jungle" aria-pressed="false">Jungle</button>
+    <button type="button" data-eco="Lake" aria-pressed="false">Lacs</button>
+    <button type="button" data-eco="none" aria-pressed="false">Communes</button>
+  </div>
+
+  <div id="vue"></div>
+</main>
+
+<dialog id="porte">
+  <form method="dialog" id="porte-form">
+    <strong>Mot de passe de la guilde</strong>
+    <input id="porte-nom" autocomplete="username" placeholder="Nom (seulement pour modifier)">
+    <input id="porte-mdp" type="password" autocomplete="current-password" placeholder="Mot de passe" required autofocus>
+    <div id="message"></div>
+    <div class="boutons">
+      <button type="button" id="porte-annuler">Annuler</button>
+      <button type="submit" class="principal">Entrer</button>
+    </div>
+  </form>
+</dialog>
+<div id="bandeau" role="status"></div>
+
+<script>
+"use strict";
+// Le stock vient du releve automatique (branche `journaux`, toutes les quinze
+// minutes) ; les recettes et les reglages, de mp.php ; les noms des MP, de
+// noms.json, fabrique par outils/page-mp.py.
+const DEPOT = "https://raw.githubusercontent.com/xiom-dev/zyroom-gtk-android/journaux/";
+
+const ECOS = { PrimeRoots: "Primes", Desert: "Désert", Forest: "Forêts",
+               Jungle: "Jungle", Lake: "Lacs", none: "Communes",
+               Corrupted: "Corrompues" };
+const ETATS = { rupture: "Bientôt en rupture", forer: "À forer", ok: "Suffisant",
+                stop: "Stop forage" };
+
+let noms = { mp: {}, plans: {} };
+let etat = null;          // reponse de mp.php
+let stock = new Map();    // fiche -> [[qualite, quantite], ...]
+let releve = null;        // date du releve du hall
+let calcul = null;
+let onglet = "forer";
+let eco = "";
+let ouvertes = new Set();
+let jeton = "";
+try { jeton = localStorage.getItem("mp-jeton") || ""; } catch (e) {}
+
+const $ = (s) => document.querySelector(s);
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;",
+    ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+const nf = new Intl.NumberFormat("fr-FR");
+const nombre = (n) => (Number.isFinite(n) ? nf.format(n) : "∞");
+
+function bandeau(texte, erreur) {
+  const b = $("#bandeau");
+  b.textContent = texte;
+  b.className = erreur ? "erreur" : "";
+  b.style.display = "block";
+  clearTimeout(bandeau.minuteur);
+  bandeau.minuteur = setTimeout(() => { b.style.display = "none"; }, 3500);
+}
+
+// ------------------------------------------------------------ chargement
+
+async function charger() {
+  if (!jeton) { verrouiller(); return; }
+  try {
+    const [n, e] = await Promise.all([
+      fetch("noms.json").then((r) => r.json()),
+      lireEtat(),
+    ]);
+    noms = n;
+    etat = e;
+    await chargerStock();
+  } catch (souci) {
+    if (souci.message === "401") { verrouiller(); return; }
+    $("#resume").textContent = "Lecture impossible : " + souci.message;
+    return;
+  }
+  afficherConnexion();
+  recalculer();
+}
+
+// Sans jeton valide, la page ne montre rien : le mot de passe d'abord.
+function verrouiller() {
+  jeton = "";
+  try { localStorage.removeItem("mp-jeton"); } catch (e) {}
+  etat = null;
+  $("#vue").innerHTML = "";
+  $("#resume").textContent = "Page réservée à la guilde : mot de passe requis.";
+  afficherConnexion();
+  ouvrirPorte();
+}
+
+function ouvrirPorte() {
+  $("#message").textContent = "";
+  if (!$("#porte").open) $("#porte").showModal();
+}
+
+async function lireEtat() {
+  const r = await fetch("mp.php", { cache: "no-store",
+                                    headers: jeton ? { "X-MP": jeton } : {} });
+  if (r.status === 401) throw new Error("401");
+  if (!r.ok) throw new Error("mp.php " + r.status);
+  return r.json();
+}
+
+async function chargerStock() {
+  const g = etat.reglages.guilde;
+  const [s, t] = await Promise.all([
+    fetch(DEPOT + "guild-" + g + "-etat.json", { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error("stock " + r.status); return r.json(); }),
+    fetch(DEPOT + "roster-" + g + ".releve", { cache: "no-store" })
+      .then((r) => (r.ok ? r.text() : "")).catch(() => ""),
+  ]);
+  // Le releve range le hall coffre par coffre, "fiche|qualite" -> quantite.
+  // On additionne tous les coffres : une MP compte ou qu'elle soit rangee.
+  stock = new Map();
+  for (const [coffre, contenu] of Object.entries(s)) {
+    if (!coffre.startsWith("chest") || typeof contenu !== "object") continue;
+    for (const [cle, quantite] of Object.entries(contenu)) {
+      const [fiche, q] = cle.split("|");
+      if (!stock.has(fiche)) stock.set(fiche, []);
+      stock.get(fiche).push([Number(q), Number(quantite)]);
+    }
+  }
+  const secondes = parseInt(t, 10);
+  releve = secondes > 0 ? new Date(secondes * 1000) : null;
+}
+
+// ------------------------------------------------------------ calcul
+//
+// Une pile compte pour une recette si sa qualite atteint le minimum de la
+// recette pour cette MP : la qualite de craft (210 par defaut), relevee MP
+// par MP quand une recette l'exige (la Sha en 250 de la parure).
+
+function fiches(mp) { return (noms.mp[mp] || {}).fiches || []; }
+
+function utile(mp, qmin) {
+  let total = 0;
+  for (const f of fiches(mp)) {
+    for (const [q, n] of stock.get(f) || []) if (q >= qmin) total += n;
+  }
+  return total;
+}
+
+function dessous(mp, qmin) {
+  let total = 0;
+  for (const f of fiches(mp)) {
+    for (const [q, n] of stock.get(f) || []) if (q < qmin) total += n;
+  }
+  return total;
+}
+
+function besoinsDe(recette, reglages) {
+  // Une meme MP dans deux emplacements : les quantites s'additionnent.
+  const qc = recette.qualite ?? reglages.qualite;
+  const parMp = new Map();
+  for (const p of recette.pieces) {
+    const min = Math.max(qc, (recette.minimums || {})[p.mp] || 0);
+    const b = parMp.get(p.mp) || { mp: p.mp, n: 0, min };
+    b.n += p.n;
+    parMp.set(p.mp, b);
+  }
+  return [...parMp.values()];
+}
+
+function calculer() {
+  const reg = etat.reglages;
+  const recettes = [];
+  const demandes = new Map();   // mp -> [{min, besoin, parCraft, recette}]
+  for (const r of etat.recettes) {
+    const objectif = r.objectif ?? reg.objectif;
+    const besoins = besoinsDe(r, reg);
+    let possibles = Infinity, bloque = null;
+    for (const b of besoins) {
+      b.utile = utile(b.mp, b.min);
+      b.crafts = Math.floor(b.utile / b.n);
+      if (b.crafts < possibles) { possibles = b.crafts; bloque = b.mp; }
+      if (!demandes.has(b.mp)) demandes.set(b.mp, []);
+      demandes.get(b.mp).push({ min: b.min, besoin: objectif * b.n,
+                                parCraft: b.n, recette: r });
+    }
+    const statut = possibles < reg.rupture ? "rupture"
+                 : possibles < objectif ? "forer" : "ok";
+    recettes.push({ r, objectif, besoins, possibles, bloque, statut });
+  }
+
+  const mps = [];
+  for (const [mp, liste] of demandes) {
+    // **Le manque, qualite par qualite.** Une pile en 250 sert aussi bien
+    // une recette en 210, l'inverse non. Pour chaque seuil, ce que demandent
+    // les recettes au moins aussi exigeantes doit tenir dans les piles au
+    // moins aussi hautes : le pire ecart est ce qu'il faut forer.
+    const seuils = [...new Set(liste.map((d) => d.min))].sort((a, b) => a - b);
+    let manque = 0;
+    for (const t of seuils) {
+      const voulu = liste.filter((d) => d.min >= t)
+                         .reduce((s, d) => s + d.besoin, 0);
+      manque = Math.max(manque, voulu - utile(mp, t));
+    }
+    const qmin = seuils[0];
+    const s = utile(mp, qmin);
+    const besoin = liste.reduce((t, d) => t + d.besoin, 0);
+    const parCraft = liste.reduce((t, d) => t + d.parCraft, 0);
+    const couverture = parCraft ? Math.floor(s / parCraft) : Infinity;
+    const statut = couverture < reg.rupture ? "rupture"
+                 : manque > 0 ? "forer"
+                 : besoin > 0 && s > reg.stop * besoin ? "stop" : "ok";
+    mps.push({ mp, nom: (noms.mp[mp] || {}).nom, eco: mp.split("_")[1],
+               qmin, stock: s, dessous: dessous(mp, qmin), besoin, manque,
+               couverture, statut, recettes: liste.map((d) => d.recette.nom) });
+  }
+  return { recettes, mps };
+}
+
+// ------------------------------------------------------------ affichage
+
+function nomMp(mp) {
+  const n = (noms.mp[mp] || {}).nom;
+  return n ? esc(n) : '<span class="inconnue" title="Aucune fiche du jeu ne porte ce nom">'
+                      + esc(mp) + "</span>";
+}
+
+function retenue(texte) {
+  const q = $("#cherche").value.trim().toLowerCase();
+  return !q || texte.toLowerCase().includes(q);
+}
+
+function badge(statut) {
+  return '<span class="etat ' + statut + '">' + ETATS[statut] + "</span>";
+}
+
+function recalculer() {
+  calcul = calculer();
+  const reg = etat.reglages;
+  const forer = calcul.mps.filter((m) => m.statut === "rupture" || m.statut === "forer");
+  const stop = calcul.mps.filter((m) => m.statut === "stop");
+  $("#n-forer").textContent = forer.length;
+  $("#n-stop").textContent = stop.length;
+  $("#n-toutes").textContent = calcul.mps.length;
+  $("#n-recettes").textContent = calcul.recettes.length;
+  const aForer = forer.reduce((t, m) => t + m.manque, 0);
+  let quand = "date du relevé inconnue";
+  if (releve) {
+    const min = Math.round((Date.now() - releve) / 60000);
+    quand = "relevé du hall " + (min < 60 ? "il y a " + min + " min"
+      : "du " + releve.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }));
+  }
+  $("#resume").innerHTML =
+    "La Lune Éternelle · " + esc(quand) + " · objectif <b>" + reg.objectif
+    + " crafts</b> par recette en <b>Q" + reg.qualite + "</b> · <b>"
+    + nombre(aForer) + "</b> MP à forer en tout";
+  afficher();
+}
+
+function afficher() {
+  document.querySelectorAll("[data-onglet]").forEach((b) =>
+    b.setAttribute("aria-pressed", String(b.dataset.onglet === onglet)));
+  $("#filtres").hidden = onglet === "journal" || onglet === "reglages";
+  const vue = $("#vue");
+  if (onglet === "recettes") vue.innerHTML = vueRecettes();
+  else if (onglet === "journal") vue.innerHTML = vueJournal();
+  else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
+  else vue.innerHTML = vueMps(onglet);
+}
+
+function vueMps(quoi) {
+  const ORDRE = { rupture: 0, forer: 1, ok: 2, stop: 3 };
+  let liste = calcul.mps.filter((m) =>
+    (!eco || m.eco === eco) && retenue((m.nom || m.mp) + " " + m.recettes.join(" ")));
+  if (quoi === "forer") {
+    liste = liste.filter((m) => m.statut === "rupture" || m.statut === "forer");
+    liste.sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut] || b.manque - a.manque);
+  } else if (quoi === "stop") {
+    liste = liste.filter((m) => m.statut === "stop");
+    liste.sort((a, b) => b.stock / b.besoin - a.stock / a.besoin);
+  } else {
+    liste.sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut]
+                         || (a.nom || a.mp).localeCompare(b.nom || b.mp));
+  }
+  if (!liste.length) {
+    return "<p>" + (quoi === "forer" ? "Rien à forer : toutes les recettes ont leur objectif."
+                   : quoi === "stop" ? "Aucune MP en surplus." : "Aucune MP.") + "</p>";
+  }
+  const lignes = liste.map((m) => {
+    const surplus = quoi === "stop"
+      ? '<td class="n">×' + (m.stock / m.besoin).toFixed(1) + "</td>" : "";
+    return "<tr><td>" + nomMp(m.mp) + '<div class="faible">' + ECOS[m.eco]
+      + " · Q" + m.qmin + "+ · " + m.recettes.length + " recette"
+      + (m.recettes.length > 1 ? "s" : "") + "</div></td>"
+      + "<td>" + badge(m.statut) + "</td>"
+      + (quoi === "stop" ? ""
+         : '<td class="n">' + (m.manque > 0 ? "<b>" + nombre(m.manque) + "</b>" : "—") + "</td>")
+      + '<td class="n">' + nombre(m.stock) + "</td>"
+      + '<td class="n">' + nombre(m.besoin) + "</td>"
+      + surplus
+      + '<td class="n">' + nombre(m.couverture) + "</td>"
+      + '<td class="n faible">' + (m.dessous ? nombre(m.dessous) : "—") + "</td></tr>";
+  }).join("");
+  return '<div class="cadre"><table><thead><tr><th>MP</th><th>État</th>'
+    + (quoi === "stop" ? ""
+       : '<th class="n" title="Ce qu\'il faut forer pour atteindre l\'objectif de chaque recette">À forer</th>')
+    + '<th class="n" title="Piles du hall à la qualité demandée ou plus">Stock</th>'
+    + '<th class="n" title="Ce que demandent toutes les recettes pour leur objectif">Besoin</th>'
+    + (quoi === "stop" ? '<th class="n">Stock / besoin</th>' : "")
+    + '<th class="n" title="Crafts de chaque recette qui l\'utilise">Couvre</th>'
+    + '<th class="n" title="Piles du hall trop basses pour ces recettes">Sous la qualité</th>'
+    + "</tr></thead><tbody>" + lignes + "</tbody></table></div>";
+}
+
+function vueRecettes() {
+  const ORDRE = { rupture: 0, forer: 1, ok: 2 };
+  const liste = calcul.recettes.filter((x) =>
+    (!eco || x.besoins.some((b) => b.mp.split("_")[1] === eco))
+    && retenue(x.r.nom + " " + x.besoins.map((b) => (noms.mp[b.mp] || {}).nom || b.mp).join(" ")))
+    .sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut] || a.possibles - b.possibles
+                    || a.r.nom.localeCompare(b.r.nom));
+  const lignes = liste.map((x) => {
+    const ouverte = ouvertes.has(x.r.id);
+    let html = '<tr class="recette' + (ouverte ? " ouverte" : "") + '" data-id="'
+      + esc(x.r.id) + '"><td>' + esc(x.r.nom) + '<div class="faible">'
+      + esc(noms.plans[x.r.plan] || "Plan " + x.r.plan) + "</div></td>"
+      + "<td>" + badge(x.statut) + "</td>"
+      + '<td class="n"><b>' + nombre(x.possibles) + "</b> / " + x.objectif + "</td>"
+      + "<td>" + (x.statut === "ok" ? "" : nomMp(x.bloque)) + "</td></tr>";
+    if (ouverte) html += '<tr class="detail"><td colspan="4">' + detail(x) + "</td></tr>";
+    return html;
+  }).join("");
+  return '<div class="cadre"><table><thead><tr><th>Recette</th><th>État</th>'
+    + '<th class="n">Crafts possibles</th><th>MP qui bloque</th></tr></thead><tbody>'
+    + lignes + "</tbody></table></div>";
+}
+
+function detail(x) {
+  const connecte = Boolean(etat.qui);
+  const reg = etat.reglages;
+  const qc = x.r.qualite ?? reg.qualite;
+  const lignes = x.besoins.map((b) => {
+    const propre = (x.r.minimums || {})[b.mp];
+    const q = connecte
+      ? '<input type="number" min="1" max="300" data-min="' + esc(b.mp) + '" value="'
+        + (propre || "") + '" placeholder="' + qc + '">'
+      : "Q" + b.min + (propre ? " *" : "");
+    return "<tr><td>" + nomMp(b.mp) + '</td><td class="n">' + b.n + "</td><td>" + q
+      + '</td><td class="n">' + nombre(b.utile) + '</td><td class="n">'
+      + nombre(b.crafts) + "</td></tr>";
+  }).join("");
+  let html = "<table><thead><tr><th>MP</th><th class=\"n\">Par craft</th>"
+    + "<th>Qualité mini</th><th class=\"n\">Stock</th><th class=\"n\">Crafts</th>"
+    + "</tr></thead><tbody>" + lignes + "</tbody></table>";
+  if (!connecte) {
+    return html + (Object.keys(x.r.minimums || {}).length
+      ? '<p class="faible">* qualité relevée pour cette MP dans cette recette.</p>' : "");
+  }
+  return html + '<div class="edition" data-edition="' + esc(x.r.id) + '">'
+    + '<label>Objectif <input type="number" min="0" max="100000" data-champ="objectif" value="'
+    + (x.r.objectif ?? "") + '" placeholder="' + reg.objectif + '"></label>'
+    + '<label>Qualité de craft <input type="number" min="1" max="300" data-champ="qualite" value="'
+    + (x.r.qualite ?? "") + '" placeholder="' + reg.qualite + '"></label>'
+    + '<button type="button" class="principal" data-action="enregistrer">Enregistrer</button>'
+    + '<button type="button" class="danger" data-action="supprimer">Supprimer la recette</button>'
+    + '<span>Case vide : réglage commun.</span></div>';
+}
+
+function vueJournal() {
+  const j = etat.journal || [];
+  if (!j.length) {
+    return "<p>Aucune modification encore" + (etat.depart
+      ? " : les recettes sont celles de départ, lues dans KipeeCraft." : ".") + "</p>";
+  }
+  return '<div class="cadre"><table><thead><tr><th>Quand</th><th>Qui</th><th>Quoi</th>'
+    + "</tr></thead><tbody>" + j.map((e) => "<tr><td class=\"faible\">"
+      + esc(new Date(e.quand).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }))
+      + "</td><td>" + esc(e.qui) + "</td><td>" + esc(e.quoi) + "</td></tr>").join("")
+    + "</tbody></table></div>";
+}
+
+function vueReglages() {
+  const r = etat.reglages;
+  const champ = (cle, texte, min, max) => "<label for=\"r-" + cle + "\">" + texte
+    + '</label><input type="number" id="r-' + cle + '" min="' + min + '" max="' + max
+    + '" value="' + r[cle] + '">';
+  return '<section class="panneau"><h2>Réglages communs</h2><div class="grille">'
+    + champ("objectif", "Objectif (crafts par recette)", 0, 100000)
+    + champ("qualite", "Qualité de craft", 1, 300)
+    + champ("stop", "Stop forage au-delà de (× le besoin)", 1, 100)
+    + champ("rupture", "Bientôt en rupture sous (crafts)", 0, 100000)
+    + '</div><button type="button" class="principal" id="r-enregistrer">Enregistrer</button></section>'
+    + '<section class="panneau"><h2>Importer des recettes KipeeCraft</h2>'
+    + "<p>Fichiers <code>.kc</code>. Une recette du même nom est remplacée ; "
+    + "ses réglages propres (objectif, qualités) sont gardés.</p>"
+    + '<input type="file" id="fichiers" accept=".kc" multiple>'
+    + '<ul id="apercu"></ul>'
+    + '<button type="button" class="principal" id="importer" hidden>Importer</button></section>';
+}
+
+// ------------------------------------------------------------ recettes .kc
+
+// Meme regle que outils/page-mp.py : la recette importee ici et la meme
+// lue par l'outil doivent tomber sur le meme identifiant.
+function identifiant(nom) {
+  const plat = nom.replace(/Œ/g, "Oe").replace(/œ/g, "oe").normalize("NFD")
+    .replace(/[^\x00-\x7f]/g, "").toLowerCase();
+  return plat.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "recette";
+}
+
+function lireKc(nomFichier, texte) {
+  texte = texte.replace(/\r\n/g, "\n");
+  const plan = /^PatternID=(\d+)/m.exec(texte);
+  const pieces = [...texte.matchAll(/^slot(\d+)=(\d+)x\s+(\S+)/gm)]
+    .map((m) => ({ n: Number(m[2]), mp: m[3] }));
+  if (!plan || !pieces.length) return null;
+  const nom = nomFichier.replace(/\.kc$/i, "").slice(0, 80);
+  return { id: identifiant(nom), nom, plan: Number(plan[1]), pieces, minimums: {} };
+}
+
+let aImporter = [];
+
+function brancherReglages() {
+  $("#r-enregistrer").addEventListener("click", async () => {
+    const r = { guilde: etat.reglages.guilde };
+    for (const cle of ["objectif", "qualite", "stop", "rupture"]) {
+      r[cle] = Number($("#r-" + cle).value);
+    }
+    if (await envoyer({ action: "reglages", reglages: r })) bandeau("Réglages enregistrés");
+  });
+  $("#fichiers").addEventListener("change", async (ev) => {
+    aImporter = [];
+    const lignes = [];
+    for (const f of ev.target.files) {
+      // KipeeCraft ecrit en Windows-1252 : un accent lu en UTF-8 serait casse.
+      const texte = new TextDecoder("windows-1252").decode(await f.arrayBuffer());
+      const r = lireKc(f.name, texte);
+      if (!r) { lignes.push("<li class=\"inconnue\">" + esc(f.name) + " : pas de recette</li>"); continue; }
+      const existe = etat.recettes.find((e) => e.id === r.id);
+      if (existe) {
+        // On garde ce qui a ete regle sur le site pour cette recette.
+        for (const cle of ["objectif", "qualite"]) if (existe[cle] != null) r[cle] = existe[cle];
+        for (const [mp, q] of Object.entries(existe.minimums || {})) {
+          if (r.pieces.some((p) => p.mp === mp)) r.minimums[mp] = q;
+        }
+      }
+      const inconnues = r.pieces.filter((p) => !noms.mp[p.mp]).map((p) => p.mp);
+      aImporter.push(r);
+      lignes.push("<li>" + esc(r.nom) + ' <span class="faible">(' + (existe ? "remplace" : "nouvelle")
+        + ", " + r.pieces.length + " pièces)</span>"
+        + (inconnues.length ? ' <span class="inconnue">MP inconnues : ' + esc(inconnues.join(", ")) + "</span>" : "")
+        + "</li>");
+    }
+    $("#apercu").innerHTML = lignes.join("");
+    $("#importer").hidden = !aImporter.length;
+    $("#importer").textContent = "Importer " + aImporter.length + " recette" + (aImporter.length > 1 ? "s" : "");
+  });
+  $("#importer").addEventListener("click", async () => {
+    let faites = 0;
+    for (const r of aImporter) {
+      if (!(await envoyer({ action: "recette", recette: r }, false))) break;
+      faites++;
+    }
+    aImporter = [];
+    await relire();
+    bandeau(faites + " recette" + (faites > 1 ? "s" : "") + " importée" + (faites > 1 ? "s" : ""));
+  });
+}
+
+// ------------------------------------------------------------ ecriture
+
+async function envoyer(corps, relireApres = true) {
+  try {
+    const r = await fetch("mp.php", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-MP": jeton },
+      body: JSON.stringify(corps) });
+    const reponse = await r.json().catch(() => ({}));
+    if (r.status === 401) { verrouiller(); bandeau("Connexion expirée : reconnecte-toi", true); return false; }
+    if (!r.ok) { bandeau("Refusé : " + (reponse.erreur || r.status), true); return false; }
+  } catch (souci) {
+    bandeau("Envoi impossible : " + souci.message, true);
+    return false;
+  }
+  if (relireApres) await relire();
+  return true;
+}
+
+async function relire() {
+  etat = await lireEtat();
+  afficherConnexion();
+  recalculer();
+}
+
+function recetteEditee(id) {
+  const zone = document.querySelector('[data-edition="' + CSS.escape(id) + '"]');
+  const r = structuredClone(etat.recettes.find((e) => e.id === id));
+  for (const cle of ["objectif", "qualite"]) {
+    const v = zone.querySelector('[data-champ="' + cle + '"]').value.trim();
+    if (v === "") delete r[cle]; else r[cle] = Number(v);
+  }
+  r.minimums = {};
+  zone.parentElement.querySelectorAll("[data-min]").forEach((i) => {
+    if (i.value.trim() !== "") r.minimums[i.dataset.min] = Number(i.value);
+  });
+  return r;
+}
+
+// ------------------------------------------------------------ connexion
+
+function afficherConnexion() {
+  const qui = etat && etat.qui;
+  $("#connecte").textContent = qui ? "Connecté : " + qui + " " : etat ? "Lecture seule " : "";
+  // Annuler la porte ne doit pas laisser la page sans moyen d'y revenir.
+  $("#entrer").hidden = Boolean(qui);
+  $("#entrer").textContent = etat ? "Se connecter pour modifier" : "Se connecter";
+  $("#sortir").hidden = !jeton;
+  $("#onglet-reglages").hidden = !qui;
+  if (!qui && onglet === "reglages") onglet = "forer";
+}
+
+$("#entrer").addEventListener("click", ouvrirPorte);
+$("#sortir").addEventListener("click", verrouiller);
+$("#porte-annuler").addEventListener("click", () => $("#porte").close());
+$("#porte-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("#message").textContent = "Vérification…";
+  try {
+    const r = await fetch("mp.php", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "entrer", nom: $("#porte-nom").value,
+                             mdp: $("#porte-mdp").value }) });
+    const reponse = await r.json().catch(() => ({}));
+    if (!r.ok) { $("#message").textContent = $("#porte-nom").value.trim()
+                   ? "Nom ou mot de passe incorrect." : "Mot de passe incorrect."; return; }
+    jeton = reponse.jeton;
+    try { localStorage.setItem("mp-jeton", jeton); } catch (e) {}
+    $("#porte-mdp").value = "";
+    $("#porte").close();
+    await charger();
+    bandeau(reponse.qui ? "Bienvenue, " + reponse.qui : "Bienvenue");
+  } catch (souci) {
+    $("#message").textContent = "Serveur injoignable.";
+  }
+});
+
+// ------------------------------------------------------------ evenements
+
+document.querySelectorAll("[data-onglet]").forEach((b) =>
+  b.addEventListener("click", () => { onglet = b.dataset.onglet; afficher(); }));
+document.querySelectorAll("[data-eco]").forEach((b) =>
+  b.addEventListener("click", () => {
+    eco = b.dataset.eco;
+    document.querySelectorAll("[data-eco]").forEach((x) =>
+      x.setAttribute("aria-pressed", String(x === b)));
+    afficher();
+  }));
+$("#cherche").addEventListener("input", afficher);
+
+$("#vue").addEventListener("click", async (ev) => {
+  const bouton = ev.target.closest("[data-action]");
+  if (bouton) {
+    const id = bouton.closest("[data-edition]").dataset.edition;
+    if (bouton.dataset.action === "enregistrer") {
+      if (await envoyer({ action: "recette", recette: recetteEditee(id) })) bandeau("Recette enregistrée");
+    } else if (confirm("Supprimer cette recette du site ?")) {
+      if (await envoyer({ action: "supprimer", id })) { ouvertes.delete(id); bandeau("Recette supprimée"); }
+    }
+    return;
+  }
+  const ligne = ev.target.closest("tr.recette");
+  if (ligne) {
+    const id = ligne.dataset.id;
+    if (ouvertes.has(id)) ouvertes.delete(id); else ouvertes.add(id);
+    afficher();
+  }
+});
+
+charger();
+</script>
+</body>
+</html>

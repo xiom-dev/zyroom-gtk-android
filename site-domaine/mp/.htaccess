@@ -1,0 +1,24 @@
+# Les recettes et leurs sauvegardes ne se lisent que par mp.php, jamais en
+# direct : le fichier porte le nom de qui a modifie quoi, et les sauvegardes
+# s'enumereraient une a une. Meme regle que le releve du forage.
+<FilesMatch "\.json$">
+    Require all denied
+</FilesMatch>
+# Sauf la table des noms des MP : la page la lit telle quelle.
+<Files "noms.json">
+    Require all granted
+</Files>
+# Le modele du PHP n'a rien a faire en ligne ; s'il y etait depose par
+# megarde, il ne doit ni s'executer ni se lire.
+<Files "mp.modele.php">
+    Require all denied
+</Files>
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# La page se retouche souvent : un navigateur qui garde l'ancienne fait
+# croire qu'une correction n'a pas pris.
+<FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>
