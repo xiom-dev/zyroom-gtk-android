@@ -756,6 +756,7 @@ function dessinerBonus() {
   else if (Z.page === "effectif") dessinerEffectif();
   else if (Z.page === "perdu") dessinerPerdu();
   else if (Z.page === "avant-postes") dessinerAvantPostes();
+  else if (Z.page === "meteo") dessinerMeteo();
   else dessinerAutrePage();
   majEtat();
 }
@@ -1168,6 +1169,224 @@ async function dessinerAvantPostes(forcer) {
       + "</div>";
   };
   zone.innerHTML = colonne(v.peuples.slice(0, 2)) + colonne(v.peuples.slice(2));
+}
+
+// --- Meteo / forage (page_meteo.py, page_gisements.py)
+//
+// Comme ZyRoom-Qt : la courbe, ce qui sort et les gisements, d'apres le
+// releve publie (forage.json) ; ni le bouton du releve, ni les MP a verifier.
+
+const M = { charge: false, enCours: false, vue: null, minuteur: null, ouverte: null };
+
+async function chargerMeteo() {
+  if (M.enCours) return;
+  M.enCours = true;
+  if ($("#m-actualiser")) $("#m-actualiser").disabled = true;
+  try {
+    const continents = await appeler("meteo_continents");
+    const [m, t, f] = await Promise.all([
+      fetch(API + "/weather.php?continent=" + continents + "&cycles=40&offset=6", { cache: "no-store" }).then((r) => r.text()),
+      fetch(API + "/time.php?format=xml", { cache: "no-store" }).then((r) => r.text()).catch(() => ""),
+      fetch(DEPOT + "forage.json", { cache: "no-cache" }).then((r) => (r.ok ? r.text() : "")).catch(() => ""),
+    ]);
+    await appeler("meteo_charger", m, t, f);
+    M.charge = true;
+  } catch (er) {
+    if ($("#m-entete")) $("#m-entete").textContent = "Météo indisponible : " + er.message;
+  }
+  M.enCours = false;
+  if ($("#m-actualiser")) $("#m-actualiser").disabled = false;
+}
+
+async function dessinerMeteo(forcer) {
+  if (!$("#m-courbe")) {
+    $("#page").innerHTML = '<div class="outils"><span class="m-entete" id="m-entete">Lecture de la météo…</span>'
+      + '<button type="button" id="m-actualiser">Actualiser</button></div>'
+      + '<canvas id="m-courbe"></canvas><div class="m-titre" id="m-titre"></div><div class="m-zones" id="m-zones"></div>';
+    $("#m-actualiser").addEventListener("click", () => dessinerMeteo(true));
+    $("#m-zones").addEventListener("click", (ev) => {
+      const a = ev.target.closest("[data-gisement]");
+      if (a) { ev.preventDefault(); ouvrirGisement(a.dataset.gisement); }
+    });
+    new ResizeObserver(() => courbe()).observe($("#m-courbe"));
+  }
+  if (!Z.pret) return;
+  if (!M.charge || forcer) await chargerMeteo();
+  if (!M.charge) return;
+  await majMeteo();
+  // Le temps d'Atys avance tout seul : on recale toutes les dix secondes,
+  // sans rien redemander tant que la prevision remplit la courbe.
+  if (!M.minuteur) M.minuteur = setInterval(() => { if (Z.page === "meteo") majMeteo(); }, 10000);
+}
+
+async function majMeteo() {
+  const v = JSON.parse(await appeler("meteo_vue"));
+  if (v.vide) return;
+  M.vue = v;
+  if (v.recharger && !M.enCours) chargerMeteo();
+  if (!$("#m-courbe")) return;
+  if (v.entete) {
+    $("#m-entete").innerHTML = "humidité <b>" + esc(v.entete.taux) + "</b>"
+      + (v.entete.pendant ? "<b> pendant " + esc(v.entete.pendant) + "</b>" : "")
+      + "&nbsp;&nbsp; — &nbsp;&nbsp;" + esc(v.entete.decor);
+  }
+  courbe();
+  $("#m-titre").textContent = v.zones ? "MP qui pop maintenant" : "";
+  $("#m-zones").innerHTML = (v.zones || []).map(([zone, blocs]) => '<div class="m-zone"><div class="m-tete zebre">' + esc(zone)
+    + '</div><div class="m-corps">' + (blocs.length ? blocs.map((b) => '<div class="m-mot ' + (b.a_confirmer ? "a-confirmer" : "peuple") + '">'
+      + esc(b.mot) + '</div><div class="m-grille">' + b.familles.map(([fam, img, mats]) => '<div class="m-fam"><div class="faible">'
+        + esc(fam) + "</div>" + (img ? '<img src="' + esc(img) + '" alt="">' : "") + '</div><div class="m-mats">'
+        + mats.map(([m, lien]) => lien ? '<a href="#" data-gisement="' + esc(lien) + '">' + esc(m) + "</a>" : esc(m)).join(", ")
+        + "</div>").join("") + "</div>").join("") : '<div class="faible">Pas encore relevé</div>') + "</div></div>").join("");
+  if (M.ouverte) majGisement();
+}
+
+// La courbe d'humidite (page_meteo._dessiner_courbe) : des paliers relies
+// en oblique la derniere heure de chaque cycle, les nuits en bandes, les
+// seuils du jeu en pointille, le present fige a 15 % de la largeur.
+function courbe() {
+  const c = $("#m-courbe");
+  const v = M.vue;
+  if (!c || !v || v.cycles.length < 2) return;
+  const w = c.clientWidth, h = c.clientHeight;
+  const r = window.devicePixelRatio || 1;
+  c.width = Math.round(w * r); c.height = Math.round(h * r);
+  const ctx = c.getContext("2d");
+  ctx.setTransform(r, 0, 0, r, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const FEN = 40, ANCRE = 0.15, mg = 34, mb = 20;
+  const large = w - mg, haut = h - mb;
+  const gauche = v.heure_atys - ANCRE * FEN;
+  const X = (hr) => mg + large * (hr - gauche) / FEN;
+  const Y = (val) => haut * (1 - Math.min(1, Math.max(0, val)));
+  const HPC = v.heures_par_cycle, TR = v.transition;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(mg, 0, large, haut); ctx.clip();
+  ctx.fillStyle = "rgba(255,255,255,.06)";
+  for (let hr = Math.floor(gauche) - 1; hr <= Math.floor(gauche + FEN) + 2; hr++) {
+    const hd = ((hr % 24) + 24) % 24;
+    if (hd >= 22 || hd < 3) ctx.fillRect(X(hr), 0, large / FEN, haut);
+  }
+  const trace = () => {
+    for (const [cy, val] of v.cycles) {
+      const debut = cy * HPC;
+      ctx.lineTo(X(debut), Y(val));
+      ctx.lineTo(X(debut + HPC - TR), Y(val));
+    }
+  };
+  ctx.beginPath();
+  ctx.moveTo(X(v.cycles[0][0] * HPC), haut);
+  trace();
+  ctx.lineTo(X((v.cycles[v.cycles.length - 1][0] + 1) * HPC), haut);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(64,122,105,.35)"; ctx.fill();
+  ctx.beginPath(); trace();
+  ctx.strokeStyle = "rgb(89,173,148)"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+  ctx.font = "10px Cantarell, 'Noto Sans', sans-serif";
+  ctx.lineWidth = 1;
+  for (const [g, t] of [[0.334, "33,4"], [0.666, "66,6"]]) {
+    ctx.strokeStyle = "rgba(255,255,255,.18)"; ctx.beginPath(); ctx.moveTo(mg, Y(g)); ctx.lineTo(w, Y(g)); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillText(t, 2, Y(g) - 3);
+  }
+  ctx.setLineDash([4, 4]);
+  v.seuils.forEach((s, i) => {
+    ctx.strokeStyle = "rgba(230,102,102,.55)"; ctx.beginPath(); ctx.moveTo(mg, Y(s)); ctx.lineTo(w, Y(s)); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fillText(["16,7", "50", "83,4"][i], 2, Y(s) - 3);
+  });
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "rgb(232,194,89)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(X(v.heure_atys), 0); ctx.lineTo(X(v.heure_atys), haut); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(mg, haut); ctx.lineTo(w, haut); ctx.stroke();
+  // L'heure reelle tous les quarts d'heure, un tiret toutes les cinq minutes.
+  const maintenant = new Date();
+  const repere = new Date(maintenant); repere.setMinutes(0, 0, 0); repere.setHours(repere.getHours() - 1);
+  for (let i = 0; i < 48; i++) {
+    repere.setMinutes(repere.getMinutes() + 5);
+    const atys = v.heure_atys + (repere - maintenant) / 60000 / v.minutes_par_heure;
+    if (atys < gauche || atys > gauche + FEN) continue;
+    const ecrite = repere.getMinutes() % 15 === 0;
+    ctx.strokeStyle = "rgba(255,255,255," + (ecrite ? .62 : .42) + ")";
+    ctx.beginPath(); ctx.moveTo(X(atys), haut); ctx.lineTo(X(atys), haut + (ecrite ? 6 : 4)); ctx.stroke();
+    if (!ecrite) continue;
+    ctx.fillStyle = "rgba(255,255,255,.55)";
+    const texte = deux(repere.getHours()) + "h" + (repere.getMinutes() ? deux(repere.getMinutes()) : "");
+    ctx.fillText(texte, Math.min(w - 30, Math.max(0, X(atys) - 14)), h - 4);
+  }
+}
+
+// --- La carte d'un gisement
+
+async function ouvrirGisement(adresse) {
+  let d = $("#gisement");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "gisement";
+    d.className = "gisement";
+    d.innerHTML = '<div class="g-tete"><strong id="g-titre"></strong><button type="button" id="g-fermer">Fermer</button></div>'
+      + '<div id="g-entete"></div><div class="g-note" id="g-maintenant"></div><div class="g-note" id="g-apres"></div>'
+      + '<canvas id="g-carte"></canvas><div class="g-lieux" id="g-lieux"></div>'
+      + '<div class="g-note faible">Positions : relevé de ballisticmystix.net, avec l\'accord de son auteur</div>';
+    document.body.appendChild(d);
+    d.querySelector("#g-fermer").addEventListener("click", () => d.close());
+    d.addEventListener("close", () => { M.ouverte = null; });
+    M.carte = carteAtys(d.querySelector("#g-carte"), (ctx, e, mx, my, w, h) => {
+      const g = M.ouverte;
+      if (!g) return;
+      if (!M.carte.etat.cadre && w) cadrer(w, h, g.points);
+      // Les points trop proches n'en font qu'un ; les gris d'abord, les verts par-dessus.
+      const vus = new Map();
+      for (const [px, py, lieu, actif] of g.points) {
+        const x = mx + px * e, y = my + py * e;
+        const cle = Math.floor(x / SEUIL_GROUPE) + ":" + Math.floor(y / SEUIL_GROUPE);
+        if (!vus.has(cle)) vus.set(cle, [x, y, lieu, actif, 0]);
+        vus.get(cle)[4]++;
+      }
+      for (const vert of [false, true]) {
+        for (const [x, y, lieu, actif, n] of vus.values()) {
+          if (actif !== vert) continue;
+          for (const [rr, col] of [[6.5, CERNE], [4, actif ? "rgb(71,209,92)" : "rgb(148,148,153)"]]) {
+            ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, rr, 0, 6.2832); ctx.fill();
+          }
+          nomCerne(ctx, n === 1 ? lieu : lieu + " ×" + n, x + 10, y - 6);
+        }
+      }
+    });
+  }
+  M.ouverte = { adresse };
+  M.carte.etat.cadre = false;
+  await majGisement();
+  if (!d.open) d.showModal();
+  M.carte.dessiner();
+}
+
+// Le cadrage du premier affichage (page_gisements._cadre_gisement).
+function cadrer(w, h, points) {
+  const etat = M.carte.etat;
+  etat.cadre = true;
+  if (!points.length) return;
+  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const large = Math.max(Math.max(...xs) - Math.min(...xs), 300), haute = Math.max(Math.max(...ys) - Math.min(...ys), 260);
+  const base = Math.min(w / 4000, h / 3000);
+  const voulue = Math.min(0.55 * w / large, 0.55 * h / haute);
+  etat.zoom = Math.min(ZOOM_MAX, Math.max(1, voulue / base));
+  const e = base * etat.zoom;
+  const dx = Math.max(0, (4000 * e - w) / 2), dy = Math.max(0, (3000 * e - h) / 2);
+  etat.gx = Math.max(-dx, Math.min(dx, e * (2000 - cx)));
+  etat.gy = Math.max(-dy, Math.min(dy, e * (1500 - cy)));
+}
+
+async function majGisement() {
+  const g = JSON.parse(await appeler("gisement", M.ouverte.adresse));
+  M.ouverte = Object.assign({ adresse: M.ouverte.adresse }, g);
+  $("#g-titre").textContent = g.titre;
+  $("#g-entete").innerHTML = "<b>" + esc(g.mot) + "</b> &nbsp;·&nbsp; " + g.nombre + (g.nombre > 1 ? " gisements" : " gisement");
+  $("#g-maintenant").textContent = g.maintenant;
+  $("#g-apres").textContent = g.apres;
+  $("#g-lieux").innerHTML = g.lieux.map(([l, actif]) => '<span class="' + (actif ? "" : "faible") + '">' + esc(l) + "</span>").join("");
+  M.carte.dessiner();
 }
 
 // ------------------------------------------------------------ les autres pages

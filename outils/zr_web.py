@@ -16,7 +16,9 @@ import unicodedata
 
 import os
 
-from zyroom import alerts, carte, movements, outposts, roster, ryzom_api, skills as skills_mod, sorting
+import io
+
+from zyroom import alerts, carte, meteo, movements, outposts, partage, roster, ryzom_api, skills as skills_mod, sorting
 from zyroom.categorydb import CategoryDb
 from zyroom.models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, ItemInfo,
                            ItemType, categorie_item)
@@ -415,3 +417,150 @@ def vue_avant_postes(fichiers: str, ma_guilde: str, journal: bool) -> str:
     out["non_lus"] = store.non_lus(ma_guilde)
     out["fichiers"] = _relever_fichiers()
     return json.dumps(out, ensure_ascii=False)
+
+
+# ------------------------------------------------------------ meteo et forage
+#
+# Comme ZyRoom-Qt, l'application des joueurs : la courbe, ce qui sort et les
+# gisements, d'apres le releve du forage que la guilde publie (forage.json)
+# -- jamais le bouton du releve, jamais xiom.be/forage, ni les MP a verifier.
+
+releve_meteo = [None]
+#: La qualite des gisements telle que la page la passe (page_gisements._QUALITE).
+QUALITE_GISEMENT = {"supreme": meteo.SUPREME, "excellent": meteo.EXCELLENTE}
+
+
+class _Reponse(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+
+def _tables_publiees(texte: str):
+    """partage.tables_du_forage, sur le texte que la page a deja telecharge."""
+    ancien = partage.urllib.request.urlopen
+    partage.urllib.request.urlopen = lambda *_a, **_k: _Reponse(texte.encode("utf-8"))
+    try:
+        return partage.tables_du_forage()
+    finally:
+        partage.urllib.request.urlopen = ancien
+
+
+def meteo_continents() -> str:
+    """Les continents a demander a weather.php, comme page_meteo._load_meteo."""
+    return ",".join(sorted(set(meteo.CONTINENT_DE_ZONE.values())))
+
+
+def meteo_charger(meteo_json: str, temps_xml: str, forage_json: str) -> str:
+    """Le releve de l'API, recale comme page_meteo._load_meteo."""
+    releve = meteo.parse_weather(meteo_json)
+    try:
+        t = ryzom_api.parse_time(temps_xml.encode("utf-8"))
+        saison, dans = t["season_index"], t["minutes_to_next"]
+    except Exception:
+        saison, dans = -1, -1.0
+    releve_meteo[0] = meteo.MeteoAtys(releve.cycle_courant, releve.heure_atys, saison,
+                                      releve.continents, releve.pris_a, saison_dans=dans)
+    if forage_json:
+        tables = _tables_publiees(forage_json)
+        if tables is not None:
+            meteo.poser_tables(tables)
+    return "{}"
+
+
+def _symbole(famille: str) -> str:
+    """Comme meteo.symbole, mais l'image est servie par la page (symboles/)."""
+    from zyroom import armory
+    icone = armory.SYMBOLES.get(famille)
+    return f"symboles/{icone}.png" if icone else ""
+
+
+def meteo_vue() -> str:
+    """L'entete, la courbe et ce qui sort maintenant (page_meteo._refresh_meteo)."""
+    base = releve_meteo[0]
+    if base is None:
+        return json.dumps({"vide": True})
+    r = base.a_present()
+    out = {"heure_atys": r.heure_atys, "cycles": [[c.cycle, c.value] for c in r.cycles_des_primes()],
+           "seuils": list(meteo.SEUILS), "transition": meteo.TRANSITION_HEURES,
+           "heures_par_cycle": meteo.HEURES_PAR_CYCLE,
+           "minutes_par_heure": meteo.MINUTES_PAR_HEURE_ATYS}
+    # Recharger quand la prevision ne remplit plus la courbe (_meteo_tick).
+    out["recharger"] = meteo.heures_restantes(r) < 40.0 * 0.85 + meteo.HEURES_PAR_CYCLE
+    m = r.maintenant()
+    if m is not None:
+        suite = [c for c in r.cycles_des_primes() if c.cycle > r.cycle_courant]
+        prochain = next((c for c in suite if c.condition != m.condition), None)
+        taux = r.humidite()
+        if taux is None:
+            taux = m.value
+        out["entete"] = {
+            "taux": f"{meteo.condition_de(taux)} {int(taux * 100)} %",
+            "pendant": meteo.duree(r.minutes_avant(prochain.cycle)) if prochain else "",
+            "decor": f"{meteo.texte_meteo(m.text).lower()}, {meteo.nom_saison(r.saison).lower()}, "
+                     f"{r.heure_du_jour} h sur Atys, {'nuit' if r.nuit else 'jour'}",
+        }
+        zones = []
+        for zone in meteo.ZONES:
+            blocs = []
+            for qualite, groupes in meteo.sorties_de(r.saison, zone, m.condition):
+                nom = meteo.QUALITE_GISEMENT.get(qualite, "")
+                blocs.append({
+                    "mot": f"{meteo.mot_qualite(qualite)} ({sum(len(x) for x in groupes.values())})",
+                    "a_confirmer": qualite == meteo.A_CONFIRMER,
+                    "familles": [[famille, _symbole(famille), [
+                        [mat, f"{nom}|{famille}|{mat}"
+                         if meteo.positions_des_primes(qualite, famille, mat) else ""]
+                        for mat in mats]] for famille, mats in sorted(groupes.items())],
+                })
+            zones.append([zone, blocs])
+        out["zones"] = zones
+    return json.dumps(out, ensure_ascii=False)
+
+
+def gisement(adresse: str) -> str:
+    """La carte d'une matiere (page_gisements._montre_gisement et _textes_carte)."""
+    qualite, famille, matiere = adresse.split("|", 2)
+    attendue = QUALITE_GISEMENT.get(qualite)
+    points = meteo.positions_des_primes(attendue, famille, matiere)
+    lieux = list(dict.fromkeys(lieu for _x, _y, lieu in points))
+    base = releve_meteo[0]
+    r = base.a_present() if base is not None else None
+    m = r.maintenant() if r is not None else None
+    actifs = None
+    maintenant = apres = ""
+    if m is not None and any(lieu in meteo.ZONES for lieu in lieux):
+        actifs = {lieu for lieu in lieux if lieu not in meteo.ZONES
+                  or meteo.sort_en(attendue, lieu, famille, matiere, r.saison, m.condition)}
+        dehors = [lieu for lieu in lieux if lieu not in actifs]
+        sortent = len(lieux) - len(dehors)
+        valeurs = {"condition": meteo.texte_condition(m.condition),
+                   "taux": round(m.value * 100), "sortent": sortent, "total": len(lieux)}
+        maintenant = (("En ce moment — %(condition)s, %(taux)d %% : aucun des %(total)d gisements ne sort."
+                       if not sortent else
+                       "En ce moment — %(condition)s, %(taux)d %% : un gisement sur %(total)d."
+                       if sortent == 1 else
+                       "En ce moment — %(condition)s, %(taux)d %% : %(sortent)d gisements sur %(total)d.")
+                      % valeurs + ("  Les autres sont en gris." if dehors and sortent else ""))
+        if not sortent:
+            minutes = None
+            zones = [lieu for lieu in lieux if lieu in meteo.ZONES]
+            for c in r.cycles_des_primes():
+                if c.cycle > r.cycle_courant and any(
+                        meteo.sort_en(attendue, lieu, famille, matiere, r.saison, c.condition)
+                        for lieu in zones):
+                    minutes = r.minutes_avant(c.cycle)
+                    break
+            apres = (f"Prochaine fois dans {meteo.duree(minutes)} — {meteo.moment_du_changement(minutes)}."
+                     if minutes is not None else
+                     "Pas avant six heures — au-delà, le jeu ne dit plus le temps qu'il fera.")
+    return json.dumps({
+        "titre": f"{matiere} — {famille}", "mot": meteo.mot_qualite(attendue),
+        "maintenant": maintenant, "apres": apres,
+        "lieux": [[lieu, actifs is None or lieu in actifs] for lieu in lieux],
+        "points": [[p[0], p[1], lieu, actifs is None or lieu in actifs]
+                   for x, y, lieu in points if (p := carte.pixel(x, y)) is not None],
+        "nombre": len(points),
+    }, ensure_ascii=False)

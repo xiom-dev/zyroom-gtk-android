@@ -32,6 +32,10 @@ const OPERATIONS = {
   registre: (gid, texte) => zr.registre(gid, texte),
   charger_annuaire: (xml, fichiers) => zr.charger_annuaire(xml, fichiers),
   vue_avant_postes: (fichiers, guilde, journal) => zr.vue_avant_postes(fichiers, guilde, journal),
+  meteo_continents: () => zr.meteo_continents(),
+  meteo_charger: (m, t, f) => zr.meteo_charger(m, t, f),
+  meteo_vue: () => zr.meteo_vue(),
+  gisement: (adresse) => zr.gisement(adresse),
   copier_journal: (cle, cherche, mode) => zr.copier_journal(cle, cherche, mode),
 };
 

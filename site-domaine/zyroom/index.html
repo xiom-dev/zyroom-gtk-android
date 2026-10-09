@@ -182,6 +182,26 @@
   .op-hors { padding: 8px; opacity: .8; }
   table.op-journal { border-collapse: collapse; }
   table.op-journal td { padding: 3px 18px 3px 8px; white-space: nowrap; }
+  .m-entete { flex: 1; }
+  #m-courbe { display: block; width: calc(100% - 16px); height: 190px; margin: 0 8px 8px; }
+  .m-titre { color: var(--or); font-weight: 700; font-size: 1.1em; padding: 0 8px 2px; }
+  .m-zones { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 0 8px 2px; }
+  @media (max-width: 1000px) { .m-zones { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .m-zones { grid-template-columns: 1fr; } }
+  .m-zone { background: var(--surface); display: flex; flex-direction: column; min-height: 0; }
+  .m-tete { font-weight: 700; padding: 8px 8px 1px; }
+  .m-corps { overflow-y: auto; padding: 0 8px 8px; background: #1d2e2f; }
+  .m-mot { font-size: .86em; margin-top: 4px; }
+  .peuple { color: var(--or); } .a-confirmer { color: #e8a13a; }
+  .m-grille { display: grid; grid-template-columns: 90px 1fr; gap: 1px 12px; }
+  .m-fam img { width: 26px; height: 26px; display: block; }
+  .m-mats a { color: #a6c9bd; }
+  .m-mats a:hover { color: #c5ddd5; }
+  dialog.gisement { max-width: 760px; width: calc(100vw - 16px); }
+  .g-tete { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .g-note { font-size: .86em; margin: 4px 0; }
+  #g-carte { display: block; width: 100%; height: 340px; margin: 8px 0; touch-action: none; cursor: grab; }
+  .g-lieux { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; font-size: .92em; }
   .page-autre { flex: 1; display: grid; place-items: center; color: var(--faible); background: var(--surface); }
 
   /* --- le pied --- */
