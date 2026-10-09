@@ -209,8 +209,12 @@ function dessiner() {
       + "télécharge Python (une dizaine de Mo) ; ensuite il le garde.</p>";
     return;
   }
+  // Formules et Audit corrigent les donnees : aux editeurs seulement
+  // (`etat` vient de index.html).
+  const editeur = typeof etat === "object" && etat && etat.editeur;
   const onglets = [["simu", "Simulateur"], ["evo", "Armurerie"], ["bij", "Bijouterie"], ["base", "Base de matériaux"],
-                   ["form", "Formules"], ["audit", "Audit"]];
+                   ...(editeur ? [["form", "Formules"], ["audit", "Audit"]] : [])];
+  if (!onglets.some(([k]) => k === S.sous)) S.sous = "simu";
   racine.innerHTML = '<div class="onglets kc-sous">' + onglets.map(([k, t]) =>
     '<button type="button" data-kc="sous" data-v="' + k + '" aria-pressed="' + (S.sous === k) + '">'
     + t + "</button>").join("") + '<span class="faible kc-resume">' + esc(S.meta.resume) + "</span></div>"
