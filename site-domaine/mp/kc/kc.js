@@ -1125,7 +1125,7 @@ style.textContent = `
    carapace du kipee, pour ne pas confondre ses onglets avec ceux de la page. */
 .kc-sous { align-items: center; gap: 4px; padding: 6px 10px; margin-bottom: 14px;
            border: 1px solid #2c5a34; border-radius: 10px;
-           background: linear-gradient(90deg, rgba(40, 110, 52, .35), rgba(23, 34, 38, .9) 70%); }
+           background: linear-gradient(90deg, rgba(40, 110, 52, .35), rgba(40, 110, 52, .2) 45%, rgba(23, 34, 38, .9) 95%); }
 .kc-marque { display: flex; align-items: center; gap: 8px; margin-right: 10px;
              font-weight: 700; color: #9be0a5; }
 .kc-marque img { width: 30px; height: 30px; object-fit: cover; object-position: 50% 45%;
