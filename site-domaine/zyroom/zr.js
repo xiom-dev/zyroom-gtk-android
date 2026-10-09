@@ -1,0 +1,717 @@
+// ZyRoom-web : la page. Elle reproduit l'ecran de ZyRoom-GTK (window.py) ;
+// la lecture des flux, les noms, les categories et les tris sont ceux de
+// l'application, executes par Pyodide dans travail.js (pont outils/zr_web.py).
+//
+// Ce qui vient d'ou :
+// - un personnage : https://api.ryzom.com/character.php, avec la cle que le
+//   joueur a collee ; elle reste dans son navigateur ;
+// - le hall de guilde : zyroom.php, qui garde la cle de la guilde et ne
+//   repond qu'a un membre connecte (meme jeton que la page des MP) ;
+// - la saison : time.php de l'API ; le redemarrage : zyroom.php?quoi=statut
+//   (le serveur de Ryzom ne laisse pas une page web le lire directement).
+(function () {
+"use strict";
+
+const $ = (s) => document.querySelector(s);
+const API = "https://api.ryzom.com";
+const GUILDE = { sorte: "guild", id: "105906237", nom: "La Lune Eternelle" };
+// Comme Settings.PALIERS_ZOOM et ICONE_NORMALE.
+const PALIERS = [80, 100, 120, 140, 160, 180, 200];
+const ICONE = 48;
+const TRIS = ["Ordre d'origine", "Type", "Écosystème", "Classe", "Qualité", "Volume",
+              "Quantité", "Prix", "Nom"];
+// Comme window.IMAGES_CONTENANTS.
+const IMAGES = [["bag", "sac.png"], ["room", "appartement.png"], ["chest", "coffre.png"]];
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;",
+    '"': "&quot;", "'": "&#39;" }[c]));
+}
+function lire(cle, defaut) {
+  try { const v = localStorage.getItem(cle); return v ? JSON.parse(v) : defaut; } catch (e) { return defaut; }
+}
+function garder(cle, valeur) {
+  try { localStorage.setItem(cle, JSON.stringify(valeur)); } catch (e) {}
+}
+// Comme ui_commun._norm : minuscule sans accents.
+function norm(t) { return t.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
+const deux = (n) => String(n).padStart(2, "0");
+
+// ------------------------------------------------------------ worker
+
+const travail = new Worker("travail.js" + (document.currentScript ? new URL(document.currentScript.src).search : ""));
+let numero = 0;
+const attentes = new Map();
+travail.onmessage = (ev) => {
+  const d = ev.data;
+  const a = attentes.get(d.id);
+  attentes.delete(d.id);
+  if (a) { if (d.ok) a.ok(d.valeur); else a.ko(new Error(d.erreur)); }
+};
+function appeler(op, ...args) {
+  return new Promise((ok, ko) => {
+    const id = ++numero;
+    attentes.set(id, { ok, ko });
+    travail.postMessage({ id, op, args });
+  });
+}
+
+// ------------------------------------------------------------ etat
+
+const Z = {
+  // Le jeton de la page des MP, tel qu'elle le range (texte brut, pas JSON).
+  jeton: (() => { try { return localStorage.getItem("mp-jeton") || ""; } catch (e) { return ""; } })(),
+  pret: false,
+  meta: null,
+  persos: lire("zr-persos", []),
+  courante: lire("zr-entite", ""),
+  ent: null,
+  contenant: 0,
+  synchro: new Set(),
+  page: "inventaire",
+  cherche: "",
+  tri: lire("zr-tri", [1, false]),
+  zoom: lire("zr-zoom", 100),
+  f: null,
+  categories: [],
+  attentes: 0,
+};
+
+function filtresVierges() {
+  return { bonus: new Set([0, 1, 2, 3]), qmin: 0, qmax: 500, cadenas: false, avecBonus: false,
+           vente: false, types: new Set(), classes: new Set([0, 1, 2, 3, 4, 5]),
+           ecos: new Set([0, 1, 2, 3, 4, 5, 6]), equips: new Set([...Array(12).keys()]) };
+}
+Z.f = filtresVierges();
+
+function entites() {
+  return [...Z.persos.map((p) => ({ sorte: "character", id: p.id, nom: p.nom, cle: p.cle, image: p.image })),
+          Object.assign({ image: lire("zr-image-guilde", "") }, GUILDE)];
+}
+function entiteCourante() {
+  const liste = entites();
+  return liste.find((e) => e.sorte + ":" + e.id === Z.courante) || liste[0];
+}
+
+function attendre(oui) {
+  Z.attentes = Math.max(0, Z.attentes + (oui ? 1 : -1));
+  $("#attente").hidden = Z.attentes === 0;
+}
+
+// ------------------------------------------------------------ connexion
+
+function ouvrirPorte(message) {
+  $("#porte-message").textContent = message || "";
+  if (!$("#porte").open) $("#porte").showModal();
+}
+$("#porte-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("#porte-message").textContent = "Vérification…";
+  try {
+    const r = await fetch("../mp/mp.php", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "entrer", nom: $("#porte-nom").value, mdp: $("#porte-mdp").value }) });
+    const rep = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      $("#porte-message").textContent = rep.erreur === "nom ou mot de passe" ? "Pseudo ou mot de passe incorrect."
+        : rep.erreur ? rep.erreur.charAt(0).toUpperCase() + rep.erreur.slice(1) + "." : "Refusé.";
+      return;
+    }
+    Z.jeton = rep.jeton;
+    try { localStorage.setItem("mp-jeton", Z.jeton); } catch (e) {}
+    $("#porte-mdp").value = "";
+    $("#porte").close();
+    Z.synchro.clear();
+    choisirEntite(Z.courante);
+  } catch (souci) {
+    $("#porte-message").textContent = "Serveur injoignable.";
+  }
+});
+$("#porte").addEventListener("cancel", (ev) => ev.preventDefault());
+$("#m-sortir").addEventListener("click", () => {
+  Z.jeton = "";
+  try { localStorage.removeItem("mp-jeton"); } catch (e) {}
+  fermerPops();
+  ouvrirPorte("Déconnecté.");
+});
+
+// ------------------------------------------------------------ flux
+
+function cacheXml(e) { return "zr-xml-" + e.sorte + "-" + e.id; }
+
+async function telecharger(e) {
+  if (e.sorte === "character") {
+    const r = await fetch(API + "/character.php?apikey=" + encodeURIComponent(e.cle), { cache: "no-store" });
+    if (!r.ok) throw new Error("API Ryzom " + r.status);
+    return { xml: await r.text(), quand: Date.now() };
+  }
+  const r = await fetch("zyroom.php", { cache: "no-store", headers: { "X-MP": Z.jeton } });
+  if (r.status === 401) { const e2 = new Error("401"); e2.porte = true; throw e2; }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erreur || "zyroom.php " + r.status);
+  const releve = Number(r.headers.get("X-Releve")) * 1000;
+  return { xml: await r.text(), quand: releve || Date.now() };
+}
+
+async function lireFlux(e, flux) {
+  const ent = JSON.parse(await appeler("entite", flux.xml, e.sorte));
+  if (ent.erreur) throw new Error(ent.erreur);
+  ent.quand = flux.quand;
+  return ent;
+}
+
+async function choisirEntite(code) {
+  const liste = entites();
+  const e = liste.find((x) => x.sorte + ":" + x.id === code) || liste[0];
+  Z.courante = e.sorte + ":" + e.id;
+  garder("zr-entite", Z.courante);
+  dessinerEntites();
+  $("#b-retrait").disabled = e.sorte !== "character";
+  $("#b-synchro").disabled = false;
+  if (!Z.pret) return;
+  // Comme l'application : le cache s'affiche aussitot, puis on interroge
+  // l'API la premiere fois qu'on ouvre l'entite dans la session.
+  const garde = lire(cacheXml(e), null);
+  if (garde && garde.xml) {
+    try { montrer(e, await lireFlux(e, garde), false); } catch (souci) { /* le flux frais suivra */ }
+  } else {
+    Z.ent = null;
+    dessinerTout();
+  }
+  if (!Z.synchro.has(Z.courante)) synchroniser();
+}
+
+async function synchroniser() {
+  const e = entiteCourante();
+  Z.synchro.add(e.sorte + ":" + e.id);
+  attendre(true);
+  try {
+    const flux = await telecharger(e);
+    const ent = await lireFlux(e, flux);
+    garder(cacheXml(e), flux);
+    if (Z.courante === e.sorte + ":" + e.id) montrer(e, ent, true);
+  } catch (souci) {
+    if (souci.porte) ouvrirPorte("Connexion requise.");
+    else etat("Échec de la synchro : " + souci.message);
+  } finally {
+    attendre(false);
+  }
+}
+
+function montrer(e, ent, frais) {
+  const meme = Z.ent && Z.ent.sorte === ent.sorte && Z.ent.id === ent.id;
+  const cle = meme && Z.ent.contenants[Z.contenant] ? Z.ent.contenants[Z.contenant].cle : null;
+  Z.ent = ent;
+  // Le contenant se retrouve par sa cle, pas par son rang (window._rang_du_contenant).
+  Z.contenant = 0;
+  if (cle) {
+    const i = ent.contenants.findIndex((c) => c.cle === cle);
+    if (i >= 0) Z.contenant = i;
+  }
+  // L'image de l'entite pour le menu : portrait du perso, embleme de la guilde.
+  if (frais && ent.portrait) {
+    if (e.sorte === "character") {
+      const p = Z.persos.find((x) => x.id === e.id);
+      if (p) { p.image = ent.portrait; p.nom = ent.nom; garder("zr-persos", Z.persos); }
+    } else garder("zr-image-guilde", ent.portrait);
+  }
+  dessinerTout();
+}
+
+// ------------------------------------------------------------ menus deroulants
+
+function fermerPops(sauf) {
+  document.querySelectorAll(".pop").forEach((p) => { if (p !== sauf) p.hidden = true; });
+}
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest(".menu, .choix, .filtres")) fermerPops();
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") fermerPops(); });
+
+// Un selecteur avec images, comme les Gtk.DropDown a fabrique de l'application.
+function selecteur(zone, entrees, courant, choisi) {
+  const actuel = entrees[courant] || { texte: "—" };
+  zone.innerHTML = '<button type="button">' + (actuel.img ? '<img src="' + esc(actuel.img) + '" alt="">' : "")
+    + "<span>" + esc(actuel.texte) + '</span><svg class="chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>'
+    + '<div class="pop" hidden>' + entrees.map((x, i) => '<button type="button" data-i="' + i + '"'
+      + (i === courant ? ' aria-current="true"' : "") + ">" + (x.img ? '<img src="' + esc(x.img) + '" alt="">' : '<span style="width:30px"></span>')
+      + esc(x.texte) + "</button>").join("") + "</div>";
+  const pop = zone.querySelector(".pop");
+  zone.firstElementChild.onclick = () => { fermerPops(pop); pop.hidden = !pop.hidden; };
+  pop.onclick = (ev) => {
+    const b = ev.target.closest("[data-i]");
+    if (!b) return;
+    pop.hidden = true;
+    choisi(Number(b.dataset.i));
+  };
+}
+
+function dessinerEntites() {
+  const liste = entites();
+  const i = Math.max(0, liste.findIndex((e) => e.sorte + ":" + e.id === Z.courante));
+  selecteur($("#choix-entite"), liste.map((e) => ({ img: e.image, texte: e.nom })), i,
+            (n) => choisirEntite(liste[n].sorte + ":" + liste[n].id));
+}
+
+function imageContenant(c) {
+  if (c.cle.startsWith("animal")) return "symboles/" + (/zig/i.test(c.nom) ? "zig.png" : "mektoub.png");
+  const trouve = IMAGES.find(([p]) => c.cle.startsWith(p));
+  return trouve ? "symboles/" + trouve[1] : "";
+}
+// Comme window._remplissage.
+function remplissage(c) {
+  return c.capacite > 0 ? " (" + Math.round(c.volume / c.capacite * 100) + "%)" : "";
+}
+
+function dessinerContenants() {
+  const ent = Z.ent;
+  const zone = $("#choix-contenant");
+  if (!ent) { zone.innerHTML = ""; return; }
+  selecteur(zone, ent.contenants.map((c) => ({ img: imageContenant(c), texte: c.nom + remplissage(c) })),
+            Z.contenant, (n) => { Z.contenant = n; dessinerInventaire(); });
+}
+
+// ------------------------------------------------------------ l'inventaire
+
+function dessinerTout() {
+  dessinerEntites();
+  dessinerContenants();
+  dessinerEntete();
+  if (Z.page === "inventaire") dessinerInventaire();
+  else dessinerAutrePage();
+}
+
+function dessinerEntete() {
+  const ent = Z.ent;
+  const argent = ent && ent.argent ? Number(ent.argent) : NaN;
+  $("#dappers").textContent = Number.isFinite(argent) ? argent.toLocaleString("fr-FR").replace(/ /g, " ") + " dappers" : "";
+  $("#bourse").hidden = !Number.isFinite(argent);
+  const guilde = ent && ent.sorte === "guild";
+  $("#motd").hidden = !guilde;
+  if (guilde) {
+    $("#motd-texte").textContent = ent.motd || "Aucun message de guilde";
+    $("#motd-texte").style.opacity = ent.motd ? 1 : .6;
+  }
+  const p = $("#portrait");
+  p.hidden = !(ent && ent.portrait);
+  if (ent && ent.portrait) p.src = ent.portrait;
+}
+
+function pageInventaire() {
+  if ($("#grille-zone")) return;
+  $("#page").innerHTML = '<div class="volume"><span>Volume :</span><div class="jauge"><div id="jauge"></div></div><span id="volume"></span></div>'
+    + '<div class="outils"><input type="search" id="cherche" placeholder="Rechercher : nom, ou qualité (ex. œil 220)">'
+    + '<span class="menu filtres"><button type="button" id="b-filtres">Filtres <svg class="chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>'
+    + '<div class="pop" id="pop-filtres" hidden></div></span>'
+    + '<span>Trier :</span><select id="tri">' + TRIS.map((t, i) => '<option value="' + i + '">' + t + "</option>").join("") + "</select>"
+    + '<button type="button" id="b-sens" title="Ordre croissant/décroissant"></button>'
+    + '<button type="button" id="b-reinit">Réinit.</button></div>'
+    + '<div class="grille-zone" id="grille-zone"></div>';
+  $("#cherche").value = Z.cherche;
+  // Entrer dans une recherche ou en sortir change les contenants montres, donc
+  // les familles du filtre (window._apply_filter rappelle _display_inventory).
+  $("#cherche").addEventListener("input", () => { Z.cherche = $("#cherche").value; majCategories(); dessinerGrille(); });
+  $("#tri").value = String(Z.tri[0]);
+  $("#tri").addEventListener("change", () => { Z.tri[0] = Number($("#tri").value); garder("zr-tri", Z.tri); dessinerGrille(); });
+  $("#b-sens").textContent = Z.tri[1] ? "↑" : "↓";
+  $("#b-sens").addEventListener("click", () => {
+    Z.tri[1] = !Z.tri[1];
+    $("#b-sens").textContent = Z.tri[1] ? "↑" : "↓";
+    garder("zr-tri", Z.tri);
+    dessinerGrille();
+  });
+  $("#b-reinit").addEventListener("click", () => {
+    // Comme window._on_reset_filter : la fenetre telle qu'au lancement.
+    Z.cherche = "";
+    $("#cherche").value = "";
+    Z.f = filtresVierges();
+    Z.tri = [1, false];
+    garder("zr-tri", Z.tri);
+    $("#tri").value = "1";
+    $("#b-sens").textContent = "↓";
+    dessinerFiltres();
+    dessinerGrille();
+  });
+  $("#b-filtres").addEventListener("click", () => { const p = $("#pop-filtres"); fermerPops(p); p.hidden = !p.hidden; });
+  $("#pop-filtres").addEventListener("change", surFiltre);
+  $("#pop-filtres").addEventListener("input", surFiltre);
+  const zone = $("#grille-zone");
+  zone.addEventListener("mouseover", surSurvol);
+  zone.addEventListener("mousemove", placerBulle);
+  zone.addEventListener("mouseleave", () => { $("#bulle").hidden = true; });
+}
+
+function dessinerInventaire() {
+  pageInventaire();
+  dessinerContenants();
+  const ent = Z.ent;
+  const c = ent && ent.contenants[Z.contenant];
+  // La jauge, comme window._update_volume_gauge.
+  if (c && c.capacite > 0) {
+    const pct = c.volume / c.capacite * 100;
+    $("#jauge").parentElement.hidden = false;
+    $("#jauge").style.width = Math.min(pct, 100) + "%";
+    $("#jauge").classList.toggle("plein", pct >= 100);
+    $("#volume").textContent = Math.round(c.volume) + " / " + c.capacite + "  (" + Math.round(pct) + "%)" + (pct >= 90 ? " ⚠" : "");
+  } else {
+    $("#jauge").parentElement.hidden = true;
+    $("#volume").textContent = c ? Math.round(c.volume) + "  (capacité inconnue)" : "";
+  }
+  majCategories();
+  dessinerGrille();
+}
+
+// Les familles presentes, comme window._maj_categories : tout se recoche
+// quand la liste change.
+function majCategories() {
+  const ent = Z.ent;
+  const trouvees = new Set();
+  if (ent) {
+    const liste = Z.cherche.trim() ? ent.contenants : [ent.contenants[Z.contenant]].filter(Boolean);
+    for (const c of liste) for (const o of c.objets) trouvees.add(o.categorie);
+  }
+  const triees = [...trouvees].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
+  if (JSON.stringify(triees) !== JSON.stringify(Z.categories)) {
+    Z.categories = triees;
+    Z.f.types = new Set(triees);
+  }
+  dessinerFiltres();
+}
+
+function goutte(couleur) {
+  return '<svg class="goutte" viewBox="0 0 11 14"><path d="M5.5 1 C4.2 3.6 1.2 6.2 1.2 8.9 A4.3 4.3 0 0 0 9.8 8.9 C9.8 6.2 6.8 3.6 5.5 1 Z" fill="'
+    + couleur + '" stroke="rgba(0,0,0,.75)" stroke-width="1"/></svg>';
+}
+
+function dessinerFiltres() {
+  const f = Z.f;
+  const m = Z.meta;
+  if (!m || !$("#pop-filtres")) return;
+  const groupe = (titre, noms, ensemble, cle, valeurs) => "<h4>" + titre + "</h4>" + noms.map((n, i) => {
+    const v = valeurs ? valeurs[i] : i;
+    return '<label><input type="checkbox" data-g="' + cle + '" data-v="' + esc(v) + '"' + (ensemble.has(v) ? " checked" : "") + "> " + esc(n) + "</label>";
+  }).join("");
+  $("#pop-filtres").innerHTML = "<h4>Bonus</h4>" + m.specialites.map(([l, c], i) => '<label><input type="checkbox" data-g="bonus" data-v="' + i + '"'
+      + (f.bonus.has(i) ? " checked" : "") + "> " + goutte(c) + " " + esc(l) + "</label>").join("")
+    + '<div class="q">Qualité <input type="number" data-f="qmin" min="0" max="500" step="10" value="' + f.qmin + '"> à '
+    + '<input type="number" data-f="qmax" min="0" max="500" step="10" value="' + f.qmax + '"></div>'
+    + '<label><input type="checkbox" data-f="cadenas"' + (f.cadenas ? " checked" : "") + "> Cadenas</label>"
+    + '<label><input type="checkbox" data-f="avecBonus"' + (f.avecBonus ? " checked" : "") + "> Avec bonus</label>"
+    + '<label><input type="checkbox" data-f="vente"' + (f.vente ? " checked" : "") + "> En vente</label>"
+    + groupe("Type d'objet", Z.categories, f.types, "types", Z.categories)
+    + groupe("Classe", m.classes, f.classes, "classes")
+    + groupe("Écosystème", m.ecosystemes, f.ecos, "ecos")
+    + groupe("Équipement", m.equipements, f.equips, "equips");
+}
+
+function surFiltre(ev) {
+  const t = ev.target;
+  if (t.dataset.g) {
+    const ens = Z.f[t.dataset.g];
+    const v = t.dataset.g === "types" ? t.dataset.v : Number(t.dataset.v);
+    if (t.checked) ens.add(v); else ens.delete(v);
+  } else if (t.dataset.f) {
+    Z.f[t.dataset.f] = t.type === "checkbox" ? t.checked : Number(t.value) || 0;
+  } else return;
+  dessinerGrille();
+}
+
+// Comme window._apply_filter.
+function retenu(o, mot, qualites) {
+  const f = Z.f;
+  if (mot && !o.cle.includes(mot)) return false;
+  if (qualites.size && !qualites.has(o.q)) return false;
+  if (!(f.qmin <= o.q && o.q <= f.qmax)) return false;
+  if (!f.types.has(o.categorie)) return false;
+  if (!f.ecos.has(o.eco)) return false;
+  if (!f.classes.has(o.classe)) return false;
+  if (o.equip >= 0 && !f.equips.has(o.equip)) return false;
+  if (f.cadenas && !o.cadenas) return false;
+  if (f.avecBonus && !o.bonus.length) return false;
+  // specialites.passe_le_filtre : toutes cochees, rien n'est trie.
+  if (f.bonus.size < 4) {
+    const noms = Z.meta.specialites.map(([l]) => l);
+    if (!o.bonus.some(([l]) => f.bonus.has(noms.indexOf(l)))) return false;
+  }
+  if (f.vente && !o.vente) return false;
+  return true;
+}
+
+// Comme models.decouper_recherche : un nombre isole est une qualite.
+function decouper(texte) {
+  const qualites = new Set();
+  const reste = texte.replace(/(^|\s)(\d+)(?=\s|$)/g, (m, avant, n) => { qualites.add(Number(n)); return avant + " "; });
+  return [reste.split(/\s+/).filter(Boolean).join(" "), qualites];
+}
+
+function ordre(c) {
+  const [rang, desc] = Z.tri;
+  if (!rang) return c.objets.map((_o, i) => i);
+  return c.ordres[rang + (desc ? "desc" : "asc")] || c.objets.map((_o, i) => i);
+}
+
+function caseHtml(o, ci, oi) {
+  const echelle = 1;
+  let gouttes = "";
+  if (o.bonus.length) {
+    // specialites._pas : bord a bord tant qu'elles tiennent au-dessus de la quantite.
+    const n = o.bonus.length;
+    const pas = n < 2 ? 14 : Math.min(14, (38 - 14) / (n - 1));
+    gouttes = '<svg class="gouttes" width="' + 11 * echelle + '" height="' + ((n - 1) * pas + 14) * echelle
+      + '" viewBox="0 0 11 ' + ((n - 1) * pas + 14) + '">'
+      + o.bonus.map((_b, i) => i).reverse().map((i) => '<g transform="translate(0 ' + i * pas + ')"><path d="M5.5 1 C4.2 3.6 1.2 6.2 1.2 8.9 A4.3 4.3 0 0 0 9.8 8.9 C9.8 6.2 6.8 3.6 5.5 1 Z" fill="'
+        + o.bonus[i][2] + '" stroke="rgba(0,0,0,.75)" stroke-width="1"/></g>').join("") + "</svg>";
+  }
+  return '<div class="case" data-c="' + ci + '" data-o="' + oi + '"><img class="objet" loading="lazy" src="' + esc(o.icone) + '" alt="">'
+    + gouttes + (o.sort ? '<img class="sort" src="' + esc(o.sort) + '" alt="">' : "") + "</div>";
+}
+
+function dessinerGrille() {
+  const zone = $("#grille-zone");
+  if (!zone) return;
+  const ent = Z.ent;
+  if (!ent) {
+    zone.innerHTML = '<div class="vide">' + (Z.pret ? "Synchronisation…" : "Chargement de ZyRoom… (la première fois, le navigateur télécharge Python, une dizaine de Mo)") + "</div>";
+    majEtat();
+    return;
+  }
+  const [mot, qualites] = decouper(norm(Z.cherche));
+  const cherche = Z.cherche.trim() !== "";
+  let h = "";
+  // Une recherche cherche dans tous les contenants a la fois (window._display_inventory).
+  const contenants = cherche ? ent.contenants.map((c, i) => [c, i]) : [[ent.contenants[Z.contenant], Z.contenant]];
+  for (const [c, ci] of contenants) {
+    if (!c) continue;
+    const cases = ordre(c).filter((oi) => retenu(c.objets[oi], mot, qualites)).map((oi) => caseHtml(c.objets[oi], ci, oi));
+    if (cherche) {
+      if (!cases.length) continue;
+      h += '<div class="section">' + esc(c.nom) + " — " + cases.length + " résultat(s)</div>";
+    }
+    h += '<div class="grille">' + cases.join("") + "</div>";
+  }
+  zone.innerHTML = h || '<div class="vide">' + (cherche ? "Aucun résultat." : "") + "</div>";
+  majEtat();
+}
+
+// ------------------------------------------------------------ l'infobulle
+
+function surSurvol(ev) {
+  const caseEl = ev.target.closest(".case");
+  const b = $("#bulle");
+  if (!caseEl || !Z.ent) { b.hidden = true; return; }
+  const o = Z.ent.contenants[Number(caseEl.dataset.c)].objets[Number(caseEl.dataset.o)];
+  b.innerHTML = esc(o.bulle.join("\n"))
+    + o.bonus.map(([l, v, c]) => '<div class="bonus">' + goutte(c) + esc(l + " +" + v) + "</div>").join("")
+    + (o.enchant ? '<div style="margin-top:4px">' + esc(o.enchant) + "</div>" : "");
+  b.hidden = false;
+  placerBulle(ev);
+}
+function placerBulle(ev) {
+  const b = $("#bulle");
+  if (b.hidden) return;
+  const x = Math.min(ev.clientX + 14, window.innerWidth - b.offsetWidth - 8);
+  const y = ev.clientY + 18 + b.offsetHeight > window.innerHeight ? ev.clientY - b.offsetHeight - 10 : ev.clientY + 18;
+  b.style.left = x + "px";
+  b.style.top = y + "px";
+}
+
+// ------------------------------------------------------------ la ligne d'etat
+
+function etat(texte) { $("#etat").textContent = texte; }
+
+// Comme config.format_last_sync.
+function formatSynchro(quand) {
+  if (!quand) return "jamais synchronisé";
+  const d = new Date(quand);
+  const auj = new Date();
+  const jour = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const ecart = Math.round((jour(auj) - jour(d)) / 86400000);
+  const heure = deux(d.getHours()) + "h" + deux(d.getMinutes());
+  if (ecart === 0) return "aujourd'hui à " + heure;
+  if (ecart === 1) return "hier à " + heure;
+  return "le " + deux(d.getDate()) + "/" + deux(d.getMonth() + 1) + " à " + heure;
+}
+
+// Comme window._presence.
+function presence(ent) {
+  if (!ent.connexion && !ent.deconnexion) return "";
+  if (ent.connexion > ent.deconnexion) return "🟢 en ligne";
+  const minutes = Math.floor((Date.now() / 1000 - ent.deconnexion) / 60);
+  if (minutes < 1) return "vu à l'instant";
+  if (minutes < 60) return "vu il y a " + minutes + " min";
+  if (minutes < 1440) return "vu il y a " + Math.floor(minutes / 60) + " h";
+  if (minutes < 10080) return "vu il y a " + Math.floor(minutes / 1440) + " j";
+  const d = new Date(ent.deconnexion * 1000);
+  return "vu le " + deux(d.getDate()) + "/" + deux(d.getMonth() + 1);
+}
+
+function majEtat() {
+  const ent = Z.ent;
+  if (!ent) return;
+  const c = ent.contenants[Z.contenant];
+  const vu = presence(ent);
+  etat(ent.nom + (ent.guilde ? " - " + ent.guilde : "") + (vu ? " · " + vu : "")
+       + "\n" + (c ? c.nom : "") + " · synchro " + formatSynchro(ent.quand));
+}
+
+// ------------------------------------------------------------ saison et redemarrage
+
+// Comme meteo.duree(minutes, unite=True).
+function duree(minutes) {
+  if (minutes <= 0) return "moins d'une minute";
+  if (minutes < 60) return minutes + " min";
+  let h = Math.floor(minutes / 60);
+  const reste = deux(minutes % 60);
+  if (h < 24) return h + " h " + reste + " min";
+  const j = Math.floor(h / 24);
+  h %= 24;
+  return j + " j " + h + " h " + reste + " min";
+}
+// Comme meteo.moment_du_changement.
+function momentChangement(minutes) {
+  const quand = new Date(Date.now() + Math.max(0, minutes) * 60000);
+  const heure = deux(quand.getHours()) + ":" + deux(quand.getMinutes());
+  const jours = Math.round((new Date(quand.getFullYear(), quand.getMonth(), quand.getDate())
+    - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
+  if (jours <= 0) return "aujourd'hui à " + heure;
+  if (jours === 1) return "demain à " + heure;
+  return "le " + deux(quand.getDate()) + "/" + deux(quand.getMonth() + 1) + " à " + heure;
+}
+// Comme meteo.moment_du_redemarrage.
+function momentRedemarrage(minutes) {
+  const quand = new Date(Date.now() - Math.max(0, minutes) * 60000);
+  quand.setMinutes(0, 0, 0);
+  const heure = "vers " + quand.getHours() + " h";
+  const auj = new Date();
+  const jours = Math.round((new Date(auj.getFullYear(), auj.getMonth(), auj.getDate())
+    - new Date(quand.getFullYear(), quand.getMonth(), quand.getDate())) / 86400000);
+  if (jours <= 0) return "aujourd'hui " + heure;
+  if (jours === 1) return "hier " + heure;
+  return "le " + deux(quand.getDate()) + "/" + deux(quand.getMonth() + 1) + " " + heure;
+}
+
+async function majSaison() {
+  try {
+    const xml = await (await fetch(API + "/time.php?format=xml", { cache: "no-store" })).text();
+    const t = JSON.parse(await appeler("saison", xml));
+    const minutes = Math.round(t.minutes_to_next);
+    $("#saison").textContent = t.next_season_name + " dans " + duree(minutes) + " — " + momentChangement(minutes);
+  } catch (souci) { /* la saison reviendra au prochain tour */ }
+  try {
+    const r = await fetch("zyroom.php?quoi=statut", { cache: "no-store", headers: { "X-MP": Z.jeton } });
+    if (r.ok) {
+      const s = await r.json();
+      // ryzom_api.minutes_depuis_redemarrage : « 12d 19h ».
+      const m = /^(?:(\d+)\s*d)?\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?$/.exec(String(s[2] || "").trim());
+      if (m && (m[1] || m[2] || m[3])) {
+        const minutes = ((Number(m[1] || 0) * 24) + Number(m[2] || 0)) * 60 + Number(m[3] || 0);
+        $("#reboot").textContent = "Reboot " + momentRedemarrage(minutes);
+      }
+    }
+  } catch (souci) { /* idem */ }
+}
+
+// ------------------------------------------------------------ les autres pages
+
+function dessinerAutrePage() {
+  const noms = { journal: "Journal", competences: "Compétences", effectif: "Effectif", perdu: "Perdu ?",
+                 "avant-postes": "Avant-postes", meteo: "Météo / forage" };
+  $("#page").innerHTML = '<div class="page-autre">' + esc(noms[Z.page] || Z.page) + " — à venir dans ZyRoom-web.</div>";
+}
+
+function allerA(page) {
+  Z.page = page;
+  document.querySelectorAll(".nav [data-page]").forEach((b) => b.setAttribute("aria-pressed",
+    String(b.dataset.page === page || (b.dataset.page === "bonus" && !["inventaire", "journal"].includes(page)))));
+  if (page === "inventaire") { $("#page").innerHTML = ""; dessinerInventaire(); } else dessinerAutrePage();
+}
+document.querySelectorAll(".nav [data-page]").forEach((b) => b.addEventListener("click", () => {
+  if (b.dataset.page === "bonus") { const p = $("#pop-bonus"); fermerPops(p); p.hidden = !p.hidden; return; }
+  allerA(b.dataset.page);
+}));
+$("#pop-bonus").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-bonus]");
+  if (!b) return;
+  fermerPops();
+  allerA(b.dataset.bonus);
+});
+
+// ------------------------------------------------------------ barre du haut
+
+// Le zoom grossit toute l'application, texte compris, comme dans ZyRoom-GTK
+// (« je veux que le zoom grossisse entierement les applis ») : la propriete
+// CSS zoom fait exactement cela. Les icones restent donc a 48 px CSS.
+function appliquerZoom() {
+  document.body.style.zoom = Z.zoom / 100;
+}
+function zoomer(sens) {
+  const i = PALIERS.indexOf(Z.zoom);
+  Z.zoom = PALIERS[Math.max(0, Math.min(PALIERS.length - 1, (i < 0 ? 1 : i) + sens))];
+  garder("zr-zoom", Z.zoom);
+  appliquerZoom();
+}
+$("#b-moins").addEventListener("click", () => zoomer(-1));
+$("#b-plus").addEventListener("click", () => zoomer(1));
+$("#b-synchro").addEventListener("click", () => { synchroniser(); majSaison(); });
+$("#b-menu").addEventListener("click", () => { const p = $("#pop-menu"); fermerPops(p); p.hidden = !p.hidden; });
+$("#m-apropos").addEventListener("click", () => { fermerPops(); $("#apropos").showModal(); });
+
+$("#b-retrait").addEventListener("click", () => {
+  const e = entiteCourante();
+  if (e.sorte !== "character" || !confirm("Retirer " + e.nom + " de ce navigateur ?")) return;
+  Z.persos = Z.persos.filter((p) => p.id !== e.id);
+  garder("zr-persos", Z.persos);
+  try { localStorage.removeItem(cacheXml(e)); } catch (er) {}
+  Z.ent = null;
+  choisirEntite("");
+});
+
+$("#b-ajout").addEventListener("click", () => {
+  $("#ajout-cle").value = "";
+  $("#ajout-message").textContent = "";
+  $("#ajout").showModal();
+});
+$("#ajout-annuler").addEventListener("click", () => $("#ajout").close());
+$("#ajout-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const cle = $("#ajout-cle").value.trim();
+  // ryzom_api.is_api_key : quarante et un signes, « c » pour un personnage.
+  if (!/^[A-Za-z0-9]{41}$/.test(cle) || cle[0] !== "c") {
+    $("#ajout-message").textContent = cle[0] === "g" ? "C'est une clé de guilde : le hall est déjà là."
+      : "Une clé de personnage fait 41 caractères et commence par « c ».";
+    return;
+  }
+  $("#ajout-message").textContent = "Vérification auprès de l'API…";
+  try {
+    const flux = await telecharger({ sorte: "character", cle });
+    const ent = await lireFlux({ sorte: "character" }, flux);
+    if (!Z.persos.some((p) => p.id === ent.id)) Z.persos.push({ id: ent.id, nom: ent.nom, cle, image: ent.portrait });
+    garder("zr-persos", Z.persos);
+    garder(cacheXml({ sorte: "character", id: ent.id }), flux);
+    $("#ajout").close();
+    Z.synchro.add("character:" + ent.id);
+    Z.courante = "character:" + ent.id;
+    garder("zr-entite", Z.courante);
+    montrer({ sorte: "character", id: ent.id }, ent, true);
+  } catch (souci) {
+    $("#ajout-message").textContent = "Refusée : " + souci.message;
+  }
+});
+
+// ------------------------------------------------------------ demarrage
+
+appliquerZoom();
+dessinerEntites();
+if (!Z.jeton) ouvrirPorte();
+appeler("demarrer").then((meta) => {
+  Z.meta = JSON.parse(meta);
+  Z.pret = true;
+  $("#page").innerHTML = "";
+  pageInventaire();
+  choisirEntite(Z.courante);
+  majSaison();
+  // Toutes les trois minutes, comme _refresh_season_tick.
+  setInterval(majSaison, 3 * 60 * 1000);
+}).catch((souci) => {
+  $("#page").innerHTML = '<div class="chargement">ZyRoom n\'a pas pu démarrer : ' + esc(souci.message) + "</div>";
+});
+})();

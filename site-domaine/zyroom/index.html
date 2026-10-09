@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ZyRoom</title>
+<meta name="description" content="ZyRoom dans le navigateur : les inventaires de La Lune Éternelle.">
+<meta name="theme-color" content="#0b1113">
+<meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+<link rel="icon" href="symboles/coffre.png">
+<style>
+  /* La gothique du nom, celle d'Android et de ZyRoom-GTK. */
+  @font-face { font-family: "Pirata One"; src: url("polices/pirata_one.ttf"); }
+  /* La palette de ZyRoom-GTK (window._install_motd_css), a l'octet pres. */
+  :root {
+    color-scheme: dark;
+    --fond: #10171a; --surface: #172226; --variante: #1e2c31;
+    --texte: #e2e8e6; --faible: #bcc8c6; --sarcelle: #3f7a68;
+    --sarcelle-sombre: #2b5648; --or: #e8c15a; --erreur: #e2696a;
+    --bande: #0b1113; --accent: #7fb3a2; --vert-fini: #a1c5b9;
+    --icone: 48px;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--fond); color: var(--texte);
+         font-family: Cantarell, "Noto Sans", system-ui, sans-serif; font-size: 14.7px;
+         display: flex; flex-direction: column; }
+  button, input, select { font: inherit; color: var(--texte); }
+  button { background: var(--variante); border: 1px solid transparent; border-radius: 6px;
+           padding: 5px 10px; cursor: pointer; }
+  button:hover { background: var(--sarcelle-sombre); }
+  button:disabled { opacity: .45; cursor: default; background: var(--variante); }
+  button.plat { background: transparent; }
+  button.plat:hover { background: var(--sarcelle-sombre); }
+  input[type="search"], input[type="number"], input[type="password"], input[type="text"] {
+    background: var(--variante); border: 1px solid transparent; border-radius: 6px;
+    padding: 6px 10px; outline: none; }
+  input:focus { box-shadow: inset 0 0 0 1px var(--sarcelle); }
+  input[type="checkbox"] { accent-color: var(--sarcelle); width: 16px; height: 16px; }
+
+  /* --- la barre de titre --- */
+  .titre { background: var(--bande); display: grid; grid-template-columns: 1fr auto 1fr;
+           align-items: center; padding: 6px 10px; gap: 8px; }
+  .titre .gauche, .titre .droite { display: flex; gap: 6px; align-items: center; }
+  .titre .droite { justify-content: flex-end; }
+  .ico { width: 36px; height: 34px; padding: 0; display: inline-grid; place-items: center; }
+  .ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
+             stroke-linecap: round; stroke-linejoin: round; }
+  .zoom { font-size: 130%; font-weight: 700; padding: 0 9px; }
+  .nav { display: flex; }
+  .nav button { border-radius: 0; display: flex; gap: 6px; align-items: center; padding: 4px 10px; }
+  .nav button:first-child { border-radius: 6px 0 0 6px; }
+  .nav button:last-child { border-radius: 0 6px 6px 0; }
+  .nav button + button { border-left: 1px solid var(--bande); }
+  .nav button[aria-pressed="true"] { background: var(--sarcelle); }
+  .nav img { width: 30px; height: 30px; }
+  .menu { position: relative; }
+  .pop { position: absolute; z-index: 20; top: calc(100% + 6px); background: var(--variante);
+         border: 1px solid #2b3d43; border-radius: 10px; padding: 6px;
+         box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
+  .pop.droite { right: 0; }
+  .pop button { display: flex; width: 100%; gap: 10px; align-items: center; text-align: left;
+                background: transparent; white-space: nowrap; }
+  .pop button:hover { background: var(--sarcelle-sombre); }
+  .pop img { width: 30px; height: 30px; }
+
+  /* --- la ligne de l'entite --- */
+  .barre-etat { background: var(--bande); padding: 4px 8px; }
+  .ligne1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ligne1 .espace { flex: 1; }
+  .reboot { color: var(--vert-fini); margin-right: 18px; }
+  .saison { color: var(--or); }
+  .choix { position: relative; }
+  .choix > button { display: flex; gap: 6px; align-items: center; }
+  .choix > button img, .choix .pop img { width: 30px; height: 30px; object-fit: cover; border-radius: 3px; }
+  .choix .pop { left: 0; max-height: 70vh; overflow-y: auto; }
+  .choix .pop button[aria-current="true"] { background: var(--sarcelle-sombre);
+                                            box-shadow: inset 0 0 0 1px var(--accent); }
+  .chevron { width: 12px; height: 12px; }
+  .attente { width: 60px; height: 8px; border-radius: 4px; background: var(--variante);
+             overflow: hidden; position: relative; }
+  .attente::after { content: ""; position: absolute; top: 0; bottom: 0; width: 22px; border-radius: 4px;
+                    background: var(--sarcelle); animation: va-et-vient 1.1s ease-in-out infinite alternate; }
+  @keyframes va-et-vient { from { left: 0; } to { left: 38px; } }
+  .motd { background: var(--variante); border-radius: 8px; padding: 8px 10px; margin: 2px 8px;
+          display: flex; gap: 8px; align-items: flex-start; }
+  .motd img { width: 30px; height: 30px; }
+  .motd .texte { white-space: pre-wrap; }
+
+  /* --- la page --- */
+  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .volume { display: flex; gap: 8px; align-items: center; padding: 0 8px; }
+  .jauge { flex: 1; height: 8px; border-radius: 4px; background: var(--variante); overflow: hidden; }
+  .jauge div { height: 100%; background: var(--sarcelle-sombre); }
+  .jauge div.plein { background: #26ab62; }
+  .outils { display: flex; gap: 8px; align-items: center; padding: 8px; flex-wrap: wrap; }
+  .outils input[type="search"] { flex: 1; min-width: 200px; }
+  .outils select { background: var(--variante); border: none; border-radius: 6px; padding: 6px 8px; }
+  .filtres .pop { right: 0; width: 330px; max-height: 440px; overflow-y: auto; padding: 10px 14px; }
+  .filtres h4 { margin: 8px 0 4px; font-size: 1em; }
+  .filtres label { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+  .filtres .q { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+  .filtres .q input { width: 5.5em; background: var(--surface); }
+  .goutte { width: 11px; height: 14px; display: inline-block; flex: none; }
+  .grille-zone { flex: 1; overflow-y: auto; background: var(--surface); padding: 4px 8px; }
+  .grille { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; padding: 4px 0; }
+  .section { font-weight: 700; margin: 12px 0 0; }
+  .section:first-child { margin-top: 4px; }
+  .case { position: relative; width: var(--icone); height: var(--icone); }
+  .case > img.objet { width: 100%; height: 100%; display: block; image-rendering: auto; }
+  .case .gouttes { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .case .sort { position: absolute; right: 0; top: 0; width: calc(var(--icone) * .42);
+                height: calc(var(--icone) * .42); pointer-events: none; }
+  .bulle { position: fixed; z-index: 50; background: #0e1517; color: var(--texte);
+           border: 1px solid #26363b; border-radius: 6px; padding: 6px 9px; pointer-events: none;
+           max-width: 360px; white-space: pre-line; font-size: .95em; }
+  .bulle .bonus { display: flex; gap: 6px; align-items: center; margin-top: 3px; }
+  .vide { color: var(--faible); padding: 20px 8px; }
+  .page-autre { flex: 1; display: grid; place-items: center; color: var(--faible); background: var(--surface); }
+
+  /* --- le pied --- */
+  .pied { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 10px; }
+  .pied .gauche { display: flex; gap: 12px; align-items: flex-end; min-width: 0; }
+  .portrait { width: 44px; height: 44px; margin-top: 6px; object-fit: cover; border-radius: 3px; }
+  .etat { color: var(--or); white-space: pre-line; overflow: hidden; display: -webkit-box;
+          -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .nom-appli { color: var(--or); padding: 0 18px; white-space: nowrap; line-height: 1; }
+  .nom-appli .grave { font-family: "Pirata One", serif; font-size: 2.4em; }
+  .nom-appli .mouture { font-family: "TeX Gyre Heros Cn", "Liberation Sans Narrow", "Arial Narrow", sans-serif;
+                        font-size: 2.2em; font-weight: 700; padding-left: 4px; }
+  .somme { display: flex; gap: 6px; align-items: flex-end; justify-content: flex-end; }
+  .somme img { width: 35px; height: 35px; }
+  .dappers { font-size: 1.07em; }
+  .signature { text-align: center; color: var(--faible); opacity: .75; font-size: .82em; padding: 2px 0 4px; }
+
+  /* --- boites de dialogue --- */
+  dialog { background: var(--surface); color: var(--texte); border: 1px solid var(--sarcelle);
+           border-radius: 10px; padding: 16px 18px; max-width: 420px; }
+  dialog::backdrop { background: rgba(0, 0, 0, .55); }
+  dialog form { display: flex; flex-direction: column; gap: 8px; }
+  dialog .boutons { display: flex; gap: 8px; justify-content: flex-end; }
+  dialog .message { min-height: 1.3em; color: #e8a13a; font-size: .92em; }
+  dialog p { margin: 0; color: var(--faible); font-size: .92em; line-height: 1.4; }
+  dialog a { color: var(--accent); }
+  .principal { background: var(--sarcelle); color: #06120e; font-weight: 600; }
+  .principal:hover { background: #4b8f7b; }
+  .chargement { flex: 1; display: grid; place-items: center; color: var(--accent); background: var(--surface);
+                padding: 20px; text-align: center; }
+
+  @media (max-width: 760px) {
+    .titre { grid-template-columns: 1fr; justify-items: center; }
+    .pied { grid-template-columns: 1fr; justify-items: center; }
+    .nom-appli .grave { font-size: 1.8em; } .nom-appli .mouture { font-size: 1.6em; }
+  }
+</style>
+</head>
+<body>
+<header class="titre">
+  <div class="gauche">
+    <button class="ico" id="b-ajout" title="Clés API : ajouter un personnage">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="ico" id="b-retrait" title="Retirer l'entité sélectionnée" disabled>
+      <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
+    <button class="ico" id="b-cloche" title="Alertes" disabled>🔔</button>
+    <button class="ico plat zoom" id="b-moins" title="Réduire les icônes">−</button>
+    <button class="ico plat zoom" id="b-plus" title="Agrandir les icônes">+</button>
+  </div>
+  <nav class="nav" aria-label="Pages">
+    <button data-page="inventaire" aria-pressed="true"><img src="symboles/inventaire.png" alt="">Inventaire</button>
+    <button data-page="journal" aria-pressed="false"><img src="symboles/journal.png" alt="">Journal</button>
+    <span class="menu"><button id="b-bonus" data-page="bonus" aria-pressed="false"><img src="symboles/bonus.png" alt="">Bonus
+      <svg class="chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+      <div class="pop" id="pop-bonus" hidden>
+        <button data-bonus="competences"><img src="symboles/competences.png" alt="">Compétences</button>
+        <button data-bonus="effectif"><img src="symboles/effectif.png" alt="">Effectif</button>
+        <button data-bonus="perdu"><img src="symboles/perdu.png" alt="">Perdu ?</button>
+        <button data-bonus="avant-postes"><img src="symboles/avant-poste.png" alt="">Avant-postes</button>
+        <button data-bonus="meteo"><img src="symboles/meteo-forage.png" alt="">Météo / forage</button>
+      </div></span>
+  </nav>
+  <div class="droite">
+    <button class="ico" id="b-synchro" title="Resynchroniser depuis l'API" disabled>
+      <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg></button>
+    <span class="menu"><button class="ico" id="b-menu" title="Menu">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="pop droite" id="pop-menu" hidden>
+        <button id="m-apropos">À propos…</button>
+        <button id="m-sortir">Se déconnecter</button>
+      </div></span>
+  </div>
+</header>
+
+<div class="barre-etat ligne1">
+  <span>Entité :</span>
+  <span class="choix" id="choix-entite"></span>
+  <span>Inventaire :</span>
+  <span class="choix" id="choix-contenant"></span>
+  <span class="attente" id="attente" hidden></span>
+  <span class="espace"></span>
+  <span class="reboot" id="reboot"></span>
+  <span class="saison" id="saison"></span>
+</div>
+<div class="motd" id="motd" hidden><img src="symboles/megaphone.png" alt=""><span class="texte" id="motd-texte"></span></div>
+
+<main id="page">
+  <div class="chargement" id="chargement">Chargement de ZyRoom…</div>
+</main>
+
+<footer class="barre-etat">
+  <div class="pied">
+    <div class="gauche"><img class="portrait" id="portrait" alt="" hidden><span class="etat" id="etat"></span></div>
+    <div class="nom-appli"><span class="grave">ZyRoom</span><span class="mouture">-web</span></div>
+    <div class="somme"><img src="symboles/dappers.png" alt="" id="bourse" hidden><span class="dappers" id="dappers"></span></div>
+  </div>
+  <div class="signature">Original by Misugi, fork by Xiom</div>
+</footer>
+
+<div class="bulle" id="bulle" hidden></div>
+
+<dialog id="porte">
+  <form method="dialog" id="porte-form">
+    <strong>Connexion</strong>
+    <p>Réservé à La Lune Éternelle : ton pseudo et le mot de passe de la guilde. La même connexion vaut pour la page des MP.</p>
+    <input id="porte-nom" autocomplete="username" placeholder="Pseudo" required>
+    <input id="porte-mdp" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+    <div class="message" id="porte-message"></div>
+    <div class="boutons"><button type="submit" class="principal">Entrer</button></div>
+  </form>
+</dialog>
+
+<dialog id="ajout">
+  <form method="dialog" id="ajout-form">
+    <strong>Ajouter un personnage</strong>
+    <p>Colle la clé API de ton personnage (41 caractères, commence par « c »). On l'obtient en jeu ou sur
+      <a href="https://app.ryzom.com/app_ryzomapi" target="_blank" rel="noopener">app.ryzom.com</a>.
+      Elle reste dans ce navigateur : elle n'est envoyée qu'à l'API de Ryzom.</p>
+    <input id="ajout-cle" placeholder="Clé API" autocomplete="off" spellcheck="false" required>
+    <div class="message" id="ajout-message"></div>
+    <div class="boutons"><button type="button" id="ajout-annuler">Annuler</button>
+      <button type="submit" class="principal">Ajouter</button></div>
+  </form>
+</dialog>
+
+<dialog id="apropos">
+  <form method="dialog">
+    <strong>ZyRoom-web</strong>
+    <p>La version navigateur de ZyRoom-GTK, réservée à La Lune Éternelle. Les inventaires viennent de l'API de
+      Ryzom ; le hall de guilde passe par xiom.be, qui garde la clé de la guilde.</p>
+    <p>Original by Misugi (<a href="https://github.com/misugi/zyroom" target="_blank" rel="noopener">zyroom</a>),
+      fork by Xiom. Licence GNU AGPLv3 —
+      <a href="https://github.com/xiom-dev/zyroom-gtk-android" target="_blank" rel="noopener">code source</a>.</p>
+    <div class="boutons"><button class="principal">Fermer</button></div>
+  </form>
+</dialog>
+
+<script src="zr.js"></script>
+</body>
+</html>

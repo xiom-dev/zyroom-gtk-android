@@ -1,0 +1,14 @@
+# Le modele du PHP n'a rien a faire en ligne ; s'il y etait depose par
+# megarde, il ne doit ni s'executer ni se lire.
+<Files "zyroom.modele.php">
+    Require all denied
+</Files>
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
+
+# La page et ses scripts se retouchent souvent : un navigateur qui garde
+# l'ancienne version fait croire qu'une correction n'a pas pris.
+<FilesMatch "\.(html|js)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>

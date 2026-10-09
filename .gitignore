@@ -62,3 +62,12 @@ site-domaine/mp/sauvegardes/
 site-domaine/mp/kc/kipeecraft.zip
 site-domaine/mp/kc/icones/
 site-domaine/mp/kc/kipee.png
+# `zyroom/` : la version web de ZyRoom. `outils/page-zyroom.py` fabrique le
+# PHP a la cle de guilde, le zip du code et recopie images et police.
+!site-domaine/zyroom/
+site-domaine/zyroom/zyroom.php
+site-domaine/zyroom/zyroom.zip
+site-domaine/zyroom/symboles/
+site-domaine/zyroom/polices/
+site-domaine/zyroom/cache/*
+!site-domaine/zyroom/cache/.htaccess
