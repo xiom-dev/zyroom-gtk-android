@@ -333,9 +333,19 @@ def noms_anglais(table: dict) -> dict[str, str]:
 
 def main() -> int:
     table, manquent = table_des_noms()
-    ecrire("noms.json", {"mp": table, "plans": intitules_des_plans()})
-    print(f"→ noms.json : {len(table)} MP ({len(manquent)} sans fiche dans le jeu)")
     anglais = noms_anglais(table)
+    # Toutes les MP du jeu, fiche -> [nom francais, nom anglais] : l'onglet
+    # "MP inutilisees" montre ce que le hall garde sans qu'aucune recette le
+    # demande, et KipeeCraft ne connait pas toutes ces matieres.
+    fiches = {f: [n, anglais.get(f, "")] for f, n in sorted(lire_noms_du_jeu().items())
+              if re.match(r"m\d{4}[a-z]{3}[a-z]{2}01\.sitem$", f)}
+    # Les armures et bijoux craftes, pour les onglets Tenues et Bijoux.
+    equipements = {f: n for f, n in sorted(lire_noms_du_jeu().items())
+                   if re.match(r"ic[a-z][aj]", f)}
+    ecrire("noms.json", {"mp": table, "plans": intitules_des_plans(),
+                         "fiches": fiches, "equipements": equipements})
+    print(f"→ noms.json : {len(table)} MP ({len(manquent)} sans fiche dans le jeu),"
+          f" {len(fiches)} fiches du jeu")
     for chemin in NOMS_ANGLAIS:
         with open(chemin, "w", encoding="utf-8") as fh:
             json.dump(anglais, fh, ensure_ascii=False, separators=(",", ":"))

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,6 +49,34 @@ def chemin(nom: str) -> str:
     return os.path.join(DOSSIER, nom)
 
 
+#: Les armures et les bijoux craftes : "ic", le peuple, puis "a" (armure) ou
+#: "j" (bijou). C'est ce que la page xiom.be/mp range en tenues completes.
+ARMURE_OU_BIJOU = re.compile(r"^ic[a-z][aj]")
+
+#: Le bonus d'un objet, une lettre par jauge : vie, seve, endurance,
+#: concentration. Les bijoux se trient par bonus (demande de Nizyros).
+BONUS = (("v", "hp_buff"), ("s", "sap_buff"), ("e", "sta_buff"),
+         ("c", "focus_buff"))
+
+
+def tenues(entite) -> dict[str, int]:
+    """Les armures et bijoux du hall, "fiche|qualite|bonus" -> nombre.
+
+    Un fichier a part, et non une cle de plus dans l'etat : l'etat sert a
+    deduire les mouvements, et le bonus n'y a pas sa place -- deux bagues
+    identiques sauf le bonus y restent une seule pile.
+    """
+    compte: dict[str, int] = {}
+    for inventaire in entite.inventories:
+        for objet in inventaire.items:
+            if not ARMURE_OU_BIJOU.match(objet.sheet):
+                continue
+            bonus = "".join(l for l, attr in BONUS if getattr(objet, attr, 0))
+            cle = f"{objet.sheet}|{objet.quality}|{bonus}"
+            compte[cle] = compte.get(cle, 0) + max(1, objet.stack)
+    return dict(sorted(compte.items()))
+
+
 def relever(cle: str) -> tuple[str, int]:
     """Relève une guilde et verse ce qui a bougé dans son journal.
 
@@ -60,6 +89,11 @@ def relever(cle: str) -> tuple[str, int]:
 
     avant = alerts.load_snapshot(etat)
     apres = alerts.build_snapshot(entite)
+
+    with open(chemin(f"guild-{entite.entity_id}-tenues.json"), "w",
+              encoding="utf-8") as fh:
+        json.dump(tenues(entite), fh, separators=(",", ":"))
+        fh.write("\n")
 
     # Le premier releve n'a rien a comparer : on pose l'etat et on se tait.
     # Sans cette garde, tout le contenu des coffres entrerait au journal

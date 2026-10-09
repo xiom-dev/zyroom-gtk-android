@@ -27,7 +27,7 @@
     background: var(--fond); color: var(--texte);
     font-family: system-ui, sans-serif; font-size: 15px;
   }
-  main, header { max-width: 1180px; margin: 0 auto; }
+  main, header { max-width: 1880px; margin: 0 auto; }
   header { padding: 16px 0 4px; display: flex; gap: 12px; flex-wrap: wrap;
            align-items: baseline; justify-content: space-between; }
   h1 { font-size: 1.4rem; margin: 0; color: var(--or); }
@@ -62,6 +62,12 @@
   /* Le tableau deborde volontiers en largeur sur un telephone : il defile
      seul de ce cote-la, sans pousser la page. */
   .cadre { overflow-x: auto; }
+  /* MP forees a gauche, MP des boss a droite ; l'une sous l'autre sur un
+     ecran etroit. */
+  .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .deux > div { min-width: 0; }
+  .deux h2 { font-size: 1.05rem; color: var(--or); margin: 4px 0 8px; }
+  @media (max-width: 1100px) { .deux { grid-template-columns: 1fr; } }
   /* Sur un telephone, le nom de la MP garde de quoi tenir sur trois lignes
      au plus : le reste du tableau defile de cote. */
   td:first-child { min-width: 190px; }
@@ -70,11 +76,30 @@
            text-align: left; vertical-align: top; }
   th { color: var(--clair); font-weight: 600; white-space: nowrap;
        position: sticky; top: 0; background: var(--fond); z-index: 1; }
+  /* Les MP regroupees par type : pas de trait entre les lignes, seulement
+     une petite separation sous le symbole de chaque type. */
+  table.types td { border-bottom: none; padding-top: 3px; padding-bottom: 3px; }
+  table.types tr.type td { padding-top: 14px; border-bottom: 1px solid var(--trait);
+                           color: var(--clair); font-weight: 600; }
+  table.types tbody tr.type:first-child td { padding-top: 6px; }
+  /* L'icone du jeu, sans le nom de la source (en haut) ni les etoiles (a
+     droite) : il n'en reste que la forme, commune a tout le type. */
+  .symbole { display: inline-block; width: 32px; height: 32px; margin-right: 8px;
+             vertical-align: middle; border-radius: 4px;
+             background-size: 50px 50px; background-position: -5px -14px; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums;
                white-space: nowrap; }
   tbody tr:hover { background: #142024; }
   .faible { color: var(--faible); }
   .inconnue { color: var(--alerte); font-style: italic; }
+  /* La sorte a gauche (nom en vert, etoiles dessous), le nom de la MP et
+     sa ligne de detail a droite. Largeur fixe : les noms restent alignes. */
+  .mp { display: flex; align-items: flex-start; gap: 6px; }
+  .etoiles { flex: none; width: 3.6em; line-height: 1.1; white-space: nowrap; }
+  .etoiles .sorte { display: block; color: var(--sarcelle); font-size: .85rem;
+                    font-weight: 600; }
+  .etoiles .astres { display: block; color: var(--or); letter-spacing: -1px;
+                     font-size: .8rem; }
 
   .etat { display: inline-block; border-radius: 10px; padding: 1px 8px;
           font-size: .8rem; font-weight: 600; white-space: nowrap;
@@ -83,6 +108,12 @@
   .etat.forer { background: var(--or); }
   .etat.ok { background: var(--oui); }
   .etat.stop { background: var(--stop); }
+  /* Tenues et bijoux : les pieces qui manquent en rouge, celles en trop en
+     orange ; une goutte par bonus, comme dans ZyRoom. */
+  td.manque, div.manque { color: var(--rupture); }
+  td.trop, div.trop { color: var(--alerte); }
+  .goutte { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+            margin-left: 3px; vertical-align: middle; }
 
   /* Une recette s'ouvre sur place : le detail de ses pieces, et ses
      reglages quand on est connecte. */
@@ -129,11 +160,13 @@
   <p id="resume">Chargement…</p>
 
   <div class="onglets" role="tablist">
-    <button type="button" data-onglet="forer" aria-pressed="true">À forer <span class="compte" id="n-forer"></span></button>
-    <button type="button" data-onglet="stop" aria-pressed="false">Stop forage <span class="compte" id="n-stop"></span></button>
+    <button type="button" data-onglet="forer" aria-pressed="true">À stocker <span class="compte" id="n-forer"></span></button>
+    <button type="button" data-onglet="stop" aria-pressed="false">Ne plus stocker <span class="compte" id="n-stop"></span></button>
+    <button type="button" data-onglet="inutiles" aria-pressed="false">MP inutilisées <span class="compte" id="n-inutiles"></span></button>
     <button type="button" data-onglet="toutes" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
+    <button type="button" data-onglet="tenues" aria-pressed="false">Tenues <span class="compte" id="n-tenues"></span></button>
+    <button type="button" data-onglet="bijoux" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
     <button type="button" data-onglet="recettes" aria-pressed="false">Recettes <span class="compte" id="n-recettes"></span></button>
-    <button type="button" data-onglet="journal" aria-pressed="false">Journal</button>
     <button type="button" data-onglet="reglages" aria-pressed="false" hidden id="onglet-reglages">Réglages</button>
   </div>
 
@@ -176,12 +209,13 @@ const ECOS = { PrimeRoots: "Primes", Desert: "Désert", Forest: "Forêts",
                Jungle: "Jungle", Lake: "Lacs", none: "Communes",
                Corrupted: "Corrompues" };
 const ETATS = { rupture: "Bientôt en rupture", forer: "À forer", ok: "Suffisant",
-                stop: "Stop forage" };
+                stop: "Ne plus forer" };
 
 let noms = { mp: {}, plans: {} };
 let etat = null;          // reponse de mp.php
 let stock = new Map();    // fiche -> [[qualite, quantite], ...]
 let releve = null;        // date du releve du hall
+let equipement = new Map(); // "fiche|qualite|bonus" -> nombre (armures et bijoux)
 let calcul = null;
 let onglet = "forer";
 let eco = "";
@@ -258,6 +292,10 @@ async function chargerStock() {
       .then((r) => { if (!r.ok) throw new Error("stock " + r.status); return r.json(); }),
     fetch(DEPOT + "roster-" + g + ".releve", { cache: "no-store" })
       .then((r) => (r.ok ? r.text() : "")).catch(() => ""),
+    // Les armures et bijoux, avec leur bonus : un fichier a part du releve.
+    fetch(DEPOT + "guild-" + g + "-tenues.json", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
+      .then((e) => { equipement = new Map(Object.entries(e)); }),
   ]);
   // Le releve range le hall coffre par coffre, "fiche|qualite" -> quantite.
   // On additionne tous les coffres : une MP compte ou qu'elle soit rangee.
@@ -290,14 +328,6 @@ function utile(mp, qmin) {
   return total;
 }
 
-function dessous(mp, qmin) {
-  let total = 0;
-  for (const f of fiches(mp)) {
-    for (const [q, n] of stock.get(f) || []) if (q < qmin) total += n;
-  }
-  return total;
-}
-
 function besoinsDe(recette, reglages) {
   // Une meme MP dans deux emplacements : les quantites s'additionnent.
   const qc = recette.qualite ?? reglages.qualite;
@@ -309,6 +339,13 @@ function besoinsDe(recette, reglages) {
     parMp.set(p.mp, b);
   }
   return [...parMp.values()];
+}
+
+// **"Bientot en rupture", c'est quand il en reste un peu.** A zero, la
+// rupture est deja la : la MP est simplement a forer, comme le reste. Seuls
+// les 1 a 2 crafts (sous le seuil de rupture) previennent qu'on y arrive.
+function presqueVide(crafts, reglages) {
+  return crafts > 0 && crafts < reglages.rupture;
 }
 
 function calculer() {
@@ -327,7 +364,7 @@ function calculer() {
       demandes.get(b.mp).push({ min: b.min, besoin: objectif * b.n,
                                 parCraft: b.n, recette: r });
     }
-    const statut = possibles < reg.rupture ? "rupture"
+    const statut = presqueVide(possibles, reg) ? "rupture"
                  : possibles < objectif ? "forer" : "ok";
     recettes.push({ r, objectif, besoins, possibles, bloque, statut });
   }
@@ -350,11 +387,11 @@ function calculer() {
     const besoin = liste.reduce((t, d) => t + d.besoin, 0);
     const parCraft = liste.reduce((t, d) => t + d.parCraft, 0);
     const couverture = parCraft ? Math.floor(s / parCraft) : Infinity;
-    const statut = couverture < reg.rupture ? "rupture"
-                 : manque > 0 ? "forer"
+    const statut = presqueVide(couverture, reg) ? "rupture"
+                 : manque > 0 || couverture === 0 ? "forer"
                  : besoin > 0 && s > reg.stop * besoin ? "stop" : "ok";
     mps.push({ mp, nom: (noms.mp[mp] || {}).nom, eco: mp.split("_")[1],
-               qmin, stock: s, dessous: dessous(mp, qmin), besoin, manque,
+               qmin, stock: s, besoin, manque,
                couverture, statut, recettes: liste.map((d) => d.recette.nom) });
   }
   return { recettes, mps };
@@ -362,19 +399,40 @@ function calculer() {
 
 // ------------------------------------------------------------ affichage
 
-function nomMp(mp) {
+// La sorte de la MP en etoiles, comme dans le jeu : deux pour une MP de
+// choix, trois pour une excellente, quatre pour une supreme.
+const ETOILES = { Basic: "", Fine: "★", Choice: "★★", Excellent: "★★★", Supreme: "★★★★" };
+
+// "dessous" : la ligne de detail (ecosysteme, qualite, recettes), en HTML.
+function nomMp(mp, dessous) {
   const n = (noms.mp[mp] || {}).nom;
-  return n ? esc(n) : '<span class="inconnue" title="Aucune fiche du jeu ne porte ce nom">'
-                      + esc(mp) + "</span>";
+  return etiquette(mp.split("_")[0], n ? esc(n)
+    : '<span class="inconnue" title="Aucune fiche du jeu ne porte ce nom">' + esc(mp) + "</span>",
+    dessous);
 }
+// La sorte (nom court et etoiles) a gauche, le nom et sa ligne de detail a
+// droite. `nomHtml` est deja echappe.
+function etiquette(sorte, nomHtml, dessous) {
+  const etoiles = '<span class="etoiles" title="' + esc(SORTES[sorte] || sorte) + '">'
+    + '<span class="sorte">' + esc(COURTS[sorte] || "") + "</span>"
+    + '<span class="astres">' + (ETOILES[sorte] || "") + "</span></span>";
+  return '<div class="mp">' + etoiles + "<div>" + nomHtml
+    + (dessous ? '<div class="faible">' + dessous + "</div>" : "") + "</div></div>";
+}
+// Le nom court de la sorte, celui qu'on emploie entre joueurs.
+const COURTS = { Basic: "Base", Fine: "Fine", Choice: "Choix", Excellent: "XL", Supreme: "Sup" };
+const SORTES = { Basic: "De base", Fine: "Fine", Choice: "De choix", Excellent: "Excellente",
+                 Supreme: "Suprême" };
 
 function retenue(texte) {
   const q = $("#cherche").value.trim().toLowerCase();
   return !q || texte.toLowerCase().includes(q);
 }
 
-function badge(statut) {
-  return '<span class="etat ' + statut + '">' + ETATS[statut] + "</span>";
+// Pour une MP de boss, on la loote au lieu de la forer.
+function badge(statut, boss) {
+  const texte = boss ? ETATS[statut].replace("forer", "looter") : ETATS[statut];
+  return '<span class="etat ' + statut + '">' + texte + "</span>";
 }
 
 function recalculer() {
@@ -385,6 +443,9 @@ function recalculer() {
   $("#n-forer").textContent = forer.length;
   $("#n-stop").textContent = stop.length;
   $("#n-toutes").textContent = calcul.mps.length;
+  $("#n-inutiles").textContent = inutilisees().length;
+  $("#n-tenues").textContent = ensembles(false).length;
+  $("#n-bijoux").textContent = ensembles(true).length;
   $("#n-recettes").textContent = calcul.recettes.length;
   const aForer = forer.reduce((t, m) => t + m.manque, 0);
   let quand = "date du relevé inconnue";
@@ -395,7 +456,8 @@ function recalculer() {
   }
   $("#resume").innerHTML =
     "La Lune Éternelle · " + esc(quand) + " · objectif <b>" + reg.objectif
-    + " crafts</b> par recette en <b>Q" + reg.qualite + "</b> · <b>"
+    + " crafts</b> par recette, <b>" + reg.rupture + " crafts</b> minimum, <b>" + reg.stop
+    + " crafts</b> maximum · <b>"
     + nombre(aForer) + "</b> MP à forer en tout";
   afficher();
 }
@@ -403,63 +465,306 @@ function recalculer() {
 function afficher() {
   document.querySelectorAll("[data-onglet]").forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.onglet === onglet)));
-  $("#filtres").hidden = onglet === "journal" || onglet === "reglages";
+  $("#filtres").hidden = onglet === "reglages";
+  // Les ecosystemes ne disent rien d'une armure ni d'un bijou.
+  document.querySelectorAll("[data-eco]").forEach((b) =>
+    { b.hidden = onglet === "tenues" || onglet === "bijoux"; });
   const vue = $("#vue");
   if (onglet === "recettes") vue.innerHTML = vueRecettes();
-  else if (onglet === "journal") vue.innerHTML = vueJournal();
   else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
+  else if (onglet === "inutiles") vue.innerHTML = vueInutiles();
+  else if (onglet === "tenues" || onglet === "bijoux") vue.innerHTML = vueEnsembles(onglet === "bijoux");
   else vue.innerHTML = vueMps(onglet);
+}
+
+// ------------------------------------------------------- MP inutilisees
+//
+// Ce que le hall garde sans qu'aucune recette le demande : a voir avec
+// Nizyros, comme les MP en trop. Lu fiche par fiche, avec les noms du jeu :
+// KipeeCraft ne connait pas toutes ces matieres.
+
+const LETTRES_ECO = { c: "none", d: "Desert", f: "Forest", j: "Jungle", l: "Lake",
+                      p: "PrimeRoots" };
+// L'echelle des sortes est decalee d'une lettre entre forage et betes.
+const SORTES_FORAGE = { b: "Basic", c: "Fine", d: "Choice", e: "Excellent", f: "Supreme" };
+const SORTES_BETES = { a: "Basic", b: "Fine", c: "Choice", d: "Excellent", e: "Supreme" };
+
+function inutilisees() {
+  const utilisees = new Set(calcul.mps.flatMap((m) => fiches(m.mp)));
+  const liste = [];
+  for (const [fiche, piles] of stock) {
+    const info = (noms.fiches || {})[fiche];
+    if (!info || utilisees.has(fiche)) continue;
+    const foree = fiche.slice(5, 8) === "dxa";
+    const parQualite = new Map();
+    for (const [q, n] of piles) parQualite.set(q, (parQualite.get(q) || 0) + n);
+    liste.push({
+      fiche, nom: info[0], anglais: info[1], boss: !foree,
+      sorte: (foree ? SORTES_FORAGE : SORTES_BETES)[fiche[9]] || "",
+      eco: LETTRES_ECO[fiche[8]] || "", type: typeDuNom(info[0]),
+      stock: [...parQualite.values()].reduce((t, n) => t + n, 0),
+      piles: [...parQualite].sort((a, b) => b[0] - a[0]),
+    });
+  }
+  return liste;
+}
+
+// Le type d'une MP d'apres son nom du jeu, sans la sorte : "Dent suprême /
+// Bolobi" -> "Dent", "Fragment suprême de carapace Intelligente / Désert" ->
+// "Fragment de carapace".
+function typeDuNom(nom) {
+  const mots = nom.split(" / ")[0]
+    .replace(/\s+(de base|fines?|fins?|de choix|excellente?s?|suprêmes?)(?=\s|$)/gi, "")
+    .split(/\s+/);
+  if (mots.length > 1 && /^(Fragment|Mesure|Fagot|Boucles?)$/i.test(mots[0])) {
+    const n = mots[1].startsWith("d'") ? 2 : mots[2] === "grosse" ? 4 : 3;
+    return mots.slice(0, n).join(" ");
+  }
+  return mots[0];
+}
+
+function vueInutiles() {
+  const liste = inutilisees().filter((m) =>
+    (!eco || m.eco === eco) && retenue(m.nom + " " + m.anglais));
+  return '<div class="deux">' + tableInutiles(liste.filter((m) => !m.boss), false)
+    + tableInutiles(liste.filter((m) => m.boss), true) + "</div>";
+}
+
+function tableInutiles(liste, boss) {
+  const titre = "<h2>" + (boss ? "MP lootées sur les boss" : "MP forées") + "</h2>";
+  if (!liste.length) return "<div>" + titre + "<p>Aucune MP inutilisée.</p></div>";
+  const groupes = new Map();
+  for (const m of liste) {
+    if (!groupes.has(m.type)) groupes.set(m.type, []);
+    groupes.get(m.type).push(m);
+  }
+  const lignes = [...groupes.keys()].sort((a, b) => a.localeCompare(b)).map((t) => {
+    const membres = groupes.get(t).sort((a, b) => b.stock - a.stock);
+    const symbole = '<span class="symbole" style="background-image:url(\''
+      + "https://api.ryzom.com/item_icon.php?sheetid=" + encodeURIComponent(membres[0].fiche)
+      + '&c=1\')"></span>';
+    return '<tr class="type"><td colspan="3">' + symbole + esc(t) + "</td></tr>"
+      + membres.map((m) => "<tr><td>" + etiquette(m.sorte, esc(m.nom), ECOS[m.eco] || "")
+        + '</td><td class="n"><b>' + nombre(m.stock) + "</b></td>"
+        + '<td class="faible">' + m.piles.map(([q, n]) => "Q" + q + " ×" + nombre(n)).join(" · ")
+        + "</td></tr>").join("");
+  }).join("");
+  return "<div>" + titre + '<div class="cadre"><table class="types"><thead><tr><th>MP</th>'
+    + '<th class="n">Stock</th><th>Qualités</th></tr></thead><tbody>' + lignes
+    + "</tbody></table></div></div>";
+}
+
+// ------------------------------------------------------- Tenues et bijoux
+//
+// Les armures et bijoux du hall, ranges en ensembles complets (demande de
+// Nizyros) : meme nom, meme qualite -- et, pour un bijou, meme bonus. Une
+// fiche dit tout : "ic", le peuple, "a" + poids + piece pour une armure,
+// "j" + piece pour un bijou, puis la variante ("_2", "_3", "_b").
+
+// [lettre, en-tete, nombre voulu, singulier, pluriel]
+const PIECES_ARMURE = [["h", "Casque", 1, "casque", "casques"],
+                       ["v", "Gilet", 1, "gilet", "gilets"],
+                       ["p", "Pantalon", 1, "pantalon", "pantalons"],
+                       ["s", "Manches", 1, "manches", "manches"],
+                       ["g", "Gants", 1, "gants", "gants"],
+                       ["b", "Bottes", 1, "bottes", "bottes"]];
+// Une armure legere n'a pas de casque.
+const POIDS = { l: "Légère", m: "Moyenne", h: "Lourde" };
+// Les pieces d'une parure, et combien il en faut de chacune.
+const PIECES_BIJOU = [["d", "Diadème", 1, "diadème", "diadèmes"],
+                      ["e", "Boucles d'oreilles", 2, "boucle d'oreille", "boucles d'oreilles"],
+                      ["p", "Pendentif", 1, "pendentif", "pendentifs"],
+                      ["r", "Bagues", 2, "bague", "bagues"],
+                      ["b", "Bracelets", 2, "bracelet", "bracelets"],
+                      ["a", "Anneaux de cheville", 2, "anneau de cheville", "anneaux de cheville"]];
+// Les quatre jauges, avec les couleurs des gouttes de ZyRoom.
+const BONUS = [["v", "Vie", "#e2696a"], ["s", "Sève", "#4caf50"],
+               ["e", "Endurance", "#a97fd0"], ["c", "Concentration", "#4a90d9"]];
+
+function ensembles(bijoux) {
+  const groupes = new Map();
+  for (const [cle, n] of equipement) {
+    const [fiche, q, bonus] = cle.split("|");
+    const m = fiche.match(bijoux ? /^(ic[a-z]j)([a-z])(.*)$/ : /^(ic[a-z]a([lmh]))([a-z])(.*)$/);
+    if (!m) continue;
+    const piece = bijoux ? m[2] : m[3];
+    const base = bijoux ? m[1] + "?" + m[3] : m[1] + "?" + m[4];
+    // Une armure ne se trie pas par bonus : seulement les bijoux.
+    const id = base + "|" + q + "|" + (bijoux ? bonus : "");
+    if (!groupes.has(id)) {
+      groupes.set(id, { id, base, q: Number(q), bonus: bijoux ? bonus : "",
+                        poids: bijoux ? "" : m[2], pieces: {}, fiches: [] });
+    }
+    const g = groupes.get(id);
+    g.pieces[piece] = (g.pieces[piece] || 0) + n;
+    g.fiches.push(fiche);
+  }
+  return [...groupes.values()].map((g) => {
+    const besoin = (bijoux ? PIECES_BIJOU
+      : PIECES_ARMURE.filter(([p]) => p !== "h" || g.poids !== "l")).map(([p, , n]) => [p, n]);
+    // Les ensembles complets ; ce qu'il manque pour en faire un de plus ; ce
+    // qui depasse les complets et ne va donc nulle part.
+    const complets = Math.min(...besoin.map(([p, n]) => Math.floor((g.pieces[p] || 0) / n)));
+    g.besoin = besoin;
+    g.complets = complets;
+    g.manque = besoin.map(([p, n]) => [p, (complets + 1) * n - (g.pieces[p] || 0)]).filter(([, x]) => x > 0);
+    g.trop = besoin.map(([p, n]) => [p, (g.pieces[p] || 0) - complets * n]).filter(([, x]) => x > 0);
+    g.nom = nomEnsemble(g, bijoux);
+    return g;
+  });
+}
+
+// "Gilet Kostom" -> "Kostom" ; "Bague fyros de qualité Haute" -> "Fyros de
+// qualité Haute". Le nom d'une piece, sans le mot de la piece.
+function nomEnsemble(g, bijoux) {
+  const n = (noms.equipements || {})[g.fiches[0]] || g.base;
+  let reste = bijoux
+    ? n.replace(/^(Diadème|Boucle d'oreille|Pendentif|Bague|Bracelet|Anneau de cheville)\s+/i, "")
+    : n.replace(/^\S+\s+/, "").replace(/^(lourde?|légère|léger|moyenne?)\s*\/\s*/i, "");
+  reste = reste.charAt(0).toUpperCase() + reste.slice(1);
+  return bijoux ? reste : POIDS[g.poids] + " · " + reste;
+}
+
+function gouttes(bonus) {
+  return BONUS.filter(([l]) => bonus.includes(l)).map(([, nom, couleur]) =>
+    '<span class="goutte" title="' + nom + '" style="background:' + couleur + '"></span>').join("");
+}
+
+function vueEnsembles(bijoux) {
+  const pieces = bijoux ? PIECES_BIJOU : PIECES_ARMURE;
+  const motDe = Object.fromEntries(pieces.map(([p, , , un, plusieurs]) => [p, [un, plusieurs]]));
+  const liste = ensembles(bijoux).filter((g) => retenue(g.nom + " " + g.base))
+    .sort((a, b) => b.q - a.q || a.nom.localeCompare(b.nom) || a.bonus.localeCompare(b.bonus));
+  if (!equipement.size) return "<p>Le relevé du hall ne publie pas encore les armures et les bijoux.</p>";
+  if (!liste.length) return "<p>Aucun ensemble.</p>";
+  const resume = (paires) => paires.map(([p, x]) => x + " " + motDe[p][x > 1 ? 1 : 0]).join(", ");
+  const lignes = liste.map((g) => "<tr><td>" + esc(g.nom)
+      + '<div class="faible">Q' + g.q + " " + gouttes(g.bonus) + "</div></td>"
+      + '<td class="n"><b>' + g.complets + "</b></td>"
+      + pieces.map(([p]) => {
+        const voulu = g.besoin.find(([b]) => b === p);
+        if (!voulu) return '<td class="n faible">·</td>';
+        const n = g.pieces[p] || 0;
+        const classe = g.manque.some(([b]) => b === p) ? " manque" : g.trop.some(([b]) => b === p) ? " trop" : "";
+        return '<td class="n' + classe + '">' + n + "</td>";
+      }).join("")
+      + "<td>" + (g.manque.length ? '<div class="manque">Pour ' + (bijoux ? "une parure" : "une tenue")
+        + " de plus : " + esc(resume(g.manque)) + "</div>" : "")
+      + (g.trop.length ? '<div class="trop">Ne vont nulle part : ' + esc(resume(g.trop)) + "</div>" : "")
+      + "</td></tr>").join("");
+  return '<div class="cadre"><table><thead><tr><th>' + (bijoux ? "Parure" : "Tenue") + "</th>"
+    + '<th class="n" title="Ensembles complets">Complets</th>'
+    + pieces.map(([, nom, n]) => '<th class="n">' + nom + (n > 1 ? " (×" + n + ")" : "") + "</th>").join("")
+    + "<th></th></tr></thead><tbody>" + lignes + "</tbody></table></div>";
+}
+
+// Ce qui depasse le seuil "ne plus forer" (50 fois le besoin) : ce qu'on
+// peut supprimer ou ecouler sans jamais redescendre sous ce seuil.
+function enTrop(m) {
+  return Math.max(0, m.stock - etat.reglages.stop * m.besoin);
 }
 
 function vueMps(quoi) {
   const ORDRE = { rupture: 0, forer: 1, ok: 2, stop: 3 };
   let liste = calcul.mps.filter((m) =>
-    (!eco || m.eco === eco) && retenue((m.nom || m.mp) + " " + m.recettes.join(" ")));
+    (!eco || m.eco === eco) && retenue((m.nom || m.mp) + " " + m.mp.replace(/_/g, " ") + " " + m.recettes.join(" ")));
   if (quoi === "forer") {
     liste = liste.filter((m) => m.statut === "rupture" || m.statut === "forer");
-    liste.sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut] || b.manque - a.manque);
+    // Les MP a forer d'abord, les "bientot en rupture" ensuite (choix de
+    // Ludo) ; dans chaque groupe, les plus gros manques en tete.
+    const GROUPE = { forer: 0, rupture: 1 };
+    liste.sort((a, b) => GROUPE[a.statut] - GROUPE[b.statut] || b.manque - a.manque);
   } else if (quoi === "stop") {
     liste = liste.filter((m) => m.statut === "stop");
-    liste.sort((a, b) => b.stock / b.besoin - a.stock / a.besoin);
+    liste.sort((a, b) => b.couverture - a.couverture);
   } else {
     liste.sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut]
                          || (a.nom || a.mp).localeCompare(b.nom || b.mp));
   }
+  // Deux tableaux cote a cote : les MP forees a gauche, celles des boss a
+  // droite (toutes les MP d'animaux du hall se lootent sur des boss).
+  return '<div class="deux">'
+    + tableMps(liste.filter((m) => !deBoss(m.mp)), quoi, false)
+    + tableMps(liste.filter((m) => deBoss(m.mp)), quoi, true) + "</div>";
+}
+
+// Une MP de forage porte la famille "dxa" dans sa fiche du jeu ; toutes les
+// autres viennent d'animaux.
+function deBoss(mp) {
+  const fiche = ((noms.mp[mp] || {}).fiches || [])[0];
+  return !!fiche && fiche.slice(5, 8) !== "dxa";
+}
+
+// Le nom francais du type de MP, d'apres le dernier mot du nom KipeeCraft.
+const TYPES = {
+  Amber: "Ambre", Bark: "Écorce", Beak: "Bec", Bone: "Os", Bud: "Bourgeon",
+  Claw: "Griffe", Eye: "Œil", Fang: "Croc", Fiber: "Fibre", Horn: "Corne",
+  Leather: "Cuir", Ligament: "Ligament", Mandible: "Mandibule", Moss: "Mousse",
+  Mushroom: "Champignon", Nail: "Ongle", Oil: "Huile", Pelvis: "Bassin",
+  Resin: "Résine", Sap: "Sève", Secretion: "Sécrétion", Seed: "Graine",
+  Shell: "Carapace", Skin: "Peau", Spine: "Épine", Sting: "Dard", Tail: "Queue",
+  Tooth: "Dent", Trunk: "Trompe", Wing: "Aile", Wood: "Bois", WoodNode: "Nœud de bois",
+};
+function typeFr(t) { return TYPES[t] || t; }
+
+function tableMps(liste, quoi, boss) {
+  const verbe = boss ? "looter" : "forer";
+  const titre = "<h2>" + (boss ? "MP lootées sur les boss" : "MP forées") + "</h2>";
   if (!liste.length) {
-    return "<p>" + (quoi === "forer" ? "Rien à forer : toutes les recettes ont leur objectif."
-                   : quoi === "stop" ? "Aucune MP en surplus." : "Aucune MP.") + "</p>";
+    return "<div>" + titre + "<p>" + (quoi === "forer" ? "Rien à " + verbe
+              + " : toutes les recettes ont leur objectif."
+            : quoi === "stop" ? "Aucune MP en trop." : "Aucune MP.") + "</p></div>";
   }
-  const lignes = liste.map((m) => {
-    const surplus = quoi === "stop"
-      ? '<td class="n">×' + (m.stock / m.besoin).toFixed(1) + "</td>" : "";
-    return "<tr><td>" + nomMp(m.mp) + '<div class="faible">' + ECOS[m.eco]
-      + " · Q" + m.qmin + "+ · " + m.recettes.length + " recette"
-      + (m.recettes.length > 1 ? "s" : "") + "</div></td>"
-      + "<td>" + badge(m.statut) + "</td>"
-      + (quoi === "stop" ? ""
-         : '<td class="n">' + (m.manque > 0 ? "<b>" + nombre(m.manque) + "</b>" : "—") + "</td>")
-      + '<td class="n">' + nombre(m.stock) + "</td>"
-      + '<td class="n">' + nombre(m.besoin) + "</td>"
-      + surplus
-      + '<td class="n">' + nombre(m.couverture) + "</td>"
-      + '<td class="n faible">' + (m.dessous ? nombre(m.dessous) : "—") + "</td></tr>";
+  // Quatre colonnes, et une cinquieme pour ce qu'il faut forer. "Crafts
+  // possibles" compte toutes les recettes ensemble : avec 15 MP, un casque
+  // a 5 et un pantalon a 3 ne font qu'un tour complet (8 MP), pas trois.
+  const forer = quoi === "forer";
+  const trop = quoi === "stop";
+  const colonnes = 4 + (forer || trop ? 1 : 0);
+  // Regroupees par type (graines, cuirs...), types dans l'ordre alphabetique,
+  // et dans chaque type l'ordre de l'onglet.
+  const groupes = new Map();
+  liste.forEach((m) => {
+    const t = m.mp.split("_")[3];
+    if (!groupes.has(t)) groupes.set(t, []);
+    groupes.get(t).push(m);
+  });
+  const ordre = [...groupes.keys()].sort((a, b) => typeFr(a).localeCompare(typeFr(b)));
+  const lignes = ordre.map((t) => {
+    const fiche = ((noms.mp[groupes.get(t)[0].mp] || {}).fiches || [])[0];
+    const symbole = fiche ? '<span class="symbole" style="background-image:url(\''
+      + "https://api.ryzom.com/item_icon.php?sheetid=" + encodeURIComponent(fiche)
+      + '&c=1\')"></span>' : "";
+    return '<tr class="type"><td colspan="' + colonnes + '">' + symbole + esc(typeFr(t))
+      + "</td></tr>" + groupes.get(t).map(ligneMp).join("");
   }).join("");
-  return '<div class="cadre"><table><thead><tr><th>MP</th><th>État</th>'
-    + (quoi === "stop" ? ""
-       : '<th class="n" title="Ce qu\'il faut forer pour atteindre l\'objectif de chaque recette">À forer</th>')
-    + '<th class="n" title="Piles du hall à la qualité demandée ou plus">Stock</th>'
-    + '<th class="n" title="Ce que demandent toutes les recettes pour leur objectif">Besoin</th>'
-    + (quoi === "stop" ? '<th class="n">Stock / besoin</th>' : "")
-    + '<th class="n" title="Crafts de chaque recette qui l\'utilise">Couvre</th>'
-    + '<th class="n" title="Piles du hall trop basses pour ces recettes">Sous la qualité</th>'
-    + "</tr></thead><tbody>" + lignes + "</tbody></table></div>";
+  function ligneMp(m) {
+    return "<tr><td>" + nomMp(m.mp, ECOS[m.eco]
+      + " · Q" + m.qmin + "+ · " + m.recettes.length + " recette"
+      + (m.recettes.length > 1 ? "s" : "")) + "</td>"
+      + "<td>" + badge(m.statut, boss) + "</td>"
+      + '<td class="n">' + nombre(m.stock) + "</td>"
+      + '<td class="n"><b>' + nombre(m.couverture) + "</b></td>"
+      + (forer ? '<td class="n">' + (m.manque > 0 ? nombre(m.manque) : "—") + "</td>" : "")
+      + (trop ? '<td class="n"><b>' + nombre(enTrop(m)) + "</b></td>" : "")
+      + "</tr>";
+  }
+  return "<div>" + titre + '<div class="cadre"><table class="types"><thead><tr><th>MP</th><th>État</th>'
+    + '<th class="n" title="Ce que le hall contient, à la qualité demandée ou plus">Stock</th>'
+    + '<th class="n" title="Crafts de toutes les recettes qui utilisent cette MP, faits ensemble">Crafts<br>possibles</th>'
+    + (forer ? '<th class="n" title="MP à ' + verbe + ' pour atteindre ' + etat.reglages.objectif
+               + ' crafts de chaque recette">À ' + verbe + "</th>" : "")
+    + (trop ? '<th class="n" title="Au-delà de ' + etat.reglages.stop
+               + ' fois le besoin : à supprimer ou à écouler, à voir avec Nizyros">MP en trop</th>' : "")
+    + "</tr></thead><tbody>" + lignes + "</tbody></table></div></div>";
 }
 
 function vueRecettes() {
   const ORDRE = { rupture: 0, forer: 1, ok: 2 };
   const liste = calcul.recettes.filter((x) =>
     (!eco || x.besoins.some((b) => b.mp.split("_")[1] === eco))
-    && retenue(x.r.nom + " " + x.besoins.map((b) => (noms.mp[b.mp] || {}).nom || b.mp).join(" ")))
+    && retenue(x.r.nom + " " + x.besoins.map((b) => ((noms.mp[b.mp] || {}).nom || "")
+                                    + " " + b.mp.replace(/_/g, " ")).join(" ")))
     .sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut] || a.possibles - b.possibles
                     || a.r.nom.localeCompare(b.r.nom));
   const lignes = liste.map((x) => {
@@ -509,19 +814,6 @@ function detail(x) {
     + '<span>Case vide : réglage commun.</span></div>';
 }
 
-function vueJournal() {
-  const j = etat.journal || [];
-  if (!j.length) {
-    return "<p>Aucune modification encore" + (etat.depart
-      ? " : les recettes sont celles de départ, lues dans KipeeCraft." : ".") + "</p>";
-  }
-  return '<div class="cadre"><table><thead><tr><th>Quand</th><th>Qui</th><th>Quoi</th>'
-    + "</tr></thead><tbody>" + j.map((e) => "<tr><td class=\"faible\">"
-      + esc(new Date(e.quand).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }))
-      + "</td><td>" + esc(e.qui) + "</td><td>" + esc(e.quoi) + "</td></tr>").join("")
-    + "</tbody></table></div>";
-}
-
 function vueReglages() {
   const r = etat.reglages;
   const champ = (cle, texte, min, max) => "<label for=\"r-" + cle + "\">" + texte
@@ -530,7 +822,7 @@ function vueReglages() {
   return '<section class="panneau"><h2>Réglages communs</h2><div class="grille">'
     + champ("objectif", "Objectif (crafts par recette)", 0, 100000)
     + champ("qualite", "Qualité de craft", 1, 300)
-    + champ("stop", "Stop forage au-delà de (× le besoin)", 1, 100)
+    + champ("stop", "Ne plus forer au-delà de (× le besoin)", 1, 100)
     + champ("rupture", "Bientôt en rupture sous (crafts)", 0, 100000)
     + '</div><button type="button" class="principal" id="r-enregistrer">Enregistrer</button></section>'
     + '<section class="panneau"><h2>Importer des recettes KipeeCraft</h2>'
