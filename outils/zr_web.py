@@ -16,7 +16,7 @@ import unicodedata
 
 import os
 
-from zyroom import alerts, movements, roster, ryzom_api, skills as skills_mod, sorting
+from zyroom import alerts, carte, movements, roster, ryzom_api, skills as skills_mod, sorting
 from zyroom.categorydb import CategoryDb
 from zyroom.models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, ItemInfo,
                            ItemType, categorie_item)
@@ -145,6 +145,12 @@ def entite(xml: str, sorte: str) -> str:
         "argent": ent.money, "motd": ent.motd, "portrait": ent.portrait_url,
         "connexion": ent.lastlogin, "deconnexion": ent.lastlogout,
         "calcul": ent.created,
+        "betes": [{
+            "nom": b.nom, "etiquette": b.etiquette, "zig": b.zig, "dehors": b.dehors,
+            "statut": b.statut, "satiete": b.satiete,
+            "pixel": carte.pixel(b.x, b.y) if b.dehors else None,
+        } for b in ent.betes],
+        "pixel": carte.pixel(ent.x, ent.y) if (ent.x or ent.y) else None,
         "competences": _competences(ent.skills),
         "points": {k: list(v) for k, v in ent.skill_points.items()},
         "effectif": _effectif(ent.members),

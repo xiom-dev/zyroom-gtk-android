@@ -114,13 +114,13 @@ def fabriquer_php() -> None:
 def copier_images() -> None:
     """Les symboles de l'application (onglets, contenants, bourse) et la
     gothique du nom : la page les montre tels quels."""
-    for dossier, motif in (("symboles", ".png"), ("polices", ".ttf")):
+    for dossier, motif in (("symboles", ".png"), ("polices", ".ttf"), ("cartes", ".webp")):
         cible = os.path.join(DOSSIER, dossier)
         os.makedirs(cible, exist_ok=True)
         for nom in sorted(os.listdir(os.path.join(PAQUET, dossier))):
             if nom.endswith(motif):
                 shutil.copy2(os.path.join(PAQUET, dossier, nom), os.path.join(cible, nom))
-    print("symboles/ et polices/ recopiés")
+    print("symboles/, polices/ et cartes/ recopiés")
 
 
 def main() -> int:

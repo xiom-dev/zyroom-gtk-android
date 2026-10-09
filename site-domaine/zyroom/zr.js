@@ -754,6 +754,7 @@ async function montrerJournal() {
 function dessinerBonus() {
   if (Z.page === "competences") dessinerCompetences();
   else if (Z.page === "effectif") dessinerEffectif();
+  else if (Z.page === "perdu") dessinerPerdu();
   else dessinerAutrePage();
   majEtat();
 }
@@ -924,6 +925,151 @@ async function dessinerEffectif() {
     '<div class="r-groupe' + zebre(i) + '"><div class="r-titre">' + esc(grade) + " · " + noms.length + '</div><div class="r-noms">'
     + noms.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div></div>").join("")
     : '<div class="vide">Aucun membre de ce nom.</div>';
+}
+
+// --- La carte d'Atys (page_betes._peindre_carte, page_cartes)
+//
+// Une image de 4000 x 3000, agrandie a la molette, au pincement ou aux
+// boutons, deplacee au glisse. `points(ctx, e, mx, my)` dessine par-dessus.
+
+const ZOOM_MAX = 16, PAS_ZOOM = 1.15, SEUIL_GROUPE = 40;
+const CERNE = "rgb(15,20,23)";
+let imageAtys = null;
+function chargerAtys() {
+  if (!imageAtys) {
+    imageAtys = new Image();
+    imageAtys.src = "cartes/atys.webp";
+  }
+  return imageAtys;
+}
+
+function carteAtys(canvas, points) {
+  const etat = { zoom: 1, gx: 0, gy: 0 };
+  const img = chargerAtys();
+  function borner() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const e = Math.min(w / 4000, h / 3000) * etat.zoom;
+    const dx = Math.max(0, (4000 * e - w) / 2), dy = Math.max(0, (3000 * e - h) / 2);
+    etat.gx = Math.max(-dx, Math.min(dx, etat.gx));
+    etat.gy = Math.max(-dy, Math.min(dy, etat.gy));
+  }
+  function dessiner() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    const r = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * r);
+    canvas.height = Math.round(h * r);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(r, 0, 0, r, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (!img.complete || !img.naturalWidth) { img.onload = dessiner; return; }
+    const e = Math.min(w / 4000, h / 3000) * etat.zoom;
+    const mx = (w - 4000 * e) / 2 + etat.gx, my = (h - 3000 * e) / 2 + etat.gy;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip();
+    ctx.drawImage(img, mx, my, 4000 * e, 3000 * e);
+    points(ctx, e, mx, my, w, h);
+    ctx.restore();
+  }
+  function zoomer(f, cx, cy) {
+    const avant = etat.zoom;
+    etat.zoom = Math.max(1, Math.min(ZOOM_MAX, etat.zoom * f));
+    const rapport = etat.zoom / avant;
+    etat.gx *= rapport; etat.gy *= rapport;
+    borner(); dessiner();
+  }
+  canvas.addEventListener("wheel", (ev) => { ev.preventDefault(); zoomer(ev.deltaY > 0 ? 1 / PAS_ZOOM : PAS_ZOOM); }, { passive: false });
+  // Glisse a la souris comme au doigt ; a deux doigts, le pincement.
+  const doigts = new Map();
+  let depart = null, pince = null;
+  canvas.addEventListener("pointerdown", (ev) => {
+    canvas.setPointerCapture(ev.pointerId);
+    doigts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    depart = [ev.clientX, ev.clientY, etat.gx, etat.gy];
+    if (doigts.size === 2) { const [a, b] = [...doigts.values()]; pince = [Math.hypot(a[0] - b[0], a[1] - b[1]), etat.zoom]; }
+  });
+  canvas.addEventListener("pointermove", (ev) => {
+    if (!doigts.has(ev.pointerId)) return;
+    doigts.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if (doigts.size === 2 && pince) {
+      const [a, b] = [...doigts.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      zoomer((pince[1] * d / pince[0]) / etat.zoom);
+    } else if (depart && etat.zoom > 1) {
+      etat.gx = depart[2] + ev.clientX - depart[0];
+      etat.gy = depart[3] + ev.clientY - depart[1];
+      borner(); dessiner();
+    }
+  });
+  const fin = (ev) => { doigts.delete(ev.pointerId); if (doigts.size < 2) pince = null; if (!doigts.size) depart = null; };
+  canvas.addEventListener("pointerup", fin);
+  canvas.addEventListener("pointercancel", fin);
+  new ResizeObserver(() => { borner(); dessiner(); }).observe(canvas);
+  return { dessiner, etat };
+}
+
+// Un nom blanc cerne de noir sur ses huit cotes (page_betes._marqueur).
+function nomCerne(ctx, texte, x, y) {
+  ctx.font = "13px Cantarell, 'Noto Sans', sans-serif";
+  ctx.fillStyle = CERNE;
+  for (const dx of [-1, 0, 1]) for (const dy of [-1, 0, 1]) if (dx || dy) ctx.fillText(texte, x + dx * 1.2, y + dy * 1.2);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(texte, x, y);
+}
+function cible(ctx, x, y, coeur) {
+  for (const [r, c] of [[7, CERNE], [5.5, "#fff"], [3, coeur]]) {
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+  }
+}
+
+// --- Perdu ? (page_betes.py)
+
+let cartePerdu = null;
+async function dessinerPerdu() {
+  if (!$("#p-carte")) {
+    $("#page").innerHTML = '<div class="grille-zone liste perdu"><canvas id="p-carte"></canvas>'
+      + '<div class="p-entete" id="p-entete"></div><div class="p-colonnes"><div id="p-mek"></div><div id="p-zig"></div></div></div>';
+    cartePerdu = carteAtys($("#p-carte"), (ctx, e, mx, my, w, h) => {
+      const ent = cartePerdu.ent;
+      if (!ent) return;
+      if (ent.pixel) {
+        const x = mx + ent.pixel[0] * e, y = my + ent.pixel[1] * e;
+        cible(ctx, x, y, "rgb(59,156,255)");
+        nomCerne(ctx, ent.nom, x + 11, y - 7);
+      }
+      // Les betes trop proches n'en font qu'une.
+      const groupes = new Map();
+      for (const b of ent.betes.filter((x) => x.dehors && x.pixel)) {
+        const x = mx + b.pixel[0] * e, y = my + b.pixel[1] * e;
+        const cle = Math.floor(x / SEUIL_GROUPE) + ":" + Math.floor(y / SEUIL_GROUPE);
+        if (!groupes.has(cle)) groupes.set(cle, [x, y, []]);
+        groupes.get(cle)[2].push(b);
+      }
+      for (const [x, y, liste] of groupes.values()) {
+        cible(ctx, x, y, "rgb(255,46,46)");
+        nomCerne(ctx, (liste[0].nom || liste[0].etiquette) + (liste.length > 1 ? " +" + (liste.length - 1) : ""), x + 11, y - 7);
+      }
+    });
+  }
+  const trouve = Z.ent && Z.ent.sorte === "character" ? { ent: Z.ent } : (Z.pret ? await entiteDe("character") : null);
+  const ent = trouve ? trouve.ent : null;
+  cartePerdu.ent = ent;
+  const betes = ent ? ent.betes : [];
+  const dehors = betes.filter((b) => b.dehors).length;
+  $("#p-carte").hidden = !ent || (!dehors && !ent.pixel);
+  $("#p-entete").textContent = !dehors ? "Aucune bête dehors : toutes sont rangées."
+    : dehors === 1 ? "1 bête dehors" : dehors + " bêtes dehors";
+  const lieux = { landscape: "dehors", stable: "à l'écurie", "": "état inconnu" };
+  const colonne = (titre, liste) => '<div class="p-titre">' + titre + " · " + liste.length + "</div>"
+    + (liste.length ? liste.map((b, i) => {
+      const lieu = lieux[b.statut] !== undefined ? lieux[b.statut] : b.statut;
+      let detail = b.nom ? b.etiquette + " · " + lieu : lieu;
+      if (b.satiete > 0) detail += " · satiété " + Math.trunc(b.satiete);
+      return '<div class="p-bete' + zebre(i) + '"><b>' + esc(b.nom || b.etiquette) + '</b><div class="faible">' + esc(detail) + "</div></div>";
+    }).join("") : '<div class="faible p-vide">aucune</div>');
+  $("#p-mek").innerHTML = colonne("Mektoubs", betes.filter((b) => !b.zig));
+  $("#p-zig").innerHTML = colonne("Zigs", betes.filter((b) => b.zig));
+  cartePerdu.dessiner();
 }
 
 // ------------------------------------------------------------ les autres pages
