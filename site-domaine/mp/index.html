@@ -73,6 +73,11 @@
   /* Le tableau deborde volontiers en largeur sur un telephone : il defile
      seul de ce cote-la, sans pousser la page. */
   .cadre { overflow-x: auto; }
+  /* Armures et bijoux : la ligne des en-tetes reste visible pendant le
+     defilement. Un cadre qui defile de cote retient l'en-tete chez lui ; sur
+     un ecran large, rien ne deborde, il laisse donc l'en-tete coller a la
+     fenetre. */
+  @media (min-width: 1100px) { .cadre.collant { overflow: visible; } }
   /* MP forees a gauche, MP des boss a droite ; l'une sous l'autre sur un
      ecran etroit. */
   .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
@@ -596,11 +601,11 @@ const PIECES_ARMURE = [["h", "Casque", 1, "casque", "casques"],
 const POIDS = { l: "Légère", m: "Moyenne", h: "Lourde" };
 // Les pieces d'une parure, et combien il en faut de chacune.
 const PIECES_BIJOU = [["d", "Diadème", 1, "diadème", "diadèmes"],
-                      ["e", "Boucles d'oreilles", 2, "boucle d'oreille", "boucles d'oreilles"],
+                      ["e", "Boucles<br>d'oreilles", 2, "boucle d'oreille", "boucles d'oreilles"],
                       ["p", "Pendentif", 1, "pendentif", "pendentifs"],
                       ["r", "Bagues", 2, "bague", "bagues"],
                       ["b", "Bracelets", 2, "bracelet", "bracelets"],
-                      ["a", "Anneaux de cheville", 2, "anneau de cheville", "anneaux de cheville"]];
+                      ["a", "Anneaux<br>de cheville", 2, "anneau de cheville", "anneaux de cheville"]];
 // Les quatre jauges, avec les couleurs des gouttes de ZyRoom.
 const BONUS = [["v", "Vie", "#e2696a"], ["s", "Sève", "#4caf50"],
                ["e", "Endurance", "#a97fd0"], ["c", "Concentration", "#4a90d9"]];
@@ -685,7 +690,7 @@ function vueEnsembles(bijoux) {
       }).join("")
       + "<td>" + (g.manque.length ? '<div class="manque">Manque : ' + esc(resume(g.manque)) + "</div>" : "")
       + "</td></tr>").join("");
-  return '<div class="cadre"><table><thead><tr><th>' + (bijoux ? "Parure" : "Armure") + "</th>"
+  return '<div class="cadre collant"><table><thead><tr><th>' + (bijoux ? "Parure" : "Armure") + "</th>"
     + '<th class="n" title="Ensembles complets">Complets</th>'
     + pieces.map(([, nom, n]) => '<th class="n">' + nom + (n > 1 ? " (×" + n + ")" : "") + "</th>").join("")
     + "<th></th></tr></thead><tbody>" + lignes + "</tbody></table></div>";
