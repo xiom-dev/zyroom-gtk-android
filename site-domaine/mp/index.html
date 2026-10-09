@@ -185,7 +185,7 @@
     <button type="button" data-onglet="toutes" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
     <button type="button" data-onglet="tenues" aria-pressed="false">Armures <span class="compte" id="n-tenues"></span></button>
     <button type="button" data-onglet="bijoux" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
-    <button type="button" data-onglet="recettes" aria-pressed="false">Recettes <span class="compte" id="n-recettes"></span></button>
+    <button type="button" data-onglet="recettes" aria-pressed="false" hidden id="onglet-recettes">Recettes <span class="compte" id="n-recettes"></span></button>
     <button type="button" data-onglet="reglages" aria-pressed="false" hidden id="onglet-reglages">Réglages</button>
   </div>
 
@@ -205,8 +205,8 @@
 
 <dialog id="porte">
   <form method="dialog" id="porte-form">
-    <strong>Mot de passe de la guilde</strong>
-    <input id="porte-nom" autocomplete="username" placeholder="Nom (seulement pour modifier)">
+    <strong>Connexion</strong>
+    <input id="porte-nom" autocomplete="username" placeholder="Nom du joueur" required>
     <input id="porte-mdp" type="password" autocomplete="current-password" placeholder="Mot de passe" required autofocus>
     <div id="message"></div>
     <div class="boutons">
@@ -411,7 +411,8 @@ function calculer() {
                  : besoin > 0 && s > reg.stop * besoin ? "stop" : "ok";
     mps.push({ mp, nom: (noms.mp[mp] || {}).nom, eco: mp.split("_")[1],
                qmin, stock: s, besoin, manque,
-               couverture, statut, recettes: liste.map((d) => d.recette.nom) });
+               couverture, statut, nbRecettes: liste.length,
+               recettes: liste.map((d) => d.recette.nom) });
   }
   return { recettes, mps };
 }
@@ -465,7 +466,9 @@ function badge(statut, boss) {
 }
 
 function recalculer() {
-  calcul = calculer();
+  // Un joueur recoit les resultats tout faits : les recettes ne quittent
+  // pas le serveur (mp.php).
+  calcul = etat.resultats ? { recettes: [], mps: etat.resultats } : calculer();
   const reg = etat.reglages;
   const forer = calcul.mps.filter((m) => m.statut === "rupture" || m.statut === "forer");
   const stop = calcul.mps.filter((m) => m.statut === "stop");
@@ -705,7 +708,7 @@ function enTrop(m) {
 function vueMps(quoi) {
   const ORDRE = { rupture: 0, forer: 1, ok: 2, stop: 3 };
   let liste = calcul.mps.filter((m) =>
-    (!eco || m.eco === eco) && retenue((m.nom || m.mp) + " " + m.mp.replace(/_/g, " ") + " " + m.recettes.join(" ")));
+    (!eco || m.eco === eco) && retenue((m.nom || m.mp) + " " + m.mp.replace(/_/g, " ") + " " + (m.recettes || []).join(" ")));
   if (quoi === "forer") {
     liste = liste.filter((m) => m.statut === "rupture" || m.statut === "forer");
     // Les MP a forer d'abord, les "bientot en rupture" ensuite (choix de
@@ -779,8 +782,8 @@ function tableMps(liste, quoi, boss) {
   }).join("");
   function ligneMp(m) {
     return "<tr><td>" + nomMp(m.mp, ECOS[m.eco]
-      + " · Q" + m.qmin + "+ · " + m.recettes.length + " recette"
-      + (m.recettes.length > 1 ? "s" : "")) + "</td>"
+      + " · Q" + m.qmin + "+ · " + m.nbRecettes + " recette"
+      + (m.nbRecettes > 1 ? "s" : "")) + "</td>"
       + "<td>" + badge(m.statut, boss) + "</td>"
       + '<td class="n">' + nombre(m.stock) + "</td>"
       + '<td class="n"><b>' + nombre(m.couverture) + "</b></td>"
@@ -823,7 +826,7 @@ function vueRecettes() {
 }
 
 function detail(x) {
-  const connecte = Boolean(etat.qui);
+  const connecte = Boolean(etat.editeur);
   const reg = etat.reglages;
   const qc = x.r.qualite ?? reg.qualite;
   const lignes = x.besoins.map((b) => {
@@ -982,14 +985,16 @@ function recetteEditee(id) {
 // ------------------------------------------------------------ connexion
 
 function afficherConnexion() {
-  const qui = etat && etat.qui;
-  $("#connecte").textContent = qui ? "Connecté : " + qui + " " : etat ? "Lecture seule " : "";
+  // Recettes et reglages : aux editeurs seulement (Ludo, Luz, Nizyros).
+  const editeur = Boolean(etat && etat.editeur);
+  $("#connecte").textContent = etat && etat.qui ? "Connecté : " + etat.qui + " " : "";
   // Annuler la porte ne doit pas laisser la page sans moyen d'y revenir.
-  $("#entrer").hidden = Boolean(qui);
-  $("#entrer").textContent = etat ? "Se connecter pour modifier" : "Se connecter";
+  $("#entrer").hidden = Boolean(etat);
+  $("#entrer").textContent = "Se connecter";
   $("#sortir").hidden = !jeton;
-  $("#onglet-reglages").hidden = !qui;
-  if (!qui && onglet === "reglages") onglet = "forer";
+  $("#onglet-reglages").hidden = !editeur;
+  $("#onglet-recettes").hidden = !editeur;
+  if (!editeur && (onglet === "reglages" || onglet === "recettes")) onglet = "forer";
 }
 
 $("#entrer").addEventListener("click", ouvrirPorte);
@@ -1004,8 +1009,13 @@ $("#porte-form").addEventListener("submit", async (ev) => {
       body: JSON.stringify({ action: "entrer", nom: $("#porte-nom").value,
                              mdp: $("#porte-mdp").value }) });
     const reponse = await r.json().catch(() => ({}));
-    if (!r.ok) { $("#message").textContent = $("#porte-nom").value.trim()
-                   ? "Nom ou mot de passe incorrect." : "Mot de passe incorrect."; return; }
+    if (!r.ok) {
+      $("#message").textContent = reponse.erreur === "nom ou mot de passe"
+        ? "Nom ou mot de passe incorrect."
+        : reponse.erreur ? reponse.erreur.charAt(0).toUpperCase() + reponse.erreur.slice(1) + "."
+        : "Refusé.";
+      return;
+    }
     jeton = reponse.jeton;
     try { localStorage.setItem("mp-jeton", jeton); } catch (e) {}
     $("#porte-mdp").value = "";

@@ -5,13 +5,20 @@
 // y met les empreintes des mots de passe et le sel, et ecrit `mp.php` -- le
 // seul a deposer sur le serveur, et le seul que git ignore.
 //
-// GET  : rend les recettes et les reglages, a qui a un jeton.
-// POST : entrer (mot de passe -> jeton), puis, avec un jeton nominatif :
-//        enregistrer une recette, en supprimer une, changer les reglages.
+// GET  : a un editeur, les recettes et les reglages ; a un joueur, les
+//        reglages et les resultats du calcul, sans les recettes.
+// POST : entrer (nom + mot de passe -> jeton), puis, avec un jeton
+//        d'editeur : enregistrer une recette, en supprimer une, changer les
+//        reglages.
 //
-// **Deux portes.** Le mot de passe de la guilde, sans nom, ouvre la lecture :
-// les recettes PvP restent entre membres, comme les spots du forage. Un nom
-// et son mot de passe ouvrent en plus l'ecriture.
+// **Deux portes.** Un nom de joueur de l'effectif de la guilde et le mot de
+// passe de la guilde ouvrent la lecture. Un nom de la liste des editeurs et
+// son mot de passe personnel ouvrent tout, recettes comprises.
+//
+// **Les recettes ne sortent pas du serveur pour un joueur** (Ludo et
+// Nizyros, 9 octobre 2026). Cacher l'onglet ne suffisait pas : la page
+// calculait dans le navigateur, et recevait donc les recettes. Pour un joueur,
+// le calcul se fait ici, et seuls les totaux par MP partent.
 //
 // **Un mot de passe par personne pour ecrire.** Le jeton porte le nom de celui qui l'a
 // recu : chaque modification est signee, et le journal dit qui a change
@@ -43,6 +50,13 @@ const MAX_RECETTES = 1000;
 const MAX_PIECES = 12;
 // Un nom de MP de KipeeCraft : grade, ecosysteme, matiere, type.
 const FORME_MP = '/^[A-Za-z0-9]+_[A-Za-z0-9]+_[A-Za-z0-9]+_[A-Za-z0-9]+$/';
+// Ce que le releve du hall publie : le stock, coffre par coffre, et
+// l'effectif de la guilde.
+const DEPOT = 'https://raw.githubusercontent.com/xiom-dev/zyroom-gtk-android/journaux/';
+const NOMS = __DIR__ . '/noms.json';
+const CACHE = __DIR__ . '/cache';
+// Le releve passe tous les quarts d'heure : cinq minutes de cache suffisent.
+const CACHE_DUREE = 5 * 60;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -62,45 +76,101 @@ function utilisateurs(): array
 
 // ------------------------------------------------------------- le jeton
 //
-// "nom.expiration.signature", le nom en base64 (il peut porter un accent).
-// Pas de session PHP : le serveur ne garde rien, il revalide la signature.
+// "nom.role.expiration.signature", le nom en base64 (il peut porter un
+// accent), le role "e" (editeur) ou "j" (joueur). Pas de session PHP : le
+// serveur ne garde rien, il revalide la signature.
 
 function b64(string $s): string
 {
     return rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
 }
 
-function jeton(string $nom, int $expire): string
+function jeton(string $nom, string $role, int $expire): string
 {
-    $tete = b64($nom) . '.' . $expire;
+    $tete = b64($nom) . '.' . $role . '.' . $expire;
     return $tete . '.' . hash_hmac('sha256', $tete, SEL);
 }
 
-// Le nom porte par un jeton valide : '' pour un jeton de lecture, null si
-// le jeton est absent, faux, expire, ou si son nom a ete retire de la liste.
-function porteur(): ?string
+// [nom, editeur ?] pour un jeton valide ; null si le jeton est absent, faux,
+// expire, ou si son porteur a perdu son droit : editeur retire de la liste,
+// joueur sorti de la guilde.
+function porteur(): ?array
 {
     $recu = (string) ($_SERVER['HTTP_X_MP'] ?? '');
     $morceaux = explode('.', $recu);
-    if (count($morceaux) !== 3 || !preg_match('/^[0-9]{1,12}$/', $morceaux[1])) {
+    if (count($morceaux) !== 4 || !in_array($morceaux[1], ['e', 'j'], true)
+        || !preg_match('/^[0-9]{1,12}$/', $morceaux[2])) {
         return null;
     }
-    if ((int) $morceaux[1] < time()) {
+    if ((int) $morceaux[2] < time()) {
         return null;
     }
     $nom = (string) base64_decode(strtr($morceaux[0], '-_', '+/'), true);
     // hash_equals : la comparaison ne doit pas fuir la signature par le temps
     // qu'elle met a echouer.
-    if (!hash_equals(jeton($nom, (int) $morceaux[1]), $recu)) {
+    if ($nom === '' || !hash_equals(jeton($nom, $morceaux[1], (int) $morceaux[2]), $recu)) {
         return null;
     }
-    return ($nom === '' || isset(utilisateurs()[$nom])) ? $nom : null;
+    if ($morceaux[1] === 'e') {
+        return isset(utilisateurs()[$nom]) ? [$nom, true] : null;
+    }
+    // Un effectif illisible ne ferme pas la porte a qui l'a deja passee.
+    $effectif = effectif();
+    return ($effectif === null || membre($nom, $effectif) !== '') ? [$nom, false] : null;
 }
 
-// Le nom de qui peut ecrire, ou '' (lecteur ou inconnu).
+// Le nom de qui peut ecrire, ou '' (joueur ou inconnu).
 function qui(): string
 {
-    return porteur() ?? '';
+    $p = porteur();
+    return ($p !== null && $p[1]) ? $p[0] : '';
+}
+
+// ------------------------------------------------------------- le releve
+//
+// Lu sur GitHub et garde quelques minutes : chaque page ouverte ne doit pas
+// aller y frapper.
+
+function distant(string $nom): ?array
+{
+    $local = CACHE . '/' . $nom;
+    if (is_file($local) && time() - (int) filemtime($local) < CACHE_DUREE) {
+        return lire($local);
+    }
+    $contexte = stream_context_create(['http' => ['timeout' => 10]]);
+    $brut = @file_get_contents(DEPOT . $nom, false, $contexte);
+    $lu = $brut !== false ? json_decode($brut, true) : null;
+    if (is_array($lu)) {
+        @mkdir(CACHE, 0775, true);
+        @file_put_contents($local, $brut);
+        return $lu;
+    }
+    // GitHub injoignable : la derniere copie vaut mieux que rien.
+    return is_file($local) ? lire($local) : null;
+}
+
+function guilde(): int
+{
+    $lu = lire(FICHIER) ?? lire(DEPART) ?? [];
+    return (int) ($lu['reglages']['guilde'] ?? 0);
+}
+
+// Les membres de la guilde, nom -> grade ; null si illisible.
+function effectif(): ?array
+{
+    return distant('roster-' . guilde() . '.json');
+}
+
+// Le nom tel que l'effectif l'ecrit, sans tenir compte des majuscules ; ''
+// s'il n'y est pas.
+function membre(string $nom, array $effectif): string
+{
+    foreach (array_keys($effectif) as $connu) {
+        if (strcasecmp((string) $connu, trim($nom)) === 0) {
+            return (string) $connu;
+        }
+    }
+    return '';
 }
 
 // ------------------------------------------------------------- l'etat
@@ -127,13 +197,109 @@ function etat(): array
     ];
 }
 
+// ------------------------------------------------------------- le calcul
+//
+// Le meme que celui de la page (calculer, dans index.html), pour les joueurs :
+// qui change l'un change l'autre.
+
+// Le stock du hall, fiche -> [[qualite, quantite], ...], tous coffres.
+function stock(): array
+{
+    $releve = distant('guild-' . guilde() . '-etat.json') ?? [];
+    $stock = [];
+    foreach ($releve as $coffre => $contenu) {
+        if (!str_starts_with((string) $coffre, 'chest') || !is_array($contenu)) {
+            continue;
+        }
+        foreach ($contenu as $cle => $quantite) {
+            [$fiche, $q] = array_pad(explode('|', (string) $cle), 2, '0');
+            $stock[$fiche][] = [(int) $q, (int) $quantite];
+        }
+    }
+    return $stock;
+}
+
+function resultats(array $etat): array
+{
+    $noms = (lire(NOMS) ?? [])['mp'] ?? [];
+    $stock = stock();
+    $reg = $etat['reglages'];
+    $utile = function (string $mp, int $qmin) use ($noms, $stock): int {
+        $total = 0;
+        foreach ($noms[$mp]['fiches'] ?? [] as $f) {
+            foreach ($stock[$f] ?? [] as [$q, $n]) {
+                if ($q >= $qmin) {
+                    $total += $n;
+                }
+            }
+        }
+        return $total;
+    };
+    $presqueVide = fn(int $crafts): bool =>
+        $crafts > 0 && $crafts < (int) $reg['rupture'];
+
+    $demandes = [];
+    foreach ($etat['recettes'] as $r) {
+        $objectif = (int) ($r['objectif'] ?? $reg['objectif']);
+        $qc = (int) ($r['qualite'] ?? $reg['qualite']);
+        $parMp = [];
+        foreach ($r['pieces'] as $p) {
+            $min = max($qc, (int) (((array) ($r['minimums'] ?? []))[$p['mp']] ?? 0));
+            $parMp[$p['mp']] ??= ['n' => 0, 'min' => $min];
+            $parMp[$p['mp']]['n'] += (int) $p['n'];
+        }
+        foreach ($parMp as $mp => $b) {
+            $demandes[$mp][] = ['min' => $b['min'], 'besoin' => $objectif * $b['n'],
+                                'parCraft' => $b['n']];
+        }
+    }
+
+    $mps = [];
+    foreach ($demandes as $mp => $liste) {
+        $seuils = array_values(array_unique(array_column($liste, 'min')));
+        sort($seuils);
+        $manque = 0;
+        foreach ($seuils as $t) {
+            $voulu = 0;
+            foreach ($liste as $d) {
+                if ($d['min'] >= $t) {
+                    $voulu += $d['besoin'];
+                }
+            }
+            $manque = max($manque, $voulu - $utile($mp, $t));
+        }
+        $qmin = $seuils[0];
+        $s = $utile($mp, $qmin);
+        $besoin = array_sum(array_column($liste, 'besoin'));
+        $parCraft = array_sum(array_column($liste, 'parCraft'));
+        $couverture = intdiv($s, max(1, $parCraft));
+        $statut = $presqueVide($couverture) ? 'rupture'
+            : ($manque > 0 || $couverture === 0 ? 'forer'
+            : ($besoin > 0 && $s > $reg['stop'] * $besoin ? 'stop' : 'ok'));
+        $mps[] = ['mp' => $mp, 'nom' => $noms[$mp]['nom'] ?? null,
+                  'eco' => explode('_', $mp)[1] ?? '', 'qmin' => $qmin,
+                  'stock' => $s, 'besoin' => $besoin, 'manque' => $manque,
+                  'couverture' => $couverture, 'statut' => $statut,
+                  'nbRecettes' => count($liste)];
+    }
+    return $mps;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    if (porteur() === null) {
+    $p = porteur();
+    if ($p === null) {
         repond(401, ['erreur' => 'mot de passe']);
     }
+    [$nom, $editeur] = $p;
     $etat = etat();
-    $etat['qui'] = qui();
-    repond(200, $etat);
+    if ($editeur) {
+        $etat['qui'] = $nom;
+        $etat['editeur'] = true;
+        repond(200, $etat);
+    }
+    repond(200, ['version' => 1, 'reglages' => $etat['reglages'],
+                 'resultats' => resultats($etat), 'qui' => $nom,
+                 'editeur' => false]);
 }
 
 $brut = (string) file_get_contents('php://input', false, null, 0, MAX_CORPS);
@@ -148,26 +314,31 @@ if (($demande['action'] ?? '') === 'entrer') {
     // Une seconde de retard : une attaque par essais successifs devient
     // interminable, et qui se trompe ne le remarque pas.
     usleep(1000000);
-    // Sans nom : le mot de passe de la guilde, qui n'ouvre que la lecture.
     if (trim($nom) === '') {
-        if (!password_verify($mdp, LECTURE)) {
-            repond(403, ['erreur' => 'mot de passe']);
-        }
-        repond(200, ['ok' => true, 'qui' => '',
-                     'jeton' => jeton('', time() + DUREE)]);
-    }
-    // Le nom sans tenir compte des majuscules : "xiom" entre comme "Xiom".
-    $trouve = '';
-    foreach (utilisateurs() as $connu => $empreinte) {
-        if (strcasecmp($connu, trim($nom)) === 0) {
-            $trouve = $connu;
-        }
-    }
-    if ($trouve === '' || !password_verify($mdp, utilisateurs()[$trouve])) {
         repond(403, ['erreur' => 'nom ou mot de passe']);
     }
-    repond(200, ['ok' => true, 'qui' => $trouve,
-                 'jeton' => jeton($trouve, time() + DUREE)]);
+    // Un editeur et son mot de passe personnel. Le nom sans tenir compte des
+    // majuscules : "xiom" entre comme "Xiom".
+    foreach (utilisateurs() as $connu => $empreinte) {
+        if (strcasecmp($connu, trim($nom)) === 0 && password_verify($mdp, $empreinte)) {
+            repond(200, ['ok' => true, 'qui' => $connu, 'editeur' => true,
+                         'jeton' => jeton($connu, 'e', time() + DUREE)]);
+        }
+    }
+    // Un joueur de la guilde et le mot de passe de la guilde.
+    if (!password_verify($mdp, LECTURE)) {
+        repond(403, ['erreur' => 'nom ou mot de passe']);
+    }
+    $effectif = effectif();
+    if ($effectif === null) {
+        repond(503, ['erreur' => "effectif de la guilde illisible, réessaie dans un moment"]);
+    }
+    $joueur = membre($nom, $effectif);
+    if ($joueur === '') {
+        repond(403, ['erreur' => "ce nom n'est pas dans la guilde"]);
+    }
+    repond(200, ['ok' => true, 'qui' => $joueur, 'editeur' => false,
+                 'jeton' => jeton($joueur, 'j', time() + DUREE)]);
 }
 
 $auteur = qui();
