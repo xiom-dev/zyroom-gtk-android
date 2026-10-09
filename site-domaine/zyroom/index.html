@@ -17,7 +17,7 @@
     --fond: #10171a; --surface: #172226; --variante: #1e2c31;
     --texte: #e2e8e6; --faible: #bcc8c6; --sarcelle: #3f7a68;
     --sarcelle-sombre: #2b5648; --or: #e8c15a; --erreur: #e2696a;
-    --bande: #0b1113; --accent: #7fb3a2; --vert-fini: #a1c5b9;
+    --bande: #0b1113; --accent: #7fb3a2; --vert-fini: #82a89d;
     --icone: 48px;
   }
   [hidden] { display: none !important; }
@@ -130,6 +130,35 @@
   table.journal tr.jour + tr td, table.journal tr:first-child td { }
   table.journal tr:hover td { background: rgba(63, 122, 104, .28); }
   .j-etat { color: var(--faible); opacity: .8; padding: 4px 8px 6px; background: var(--surface); }
+  /* Les ecrans Bonus : listes zebrees d'une pointe de sarcelle (.zebre). */
+  .liste { padding: 0; }
+  .zebre { background: #1d2e2f; }
+  .fini { color: var(--vert-fini); }
+  .ligne-c[data-code] { cursor: pointer; }
+  .ligne-c:hover, .r-ligne:hover { background: rgba(63, 122, 104, .28); }
+  .c-ligne { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 8px; }
+  .fleche { width: 14px; flex: none; color: var(--faible); }
+  .c-nom { flex: 1; } .titre-c { font-weight: 700; }
+  .c-barre { width: 90px; height: 6px; border-radius: 3px; background: var(--variante); overflow: hidden; }
+  .c-barre span { display: block; height: 100%; background: var(--sarcelle); }
+  .c-niveau { width: 90px; text-align: right; }
+  .c-points { color: var(--faible); opacity: .8; font-size: .86em; padding: 0 8px 4px 30px; }
+  .lies { display: inline-flex; } .lies button { border-radius: 0; }
+  .lies button:first-child { border-radius: 6px 0 0 6px; } .lies button:last-child { border-radius: 0 6px 6px 0; }
+  .lies button[aria-pressed="true"] { background: var(--sarcelle-sombre); }
+  .outils #r-cherche { flex: 1; }
+  .r-etat { color: var(--faible); opacity: .8; margin-left: auto; }
+  .r-groupe { padding: 10px 8px 4px; }
+  .r-titre { color: var(--or); font-weight: 700; font-size: 1.1em; margin-bottom: 2px; }
+  .r-noms { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px 4px; font-size: .92em; }
+  .r-noms span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 900px) { .r-noms { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .legende { display: flex; gap: 14px; padding: 8px; font-size: .92em; color: var(--faible); flex-wrap: wrap; }
+  .legende .note { margin-left: auto; opacity: .8; }
+  .r-ligne { display: flex; gap: 8px; padding: 2px 8px; align-items: baseline; }
+  .r-date { color: var(--faible); opacity: .8; font-size: .92em; }
+  .tri-arrivee { color: #4caf50; font-weight: 700; } .tri-depart { color: var(--erreur); font-weight: 700; }
+  .tri-grade { color: var(--or); font-weight: 700; } .tri-retro { color: var(--texte); font-weight: 700; }
   .page-autre { flex: 1; display: grid; place-items: center; color: var(--faible); background: var(--surface); }
 
   /* --- le pied --- */

@@ -14,7 +14,9 @@ from __future__ import annotations
 import json
 import unicodedata
 
-from zyroom import alerts, movements, ryzom_api, sorting
+import os
+
+from zyroom import alerts, movements, roster, ryzom_api, skills as skills_mod, sorting
 from zyroom.categorydb import CategoryDb
 from zyroom.models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, ItemInfo,
                            ItemType, categorie_item)
@@ -143,12 +145,52 @@ def entite(xml: str, sorte: str) -> str:
         "argent": ent.money, "motd": ent.motd, "portrait": ent.portrait_url,
         "connexion": ent.lastlogin, "deconnexion": ent.lastlogout,
         "calcul": ent.created,
+        "competences": _competences(ent.skills),
+        "points": {k: list(v) for k, v in ent.skill_points.items()},
+        "effectif": _effectif(ent.members),
+        "nb_membres": len(ent.members),
         "contenants": [{
             "cle": inv.key, "nom": sans_parenthese(inv.label), "capacite": inv.capacity,
             "volume": inv.total_volume, "objets": [_objet(it) for it in inv.items],
             "ordres": _ordres(inv.items),
         } for inv in ent.inventories],
     }, ensure_ascii=False)
+
+
+def _competences(liste) -> list:
+    """L'arbre, comme page_skills : ordre, profondeur, niveau atteint, fini."""
+    if not liste:
+        return []
+    arbre = skills_mod.build_tree(liste)
+    finies = skills_mod.finished(arbre)
+    return [{
+        "code": n.skill.code, "nom": noms.name(n.skill.code), "parent": n.parent,
+        "racine": n.root, "profondeur": n.depth, "enfants": n.has_children,
+        "avance": n.skill.progress, "fini": n.skill.code in finies,
+        "niveau": (skills_mod.niveau_atteint(arbre, n.skill.code)
+                   if n.has_children else n.skill.level),
+    } for n in arbre]
+
+
+def _effectif(membres) -> list:
+    """Les noms par grade, chef d'abord (page_roster._remplir_effectif_roster)."""
+    tries = sorted(membres, key=lambda m: (roster.rang_grade(m[1]), m[0].lower()))
+    groupes: dict[str, list] = {}
+    for nom, grade, *_reste in tries:
+        groupes.setdefault(grade, []).append(nom)
+    return [[roster.nom_grade(g), noms_] for g, noms_ in groupes.items()]
+
+
+def registre(gid: str, texte: str) -> str:
+    """Les arrivees, departs et changements de grade publies par le releve."""
+    os.makedirs("/tmp/registre", exist_ok=True)
+    with open(f"/tmp/registre/roster-{gid}.jsonl", "w", encoding="utf-8") as fh:
+        fh.write(texte)
+    out = []
+    for c in roster.RosterStore("/tmp/registre", gid).history():
+        sens = ("grade-" + ("haut" if c.promotion else "bas")) if c.kind == "grade" else c.kind
+        out.append({"at": c.at, "sens": sens, "texte": roster.decrire(c)})
+    return json.dumps({"lignes": out, "jours": roster.RETENTION_JOURS}, ensure_ascii=False)
 
 
 def saison(xml: str) -> str:

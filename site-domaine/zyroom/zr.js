@@ -75,6 +75,9 @@ const Z = {
   f: null,
   categories: [],
   attentes: 0,
+  // Le dernier perso et la derniere guilde vus : Competences et Effectif
+  // s'ouvrent quelle que soit l'entite choisie (page_skills, page_roster).
+  derniers: {},
 };
 
 function filtresVierges() {
@@ -139,6 +142,34 @@ $("#m-sortir").addEventListener("click", () => {
 
 function cacheXml(e) { return "zr-xml-" + e.sorte + "-" + e.id; }
 
+// Les flux de l'API vont dans IndexedDB : celui du hall pese pres d'un Mo,
+// et le stockage simple du navigateur (localStorage) le refusait sans bruit.
+const base = new Promise((ok, ko) => {
+  try {
+    const r = indexedDB.open("zyroom", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("flux");
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => ko(r.error);
+  } catch (er) { ko(er); }
+});
+async function fluxGarde(cle) {
+  try {
+    const db = await base;
+    return await new Promise((ok) => {
+      const r = db.transaction("flux").objectStore("flux").get(cle);
+      r.onsuccess = () => ok(r.result || null);
+      r.onerror = () => ok(null);
+    });
+  } catch (er) { return null; }
+}
+async function garderFlux(cle, valeur) {
+  try {
+    const db = await base;
+    const t = db.transaction("flux", "readwrite").objectStore("flux");
+    if (valeur === null) t.delete(cle); else t.put(valeur, cle);
+  } catch (er) { /* un cache manquant se refait a la synchro */ }
+}
+
 async function telecharger(e) {
   if (e.sorte === "character") {
     const r = await fetch(API + "/character.php?apikey=" + encodeURIComponent(e.cle), { cache: "no-store" });
@@ -170,7 +201,7 @@ async function choisirEntite(code) {
   if (!Z.pret) return;
   // Comme l'application : le cache s'affiche aussitot, puis on interroge
   // l'API la premiere fois qu'on ouvre l'entite dans la session.
-  const garde = lire(cacheXml(e), null);
+  const garde = await fluxGarde(cacheXml(e));
   if (garde && garde.xml) {
     try { montrer(e, await lireFlux(e, garde), false); } catch (souci) { /* le flux frais suivra */ }
   } else {
@@ -187,7 +218,7 @@ async function synchroniser() {
   try {
     const flux = await telecharger(e);
     const ent = await lireFlux(e, flux);
-    garder(cacheXml(e), flux);
+    garderFlux(cacheXml(e), flux);
     await journaliser(e, flux.xml);
     if (Z.courante === e.sorte + ":" + e.id) montrer(e, ent, true);
   } catch (souci) {
@@ -202,6 +233,7 @@ function montrer(e, ent, frais) {
   const meme = Z.ent && Z.ent.sorte === ent.sorte && Z.ent.id === ent.id;
   const cle = meme && Z.ent.contenants[Z.contenant] ? Z.ent.contenants[Z.contenant].cle : null;
   Z.ent = ent;
+  Z.derniers[ent.sorte] = ent;
   // Le contenant se retrouve par sa cle, pas par son rang (window._rang_du_contenant).
   Z.contenant = 0;
   if (cle) {
@@ -279,7 +311,7 @@ function dessinerTout() {
   dessinerEntete();
   if (Z.page === "inventaire") dessinerInventaire();
   else if (Z.page === "journal") dessinerJournal(true);
-  else dessinerAutrePage();
+  else dessinerBonus();
 }
 
 function dessinerEntete() {
@@ -717,6 +749,183 @@ async function montrerJournal() {
   $("#j-etat").textContent = v.etat;
 }
 
+// ------------------------------------------------------------ Bonus
+
+function dessinerBonus() {
+  if (Z.page === "competences") dessinerCompetences();
+  else if (Z.page === "effectif") dessinerEffectif();
+  else dessinerAutrePage();
+  majEtat();
+}
+
+// L'entite d'une sorte : celle qu'on regarde, sinon la derniere vue, sinon
+// celle que le navigateur garde en cache (window._entite_en_cache).
+async function entiteDe(sorte) {
+  if (Z.ent && Z.ent.sorte === sorte) return { ent: Z.ent, ailleurs: false };
+  if (Z.derniers[sorte]) return { ent: Z.derniers[sorte], ailleurs: true };
+  for (const e of entites().filter((x) => x.sorte === sorte)) {
+    const garde = await fluxGarde(cacheXml(e));
+    if (!garde || !garde.xml) continue;
+    try {
+      const ent = await lireFlux(e, garde);
+      Z.derniers[sorte] = ent;
+      return { ent, ailleurs: true };
+    } catch (er) { /* suivante */ }
+  }
+  // Le hall, lui, se demande toujours au serveur : pas besoin de l'avoir
+  // ouvert avant, contrairement a l'application.
+  if (sorte === "guild") {
+    try {
+      const e = entites().find((x) => x.sorte === "guild");
+      const flux = await telecharger(e);
+      const ent = await lireFlux(e, flux);
+      garderFlux(cacheXml(e), flux);
+      Z.derniers.guild = ent;
+      return { ent, ailleurs: true };
+    } catch (er) { /* hors ligne */ }
+  }
+  return null;
+}
+
+const zebre = (i) => (i % 2 === 0 ? " zebre" : "");
+
+// --- Competences (page_skills.py)
+
+const C = { cherche: "", mode: 0, ouvertes: new Set() };
+
+async function dessinerCompetences() {
+  if (!$("#c-liste")) {
+    $("#page").innerHTML = '<div class="outils"><input type="search" id="c-cherche" placeholder="Rechercher une compétence…">'
+      + '<select id="c-mode" title="« En cours » ne garde que les niveaux entamés"><option value="0">Tout</option><option value="1">En cours</option></select>'
+      + '<button type="button" id="c-tout">Tout déplier</button></div>'
+      + '<div class="grille-zone liste" id="c-liste"></div><div class="j-etat" id="c-etat"></div>';
+    $("#c-cherche").value = C.cherche;
+    $("#c-mode").value = String(C.mode);
+    $("#c-cherche").addEventListener("input", () => { C.cherche = $("#c-cherche").value; dessinerCompetences(); });
+    $("#c-mode").addEventListener("change", () => { C.mode = Number($("#c-mode").value); dessinerCompetences(); });
+    $("#c-liste").addEventListener("click", (ev) => {
+      const l = ev.target.closest("[data-code]");
+      if (!l) return;
+      if (C.ouvertes.has(l.dataset.code)) C.ouvertes.delete(l.dataset.code); else C.ouvertes.add(l.dataset.code);
+      dessinerCompetences();
+    });
+    $("#c-tout").addEventListener("click", async () => {
+      const t = await entiteDe("character");
+      if (C.ouvertes.size) C.ouvertes.clear();
+      else if (t) t.ent.competences.filter((n) => n.enfants).forEach((n) => C.ouvertes.add(n.code));
+      dessinerCompetences();
+    });
+  }
+  const trouve = Z.pret ? await entiteDe("character") : null;
+  const arbre = trouve ? trouve.ent.competences : [];
+  if (!arbre.length) {
+    $("#c-liste").innerHTML = "";
+    $("#c-tout").disabled = true;
+    $("#c-etat").textContent = "Aucun personnage consulté pour l'instant : ouvrez-en un une fois, et son arbre "
+      + "restera consultable d'ici. L'API ne donne les compétences que pour un personnage, et seulement si la clé accorde ce module.";
+    return;
+  }
+  $("#c-tout").disabled = false;
+  const mot = norm(C.cherche.trim());
+  const filtre = mot !== "" || C.mode === 1;
+  let lignes;
+  if (filtre) {
+    lignes = arbre.filter((n) => (C.mode !== 1 || n.avance) && (!mot || norm(n.nom).includes(mot)));
+  } else {
+    // skills.visible : un parent ouvert et lui-meme visible.
+    const vus = new Set();
+    lignes = arbre.filter((n) => {
+      if (n.parent === null || (vus.has(n.parent) && C.ouvertes.has(n.parent))) { vus.add(n.code); return true; }
+      return false;
+    });
+  }
+  $("#c-tout").textContent = C.ouvertes.size ? "Tout replier" : "Tout déplier";
+  $("#c-tout").hidden = filtre;
+  const points = trouve.ent.points || {};
+  $("#c-liste").innerHTML = lignes.map((n, i) => {
+    const racine = n.profondeur === 0 && !filtre;
+    const ouvrable = n.enfants && !filtre;
+    const pts = racine ? points[n.code] : null;
+    return '<div class="ligne-c' + zebre(i) + (ouvrable ? '" data-code="' + esc(n.code) : "") + '">'
+      + '<div class="c-ligne" style="padding-left:' + (8 + (filtre ? 0 : n.profondeur * 14)) + 'px">'
+      + '<span class="fleche">' + (ouvrable ? (C.ouvertes.has(n.code) ? "▾" : "▸") : "") + "</span>"
+      + '<span class="c-nom' + (racine ? " titre-c" : "") + (n.fini ? " fini" : "") + '">' + esc(n.nom) + "</span>"
+      + (n.avance ? '<span class="c-barre"><span style="width:' + n.avance + '%"></span></span>' : "")
+      + '<span class="c-niveau' + (n.fini ? " fini" : "") + '">' + n.niveau + (n.avance ? " · " + n.avance + " %" : "") + "</span></div>"
+      + (pts ? '<div class="c-points">' + pts[0].toLocaleString("fr-FR").replace(/\u202f/g, " ") + " pts · "
+        + pts[1].toLocaleString("fr-FR").replace(/\u202f/g, " ") + " dépensés</div>" : "")
+      + "</div>";
+  }).join("");
+  const nb = arbre.length;
+  $("#c-etat").textContent = (trouve.ailleurs ? trouve.ent.nom + " · " : "") + nb + " compétences, " + lignes.length + " affichées";
+}
+
+// --- Effectif (page_roster.py)
+
+const R = { vue: "effectif", cherche: "", registre: null };
+// page_roster.SIGNES : la couleur porte le sens, le triangle le confirme.
+const SIGNES = { arrivee: ["▲", "tri-arrivee", "arrivée"], depart: ["▼", "tri-depart", "départ"],
+                 "grade-haut": ["▲", "tri-grade", "montée de grade"], "grade-bas": ["▼", "tri-retro", "rétrogradation"] };
+
+async function chargerRegistre(gid) {
+  if (R.registre && R.registre.gid === gid) return R.registre;
+  let texte = "";
+  try {
+    const r = await fetch(DEPOT + "roster-" + gid + ".jsonl", { cache: "no-cache" });
+    if (r.ok) texte = await r.text();
+  } catch (er) { /* pas de reseau */ }
+  R.registre = Object.assign(JSON.parse(await appeler("registre", gid, texte)), { gid });
+  return R.registre;
+}
+
+async function dessinerEffectif() {
+  if (!$("#r-liste")) {
+    $("#page").innerHTML = '<div class="outils"><span class="lies"><button type="button" data-vue="effectif">Effectif</button>'
+      + '<button type="button" data-vue="mouvements">Arrivées et départs</button></span>'
+      + '<input type="search" id="r-cherche" placeholder="Rechercher un membre…"><span class="r-etat" id="r-etat"></span></div>'
+      + '<div class="grille-zone liste" id="r-liste"></div>';
+    $("#r-cherche").value = R.cherche;
+    $("#r-cherche").addEventListener("input", () => { R.cherche = $("#r-cherche").value; dessinerEffectif(); });
+    document.querySelectorAll("[data-vue]").forEach((b) => b.addEventListener("click", () => { R.vue = b.dataset.vue; dessinerEffectif(); }));
+  }
+  document.querySelectorAll("[data-vue]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.vue === R.vue)));
+  $("#r-cherche").hidden = R.vue !== "effectif";
+  const trouve = Z.pret ? await entiteDe("guild") : null;
+  if (!trouve) {
+    $("#r-liste").innerHTML = "";
+    $("#r-etat").textContent = "Aucune guilde consultée pour l'instant : ouvrez-en une une fois, et son effectif restera consultable d'ici.";
+    return;
+  }
+  const ent = trouve.ent;
+  const reg = await chargerRegistre(ent.id);
+  // Zero ne s'ecrit pas (_compter_roster).
+  document.querySelector('[data-vue="effectif"]').textContent = ent.nb_membres ? "Effectif · " + ent.nb_membres : "Effectif";
+  document.querySelector('[data-vue="mouvements"]').textContent = reg.lignes.length ? "Arrivées et départs · " + reg.lignes.length : "Arrivées et départs";
+  const morceaux = [];
+  if (trouve.ailleurs) morceaux.push(ent.nom);
+  if (R.vue === "mouvements") morceaux.push("journal des " + reg.jours + " derniers jours");
+  $("#r-etat").textContent = morceaux.join(" · ");
+  if (R.vue === "mouvements") {
+    const legende = '<div class="legende">' + ["arrivee", "depart", "grade-haut", "grade-bas"].map((k) =>
+      '<span><span class="' + SIGNES[k][1] + '">' + SIGNES[k][0] + "</span> " + SIGNES[k][2] + "</span>").join("")
+      + '<span class="note">départs et grades : date du relevé</span></div>';
+    $("#r-liste").innerHTML = legende + (reg.lignes.length ? reg.lignes.map((c, i) => {
+      const d = new Date(c.at * 1000);
+      return '<div class="r-ligne' + zebre(i) + '"><span class="r-date">' + deux(d.getDate()) + "/" + deux(d.getMonth() + 1)
+        + " " + deux(d.getHours()) + ":" + deux(d.getMinutes()) + '</span><span class="' + SIGNES[c.sens][1] + '">'
+        + SIGNES[c.sens][0] + "</span><span>" + esc(c.texte) + "</span></div>";
+    }).join("") : '<div class="vide">Aucun mouvement depuis le premier relevé. Le registre compare l\'effectif d\'une '
+      + "synchronisation à l'autre : l'API ne garde aucune histoire, seule l'application en tient une.</div>");
+    return;
+  }
+  const mot = norm(R.cherche.trim());
+  const groupes = ent.effectif.map(([g, n]) => [g, n.filter((x) => !mot || norm(x).includes(mot))]).filter(([, n]) => n.length);
+  $("#r-liste").innerHTML = groupes.length ? groupes.map(([grade, noms], i) =>
+    '<div class="r-groupe' + zebre(i) + '"><div class="r-titre">' + esc(grade) + " · " + noms.length + '</div><div class="r-noms">'
+    + noms.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div></div>").join("")
+    : '<div class="vide">Aucun membre de ce nom.</div>';
+}
+
 // ------------------------------------------------------------ les autres pages
 
 function dessinerAutrePage() {
@@ -732,7 +941,7 @@ function allerA(page) {
   $("#page").innerHTML = "";
   if (page === "inventaire") dessinerInventaire();
   else if (page === "journal") dessinerJournal(true);
-  else dessinerAutrePage();
+  else dessinerBonus();
 }
 document.querySelectorAll(".nav [data-page]").forEach((b) => b.addEventListener("click", () => {
   if (b.dataset.page === "bonus") { const p = $("#pop-bonus"); fermerPops(p); p.hidden = !p.hidden; return; }
@@ -770,7 +979,7 @@ $("#b-retrait").addEventListener("click", () => {
   if (e.sorte !== "character" || !confirm("Retirer " + e.nom + " de ce navigateur ?")) return;
   Z.persos = Z.persos.filter((p) => p.id !== e.id);
   garder("zr-persos", Z.persos);
-  try { localStorage.removeItem(cacheXml(e)); } catch (er) {}
+  garderFlux(cacheXml(e), null);
   Z.ent = null;
   choisirEntite("");
 });
@@ -796,7 +1005,7 @@ $("#ajout-form").addEventListener("submit", async (ev) => {
     const ent = await lireFlux({ sorte: "character" }, flux);
     if (!Z.persos.some((p) => p.id === ent.id)) Z.persos.push({ id: ent.id, nom: ent.nom, cle, image: ent.portrait });
     garder("zr-persos", Z.persos);
-    garder(cacheXml({ sorte: "character", id: ent.id }), flux);
+    garderFlux(cacheXml({ sorte: "character", id: ent.id }), flux);
     await journaliser({ sorte: "character", id: ent.id }, flux.xml);
     $("#ajout").close();
     Z.synchro.add("character:" + ent.id);

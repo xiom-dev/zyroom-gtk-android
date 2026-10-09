@@ -29,6 +29,7 @@ const OPERATIONS = {
   releve: (xml, sorte, avant) => zr.releve(xml, sorte, avant),
   charger_journal: (cle, texte, depuis) => zr.charger_journal(cle, texte, depuis),
   vue_journal: (cle, cherche, mode) => zr.vue_journal(cle, cherche, mode),
+  registre: (gid, texte) => zr.registre(gid, texte),
   copier_journal: (cle, cherche, mode) => zr.copier_journal(cle, cherche, mode),
 };
 
