@@ -205,7 +205,7 @@ fun InventoryScreen(
         val repris = Partage.recupererRegistre(roster, entry)
         val total = ajoutes + repris
         if (total > 0) {
-            verse = "$total mouvement(s) repris du dépôt."
+            verse = "Journal mis à jour, $total mouvement(s) ajoutés"
         }
     }
 
@@ -730,17 +730,9 @@ fun InventoryScreen(
     verse?.let { compte ->
         AlertDialog(
             onDismissRequest = { verse = null },
-            title = { Text("Journal versé") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(compte)
-                    Text("Ce que l'autre journal racontait moins finement que " +
-                         "celui-ci a été écarté : deux relevés à des moments " +
-                         "différents décrivent le même trajet d'argent avec un " +
-                         "découpage différent.",
-                         style = MaterialTheme.typography.bodySmall)
-                }
-            },
+            // Une phrase et rien d'autre : l'explication sur les recits
+            // ecartes perdait les joueurs (demande de Ludo).
+            text = { Text(compte) },
             confirmButton = {
                 TextButton(onClick = { verse = null }) { Text("Fermer") }
             },

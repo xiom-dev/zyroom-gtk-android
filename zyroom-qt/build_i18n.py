@@ -119,8 +119,8 @@ EN = {
     "pas de les reconstruire.":
         "The {} movements recorded for {} will be lost. The API cannot "
         "rebuild them.",
-    "Journal de la guilde : {} mouvement(s) repris de la page.":
-        "Guild log: {} movement(s) taken from the page.",
+    "Journal mis à jour, {} mouvement(s) ajoutés":
+        "Log updated, {} movement(s) added",
 
     # Effectif
     "Effectif": "Roster", "Effectif · %d": "Roster · %d",

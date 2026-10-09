@@ -2382,7 +2382,7 @@ class FenetrePrincipale(QMainWindow):
             if self._pile.currentIndex() == self._pages["log"]:
                 self._charger_journal()
             self._statut(
-                _("Journal de la guilde : {} mouvement(s) repris de la page.")
+                _("Journal mis à jour, {} mouvement(s) ajoutés")
                 .format(total))
 
         self._passerelle.lancer(travail, apres)

@@ -1652,7 +1652,7 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             if self._stack.get_visible_child_name() == "log":
                 self._load_log()
             self._set_status(
-                _("Journal de la guilde : {} mouvement(s) repris de la page.")
+                _("Journal mis à jour, {} mouvement(s) ajoutés")
                 .format(total))
 
         run_async(work, done)
