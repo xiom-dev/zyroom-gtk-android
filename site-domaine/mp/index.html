@@ -679,7 +679,8 @@ function vueEnsembles(bijoux) {
         if (!voulu) return '<td class="n faible">·</td>';
         const n = g.pieces[p] || 0;
         const e = n / voulu[1];
-        const classe = g.moins === g.plus ? "" : e === g.moins ? " moins" : e === g.plus ? " plus" : "";
+        // Toutes les pieces au meme compte : l'ensemble est juste, tout en bleu.
+        const classe = e === g.plus ? " plus" : e === g.moins ? " moins" : "";
         return '<td class="n' + classe + '">' + n + "</td>";
       }).join("")
       + "<td>" + (g.manque.length ? '<div class="manque">Manque : ' + esc(resume(g.manque)) + "</div>" : "")
