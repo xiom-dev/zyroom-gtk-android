@@ -10,6 +10,7 @@ Deux sorties, a deposer sur xiom.be avec `kc.js` et `travail.js` :
   l'interface GTK ni l'Evolver n'y servent ; l'Evolver est quand meme la,
   la Bijouterie emprunte ses filtres.
 - `icones/` : les icones des types de matiere, reprises de KipeeCraft 1.2a.
+- `kipee.png` : le logo, affiche en petit sous l'onglet.
 
 **Pourquoi un zip et pas les fichiers un par un.** Pyodide sait deballer une
 archive d'un seul appel ; une soixantaine de requetes pour autant de petits
@@ -70,6 +71,9 @@ def main() -> int:
         if nom.endswith(".png"):
             shutil.copy2(os.path.join(source, nom), os.path.join(icones, nom))
     print(f"icones/ : {len(os.listdir(icones))} images")
+    # Le kipee de l'original, en logo sous l'onglet.
+    shutil.copy2(os.path.join(PAQUET, "resources", "kipee.png"),
+                 os.path.join(SORTIE, "kipee.png"))
     return 0
 
 
