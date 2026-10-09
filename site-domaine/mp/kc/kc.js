@@ -215,7 +215,7 @@ function dessiner() {
   const onglets = [["simu", "Simulateur"], ["evo", "Armurerie"], ["bij", "Bijouterie"], ["base", "Base de matériaux"],
                    ...(editeur ? [["form", "Formules"], ["audit", "Audit"]] : [])];
   if (!onglets.some(([k]) => k === S.sous)) S.sous = "simu";
-  racine.innerHTML = '<div class="onglets kc-sous">' + onglets.map(([k, t]) =>
+  racine.innerHTML = '<div class="onglets kc-sous"><span class="kc-marque"><img src="kc/kipee.png" alt="">KipeeCraft</span>' + onglets.map(([k, t]) =>
     '<button type="button" data-kc="sous" data-v="' + k + '" aria-pressed="' + (S.sous === k) + '">'
     + t + "</button>").join("") + '<span class="faible kc-resume">' + esc(S.meta.resume) + "</span></div>"
     + '<div id="kc-corps">' + ({ simu: vueSimu, evo: vueEvo, bij: vueBij, base: vueBase, form: vueForm,
@@ -1121,7 +1121,19 @@ style.textContent = `
 .kc section.panneau th { background: var(--surface); }
 .kc select, .kc input, .kc textarea, .kc button:not([aria-pressed="true"]):not(.principal) {
   background-color: rgba(23, 34, 38, .8); }
-.kc-sous { align-items: baseline; }
+/* Le bandeau de KipeeCraft : une barre d'outils teintee du vert de la
+   carapace du kipee, pour ne pas confondre ses onglets avec ceux de la page. */
+.kc-sous { align-items: center; gap: 4px; padding: 6px 10px; margin-bottom: 14px;
+           border: 1px solid #2c5a34; border-radius: 10px;
+           background: linear-gradient(90deg, rgba(40, 110, 52, .35), rgba(23, 34, 38, .9) 70%); }
+.kc-marque { display: flex; align-items: center; gap: 8px; margin-right: 10px;
+             font-weight: 700; color: #9be0a5; }
+.kc-marque img { width: 30px; height: 30px; object-fit: cover; object-position: 50% 45%;
+                 border-radius: 50%; border: 1px solid #3f9a4c; }
+.kc .kc-sous button { background: transparent !important; border-color: transparent; color: #cfe8d2; }
+.kc .kc-sous button:hover { border-color: #3f9a4c; }
+.kc .kc-sous button[aria-pressed="true"] { background: #3f9a4c !important; color: #08120f;
+                                           border-color: #3f9a4c; }
 .kc-resume { margin-left: auto; font-size: .8rem; }
 .kc-attente { color: var(--clair); }
 .kc-barre { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
