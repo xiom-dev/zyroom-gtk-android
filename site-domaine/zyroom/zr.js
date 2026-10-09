@@ -78,6 +78,12 @@ const Z = {
   // Le dernier perso et la derniere guilde vus : Competences et Effectif
   // s'ouvrent quelle que soit l'entite choisie (page_skills, page_roster).
   derniers: {},
+  // Les Options : celles de ZyRoom-GTK qui ont un sens dans un navigateur
+  // (ni pack, ni dossier save, ni proxy). Memes valeurs par defaut (config.py).
+  reglages: Object.assign({ volume: 90, ventes: 12, saison: 12, notifications: true,
+                            intervalle: 15, ouverture: true }, lire("zr-reglages", {})),
+  alertes: [],
+  argent: {},
 };
 
 function filtresVierges() {
@@ -203,12 +209,13 @@ async function choisirEntite(code) {
   // l'API la premiere fois qu'on ouvre l'entite dans la session.
   const garde = await fluxGarde(cacheXml(e));
   if (garde && garde.xml) {
-    try { montrer(e, await lireFlux(e, garde), false); } catch (souci) { /* le flux frais suivra */ }
+    try { montrer(e, await lireFlux(e, garde), false); calculerAlertes(e, false); } catch (souci) { /* le flux frais suivra */ }
   } else {
     Z.ent = null;
     dessinerTout();
   }
-  if (!Z.synchro.has(Z.courante)) synchroniser();
+  // Options : « Synchroniser à l'ouverture d'un personnage ou d'une guilde ».
+  if (!Z.synchro.has(Z.courante) && (Z.reglages.ouverture || !garde)) synchroniser();
 }
 
 async function synchroniser() {
@@ -220,7 +227,7 @@ async function synchroniser() {
     const ent = await lireFlux(e, flux);
     garderFlux(cacheXml(e), flux);
     await journaliser(e, flux.xml);
-    if (Z.courante === e.sorte + ":" + e.id) montrer(e, ent, true);
+    if (Z.courante === e.sorte + ":" + e.id) { montrer(e, ent, true); calculerAlertes(e, true); }
   } catch (souci) {
     if (souci.porte) ouvrirPorte("Connexion requise.");
     else etat("Échec de la synchro : " + souci.message);
@@ -533,7 +540,7 @@ function surSurvol(ev) {
   const b = $("#bulle");
   if (!caseEl || !Z.ent) { b.hidden = true; return; }
   const o = Z.ent.contenants[Number(caseEl.dataset.c)].objets[Number(caseEl.dataset.o)];
-  b.innerHTML = esc(o.bulle.join("\n"))
+  b.innerHTML = esc(o.bulle.concat(garde()[o.sig] ? ["👁 Surveillé"] : []).join("\n"))
     + o.bonus.map(([l, v, c]) => '<div class="bonus">' + goutte(c) + esc(l + " +" + v) + "</div>").join("")
     + (o.enchant ? '<div style="margin-top:4px">' + esc(o.enchant) + "</div>" : "");
   b.hidden = false;
@@ -658,11 +665,16 @@ const J = { cle: "", cherche: "", mode: 0, compte: 0 };
 function cleJournal(e) { return e.sorte + "-" + e.id; }
 
 async function journaliser(e, xml) {
-  if (e.sorte !== "character") return;
   const cle = cleJournal(e);
   let avant = "";
   try { avant = localStorage.getItem("zr-instantane-" + cle) || ""; } catch (er) {}
   const r = JSON.parse(await appeler("releve", xml, e.sorte, avant));
+  // Le tresor est le seul mouvement que la cloche reprenne (_check_alerts).
+  Z.argent[cle] = r.lignes.filter((l) => JSON.parse(l).inv === "money");
+  try { localStorage.setItem("zr-instantane-" + cle, JSON.stringify(r.instantane)); } catch (er) {}
+  // Le hall a son journal publie par le releve : seul celui d'un perso se
+  // tient ici.
+  if (e.sorte !== "character") return;
   let lignes = [];
   try { lignes = (localStorage.getItem("zr-journal-" + cle) || "").split("\n").filter(Boolean); } catch (er) {}
   if (r.lignes.length) {
@@ -670,7 +682,6 @@ async function journaliser(e, xml) {
     if (lignes.length > MAX_LIGNES) lignes = lignes.slice(-GARDEES);
     try { localStorage.setItem("zr-journal-" + cle, lignes.join("\n")); } catch (er) {}
   }
-  try { localStorage.setItem("zr-instantane-" + cle, JSON.stringify(r.instantane)); } catch (er) {}
   if (Z.page === "journal" && J.cle === cle) chargerJournal();
 }
 
@@ -1389,6 +1400,190 @@ async function majGisement() {
   M.carte.dessiner();
 }
 
+// ------------------------------------------------------------ objets : menu, fiche, surveillance
+//
+// page_alertes.py : le clic droit propose la fiche, l'identifiant, la
+// surveillance et la remise a zero de l'icone ; le double-clic ouvre la fiche.
+
+function garde() { return Z.ent ? lire("zr-garde-" + Z.ent.sorte + "-" + Z.ent.id, {}) : {}; }
+function garderGarde(g) { if (Z.ent) garder("zr-garde-" + Z.ent.sorte + "-" + Z.ent.id, g); }
+function objetDe(caseEl) {
+  const ci = Number(caseEl.dataset.c), oi = Number(caseEl.dataset.o);
+  return [Z.ent.contenants[ci].objets[oi], ci, oi];
+}
+
+document.addEventListener("contextmenu", (ev) => {
+  const caseEl = ev.target.closest(".case");
+  if (!caseEl || !Z.ent) return;
+  ev.preventDefault();
+  $("#bulle").hidden = true;
+  const [o, ci, oi] = objetDe(caseEl);
+  let m = $("#menu-objet");
+  if (!m) {
+    m = document.createElement("div");
+    m.id = "menu-objet";
+    m.className = "pop menu-objet";
+    document.body.appendChild(m);
+  }
+  const surveille = garde()[o.sig];
+  const lignes = [["details", "Détails…"]];
+  if (o.id) lignes.push(["copier", "Copier l'identifiant"]);
+  lignes.push(surveille ? ["oublier", "Ne plus surveiller"]
+    : ["surveiller", o.equip >= 0 ? "Surveiller la durabilité…" : "Surveiller la quantité…"]);
+  lignes.push(["icone", "Réinitialiser l'icône"]);
+  m.innerHTML = lignes.map(([k, t]) => '<button type="button" data-m="' + k + '">' + t + "</button>").join("");
+  m.hidden = false;
+  m.style.left = Math.min(ev.clientX, window.innerWidth - m.offsetWidth - 8) + "px";
+  m.style.top = Math.min(ev.clientY, window.innerHeight - m.offsetHeight - 8) + "px";
+  m.onclick = async (e2) => {
+    const b = e2.target.closest("[data-m]");
+    if (!b) return;
+    m.hidden = true;
+    if (b.dataset.m === "details") ouvrirFiche(ci, oi);
+    else if (b.dataset.m === "copier") {
+      try { await navigator.clipboard.writeText(o.id); etat("Identifiant copié : " + o.id); } catch (er) { etat("Copie refusée par le navigateur."); }
+    } else if (b.dataset.m === "oublier") {
+      const g = garde(); delete g[o.sig]; garderGarde(g);
+      calculerAlertes(entiteCourante(), false);
+    } else if (b.dataset.m === "surveiller") ouvrirSurveillance(o);
+    else if (b.dataset.m === "icone") {
+      // L'icone vient de l'API : on la redemande, sans le cache du navigateur.
+      document.querySelectorAll(".case img.objet").forEach((img) => {
+        if (img.getAttribute("src").split("&_=")[0] === o.icone) img.src = o.icone + "&_=" + Date.now();
+      });
+    }
+  };
+});
+document.addEventListener("click", (ev) => {
+  const m = $("#menu-objet");
+  if (m && !ev.target.closest("#menu-objet")) m.hidden = true;
+});
+document.addEventListener("dblclick", (ev) => {
+  const caseEl = ev.target.closest(".case");
+  if (!caseEl || !Z.ent) return;
+  const [, ci, oi] = objetDe(caseEl);
+  ouvrirFiche(ci, oi);
+});
+
+async function ouvrirFiche(ci, oi) {
+  const f = JSON.parse(await appeler("fiche", Z.ent.sorte, Z.ent.id, ci, oi));
+  $("#fiche-titre").textContent = f.titre;
+  $("#fiche-corps").innerHTML = f.sections.map(([titre, lignes]) => "<h4>" + esc(titre) + "</h4><table>"
+    + lignes.map(([k, v]) => '<tr><td class="faible">' + esc(k) + "</td><td>" + esc(v) + "</td></tr>").join("") + "</table>").join("");
+  $("#fiche").showModal();
+}
+
+function ouvrirSurveillance(o) {
+  const duree = o.equip >= 0;
+  $("#surv-titre").innerHTML = "<b>" + esc(o.nom) + "</b> (Q" + o.q + ")";
+  $("#surv-texte").textContent = duree ? "Alerte si la durabilité descend sous ce seuil :" : "Alerte si la quantité descend sous ce seuil :";
+  $("#surv-seuil").value = duree ? o.hp : o.n;
+  $("#surveillance").showModal();
+  $("#surv-ok").onclick = () => {
+    const g = garde();
+    // Le format de watch.WatchStore, a l'identique.
+    g[o.sig] = { sheet: o.fiche, quality: o.q, threshold: Math.trunc(Number($("#surv-seuil").value) || 0),
+                 kind: duree ? "durability" : "quantity" };
+    garderGarde(g);
+    $("#surveillance").close();
+    calculerAlertes(entiteCourante(), false);
+  };
+}
+
+// ------------------------------------------------------------ la cloche
+
+const FIGURES = { quantity: "📉", durability: "🛡", unfound: "❓", volume: "📦", sales: "💰",
+                  season: "🍂", money: "🪙", outpost: "🚩" };
+
+async function calculerAlertes(e, frais) {
+  const ent = Z.ent;
+  if (!ent) return;
+  const cle = cleJournal(e);
+  let temps = null, postes = null;
+  if (frais) {
+    temps = await fetch(API + "/time.php?format=xml", { cache: "no-store" }).then((r) => r.text()).catch(() => "");
+    try { postes = localStorage.getItem("zr-postes-" + cle) || ""; } catch (er) { postes = ""; }
+  }
+  const r = JSON.parse(await appeler("alertes", ent.sorte, ent.id, JSON.stringify(garde()), JSON.stringify(Z.reglages),
+    JSON.stringify(frais ? Z.argent[cle] || [] : []), temps, postes));
+  if (Z.ent !== ent) return;
+  garderGarde(r.garde);
+  if (r.postes !== null && r.postes !== undefined) { try { localStorage.setItem("zr-postes-" + cle, r.postes); } catch (er) {} }
+  Z.alertes = r.alertes;
+  majCloche();
+  if (frais && Z.alertes.length) notifier();
+}
+
+function majCloche() {
+  const n = Z.alertes.length;
+  const b = $("#b-cloche");
+  b.disabled = false;
+  b.textContent = n ? "🔔 " + n : "🔔";
+  b.title = (n ? n + " alerte(s)" : "Aucune alerte") + (Z.reglages.notifications ? "" : "\nNotifications du bureau coupées");
+}
+
+// Les bulles du bureau : la notification du navigateur, s'il la permet.
+function notifier() {
+  if (!Z.reglages.notifications || !("Notification" in window) || Notification.permission !== "granted") return;
+  try { new Notification("ZyRoom — alertes", { body: Z.alertes.slice(0, 6).map((a) => a[1]).join("\n"), tag: "zyroom-alerts" }); } catch (er) {}
+}
+
+$("#b-cloche").addEventListener("click", () => {
+  $("#alertes-liste").innerHTML = Z.alertes.length ? Z.alertes.map(([k, t, d]) => '<div class="alerte"><div>'
+    + (FIGURES[k] || "🔔") + " <b>" + esc(t) + '</b></div><div class="faible">' + esc(d) + "</div></div>").join("")
+    : "<div>Aucune alerte.</div>";
+  $("#alertes-argent").checked = Boolean(garde()["dappers|0"]);
+  $("#alertes-argent").disabled = !Z.ent;
+  $("#alertes-notif").checked = Z.reglages.notifications;
+  $("#alertes").showModal();
+});
+// La surveillance du tresor se pose ici : l'argent n'a pas d'icone ou faire un clic droit.
+$("#alertes-argent").addEventListener("change", () => {
+  const g = garde();
+  if ($("#alertes-argent").checked) g["dappers|0"] = { sheet: "dappers", quality: 0, threshold: 0, kind: "money" };
+  else delete g["dappers|0"];
+  garderGarde(g);
+  calculerAlertes(entiteCourante(), false);
+});
+async function poserNotifications(oui) {
+  if (oui && "Notification" in window && Notification.permission === "default") {
+    try { await Notification.requestPermission(); } catch (er) {}
+  }
+  Z.reglages.notifications = oui;
+  garder("zr-reglages", Z.reglages);
+  majCloche();
+}
+$("#alertes-notif").addEventListener("change", () => poserNotifications($("#alertes-notif").checked));
+
+// ------------------------------------------------------------ Options
+
+let minuteurSynchro = null;
+function armerSynchro() {
+  if (minuteurSynchro) clearInterval(minuteurSynchro);
+  minuteurSynchro = null;
+  // Comme _schedule_sync : une relecture toutes les N minutes, 0 = jamais.
+  if (Z.reglages.intervalle > 0) {
+    minuteurSynchro = setInterval(() => { if (Z.pret && !document.hidden) synchroniser(); }, Z.reglages.intervalle * 60000);
+  }
+}
+$("#m-options").addEventListener("click", () => {
+  fermerPops();
+  const r = Z.reglages;
+  $("#o-volume").value = r.volume; $("#o-ventes").value = r.ventes; $("#o-saison").value = r.saison;
+  $("#o-notif").checked = r.notifications; $("#o-intervalle").value = r.intervalle; $("#o-ouverture").checked = r.ouverture;
+  $("#options").showModal();
+});
+$("#o-enregistrer").addEventListener("click", async () => {
+  const borne = (id, min, max) => Math.max(min, Math.min(max, Math.trunc(Number($(id).value) || 0)));
+  Object.assign(Z.reglages, { volume: borne("#o-volume", 0, 100), ventes: borne("#o-ventes", 0, 168),
+    saison: borne("#o-saison", 0, 168), intervalle: borne("#o-intervalle", 0, 240), ouverture: $("#o-ouverture").checked });
+  await poserNotifications($("#o-notif").checked);
+  garder("zr-reglages", Z.reglages);
+  armerSynchro();
+  $("#options").close();
+  calculerAlertes(entiteCourante(), false);
+});
+
 // ------------------------------------------------------------ les autres pages
 
 function dessinerAutrePage() {
@@ -1484,6 +1679,8 @@ $("#ajout-form").addEventListener("submit", async (ev) => {
 
 appliquerZoom();
 dessinerEntites();
+majCloche();
+armerSynchro();
 if (!Z.jeton) ouvrirPorte();
 appeler("demarrer").then((meta) => {
   Z.meta = JSON.parse(meta);

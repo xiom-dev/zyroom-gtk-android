@@ -36,6 +36,8 @@ const OPERATIONS = {
   meteo_charger: (m, t, f) => zr.meteo_charger(m, t, f),
   meteo_vue: () => zr.meteo_vue(),
   gisement: (adresse) => zr.gisement(adresse),
+  fiche: (sorte, id, ci, oi) => zr.fiche(sorte, id, ci, oi),
+  alertes: (sorte, id, garde, reglages, argent, temps, postes) => zr.alertes(sorte, id, garde, reglages, argent, temps, postes),
   copier_journal: (cle, cherche, mode) => zr.copier_journal(cle, cherche, mode),
 };
 

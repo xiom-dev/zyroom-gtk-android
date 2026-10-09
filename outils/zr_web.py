@@ -11,21 +11,21 @@ Range dans `zyroom.zip` par `outils/page-zyroom.py`.
 """
 from __future__ import annotations
 
+import io
 import json
+import os
+import time
 import unicodedata
 
-import os
-
-import io
-
-from zyroom import alerts, carte, meteo, movements, outposts, partage, roster, ryzom_api, skills as skills_mod, sorting
+from zyroom import (alerts, carte, enchantements, meteo, movements, outposts, partage,
+                    roster, ryzom_api, skills as skills_mod, sorting, watch)
 from zyroom.categorydb import CategoryDb
-from zyroom.models import (CLASS_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES, ItemInfo,
-                           ItemType, categorie_item)
+from zyroom.models import (CLASS_NAMES, COLOR_NAMES, ECOSYSTEM_NAMES, EQUIP_NAMES,
+                           MAT_CATEGORY, MAT_SPEC, ItemInfo, ItemType, categorie_item,
+                           item_sig)
 from zyroom.movements import sans_parenthese
 from zyroom.namedb import NameDb, nom_anglais
 from zyroom.sheetdb import SheetDb
-from zyroom import enchantements
 
 #: Ou le zip est deballe dans Pyodide.
 RACINE = "/zr/zyroom"
@@ -106,7 +106,7 @@ def _objet(it) -> dict:
             enchant += f" (coût {abs(it.enchant_cost)})"
     brique = enchantements.brique_icone(it)
     return {
-        "fiche": it.sheet, "nom": nom, "icone": ryzom_api.item_icon_url(it),
+        "fiche": it.sheet, "nom": nom, "id": it.item_id, "sig": item_sig(it), "hp": it.hp, "icone": ryzom_api.item_icon_url(it),
         "cle": _norm(f"{nom} {it.sheet} {nom_anglais(it.sheet)}"),
         "categorie": categorie_item(it, nom),
         "q": it.quality, "n": it.stack, "vol": it.volume, "prix": it.price,
@@ -135,6 +135,10 @@ def _ordres(items: list) -> dict:
     return ordres
 
 
+#: Les entites lues, pour la fiche detaillee et les alertes.
+lues: dict[tuple, object] = {}
+
+
 def entite(xml: str, sorte: str) -> str:
     """Un flux de l'API, lu par ryzom_api, pret a afficher."""
     lire = ryzom_api.parse_character if sorte == "character" else ryzom_api.parse_guild
@@ -142,6 +146,7 @@ def entite(xml: str, sorte: str) -> str:
         ent = lire(xml.encode("utf-8"), fiches.name)
     except ryzom_api.ApiError as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
+    lues[(ent.kind, ent.entity_id)] = ent
     return json.dumps({
         "sorte": ent.kind, "id": ent.entity_id, "nom": ent.name, "guilde": ent.guild,
         "argent": ent.money, "motd": ent.motd, "portrait": ent.portrait_url,
@@ -564,3 +569,120 @@ def gisement(adresse: str) -> str:
                    for x, y, lieu in points if (p := carte.pixel(x, y)) is not None],
         "nombre": len(points),
     }, ensure_ascii=False)
+
+
+# ------------------------------------------------------------ fiche detaillee
+
+def _temps_restant(expire: int) -> str:
+    """Comme detail._time_left."""
+    reste = expire - time.time()
+    if reste <= 0:
+        return "expiré"
+    return f"{int(reste // 3600)} h {int((reste % 3600) // 60)} min"
+
+
+def fiche(sorte: str, ident: str, ci: int, oi: int) -> str:
+    """Les sections de detail.build_detail, en donnees plutot qu'en widgets."""
+    it = lues[(sorte, ident)].inventories[ci].items[oi]
+    if it.item_type in (ItemType.NATURAL_MAT, ItemType.ANIMAL_MAT):
+        categories.fill(it)
+    sections = []
+
+    def section(titre, lignes, toujours=False):
+        lignes = [[k, str(v)] for k, v in lignes if v is not None and v != ""]
+        if lignes or toujours:
+            sections.append([titre, lignes])
+
+    nom = noms.name(it.sheet)
+    section("Général", [
+        ("Nom", nom if nom != it.sheet else ""), ("Fiche", it.sheet), ("Identifiant", it.item_id),
+        ("Qualité", it.quality or ""), ("Quantité", it.stack or ""),
+        ("Classe", CLASS_NAMES[int(it.item_class)] if it.item_class != it.item_class.UNKNOWN else ""),
+        ("Écosystème", ECOSYSTEM_NAMES[int(it.ecosystem)] if it.ecosystem != it.ecosystem.UNKNOWN else ""),
+        ("Volume", f"{it.volume:.2f}" if it.volume else ""), ("Poids", f"{it.weight:.2f}" if it.weight else ""),
+        ("Durabilité", it.hp if it.item_type == ItemType.EQUIPMENT and it.hp else ""),
+        ("Protégé", "oui" if it.locked else ""),
+    ], toujours=True)
+    section("Combat", [("Dégâts", it.c_dmg or ""), ("Vitesse", it.c_speed or ""),
+                       ("Portée", it.c_range or ""), ("Mod. esquive", it.c_dodge or ""),
+                       ("Mod. parade", it.c_parry or ""), ("Mod. esquive adverse", it.c_adv_dodge or ""),
+                       ("Mod. parade adverse", it.c_adv_parry or "")])
+    section("Protection", [("Facteur de protection", f"{it.c_factor_prot:.2f}" if it.c_factor_prot else ""),
+                           ("Prot. tranchant max.", it.c_slash or ""),
+                           ("Prot. contondant max.", it.c_blunt or ""),
+                           ("Prot. perforant max.", it.c_pierce or "")])
+    section("Bijou", [(f"Protection {n}", v) for n, v in it.protections]
+            + [(f"Résistance {n}", f"{v:.2f}") for n, v in it.resistances])
+    section("Amplificateur", [("Vit. sort élémentaire", it.a_elem_speed or ""),
+                              ("Puiss. élémentaire", it.a_elem_power or ""),
+                              ("Vit. affliction off.", it.a_off_speed or ""),
+                              ("Puiss. affliction off.", it.a_off_power or ""),
+                              ("Vit. soin", it.a_heal_speed or ""), ("Puiss. soin", it.a_heal_power or ""),
+                              ("Vit. affliction déf.", it.a_def_speed or ""),
+                              ("Puiss. affliction déf.", it.a_def_power or "")])
+    section("Bonus", [("Vie", it.hp_buff or ""), ("Sève", it.sap_buff or ""),
+                      ("Endurance", it.sta_buff or ""), ("Concentration", it.focus_buff or "")])
+    if it.mat_category1 or it.mat_specs1:
+        lignes = []
+        if 0 <= it.mat_category1 < len(MAT_CATEGORY):
+            lignes.append(("Catégorie 1", MAT_CATEGORY[it.mat_category1]))
+        lignes += [(MAT_SPEC[i], "★" * n) for i, n in it.mat_specs1 if 0 < i < len(MAT_SPEC)]
+        if 0 < it.mat_category2 < len(MAT_CATEGORY):
+            lignes.append(("Catégorie 2", MAT_CATEGORY[it.mat_category2]))
+        lignes += [(MAT_SPEC[i], "★" * n) for i, n in it.mat_specs2 if 0 < i < len(MAT_SPEC)]
+        if it.mat_colors:
+            lignes.append(("Couleurs", ", ".join(COLOR_NAMES[c] for c in it.mat_colors
+                                                 if 0 <= c < len(COLOR_NAMES))))
+        section("Matière", lignes)
+    if it.price or it.expires:
+        section("Vente", [("Prix", f"{it.price:,.0f} dappers".replace(",", " ") if it.price else ""),
+                          ("Continent", it.continent),
+                          ("Expire dans", _temps_restant(it.expires) if it.expires else "")])
+    return json.dumps({"titre": nom, "sections": sections}, ensure_ascii=False)
+
+
+# ------------------------------------------------------------ la cloche
+
+DOSSIER_ALERTES = "/tmp/alertes"
+
+
+def alertes(sorte: str, ident: str, garde: str, reglages: str, argent: str,
+            temps_xml: str, postes: str) -> str:
+    """La liste de la cloche, comme page_alertes._check_alerts.
+
+    `garde` : les objets surveilles (le guard.json de l'application) ;
+    `argent` : les mouvements du tresor du dernier releve, s'il vient d'avoir
+    lieu ; `temps_xml` et `postes` ne sont passes qu'au retour d'une synchro.
+    """
+    ent = lues.get((sorte, ident))
+    if ent is None:
+        return json.dumps({"alertes": [], "garde": json.loads(garde or "{}")})
+    r = json.loads(reglages)
+    os.makedirs(DOSSIER_ALERTES, exist_ok=True)
+    chemin = f"{DOSSIER_ALERTES}/garde.json"
+    with open(chemin, "w", encoding="utf-8") as fh:
+        fh.write(garde or "{}")
+    store = watch.WatchStore(chemin)
+    out = alerts.volume_alerts(ent, int(r.get("volume", 90)))
+    out += alerts.watch_alerts(ent, store, noms.name)
+    out += alerts.sales_alerts(ent, int(r.get("ventes", 12)), noms.name)
+    mouvements_argent = [movements.lire_etranger(json.loads(l)) for l in json.loads(argent or "[]")]
+    out += alerts.money_alerts(mouvements_argent, store.money_watched())
+    etat_postes = None
+    if postes is not None and temps_xml is not None:
+        chemin_postes = f"{DOSSIER_ALERTES}/postes.json"
+        with open(chemin_postes, "w", encoding="utf-8") as fh:
+            fh.write(postes or "{}")
+        out += alerts.outpost_alerts(ent, chemin_postes, noms.name)
+        with open(chemin_postes, encoding="utf-8") as fh:
+            etat_postes = fh.read()
+        if temps_xml:
+            try:
+                saison_ = alerts.season_alert(ryzom_api.parse_time(temps_xml.encode("utf-8")),
+                                              int(r.get("saison", 12)))
+                if saison_:
+                    out.append(saison_)
+            except Exception:
+                pass
+    return json.dumps({"alertes": [[a.kind, a.title, a.detail] for a in out],
+                       "garde": store.items(), "postes": etat_postes}, ensure_ascii=False)

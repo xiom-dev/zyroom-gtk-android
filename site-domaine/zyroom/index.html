@@ -202,6 +202,19 @@
   .g-note { font-size: .86em; margin: 4px 0; }
   #g-carte { display: block; width: 100%; height: 340px; margin: 8px 0; touch-action: none; cursor: grab; }
   .g-lieux { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; font-size: .92em; }
+  .cloche { width: auto; min-width: 36px; padding: 0 10px; }
+  .menu-objet { position: fixed; top: 0; left: 0; }
+  dialog.large { max-width: 560px; width: calc(100vw - 16px); }
+  .fiche { max-height: 70vh; overflow-y: auto; }
+  .fiche h4 { margin: 8px 0 2px; }
+  .fiche table { margin-left: 8px; border-collapse: collapse; }
+  .fiche td { padding: 1px 14px 1px 0; vertical-align: top; }
+  .alertes-liste { max-height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin: 6px 0; }
+  .alerte .faible { margin-left: 18px; opacity: .8; }
+  .bascule { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .pied-alertes { justify-content: space-between !important; align-items: center; }
+  .grille-options { display: grid; grid-template-columns: 1fr 6em; gap: 8px 10px; align-items: center; margin: 6px 0; }
+  .coche { display: flex; gap: 8px; align-items: center; }
   .page-autre { flex: 1; display: grid; place-items: center; color: var(--faible); background: var(--surface); }
 
   /* --- le pied --- */
@@ -247,7 +260,7 @@
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button class="ico" id="b-retrait" title="Retirer l'entité sélectionnée" disabled>
       <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
-    <button class="ico" id="b-cloche" title="Alertes" disabled>🔔</button>
+    <button class="ico cloche" id="b-cloche" title="Alertes">🔔</button>
     <button class="ico plat zoom" id="b-moins" title="Réduire les icônes">−</button>
     <button class="ico plat zoom" id="b-plus" title="Agrandir les icônes">+</button>
   </div>
@@ -270,6 +283,7 @@
     <span class="menu"><button class="ico" id="b-menu" title="Menu">
       <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
       <div class="pop droite" id="pop-menu" hidden>
+        <button id="m-options">Options…</button>
         <button id="m-apropos">À propos…</button>
         <button id="m-sortir">Se déconnecter</button>
       </div></span>
@@ -324,6 +338,50 @@
     <div class="message" id="ajout-message"></div>
     <div class="boutons"><button type="button" id="ajout-annuler">Annuler</button>
       <button type="submit" class="principal">Ajouter</button></div>
+  </form>
+</dialog>
+
+<dialog id="fiche" class="large">
+  <form method="dialog">
+    <div class="g-tete"><strong id="fiche-titre"></strong><button>Fermer</button></div>
+    <div class="fiche" id="fiche-corps"></div>
+  </form>
+</dialog>
+
+<dialog id="surveillance">
+  <form method="dialog">
+    <strong>Surveiller un objet</strong>
+    <div id="surv-titre"></div>
+    <div id="surv-texte"></div>
+    <input type="number" id="surv-seuil" min="0" max="100000" step="1">
+    <div class="boutons"><button>Annuler</button><button type="button" class="principal" id="surv-ok">Surveiller</button></div>
+  </form>
+</dialog>
+
+<dialog id="alertes" class="large">
+  <form method="dialog">
+    <strong>Alertes</strong>
+    <div class="alertes-liste" id="alertes-liste"></div>
+    <label class="bascule"><span>Prévenir mouvement dappers</span><input type="checkbox" id="alertes-argent"
+      title="Une alerte à chaque relevé où les dappers ont bougé, dans un sens ou dans l'autre."></label>
+    <div class="boutons pied-alertes"><label class="bascule"><span>Notifications du bureau</span><input type="checkbox" id="alertes-notif"
+      title="Les bulles du navigateur à chaque synchronisation. Les alertes restent listées ici."></label>
+      <button>Fermer</button></div>
+  </form>
+</dialog>
+
+<dialog id="options">
+  <form method="dialog">
+    <strong>Options</strong>
+    <div class="grille-options">
+      <label for="o-volume">Seuil d'alerte de volume (%)</label><input type="number" id="o-volume" min="0" max="100" step="5">
+      <label for="o-ventes">Alerte ventes (heures avant expiration)</label><input type="number" id="o-ventes" min="0" max="168" step="1">
+      <label for="o-saison">Alerte saison (heures avant changement)</label><input type="number" id="o-saison" min="0" max="168" step="1">
+      <label for="o-intervalle">Resynchroniser toutes les (minutes, 0 = jamais)</label><input type="number" id="o-intervalle" min="0" max="240" step="5">
+    </div>
+    <label class="coche"><input type="checkbox" id="o-notif"> Afficher les alertes sur le bureau (notifications du navigateur)</label>
+    <label class="coche"><input type="checkbox" id="o-ouverture"> Synchroniser à l'ouverture d'un personnage ou d'une guilde</label>
+    <div class="boutons"><button>Annuler</button><button type="button" class="principal" id="o-enregistrer">Enregistrer</button></div>
   </form>
 </dialog>
 
