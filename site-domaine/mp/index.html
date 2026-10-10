@@ -142,6 +142,7 @@
   td.moins { color: var(--or); }
   td.plus { color: var(--stop); }
   div.manque { color: var(--texte); font-weight: 600; }
+  th .total { font-weight: 700; color: var(--texte); }
   td.complets { color: var(--sarcelle); }
   .goutte { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
             margin-left: 3px; vertical-align: middle; }
@@ -496,6 +497,10 @@ function recalculer() {
     manque(false) + " à forer · " + manque(true) + " à looter sur les boss";
   // Ne plus stocker : le total de la colonne "MP en trop".
   $("#n-stop").textContent = nf.format(stop.reduce((t, m) => t + enTrop(m), 0));
+  const trop = (boss) => nf.format(stop.filter((m) => deBoss(m.mp) === boss)
+                                        .reduce((t, m) => t + enTrop(m), 0));
+  $("#n-stop").parentElement.title =
+    trop(false) + " forées en trop · " + trop(true) + " lootées en trop";
   $("#n-toutes").textContent = pieces(calcul.mps);
   $("#n-inutiles").textContent = pieces(inutilisees());
   $("#n-tenues").textContent = ensembles(false).length;
@@ -824,6 +829,11 @@ function tableMps(liste, quoi, boss) {
       + "</td></tr>" + (quoi === "toutes" ? groupes.get(t) : groupes.get(t).sort(parProvenance))
         .map(ligneMp).join("");
   }).join("");
+  // Le total d'une colonne, sous son titre : celui des lignes affichees.
+  function total(valeur) {
+    return '<span class="total">' + nombre(liste.reduce((t, m) => t + Math.max(0, valeur(m)), 0))
+      + "</span>";
+  }
   function ligneMp(m) {
     return "<tr><td>" + nomMp(m.mp, ECOS[m.eco]
       + " · Q" + m.qmin + "+ · " + m.nbRecettes + " recette"
@@ -839,9 +849,10 @@ function tableMps(liste, quoi, boss) {
     + '<th class="n" title="Ce que le hall contient, à la qualité demandée ou plus">Stock</th>'
     + '<th class="n" title="Crafts de toutes les recettes qui utilisent cette MP, faits ensemble">Crafts<br>possibles</th>'
     + (forer ? '<th class="n" title="MP à ' + verbe + ' pour atteindre ' + etat.reglages.objectif
-               + ' crafts de chaque recette">À ' + verbe + "</th>" : "")
+               + ' crafts de chaque recette">À ' + verbe + "<br>" + total((m) => m.manque) + "</th>" : "")
     + (trop ? '<th class="n" title="Au-delà de ' + etat.reglages.stop
-               + ' fois le besoin : à supprimer ou à écouler, à voir avec Nizyros">MP en trop</th>' : "")
+               + ' fois le besoin : à supprimer ou à écouler, à voir avec Nizyros">MP en trop<br>'
+               + total(enTrop) + "</th>" : "")
     + "</tr></thead><tbody>" + lignes + "</tbody></table></div></div>";
 }
 
