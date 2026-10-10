@@ -489,6 +489,11 @@ function recalculer() {
   // lignes ; A stocker donne ce qu'il reste a forer pour l'objectif.
   const pieces = (liste) => nf.format(liste.reduce((t, m) => t + m.stock, 0));
   $("#n-forer").textContent = nf.format(forer.reduce((t, m) => t + m.manque, 0));
+  // Au survol, le meme total coupe en deux : ce qui se fore, ce qui se loote.
+  const manque = (boss) => nf.format(forer.filter((m) => deBoss(m.mp) === boss)
+                                          .reduce((t, m) => t + m.manque, 0));
+  $("#n-forer").parentElement.title =
+    manque(false) + " à forer · " + manque(true) + " à looter sur les boss";
   $("#n-stop").textContent = pieces(stop);
   $("#n-toutes").textContent = pieces(calcul.mps);
   $("#n-inutiles").textContent = pieces(inutilisees());
