@@ -488,7 +488,8 @@ function recalculer() {
   $("#n-forer").textContent = forer.length;
   $("#n-stop").textContent = stop.length;
   $("#n-toutes").textContent = calcul.mps.length;
-  $("#n-inutiles").textContent = inutilisees().length;
+  // Le nombre de pieces, toutes MP inutilisees confondues.
+  $("#n-inutiles").textContent = nf.format(inutilisees().reduce((t, m) => t + m.stock, 0));
   $("#n-tenues").textContent = ensembles(false).length;
   $("#n-bijoux").textContent = ensembles(true).length;
   $("#n-recettes").textContent = calcul.recettes.length;
