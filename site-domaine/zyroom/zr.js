@@ -134,7 +134,8 @@ $("#porte-form").addEventListener("submit", async (ev) => {
     $("#porte").close();
     Z.synchro.clear();
     await chargerPersos();
-    choisirEntite(Z.courante);
+    await choisirEntite(Z.courante);
+    completerImages();
   } catch (souci) {
     $("#porte-message").textContent = "Serveur injoignable.";
   }
@@ -181,6 +182,27 @@ async function envoyerPersos() {
       headers: { "Content-Type": "application/json", "X-MP": Z.jeton },
       body: JSON.stringify({ persos: Z.persos }) });
   } catch (er) { etat("Liste des persos non enregistrée : serveur injoignable."); }
+}
+
+// Les images du menu des entites : le portrait d'un perso, l'embleme d'une
+// guilde. Elles ne venaient qu'en ouvrant l'entite ; on va les chercher en
+// fond pour celles qui n'en ont pas encore, une a la fois.
+async function completerImages() {
+  for (const e of entites()) {
+    if (e.image || !Z.jeton) continue;
+    try {
+      const garde = await fluxGarde(cacheXml(e));
+      const flux = garde && garde.xml ? garde : await telecharger(e);
+      const ent = await lireFlux(e, flux);
+      if (!garde) garderFlux(cacheXml(e), flux);
+      if (!ent.portrait) continue;
+      if (e.sorte === "character") {
+        const p = Z.persos.find((x) => x.id === e.id);
+        if (p) { p.image = ent.portrait; await envoyerPersos(); }
+      } else garder("zr-image-guilde-" + e.id, ent.portrait);
+      dessinerEntites();
+    } catch (er) { /* la prochaine ouverture la posera */ }
+  }
 }
 
 // ------------------------------------------------------------ flux
@@ -1822,7 +1844,7 @@ appeler("demarrer").then((meta) => {
   Z.pret = true;
   $("#page").innerHTML = "";
   pageInventaire();
-  chargerPersos().then(() => choisirEntite(Z.courante));
+  chargerPersos().then(async () => { await choisirEntite(Z.courante); completerImages(); });
   majSaison();
   // Toutes les trois minutes, comme _refresh_season_tick.
   setInterval(majSaison, 3 * 60 * 1000);
