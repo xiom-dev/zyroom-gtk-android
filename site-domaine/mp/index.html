@@ -485,8 +485,8 @@ function recalculer() {
   const reg = etat.reglages;
   const forer = calcul.mps.filter((m) => m.statut === "rupture" || m.statut === "forer");
   const stop = calcul.mps.filter((m) => m.statut === "stop");
-  // Le nombre de pieces en stock de chaque onglet, et non son nombre de
-  // lignes ; A stocker donne ce qu'il reste a forer pour l'objectif.
+  // Des pieces, et non un nombre de lignes : A stocker donne ce qu'il reste
+  // a forer pour l'objectif, les autres onglets leur stock.
   const pieces = (liste) => nf.format(liste.reduce((t, m) => t + m.stock, 0));
   $("#n-forer").textContent = nf.format(forer.reduce((t, m) => t + m.manque, 0));
   // Au survol, le meme total coupe en deux : ce qui se fore, ce qui se loote.
@@ -494,7 +494,8 @@ function recalculer() {
                                           .reduce((t, m) => t + m.manque, 0));
   $("#n-forer").parentElement.title =
     manque(false) + " à forer · " + manque(true) + " à looter sur les boss";
-  $("#n-stop").textContent = pieces(stop);
+  // Ne plus stocker : le total de la colonne "MP en trop".
+  $("#n-stop").textContent = nf.format(stop.reduce((t, m) => t + enTrop(m), 0));
   $("#n-toutes").textContent = pieces(calcul.mps);
   $("#n-inutiles").textContent = pieces(inutilisees());
   $("#n-tenues").textContent = ensembles(false).length;
