@@ -14,7 +14,9 @@
 
 const $ = (s) => document.querySelector(s);
 const API = "https://api.ryzom.com";
-const GUILDE = { sorte: "guild", id: "105906237", nom: "La Lune Eternelle" };
+// Les guildes que zyroom.php sert : La Lune, et Rod of Heaven, celle des alts.
+const GUILDES = [{ sorte: "guild", id: "105906237", nom: "La Lune Eternelle" },
+                 { sorte: "guild", id: "105908280", nom: "Rod Of Heaven" }];
 // Comme Settings.PALIERS_ZOOM et ICONE_NORMALE.
 const PALIERS = [80, 100, 120, 140, 160, 180, 200];
 const ICONE = 48;
@@ -95,7 +97,7 @@ Z.f = filtresVierges();
 
 function entites() {
   return [...Z.persos.map((p) => ({ sorte: "character", id: p.id, nom: p.nom, cle: p.cle, image: p.image })),
-          Object.assign({ image: lire("zr-image-guilde", "") }, GUILDE)];
+          ...GUILDES.map((g) => Object.assign({ image: lire("zr-image-guilde-" + g.id, "") }, g))];
 }
 function entiteCourante() {
   const liste = entites();
@@ -182,7 +184,7 @@ async function telecharger(e) {
     if (!r.ok) throw new Error("API Ryzom " + r.status);
     return { xml: await r.text(), quand: Date.now() };
   }
-  const r = await fetch("zyroom.php", { cache: "no-store", headers: { "X-MP": Z.jeton } });
+  const r = await fetch("zyroom.php?guilde=" + encodeURIComponent(e.id), { cache: "no-store", headers: { "X-MP": Z.jeton } });
   if (r.status === 401) { const e2 = new Error("401"); e2.porte = true; throw e2; }
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erreur || "zyroom.php " + r.status);
   const releve = Number(r.headers.get("X-Releve")) * 1000;
@@ -252,7 +254,7 @@ function montrer(e, ent, frais) {
     if (e.sorte === "character") {
       const p = Z.persos.find((x) => x.id === e.id);
       if (p) { p.image = ent.portrait; p.nom = ent.nom; garder("zr-persos", Z.persos); }
-    } else garder("zr-image-guilde", ent.portrait);
+    } else garder("zr-image-guilde-" + e.id, ent.portrait);
   }
   dessinerTout();
 }

@@ -23,9 +23,12 @@
 // objets avant l'envoi.
 declare(strict_types=1);
 
-const CLE = '__CLE__';
+// Les cles API des guildes servies, par numero de guilde (JSON).
+const CLES = '__CLES__';
 const SEL = '__SEL__';
 const EDITEURS = '__EDITEURS__';
+// La guilde dont l'effectif ouvre la porte : La Lune Eternelle. Rod of Heaven,
+// la guilde des alts, se consulte mais ne donne pas acces.
 const GUILDE = 105906237;
 const API = 'https://api.ryzom.com/guild.php?apikey=';
 const STATUT = 'https://app.ryzom.com/app_arcc/get_services_status.php?command=status&shard=atys';
@@ -168,17 +171,23 @@ function nettoie(string $xml): ?string
     return (string) $doc->saveXML();
 }
 
-function flux(): string
+function cles(): array
 {
-    $local = CACHE . '/guilde.xml';
+    $cles = json_decode(CLES, true);
+    return is_array($cles) ? $cles : [];
+}
+
+function flux(string $id, string $cle): string
+{
+    $local = CACHE . '/guilde-' . $id . '.xml';
     if (is_file($local) && time() - (int) filemtime($local) < CACHE_DUREE) {
         return (string) file_get_contents($local);
     }
-    $brut = @file_get_contents(API . CLE, false,
+    $brut = @file_get_contents(API . $cle, false,
                                stream_context_create(['http' => ['timeout' => 20]]));
     $propre = ($brut !== false && str_contains($brut, '<guild') && !str_contains($brut, '<error'))
         ? nettoie($brut) : null;
-    if ($propre !== null && !str_contains($propre, CLE)) {
+    if ($propre !== null && !str_contains($propre, $cle)) {
         @mkdir(CACHE, 0775, true);
         @file_put_contents($local, $propre);
         return $propre;
@@ -213,10 +222,16 @@ if (($_GET['quoi'] ?? '') === 'statut') {
     echo is_file($local) ? (string) file_get_contents($local) : '[]';
     exit;
 }
-$xml = flux();
+// La guilde demandee, La Lune par defaut ; seulement celles dont on a la cle.
+$id = (string) ($_GET['guilde'] ?? GUILDE);
+$cle = cles()[$id] ?? null;
+if ($cle === null) {
+    refuse(404, 'guilde inconnue');
+}
+$xml = flux($id, $cle);
 header('Content-Type: application/xml; charset=utf-8');
 // La date du fichier : la page la montre comme heure de synchro.
-$local = CACHE . '/guilde.xml';
+$local = CACHE . '/guilde-' . $id . '.xml';
 if (is_file($local)) {
     header('X-Releve: ' . filemtime($local));
 }

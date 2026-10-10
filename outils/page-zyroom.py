@@ -10,8 +10,8 @@ Des sorties ignorees par git, a deposer avec `index.html`, `zr.js`,
   l'API, modeles, noms, categories, volumes, tris), ses donnees, la table
   des noms tiree du `string_client.pack`, et le pont `outils/zr_web.py`.
   Le Web Worker le deballe dans Pyodide.
-- `zyroom.php` : `zyroom.modele.php` avec la cle API de la guilde (lue dans
-  le `guilds.ini` de l'application), le sel des jetons et la liste des
+- `zyroom.php` : `zyroom.modele.php` avec les cles API des guildes (La Lune
+  et Rod of Heaven, lues dans les `guilds.ini` des applications), le sel des jetons et la liste des
   editeurs -- les memes que `mp.php`, pour qu'une connexion vaille pour les
   deux pages.
 - `symboles/` et `polices/` : les images et la police de l'application.
@@ -36,7 +36,8 @@ MODELE = os.path.join(DOSSIER, "zyroom.modele.php")
 PONT = os.path.join(RACINE, "outils", "zr_web.py")
 PAQUET = os.path.join(RACINE, "zyroom-gtk", "zyroom")
 SECRETS = os.path.expanduser("~/.config/zyroom")
-GUILDE = "105906237"
+#: Les guildes servies : La Lune Eternelle, et Rod of Heaven, celle des alts.
+GUILDES = ("105906237", "105908280")
 
 #: La table des noms, dans le cache de l'une des applications.
 NOMS = (
@@ -87,11 +88,20 @@ def fabriquer_zip() -> None:
 
 
 def fabriquer_php() -> None:
-    ini = configparser.ConfigParser()
-    ini.read(premier(GUILDES_INI), encoding="utf-8")
-    cle = ini[GUILDE]["key"].strip()
-    if not re.fullmatch(r"g[A-Za-z0-9]{40}", cle):
-        raise SystemExit("Clé de guilde illisible")
+    # Chaque cle dans le premier guilds.ini qui la porte : la variante guilde
+    # de l'application n'a que La Lune, la dev a les deux.
+    cles = {}
+    for chemin in GUILDES_INI:
+        ini = configparser.ConfigParser()
+        ini.read(os.path.expanduser(chemin), encoding="utf-8")
+        for gid in GUILDES:
+            if gid not in cles and ini.has_section(gid):
+                cle = ini[gid].get("key", "").strip()
+                if re.fullmatch(r"g[A-Za-z0-9]{40}", cle):
+                    cles[gid] = cle
+    manquent = [g for g in GUILDES if g not in cles]
+    if manquent:
+        raise SystemExit("Clé de guilde introuvable : " + ", ".join(manquent))
     with open(os.path.join(SECRETS, "mp.sel"), encoding="utf-8") as fh:
         sel = fh.read().strip()
     editeurs = []
@@ -101,14 +111,14 @@ def fabriquer_php() -> None:
                 editeurs.append(ligne.partition(":")[0].strip())
     with open(MODELE, encoding="utf-8") as fh:
         modele = fh.read()
-    for trou in ("__CLE__", "__SEL__", "__EDITEURS__"):
+    for trou in ("__CLES__", "__SEL__", "__EDITEURS__"):
         if modele.count(trou) != 1:
             raise SystemExit(f"{MODELE} : {trou} attendu une fois")
-    php = (modele.replace("__CLE__", cle).replace("__SEL__", sel)
+    php = (modele.replace("__CLES__", json.dumps(cles)).replace("__SEL__", sel)
            .replace("__EDITEURS__", json.dumps(editeurs, ensure_ascii=False)))
     with open(os.path.join(DOSSIER, "zyroom.php"), "w", encoding="utf-8") as fh:
         fh.write(php)
-    print("zyroom.php : clé de La Lune Éternelle, éditeurs", ", ".join(editeurs))
+    print(f"zyroom.php : {len(cles)} clés de guilde, éditeurs", ", ".join(editeurs))
 
 
 def copier_images() -> None:
