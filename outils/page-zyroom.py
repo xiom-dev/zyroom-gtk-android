@@ -158,7 +158,10 @@ def copier_images() -> None:
         for nom in sorted(os.listdir(os.path.join(PAQUET, dossier))):
             if nom.endswith(motif):
                 shutil.copy2(os.path.join(PAQUET, dossier, nom), os.path.join(cible, nom))
-    print("symboles/, polices/ et cartes/ recopiés")
+    # L'icone de l'application sert de favicon a la page.
+    shutil.copy2(os.path.join(PAQUET, os.pardir, "data", "net.ryzom.zyroomgtk.svg"),
+                 os.path.join(DOSSIER, "favicon.svg"))
+    print("symboles/, polices/, cartes/ et favicon.svg recopiés")
 
 
 def main() -> int:
