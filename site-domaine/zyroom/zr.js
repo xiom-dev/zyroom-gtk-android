@@ -133,6 +133,7 @@ $("#porte-form").addEventListener("submit", async (ev) => {
     $("#porte-mdp").value = "";
     $("#porte").close();
     Z.synchro.clear();
+    await chargerPersos();
     choisirEntite(Z.courante);
   } catch (souci) {
     $("#porte-message").textContent = "Serveur injoignable.";
@@ -142,9 +143,45 @@ $("#porte").addEventListener("cancel", (ev) => ev.preventDefault());
 $("#m-sortir").addEventListener("click", () => {
   Z.jeton = "";
   try { localStorage.removeItem("mp-jeton"); } catch (e) {}
+  // Le joueur suivant sur ce navigateur ne doit pas voir les persos du precedent.
+  Z.persos = [];
+  garder("zr-persos", []);
+  Z.ent = null;
+  Z.derniers = {};
+  dessinerEntites();
   fermerPops();
   ouvrirPorte("Déconnecté.");
 });
+
+// ------------------------------------------------------------ les persos du joueur
+//
+// Rangés sur le serveur, au nom du pseudo connecte : chaque joueur retrouve
+// les siens sur tous ses appareils, et ne voit que les siens.
+
+async function chargerPersos() {
+  if (!Z.jeton) return;
+  try {
+    const r = await fetch("zyroom.php?quoi=persos", { cache: "no-store", headers: { "X-MP": Z.jeton } });
+    if (!r.ok) return;
+    const rep = await r.json();
+    if (Array.isArray(rep.persos)) {
+      Z.persos = rep.persos;
+      garder("zr-persos", Z.persos);
+    } else if (Z.persos.length) {
+      // Rien encore au serveur : ceux que ce navigateur avait y passent.
+      await envoyerPersos();
+    }
+  } catch (er) { /* hors ligne : la liste du navigateur sert */ }
+}
+
+async function envoyerPersos() {
+  garder("zr-persos", Z.persos);
+  try {
+    await fetch("zyroom.php?quoi=persos", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", "X-MP": Z.jeton },
+      body: JSON.stringify({ persos: Z.persos }) });
+  } catch (er) { etat("Liste des persos non enregistrée : serveur injoignable."); }
+}
 
 // ------------------------------------------------------------ flux
 
@@ -253,7 +290,9 @@ function montrer(e, ent, frais) {
   if (frais && ent.portrait) {
     if (e.sorte === "character") {
       const p = Z.persos.find((x) => x.id === e.id);
-      if (p) { p.image = ent.portrait; p.nom = ent.nom; garder("zr-persos", Z.persos); }
+      if (p && (p.image !== ent.portrait || p.nom !== ent.nom)) {
+        p.image = ent.portrait; p.nom = ent.nom; envoyerPersos();
+      }
     } else garder("zr-image-guilde-" + e.id, ent.portrait);
   }
   dessinerTout();
@@ -1730,9 +1769,9 @@ $("#m-apropos").addEventListener("click", () => { fermerPops(); $("#apropos").sh
 
 $("#b-retrait").addEventListener("click", () => {
   const e = entiteCourante();
-  if (e.sorte !== "character" || !confirm("Retirer " + e.nom + " de ce navigateur ?")) return;
+  if (e.sorte !== "character" || !confirm("Retirer " + e.nom + " de tes persos ?")) return;
   Z.persos = Z.persos.filter((p) => p.id !== e.id);
-  garder("zr-persos", Z.persos);
+  envoyerPersos();
   garderFlux(cacheXml(e), null);
   Z.ent = null;
   choisirEntite("");
@@ -1758,7 +1797,7 @@ $("#ajout-form").addEventListener("submit", async (ev) => {
     const flux = await telecharger({ sorte: "character", cle });
     const ent = await lireFlux({ sorte: "character" }, flux);
     if (!Z.persos.some((p) => p.id === ent.id)) Z.persos.push({ id: ent.id, nom: ent.nom, cle, image: ent.portrait });
-    garder("zr-persos", Z.persos);
+    await envoyerPersos();
     garderFlux(cacheXml({ sorte: "character", id: ent.id }), flux);
     await journaliser({ sorte: "character", id: ent.id }, flux.xml);
     $("#ajout").close();
@@ -1783,7 +1822,7 @@ appeler("demarrer").then((meta) => {
   Z.pret = true;
   $("#page").innerHTML = "";
   pageInventaire();
-  choisirEntite(Z.courante);
+  chargerPersos().then(() => choisirEntite(Z.courante));
   majSaison();
   // Toutes les trois minutes, comme _refresh_season_tick.
   setInterval(majSaison, 3 * 60 * 1000);

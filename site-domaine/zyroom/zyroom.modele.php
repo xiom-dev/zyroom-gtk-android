@@ -34,6 +34,13 @@ const API = 'https://api.ryzom.com/guild.php?apikey=';
 const STATUT = 'https://app.ryzom.com/app_arcc/get_services_status.php?command=status&shard=atys';
 const DEPOT = 'https://raw.githubusercontent.com/xiom-dev/zyroom-gtk-android/journaux/';
 const CACHE = __DIR__ . '/cache';
+// Les persos de chaque joueur (cles API de personnage), par pseudo. Le
+// dossier est ferme au web par son .htaccess.
+const DONNEES = __DIR__ . '/donnees';
+const PERSOS = DONNEES . '/persos.json';
+// Le point de depart, depose une fois : les persos de Ludo (Xiom et Koii).
+const PERSOS_DEPART = __DIR__ . '/persos.depart.json';
+const MAX_PERSOS = 20;
 // L'API ne recalcule pas plus vite que ca : cinq minutes suffisent, et
 // trente membres qui ouvrent la page ne font qu'un appel.
 const CACHE_DUREE = 5 * 60;
@@ -201,11 +208,70 @@ function flux(string $id, string $cle): string
 
 // ------------------------------------------------------------- la requete
 
+$qui = porteur();
+if ($qui === null) {
+    refuse(401, 'connexion requise');
+}
+
+// ------------------------------------------------------------- les persos du joueur
+//
+// Chaque joueur a ses persos, attaches a son pseudo : il les retrouve sur
+// tous ses appareils. On ne lit et n'ecrit jamais que ceux du joueur
+// connecte. Une cle de personnage ne donne que la lecture de ses
+// inventaires ; elle ne quitte ce serveur que vers son proprietaire.
+
+function lire_json(string $chemin): array
+{
+    if (!is_file($chemin)) {
+        return [];
+    }
+    $lu = json_decode((string) file_get_contents($chemin), true);
+    return is_array($lu) ? $lu : [];
+}
+
+if (($_GET['quoi'] ?? '') === 'persos') {
+    header('Content-Type: application/json; charset=utf-8');
+    $cle_joueur = mb_strtolower(trim($qui));
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $corps = json_decode((string) file_get_contents('php://input', false, null, 0, 64 * 1024), true);
+        $propres = [];
+        foreach ((array) ($corps['persos'] ?? []) as $p) {
+            $id = (string) ($p['id'] ?? '');
+            $nom = trim((string) ($p['nom'] ?? ''));
+            $cle = (string) ($p['cle'] ?? '');
+            $image = (string) ($p['image'] ?? '');
+            if (!preg_match('/^[0-9]{1,12}$/', $id) || !preg_match('/^c[A-Za-z0-9]{40}$/', $cle)
+                || $nom === '' || mb_strlen($nom) > 40) {
+                continue;
+            }
+            if (!str_starts_with($image, 'https://') || strlen($image) > 1000) {
+                $image = '';
+            }
+            $propres[] = ['id' => $id, 'nom' => $nom, 'cle' => $cle, 'image' => $image];
+        }
+        if (count($propres) > MAX_PERSOS) {
+            refuse(400, 'trop de persos');
+        }
+        @mkdir(DONNEES, 0770, true);
+        $tous = lire_json(PERSOS);
+        $tous[$cle_joueur] = $propres;
+        $tmp = PERSOS . '.' . getmypid();
+        if (@file_put_contents($tmp, json_encode($tous, JSON_UNESCAPED_UNICODE)) === false
+            || !@rename($tmp, PERSOS)) {
+            refuse(500, 'écriture impossible');
+        }
+        echo json_encode(['ok' => true, 'persos' => $propres], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $tous = lire_json(PERSOS);
+    $depart = lire_json(PERSOS_DEPART);
+    $siens = $tous[$cle_joueur] ?? ($depart[$cle_joueur] ?? null);
+    echo json_encode(['persos' => $siens], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     refuse(405, 'GET seulement');
-}
-if (porteur() === null) {
-    refuse(401, 'connexion requise');
 }
 // L'etat du serveur, que lit Ryztart : le serveur de Ryzom ne laisse pas une
 // page web le lire elle-meme (pas d'en-tete CORS).

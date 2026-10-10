@@ -14,7 +14,9 @@ Des sorties ignorees par git, a deposer avec `index.html`, `zr.js`,
   et Rod of Heaven, lues dans les `guilds.ini` des applications), le sel des jetons et la liste des
   editeurs -- les memes que `mp.php`, pour qu'une connexion vaille pour les
   deux pages.
-- `symboles/` et `polices/` : les images et la police de l'application.
+- `persos.depart.json` : les persos de Ludo (Xiom, Koii) sous son pseudo,
+  pour qu'il les trouve sur la page sans les recoller.
+- `symboles/`, `polices/`, `cartes/` : images, police et carte de l'application.
 
 **Pourquoi la table des noms vient du cache de l'application.** Le pack
 appartient a l'installation du jeu ; ZyRoom en tire les noms une fois et les
@@ -121,6 +123,32 @@ def fabriquer_php() -> None:
     print(f"zyroom.php : {len(cles)} clés de guilde, éditeurs", ", ".join(editeurs))
 
 
+#: Les persos de Ludo, deposes une fois sous son pseudo de connexion : la
+#: page les lui montre sur tous ses appareils. Les autres joueurs ajoutent
+#: les leurs depuis la page.
+PERSOS_DE_LUDO = ("xiom", ("689325", "1768078"))
+CHARACTERS_INI = (
+    "~/.var/app/net.ryzom.zyroomgtk.dev/config/zyroom-gtk/characters.ini",
+    "~/.config/zyroom-gtk/characters.ini",
+)
+
+
+def fabriquer_persos() -> None:
+    pseudo, ids = PERSOS_DE_LUDO
+    persos = []
+    for ident in ids:
+        for chemin in CHARACTERS_INI:
+            ini = configparser.ConfigParser()
+            ini.read(os.path.expanduser(chemin), encoding="utf-8")
+            if ini.has_section(ident):
+                persos.append({"id": ident, "nom": ini[ident].get("name", ident),
+                               "cle": ini[ident]["key"].strip(), "image": ""})
+                break
+    with open(os.path.join(DOSSIER, "persos.depart.json"), "w", encoding="utf-8") as fh:
+        json.dump({pseudo: persos}, fh, ensure_ascii=False)
+    print("persos.depart.json :", pseudo, "→", ", ".join(p["nom"] for p in persos))
+
+
 def copier_images() -> None:
     """Les symboles de l'application (onglets, contenants, bourse) et la
     gothique du nom : la page les montre tels quels."""
@@ -136,6 +164,7 @@ def copier_images() -> None:
 def main() -> int:
     fabriquer_zip()
     fabriquer_php()
+    fabriquer_persos()
     copier_images()
     return 0
 

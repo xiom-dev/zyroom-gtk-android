@@ -3,6 +3,10 @@
 <Files "zyroom.modele.php">
     Require all denied
 </Files>
+# Les persos de depart portent des cles API : jamais lus en direct.
+<FilesMatch "\.json$">
+    Require all denied
+</FilesMatch>
 <IfModule mod_autoindex.c>
     Options -Indexes
 </IfModule>
