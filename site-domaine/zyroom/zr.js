@@ -1283,7 +1283,7 @@ async function chargerMeteo() {
 
 async function dessinerMeteo(forcer) {
   if (!$("#m-courbe")) {
-    $("#page").innerHTML = '<div class="outils"><span class="m-entete" id="m-entete">Lecture de la météo…</span>'
+    $("#page").innerHTML = '<div class="outils m-outils"><span class="m-entete" id="m-entete">Lecture de la météo…</span>'
       + '<button type="button" id="m-actualiser">Actualiser</button></div>'
       + '<canvas id="m-courbe"></canvas><div class="m-titre" id="m-titre"></div><div class="m-zones" id="m-zones"></div>';
     $("#m-actualiser").addEventListener("click", () => dessinerMeteo(true));
