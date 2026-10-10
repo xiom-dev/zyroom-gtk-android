@@ -46,7 +46,7 @@
            align-items: center; padding: 4.5px 10px; gap: 8px; }
   .titre .gauche, .titre .droite { display: flex; gap: 6px; align-items: center; }
   .titre .droite { justify-content: flex-end; }
-  .ico { width: 36px; height: 34px; padding: 0; display: inline-grid; place-items: center; }
+  .ico { width: 34px; height: 31px; padding: 0; display: inline-grid; place-items: center; }
   .ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
              stroke-linecap: round; stroke-linejoin: round; }
   .zoom { font-size: 130%; font-weight: 700; padding: 0 9px; }
@@ -58,7 +58,7 @@
   .nav > .menu > button { border-radius: 0 6px 6px 0; }
   .nav > button + button, .nav > .menu > button { border-left: 1px solid var(--bande); }
   .nav button[aria-pressed="true"] { background: var(--sarcelle); }
-  .nav img { width: 30px; height: 30px; }
+  .nav img { width: 26px; height: 26px; }
   .menu { position: relative; }
   .pop { position: absolute; z-index: 20; top: calc(100% + 6px); background: var(--variante);
          border: 1px solid #2b3d43; border-radius: 10px; padding: 6px;
@@ -77,7 +77,7 @@
   .saison { color: var(--or); }
   .choix { position: relative; }
   .choix > button { display: flex; gap: 6px; align-items: center; padding: 2px 10px; }
-  .choix > button img, .choix .pop img { width: 30px; height: 30px; object-fit: cover; border-radius: 3px; }
+  .choix > button img, .choix .pop img { width: 26px; height: 26px; object-fit: cover; border-radius: 3px; }
   .choix .pop { left: 0; max-height: 70vh; overflow-y: auto; }
   .choix .pop button[aria-current="true"] { background: var(--sarcelle-sombre);
                                             box-shadow: inset 0 0 0 1px var(--accent); }
@@ -89,7 +89,7 @@
   @keyframes va-et-vient { from { left: 0; } to { left: 38px; } }
   .motd { background: var(--variante); border-radius: 8px; padding: 5px 10px; margin: 2px 8px;
           display: flex; gap: 8px; align-items: flex-start; }
-  .motd img { width: 30px; height: 30px; }
+  .motd img { width: 26px; height: 26px; }
   .motd .texte { white-space: pre-wrap; }
 
   /* --- la page --- */
@@ -228,7 +228,7 @@
   /* --- le pied --- */
   .pied { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 10px; }
   .pied .gauche { display: flex; gap: 12px; align-items: flex-end; min-width: 0; }
-  .portrait { width: 44px; height: 44px; margin-top: 4px; object-fit: cover; border-radius: 3px; }
+  .portrait { width: 40px; height: 40px; margin-top: 4px; object-fit: cover; border-radius: 3px; }
   .etat { color: var(--or); white-space: pre-line; overflow: hidden; display: -webkit-box;
           -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .nom-appli { color: var(--or); padding: 0 18px; white-space: nowrap; line-height: 1; }
@@ -236,7 +236,7 @@
   .nom-appli .mouture { font-family: "TeX Gyre Heros Cn", "Liberation Sans Narrow", "Arial Narrow", sans-serif;
                         font-size: 2.2em; font-weight: 700; padding-left: 4px; }
   .somme { display: flex; gap: 6px; align-items: flex-end; justify-content: flex-end; }
-  .somme img { width: 40px; height: 40px; }
+  .somme img { width: 36px; height: 36px; }
   /* Plus gros que le reste du pied : c'est le nombre qu'on vient y lire (Ludo). */
   .dappers { font-size: 1.4em; font-weight: 600; }
   .signature { text-align: center; color: var(--faible); opacity: .75; font-size: .82em; padding: 1px 0 2px; }
