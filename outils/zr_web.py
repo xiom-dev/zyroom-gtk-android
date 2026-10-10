@@ -311,6 +311,12 @@ def vue_journal(cle: str, cherche: str, mode: int) -> str:
                 ItemInfo(sheet=mv.sheet, quality=mv.quality)),
             "jour": jour_precedent is not None and jour != jour_precedent,
             "texte": movements.describe(mv, noms.name),
+            # Ce que copie une ligne choisie (window._texte_du_mouvement).
+            "copie": "  ".join(m for m in (
+                mv.when, sans_parenthese(mv.inv_label),
+                f"{mv.delta:+,}".replace(",", " ") if argent else f"{mv.delta:+d}",
+                "Dappers" if argent else noms.name(mv.sheet),
+                f"Q{mv.quality}" if mv.quality else "") if m),
         })
         jour_precedent = jour
     if not tous:

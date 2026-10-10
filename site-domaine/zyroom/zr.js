@@ -751,7 +751,7 @@ async function montrerJournal() {
   if (cle !== J.cle || !$("#journal-zone")) return;
   // Un tableau sans en-tetes, comme le Gtk.ColumnView du journal.
   $("#journal-zone").innerHTML = '<table class="journal"><tbody>' + v.lignes.map((l) =>
-    '<tr' + (l.jour ? ' class="jour"' : "") + ' title="' + esc(l.texte) + '">'
+    '<tr class="sel' + (l.jour ? " jour" : "") + '" title="' + esc(l.texte) + '" data-copie="' + esc(l.copie) + '">'
     + '<td class="date">' + esc(l.quand) + '</td><td class="faible">' + esc(l.contenant) + "</td>"
     + '<td class="qte ' + (l.delta > 0 ? "plus" : "moins") + '">' + esc(l.quantite) + "</td>"
     + "<td>" + esc(l.nom) + '</td><td class="ico-j"><img loading="lazy" src="' + esc(l.argent ? "symboles/dappers.png" : l.icone) + '" alt=""></td>'
@@ -925,8 +925,9 @@ async function dessinerEffectif() {
       + '<span class="note">départs et grades : date du relevé</span></div>';
     $("#r-liste").innerHTML = legende + (reg.lignes.length ? reg.lignes.map((c, i) => {
       const d = new Date(c.at * 1000);
-      return '<div class="r-ligne' + zebre(i) + '"><span class="r-date">' + deux(d.getDate()) + "/" + deux(d.getMonth() + 1)
-        + " " + deux(d.getHours()) + ":" + deux(d.getMinutes()) + '</span><span class="' + SIGNES[c.sens][1] + '">'
+      const quand = deux(d.getDate()) + "/" + deux(d.getMonth() + 1) + " " + deux(d.getHours()) + ":" + deux(d.getMinutes());
+      return '<div class="r-ligne sel' + zebre(i) + '" data-copie="' + esc(quand + "  " + SIGNES[c.sens][0] + "  " + c.texte) + '"><span class="r-date">'
+        + quand + '</span><span class="' + SIGNES[c.sens][1] + '">'
         + SIGNES[c.sens][0] + "</span><span>" + esc(c.texte) + "</span></div>";
     }).join("") : '<div class="vide">Aucun mouvement depuis le premier relevé. Le registre compare l\'effectif d\'une '
       + "synchronisation à l'autre : l'API ne garde aucune histoire, seule l'application en tient une.</div>");
@@ -934,10 +935,18 @@ async function dessinerEffectif() {
   }
   const mot = norm(R.cherche.trim());
   const groupes = ent.effectif.map(([g, n]) => [g, n.filter((x) => !mot || norm(x).includes(mot))]).filter(([, n]) => n.length);
-  $("#r-liste").innerHTML = groupes.length ? groupes.map(([grade, noms], i) =>
-    '<div class="r-groupe' + zebre(i) + '"><div class="r-titre">' + esc(grade) + " · " + noms.length + '</div><div class="r-noms">'
-    + noms.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div></div>").join("")
-    : '<div class="vide">Aucun membre de ce nom.</div>';
+  // Une rangee par ligne de six noms (page_roster.ROSTER_COLONNES) : c'est
+  // la rangee qui se choisit et se copie, comme dans l'application.
+  const parLigne = 6;
+  $("#r-liste").innerHTML = groupes.length ? groupes.map(([grade, noms], i) => {
+    const titre = grade + " · " + noms.length;
+    let h = '<div class="r-groupe' + zebre(i) + '"><div class="r-titre sel" data-copie="' + esc(titre) + '">' + esc(titre) + "</div>";
+    for (let d = 0; d < noms.length; d += parLigne) {
+      const tranche = noms.slice(d, d + parLigne);
+      h += '<div class="r-noms sel" data-copie="' + esc(tranche.join("  ")) + '">' + tranche.map((x) => "<span>" + esc(x) + "</span>").join("") + "</div>";
+    }
+    return h + "</div>";
+  }).join("") : '<div class="vide">Aucun membre de ce nom.</div>';
 }
 
 // --- La carte d'Atys (page_betes._peindre_carte, page_cartes)
@@ -1582,6 +1591,91 @@ $("#o-enregistrer").addEventListener("click", async () => {
   armerSynchro();
   $("#options").close();
   calculerAlertes(entiteCourante(), false);
+});
+
+// ------------------------------------------------------------ choisir et copier des lignes
+//
+// Le journal et l'Effectif : clic, Ctrl+clic, Maj+clic et glisse pour choisir,
+// Ctrl+C ou clic droit pour copier (window._copier_journal_choisi,
+// page_roster._copier_registre_choisi). Ce qui se copie est le data-copie de
+// la ligne, le texte de l'application.
+
+let ancre = null, glisse = false;
+const ZONES_CHOIX = "#journal-zone, #r-liste";
+const lignesDe = (zone) => [...zone.querySelectorAll(".sel")];
+
+function choisirJusqua(zone, ligne) {
+  const toutes = lignesDe(zone);
+  const [a, b] = [toutes.indexOf(ancre), toutes.indexOf(ligne)].sort((x, y) => x - y);
+  toutes.forEach((l, i) => l.classList.toggle("ligne-choisie", a >= 0 && i >= a && i <= b));
+}
+
+document.addEventListener("mousedown", (ev) => {
+  if (ev.button !== 0) return;
+  const ligne = ev.target.closest(".sel");
+  const zone = ligne && ligne.closest(ZONES_CHOIX);
+  if (!zone) return;
+  if (ev.shiftKey && ancre && zone.contains(ancre)) { choisirJusqua(zone, ligne); ev.preventDefault(); return; }
+  if (ev.ctrlKey || ev.metaKey) { ligne.classList.toggle("ligne-choisie"); ancre = ligne; ev.preventDefault(); return; }
+  lignesDe(zone).forEach((l) => l.classList.remove("ligne-choisie"));
+  ligne.classList.add("ligne-choisie");
+  ancre = ligne;
+  glisse = true;
+});
+document.addEventListener("mouseover", (ev) => {
+  if (!glisse || !ancre) return;
+  const ligne = ev.target.closest(".sel");
+  const zone = ancre.closest(ZONES_CHOIX);
+  if (ligne && zone && zone.contains(ligne)) choisirJusqua(zone, ligne);
+});
+document.addEventListener("mouseup", () => { glisse = false; });
+
+function textesChoisis() {
+  const zone = document.querySelector(ZONES_CHOIX);
+  return zone ? lignesDe(zone).filter((l) => l.classList.contains("ligne-choisie")).map((l) => l.dataset.copie) : [];
+}
+async function copierChoisis(textes) {
+  if (!textes.length) return false;
+  try {
+    await navigator.clipboard.writeText(textes.join("\n"));
+    etat(textes.length + " ligne(s) copiée(s).");
+  } catch (er) { etat("Copie refusée par le navigateur."); }
+  return true;
+}
+document.addEventListener("keydown", (ev) => {
+  if (!(ev.ctrlKey || ev.metaKey) || ev.key.toLowerCase() !== "c") return;
+  if ((ev.target.closest && ev.target.closest("input, textarea")) || String(window.getSelection())) return;
+  const textes = textesChoisis();
+  if (textes.length) { ev.preventDefault(); copierChoisis(textes); }
+});
+document.addEventListener("contextmenu", (ev) => {
+  const ligne = ev.target.closest(".sel");
+  const zone = ligne && ligne.closest(ZONES_CHOIX);
+  if (!zone) return;
+  ev.preventDefault();
+  // Un clic droit hors de ce qui est choisi prend la ligne visee.
+  if (!ligne.classList.contains("ligne-choisie")) {
+    lignesDe(zone).forEach((l) => l.classList.remove("ligne-choisie"));
+    ligne.classList.add("ligne-choisie");
+    ancre = ligne;
+  }
+  const textes = textesChoisis();
+  let m = $("#menu-copie");
+  if (!m) {
+    m = document.createElement("div");
+    m.id = "menu-copie";
+    m.className = "pop menu-objet";
+    document.body.appendChild(m);
+  }
+  m.innerHTML = '<button type="button">' + (textes.length === 1 ? "Copier la ligne" : "Copier les " + textes.length + " lignes") + "</button>";
+  m.hidden = false;
+  m.style.left = Math.min(ev.clientX, window.innerWidth - m.offsetWidth - 8) + "px";
+  m.style.top = Math.min(ev.clientY, window.innerHeight - m.offsetHeight - 8) + "px";
+  m.firstChild.onclick = () => { m.hidden = true; copierChoisis(textes); };
+});
+document.addEventListener("click", (ev) => {
+  const m = $("#menu-copie");
+  if (m && !ev.target.closest("#menu-copie")) m.hidden = true;
 });
 
 // ------------------------------------------------------------ les autres pages
