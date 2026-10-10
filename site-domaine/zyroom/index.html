@@ -50,9 +50,11 @@
   .zoom { font-size: 130%; font-weight: 700; padding: 0 9px; }
   .nav { display: flex; }
   .nav button { border-radius: 0; display: flex; gap: 6px; align-items: center; padding: 4px 10px; }
-  .nav button:first-child { border-radius: 6px 0 0 6px; }
-  .nav button:last-child { border-radius: 0 6px 6px 0; }
-  .nav button + button { border-left: 1px solid var(--bande); }
+  /* Bonus est dans un conteneur (son menu) : on vise les onglets par leur
+     place dans la barre, pas dans leur parent. */
+  .nav > button:first-child { border-radius: 6px 0 0 6px; }
+  .nav > .menu > button { border-radius: 0 6px 6px 0; }
+  .nav > button + button, .nav > .menu > button { border-left: 1px solid var(--bande); }
   .nav button[aria-pressed="true"] { background: var(--sarcelle); }
   .nav img { width: 30px; height: 30px; }
   .menu { position: relative; }
