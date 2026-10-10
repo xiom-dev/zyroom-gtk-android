@@ -485,11 +485,12 @@ function recalculer() {
   const reg = etat.reglages;
   const forer = calcul.mps.filter((m) => m.statut === "rupture" || m.statut === "forer");
   const stop = calcul.mps.filter((m) => m.statut === "stop");
-  $("#n-forer").textContent = forer.length;
-  $("#n-stop").textContent = stop.length;
-  $("#n-toutes").textContent = calcul.mps.length;
-  // Le nombre de pieces, toutes MP inutilisees confondues.
-  $("#n-inutiles").textContent = nf.format(inutilisees().reduce((t, m) => t + m.stock, 0));
+  // Le nombre de pieces en stock de chaque onglet, et non son nombre de lignes.
+  const pieces = (liste) => nf.format(liste.reduce((t, m) => t + m.stock, 0));
+  $("#n-forer").textContent = pieces(forer);
+  $("#n-stop").textContent = pieces(stop);
+  $("#n-toutes").textContent = pieces(calcul.mps);
+  $("#n-inutiles").textContent = pieces(inutilisees());
   $("#n-tenues").textContent = ensembles(false).length;
   $("#n-bijoux").textContent = ensembles(true).length;
   $("#n-recettes").textContent = calcul.recettes.length;
