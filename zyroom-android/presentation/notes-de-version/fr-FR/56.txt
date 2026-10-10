@@ -1,0 +1,3 @@
+* « MP qui pop maintenant » suit le taux d'humidité de l'instant : une MP
+  disparaît du tableau dès que le taux franchit le seuil, et non plus à la
+  fin du cycle. Les comptes à rebours de l'en-tête en font autant.
