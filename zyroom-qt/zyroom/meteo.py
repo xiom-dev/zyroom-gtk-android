@@ -68,6 +68,10 @@ SEUILS = (0.1666, 0.5, 0.8333)
 #: suivant (`CPredictWeather::predictWeather`, ryzomcore).
 TRANSITION_HEURES = 1.0
 
+#: Le pas, en heures d'Atys, de `MeteoAtys.minutes_jusqu_a` : 3,6 secondes
+#: réelles, bien en dessous de la minute qu'on affiche.
+PAS_DU_COMPTE = 0.02
+
 
 def condition_de(valeur: float) -> str:
     """La condition d'un taux d'humidité, selon les seuils du jeu."""
@@ -189,17 +193,56 @@ class MeteoAtys:
         affichait la valeur du cycle jusqu'à la dernière seconde -- « 91 % »
         quand le jeu et la courbe étaient déjà presque à 35 %.
         """
-        par_cycle = {c.cycle: c.value for c in self.cycles_des_primes()}
-        valeur = par_cycle.get(self.cycle_courant)
+        return self.humidite_a(self.heure_atys)
+
+    def humidite_a(self, heure: float, par_cycle: dict | None = None) -> float | None:
+        """Le taux à une heure d'Atys donnée, bascule comprise."""
+        if par_cycle is None:
+            par_cycle = {c.cycle: c.value for c in self.cycles_des_primes()}
+        cycle = int(heure // HEURES_PAR_CYCLE)
+        valeur = par_cycle.get(cycle)
         if valeur is None:
             return None
-        suivante = par_cycle.get(self.cycle_courant + 1)
-        dans = self.heure_atys - self.cycle_courant * HEURES_PAR_CYCLE
+        suivante = par_cycle.get(cycle + 1)
+        dans = heure - cycle * HEURES_PAR_CYCLE
         debut_bascule = HEURES_PAR_CYCLE - TRANSITION_HEURES
         if suivante is not None and dans > debut_bascule:
             part = min(1.0, (dans - debut_bascule) / TRANSITION_HEURES)
             return valeur + (suivante - valeur) * part
         return valeur
+
+    def condition(self) -> str | None:
+        """La condition de l'instant : celle du taux, pas celle du cycle.
+
+        Ce qui sort se lit sur le taux que le jeu affiche. La condition du
+        cycle restait la même jusqu'à la dernière seconde : pendant la
+        dernière heure d'Atys, le taux avait déjà franchi le seuil, et le
+        tableau gardait en vert une Scratch que le jeu ne sortait plus.
+        """
+        taux = self.humidite()
+        if taux is not None:
+            return condition_de(taux)
+        actuelle = self.maintenant()
+        return actuelle.condition if actuelle is not None else None
+
+    def minutes_jusqu_a(self, voulue) -> int | None:
+        """Minutes réelles avant que la condition du taux satisfasse
+        `voulue` (une fonction condition -> bool) ; `None` au-delà de la
+        prévision.
+
+        Le compte suit le taux, bascule comprise : compter jusqu'au début
+        du cycle suivant annonçait le changement jusqu'à trois minutes trop
+        tard.
+        """
+        par_cycle = {c.cycle: c.value for c in self.cycles_des_primes()}
+        heure = self.heure_atys
+        while True:
+            taux = self.humidite_a(heure, par_cycle)
+            if taux is None:
+                return None
+            if voulue(condition_de(taux)):
+                return int((heure - self.heure_atys) * MINUTES_PAR_HEURE_ATYS)
+            heure += PAS_DU_COMPTE
 
     def minutes_avant(self, cycle: int) -> int:
         """Minutes réelles avant le début d'un cycle à venir.

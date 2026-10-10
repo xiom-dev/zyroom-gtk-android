@@ -873,5 +873,36 @@ class LeTauxDeLInstant(unittest.TestCase):
         self.assertEqual("worst", meteo.condition_de(0.91))
 
 
+class LaConditionSuitLeTaux(unittest.TestCase):
+    """Ce qui sort se lit sur le taux de l'instant, pas sur le cycle.
+
+    Constat de Ludo (10 octobre 2026) : la Scratch, qui sort par temps bon,
+    ne sortait plus dès que le taux passait sous 16,6 %, mais le tableau la
+    gardait en vert jusqu'au bas de la descente — la fin du cycle."""
+
+    def releve(self, heure):
+        C = meteo.Meteo
+        cycles = [C(100, "good", 0.40, ""), C(101, "best", 0.05, ""),
+                  C(102, "best", 0.05, "")]
+        return meteo.MeteoAtys(cycle_courant=int(heure // 3), heure_atys=heure,
+                               saison=2, continents={"sources": cycles})
+
+    def test_avant_la_bascule_c_est_le_cycle(self):
+        self.assertEqual("good", self.releve(300.5).condition())
+
+    def test_le_seuil_franchi_pendant_la_bascule(self):
+        # 40 % -> 5 % sur la derniere heure : sous 16,66 % passe 2,67 h.
+        self.assertEqual("good", self.releve(302.6).condition())
+        self.assertEqual("best", self.releve(302.7).condition())
+
+    def test_le_compte_jusqu_au_seuil(self):
+        # De 300 h au franchissement, 302,67 h : 8 minutes reelles.
+        r = self.releve(300.0)
+        self.assertEqual(8, r.minutes_jusqu_a(lambda c: c != "good"))
+
+    def test_au_dela_de_la_prevision(self):
+        self.assertIsNone(self.releve(300.0).minutes_jusqu_a(lambda c: c == "worst"))
+
+
 if __name__ == "__main__":
     unittest.main()

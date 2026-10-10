@@ -153,13 +153,17 @@ def noter_meteo(releve) -> None:
         "cycle_courant": releve.cycle_courant,
         "saison": releve.saison,
         "cycles": {c.cycle: c.condition for c in cycles},
+        # Les taux aussi : une prise faite pendant la bascule se date sur
+        # le taux de l'instant, pas sur la condition du cycle.
+        "valeurs": {c.cycle: c.value for c in cycles},
     }
     with open(_f("meteo.jsonl"), "a", encoding="utf-8") as fh:
         fh.write(json.dumps(ligne, ensure_ascii=False) + "\n")
 
 
 def _carnet() -> tuple:
-    """(condition par cycle, saison par cycle de référence, ancres du temps).
+    """(condition par cycle, saison par cycle de référence, ancres du temps,
+    taux par cycle).
 
     **Toutes les ancres, et non la dernière.** L'heure d'Atys ne fait pas
     exactement trois minutes réelles : mesurée sur le carnet, elle dérive
@@ -170,10 +174,11 @@ def _carnet() -> tuple:
     désormais depuis le relevé le plus proche d'elle.
     """
     conditions, reperes, ancres = {}, [], []
+    valeurs = {}
     try:
         lignes = open(_f("meteo.jsonl"), encoding="utf-8").read().splitlines()
     except OSError:
-        return {}, [], None
+        return {}, [], None, {}
     for brut in lignes:
         try:
             d = json.loads(brut)
@@ -181,11 +186,13 @@ def _carnet() -> tuple:
             continue
         for c, cond in d["cycles"].items():
             conditions[int(c)] = cond
+        for c, valeur in d.get("valeurs", {}).items():
+            valeurs[int(c)] = float(valeur)
         if 0 <= d.get("saison", -1) < 4:
             reperes.append((int(d["cycle_courant"]), int(d["saison"])))
         ancres.append((datetime.datetime.fromisoformat(d["releve_a"]),
                        float(d["heure_atys"])))
-    return conditions, reperes, ancres
+    return conditions, reperes, ancres, valeurs
 
 
 # --------------------------------------------------------- le journal du jeu
@@ -267,7 +274,7 @@ def _matieres() -> dict:
 
 def prises() -> list:
     """Les prises du journal, chacune ramenée à une case du relevé."""
-    conditions, reperes, ancres = _carnet()
+    conditions, reperes, ancres, valeurs = _carnet()
     if not ancres:
         return []
     mats = _matieres()
@@ -325,8 +332,19 @@ def prises() -> list:
             quand = trouvee
         depart, heure0 = min(
             ancres, key=lambda a: abs((a[0] - quand).total_seconds()))
-        cycle = int((heure0 + (quand - depart).total_seconds() / 180) // 3)
+        heure = heure0 + (quand - depart).total_seconds() / 180
+        cycle = int(heure // 3)
         condition, saison = conditions.get(cycle), saison_pres_de(cycle)
+        # Le taux de l'instant quand le carnet le connait : pendant la
+        # derniere heure d'Atys d'un cycle, il a deja glisse vers le suivant.
+        if cycle in valeurs and cycle + 1 in valeurs:
+            dans = heure - cycle * meteo.HEURES_PAR_CYCLE
+            debut = meteo.HEURES_PAR_CYCLE - meteo.TRANSITION_HEURES
+            taux = valeurs[cycle]
+            if dans > debut:
+                taux += (valeurs[cycle + 1] - taux) * min(
+                    1.0, (dans - debut) / meteo.TRANSITION_HEURES)
+            condition = meteo.condition_de(taux)
         if condition is None or not 0 <= saison < 4:
             continue            # hors du carnet : on n'approxime pas
         sortie.append("|".join((zone, SAISONS_PAGE[saison],

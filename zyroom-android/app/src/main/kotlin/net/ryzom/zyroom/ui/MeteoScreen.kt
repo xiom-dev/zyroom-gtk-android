@@ -60,6 +60,7 @@ import net.ryzom.zyroom.model.MINUTES_PAR_CYCLE
 import net.ryzom.zyroom.model.Meteo
 import net.ryzom.zyroom.model.MeteoAtys
 import net.ryzom.zyroom.model.conditionDe
+import net.ryzom.zyroom.model.prochaineCondition
 import net.ryzom.zyroom.model.tauxDeLInstant
 import net.ryzom.zyroom.model.nomSaison
 import net.ryzom.zyroom.model.texteCondition
@@ -213,7 +214,7 @@ private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
     val taux = releve.tauxDeLInstant(cycles) ?: maintenant.value
     val conditionDuTaux = conditionDe(taux)
     if (compact) {
-        EnTeteCompact(releve, maintenant, cycles, taux)
+        EnTeteCompact(releve, cycles, taux)
         return
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -231,26 +232,25 @@ private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
             )
         }
         // On ne montre que les bascules, non les cycles un par un : ce qu'on
-        // veut savoir, c'est quand ça change.
-        val suite = cycles.filter { it.cycle > releve.cycleCourant }
-        val prochain = suite.firstOrNull { it.condition != maintenant.condition }
-        prochain?.let {
+        // veut savoir, c'est quand ça change. Comptées sur le taux, comme
+        // le jeu, et non sur le début du cycle.
+        val prochain = releve.prochaineCondition(cycles) { it != conditionDuTaux }
+        prochain?.let { (minutes, condition) ->
             Text(
-                "${texteCondition(it.condition)} dans " +
-                    duree(minutesAvant(releve, it.cycle)),
+                "${texteCondition(condition)} dans " + duree(minutes),
                 style = MaterialTheme.typography.bodyMedium,
-                color = couleurCondition(it.condition),
+                color = couleurCondition(condition),
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
         // La fenêtre excellente, seulement si elle n'est pas déjà annoncée
         // au-dessus : quand la prochaine bascule est justement celle-là, les
         // deux lignes disaient mot pour mot la même chose.
-        val meilleur = suite.firstOrNull { it.condition == "best" }
-        if (maintenant.condition != "best" && meilleur != null &&
-            meilleur.cycle != prochain?.cycle) {
+        val meilleur = releve.prochaineCondition(cycles) { it == "best" }
+        if (conditionDuTaux != "best" && meilleur != null &&
+            meilleur != prochain) {
             Text(
-                "Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
+                "Excellente dans " + duree(meilleur.first),
                 style = MaterialTheme.typography.bodyMedium,
                 color = couleurCondition("best"),
                 modifier = Modifier.padding(top = 2.dp),
@@ -262,12 +262,11 @@ private fun EnTeteMeteo(releve: MeteoAtys, compact: Boolean = false) {
 
 /** Tout sur une ligne : la condition, la bascule qui vient, la fenêtre excellente. */
 @Composable
-private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Meteo>,
+private fun EnTeteCompact(releve: MeteoAtys, cycles: List<Meteo>,
                           taux: Double) {
     val conditionDuTaux = conditionDe(taux)
-    val suite = cycles.filter { it.cycle > releve.cycleCourant }
-    val prochain = suite.firstOrNull { it.condition != maintenant.condition }
-    val meilleur = suite.firstOrNull { it.condition == "best" }
+    val prochain = releve.prochaineCondition(cycles) { it != conditionDuTaux }
+    val meilleur = releve.prochaineCondition(cycles) { it == "best" }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -282,20 +281,19 @@ private fun EnTeteCompact(releve: MeteoAtys, maintenant: Meteo, cycles: List<Met
             fontWeight = FontWeight.Bold,
             color = couleurCondition(conditionDuTaux),
         )
-        prochain?.let {
+        prochain?.let { (minutes, condition) ->
             Text(
-                "  →  ${texteCondition(it.condition)} dans " +
-                    duree(minutesAvant(releve, it.cycle)),
+                "  →  ${texteCondition(condition)} dans " + duree(minutes),
                 style = MaterialTheme.typography.bodyMedium,
-                color = couleurCondition(it.condition),
+                color = couleurCondition(condition),
             )
         }
         // Tue dans l'œuf la répétition : quand la prochaine bascule est la
         // fenêtre excellente, les deux annonces se valent mot pour mot.
-        if (maintenant.condition != "best" && meilleur != null &&
-            meilleur.cycle != prochain?.cycle) {
+        if (conditionDuTaux != "best" && meilleur != null &&
+            meilleur != prochain) {
             Text(
-                "   ✦ Excellente dans " + duree(minutesAvant(releve, meilleur.cycle)),
+                "   ✦ Excellente dans " + duree(meilleur.first),
                 style = MaterialTheme.typography.bodyMedium,
                 color = couleurCondition("best"),
             )
@@ -344,8 +342,12 @@ private fun CeQuiSort(releve: MeteoAtys) {
     // le tableau qu'on consulte en jouant. Le fond teinté est porté par la
     // rangée et non par chaque zone — l'une est souvent plus courte que
     // l'autre, et deux fonds séparés laissaient un trou sous la plus courte.
+    // La condition du taux, et non celle du cycle : pendant la derniere
+    // heure d'Atys, le taux a deja franchi le seuil.
+    val condition = releve.tauxDeLInstant(cyclesDesPrimes(releve))
+        ?.let { conditionDe(it) } ?: maintenant.condition
     val zones = ZONES.map {
-        it to Forage.sortiesDe(releve.saison, it, maintenant.condition, dev)
+        it to Forage.sortiesDe(releve.saison, it, condition, dev)
     }
     zones.chunked(2).forEachIndexed { rang, rangee ->
         Row(
@@ -523,17 +525,6 @@ private fun couleurCondition(condition: String) = when (condition.lowercase()) {
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
-
-/**
- * Minutes réelles avant le début d'un cycle à venir.
- *
- * Compter les cycles pleins surestimait l'attente de neuf minutes au pire :
- * quand on regarde, on est déjà quelque part **dans** le cycle en cours, et
- * l'API dit où par les décimales de son heure d'Atys.
- */
-private fun minutesAvant(releve: MeteoAtys, cycle: Int): Int =
-    ((cycle - releve.cycleCourant - releve.avancementDuCycle) * MINUTES_PAR_CYCLE)
-        .toInt().coerceAtLeast(0)
 
 /** « 27 min », « 1 h 12 » — un compte à rebours se lit, pas se calcule. */
 private fun duree(minutes: Int): String = when {

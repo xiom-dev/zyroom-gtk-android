@@ -188,7 +188,10 @@ class ProchaineSortie(unittest.TestCase):
         """Une fausse fenêtre, avec juste ce que la méthode lit."""
         import types
         from zyroom import meteo as m
-        cycles = [m.Meteo(cycle=cycle + i, condition=c, value=0.5,
+        # Un taux au milieu de la bande de chaque condition : ce qui sort se
+        # lit sur le taux de l'instant, plus sur la condition du cycle.
+        taux = {"best": 0.08, "good": 0.33, "bad": 0.66, "worst": 0.92}
+        cycles = [m.Meteo(cycle=cycle + i, condition=c, value=taux[c],
                           text="uiRainy") for i, c in enumerate(conditions)]
         releve = m.MeteoAtys(cycle_courant=cycle, heure_atys=cycle * 3.0,
                              saison=m.SAISONS.index("ETE"),
@@ -220,8 +223,11 @@ class ProchaineSortie(unittest.TestCase):
                    for lieu in self.lieux if lieu in m.ZONES):
                 attendu = rang * m.MINUTES_PAR_CYCLE
                 break
-        self.assertEqual(attendu, minutes)
         self.assertIsNotNone(attendu, "aucun créneau dans la prévision d'essai")
+        # Le taux franchit le seuil pendant la derniere heure d'Atys du cycle
+        # d'avant : trois minutes reelles au plus avant le debut du cycle.
+        self.assertTrue(attendu - m.MINUTES_PAR_HEURE_ATYS <= minutes < attendu,
+                        (attendu, minutes))
 
     def test_rien_dans_la_prévision_ne_s_invente_pas(self):
         page = self._page(["good"] * 40)

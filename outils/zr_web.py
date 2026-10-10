@@ -502,21 +502,22 @@ def meteo_vue() -> str:
     out["recharger"] = meteo.heures_restantes(r) < 40.0 * 0.85 + meteo.HEURES_PAR_CYCLE
     m = r.maintenant()
     if m is not None:
-        suite = [c for c in r.cycles_des_primes() if c.cycle > r.cycle_courant]
-        prochain = next((c for c in suite if c.condition != m.condition), None)
+        # Condition et bascule sur le taux de l'instant, comme le jeu.
+        courante = r.condition()
+        reste = r.minutes_jusqu_a(lambda c: c != courante)
         taux = r.humidite()
         if taux is None:
             taux = m.value
         out["entete"] = {
             "taux": f"{meteo.condition_de(taux)} {int(taux * 100)} %",
-            "pendant": meteo.duree(r.minutes_avant(prochain.cycle)) if prochain else "",
+            "pendant": meteo.duree(reste) if reste is not None else "",
             "decor": f"{meteo.texte_meteo(m.text).lower()}, {meteo.nom_saison(r.saison).lower()}, "
                      f"{r.heure_du_jour} h sur Atys, {'nuit' if r.nuit else 'jour'}",
         }
         zones = []
         for zone in meteo.ZONES:
             blocs = []
-            for qualite, groupes in meteo.sorties_de(r.saison, zone, m.condition):
+            for qualite, groupes in meteo.sorties_de(r.saison, zone, courante):
                 nom = meteo.QUALITE_GISEMENT.get(qualite, "")
                 blocs.append({
                     "mot": f"{meteo.mot_qualite(qualite)} ({sum(len(x) for x in groupes.values())})",
@@ -544,11 +545,14 @@ def gisement(adresse: str) -> str:
     maintenant = apres = ""
     if m is not None and any(lieu in meteo.ZONES for lieu in lieux):
         actifs = {lieu for lieu in lieux if lieu not in meteo.ZONES
-                  or meteo.sort_en(attendue, lieu, famille, matiere, r.saison, m.condition)}
+                  or meteo.sort_en(attendue, lieu, famille, matiere, r.saison, r.condition())}
         dehors = [lieu for lieu in lieux if lieu not in actifs]
         sortent = len(lieux) - len(dehors)
-        valeurs = {"condition": meteo.texte_condition(m.condition),
-                   "taux": round(m.value * 100), "sortent": sortent, "total": len(lieux)}
+        taux = r.humidite()
+        if taux is None:
+            taux = m.value
+        valeurs = {"condition": meteo.texte_condition(meteo.condition_de(taux)),
+                   "taux": round(taux * 100), "sortent": sortent, "total": len(lieux)}
         maintenant = (("En ce moment — %(condition)s, %(taux)d %% : aucun des %(total)d gisements ne sort."
                        if not sortent else
                        "En ce moment — %(condition)s, %(taux)d %% : un gisement sur %(total)d."
@@ -556,14 +560,10 @@ def gisement(adresse: str) -> str:
                        "En ce moment — %(condition)s, %(taux)d %% : %(sortent)d gisements sur %(total)d.")
                       % valeurs + ("  Les autres sont en gris." if dehors and sortent else ""))
         if not sortent:
-            minutes = None
             zones = [lieu for lieu in lieux if lieu in meteo.ZONES]
-            for c in r.cycles_des_primes():
-                if c.cycle > r.cycle_courant and any(
-                        meteo.sort_en(attendue, lieu, famille, matiere, r.saison, c.condition)
-                        for lieu in zones):
-                    minutes = r.minutes_avant(c.cycle)
-                    break
+            minutes = r.minutes_jusqu_a(lambda cond: any(
+                meteo.sort_en(attendue, lieu, famille, matiere, r.saison, cond)
+                for lieu in zones))
             apres = (f"Prochaine fois dans {meteo.duree(minutes)} — {meteo.moment_du_changement(minutes)}."
                      if minutes is not None else
                      "Pas avant six heures — au-delà, le jeu ne dit plus le temps qu'il fera.")

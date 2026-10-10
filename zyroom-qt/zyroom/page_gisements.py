@@ -68,7 +68,7 @@ def gisements_actifs(page, qualite: str, famille: str, matiere: str,
     actifs = {lieu for lieu in lieux
               if lieu not in meteo.ZONES
               or meteo.sort_en(attendue, lieu, famille, matiere,
-                               releve.saison, actuelle.condition)}
+                               releve.saison, releve.condition())}
     return actifs, actuelle
 
 
@@ -85,14 +85,11 @@ def prochaine_sortie(page, qualite: str, famille: str, matiere: str,
         return None
     attendue = _QUALITE.get(qualite)
     zones = [lieu for lieu in lieux if lieu in meteo.ZONES]
-    for cycle in releve.cycles_des_primes():
-        if cycle.cycle <= releve.cycle_courant:
-            continue
-        if any(meteo.sort_en(attendue, lieu, famille, matiere,
-                             releve.saison, cycle.condition)
-               for lieu in zones):
-            return releve.minutes_avant(cycle.cycle)
-    return None
+    # Compte sur le taux, bascule comprise, comme le tableau.
+    return releve.minutes_jusqu_a(
+        lambda condition: any(meteo.sort_en(attendue, lieu, famille, matiere,
+                                            releve.saison, condition)
+                              for lieu in zones))
 
 
 def textes_carte(page, qualite: str, famille: str, matiere: str, lieux: list):
@@ -107,6 +104,10 @@ def textes_carte(page, qualite: str, famille: str, matiere: str, lieux: list):
         return None, "", ""
     dehors = [lieu for lieu in lieux if lieu not in actifs]
     sortent = len(lieux) - len(dehors)
+    # Le taux de l'instant et sa condition, comme l'en-tete de la meteo.
+    taux = _releve_de(page).humidite()
+    if taux is None:
+        taux = actuelle.value
     maintenant = (
         (_("En ce moment — %(condition)s, %(taux)d %% : aucun des "
            "%(total)d gisements ne sort.") if not sortent
@@ -114,8 +115,8 @@ def textes_carte(page, qualite: str, famille: str, matiere: str, lieux: list):
                 "un gisement sur %(total)d.") if sortent == 1
          else _("En ce moment — %(condition)s, %(taux)d %% : "
                 "%(sortent)d gisements sur %(total)d."))
-        % {"condition": meteo.texte_condition(actuelle.condition),
-           "taux": round(actuelle.value * 100),
+        % {"condition": meteo.texte_condition(meteo.condition_de(taux)),
+           "taux": round(taux * 100),
            "sortent": sortent, "total": len(lieux)}
         + (_("  Les autres sont en gris.") if dehors and sortent else ""))
     apres = ""

@@ -506,8 +506,10 @@ class PageMeteo(QWidget):
             # faisaient lire la liste comme une prevision.
             self._pop_titre.setText(_("MP qui pop maintenant"))
             for rang, zone in enumerate(meteo.ZONES):
+                # La condition du taux, et non celle du cycle : pendant la
+                # derniere heure d'Atys, le taux a deja franchi le seuil.
                 blocs = meteo.sorties_de(releve.saison, zone,
-                                         actuelle.condition)
+                                         releve.condition())
                 pile = self._pop_colonnes[rang % COLONNES_POP]
                 titre = self._pop_titres[rang % COLONNES_POP]
                 titre.setText(zone)
@@ -524,10 +526,9 @@ class PageMeteo(QWidget):
         maintenant = releve.maintenant()
         if maintenant is None:
             return
-        suite = [c for c in releve.cycles_des_primes()
-                 if c.cycle > releve.cycle_courant]
-        prochain = next((c for c in suite
-                         if c.condition != maintenant.condition), None)
+        # La bascule suivante se compte sur le taux, comme le jeu.
+        courante = releve.condition()
+        reste = releve.minutes_jusqu_a(lambda c: c != courante)
 
         # Chaque morceau est echappe pour lui-meme, et le gras pose ensuite :
         # echapper la phrase entiere puis remettre les balises a la main
@@ -566,12 +567,10 @@ class PageMeteo(QWidget):
             # suivant, et sa condition avec lui.
             gras(f"{meteo.condition_de(taux)} {int(taux * 100)} %"),
         ]
-        if prochain is not None:
+        if reste is not None:
             # Le temps qui reste, et non le nom de la condition d'apres :
             # "pendant 4 min" repond a "est-ce que j'ai le temps ?".
-            morceaux.append(gras(
-                _(" pendant %s")
-                % meteo.duree(releve.minutes_avant(prochain.cycle))))
+            morceaux.append(gras(_(" pendant %s") % meteo.duree(reste)))
         morceaux.append(html.escape(
             f"   —   {meteo.texte_meteo(maintenant.text).lower()}, "
             f"{meteo.nom_saison(releve.saison).lower()}, "
@@ -596,7 +595,7 @@ class PageMeteo(QWidget):
         """
         connues = {q for zone in meteo.ZONES
                    for q, _g in meteo.sorties_de(releve.saison, zone,
-                                                 actuelle.condition)}
+                                                 releve.condition())}
         return [q for q in meteo.QUALITES if q in connues]
 
     @staticmethod

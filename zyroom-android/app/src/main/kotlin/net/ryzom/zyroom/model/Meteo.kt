@@ -112,10 +112,15 @@ fun conditionDe(valeur: Double): String = when {
  * valeur du cycle jusqu'à la dernière seconde — « 91 % » quand le jeu et la
  * courbe étaient déjà presque à 35 %.
  */
-fun MeteoAtys.tauxDeLInstant(cycles: List<Meteo>): Double? {
-    val valeur = cycles.firstOrNull { it.cycle == cycleCourant }?.value ?: return null
-    val suivante = cycles.firstOrNull { it.cycle == cycleCourant + 1 }?.value
-    val dans = heureAtys - cycleCourant * HEURES_PAR_CYCLE
+fun MeteoAtys.tauxDeLInstant(cycles: List<Meteo>): Double? =
+    tauxA(heureAtys, cycles.associate { it.cycle to it.value })
+
+/** Le taux à une heure d'Atys donnée, bascule comprise. */
+private fun tauxA(heure: Double, parCycle: Map<Int, Double>): Double? {
+    val cycle = (heure / HEURES_PAR_CYCLE).toInt()
+    val valeur = parCycle[cycle] ?: return null
+    val suivante = parCycle[cycle + 1]
+    val dans = heure - cycle * HEURES_PAR_CYCLE
     val debutBascule = HEURES_PAR_CYCLE - TRANSITION_HEURES
     if (suivante != null && dans > debutBascule) {
         val part = ((dans - debutBascule) / TRANSITION_HEURES).coerceAtMost(1.0)
@@ -123,6 +128,33 @@ fun MeteoAtys.tauxDeLInstant(cycles: List<Meteo>): Double? {
     }
     return valeur
 }
+
+/**
+ * La prochaine fois que la condition du taux satisfait `voulue` : les
+ * minutes réelles d'attente et la condition atteinte, ou `null` au-delà de
+ * la prévision.
+ *
+ * Le compte suit le taux, bascule comprise. Compter jusqu'au début du cycle
+ * suivant annonçait le changement jusqu'à trois minutes trop tard : le
+ * 10 octobre 2026, la Scratch ne sortait déjà plus sous 16,6 % que le
+ * tableau la gardait encore.
+ */
+fun MeteoAtys.prochaineCondition(cycles: List<Meteo>,
+                                 voulue: (String) -> Boolean): Pair<Int, String>? {
+    val parCycle = cycles.associate { it.cycle to it.value }
+    var heure = heureAtys
+    while (true) {
+        val taux = tauxA(heure, parCycle) ?: return null
+        val condition = conditionDe(taux)
+        if (voulue(condition)) {
+            return ((heure - heureAtys) * MINUTES_PAR_HEURE_ATYS).toInt() to condition
+        }
+        heure += PAS_DU_COMPTE
+    }
+}
+
+/** Le pas de `prochaineCondition`, en heures d'Atys : 3,6 secondes réelles. */
+private const val PAS_DU_COMPTE = 0.02
 
 /**
  * Minutes réelles pour une heure d'Atys.
