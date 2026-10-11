@@ -635,10 +635,10 @@ function tableInutiles(liste, boss) {
         + '<td class="faible">' + m.piles.map(([q, n]) => "Q" + q + " ×" + nombre(n)).join(" · ")
         + "</td></tr>").join("");
   }).join("");
-  return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP</th>'
+  return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP' + VIDE + "</th>"
     // Sous le titre, le total des lignes affichees, comme dans les autres onglets.
     + '<th class="n">Stock<br><span class="total">'
-    + nombre(liste.reduce((t, m) => t + m.stock, 0)) + "</span></th><th>Qualités</th></tr></thead><tbody>" + lignes
+    + nombre(liste.reduce((t, m) => t + m.stock, 0)) + "</span></th><th>Qualités" + VIDE + "</th></tr></thead><tbody>" + lignes
     + "</tbody></table></div></div>";
 }
 
@@ -788,6 +788,10 @@ function vueMps(quoi) {
 
 // Une MP de forage porte la famille "dxa" dans sa fiche du jeu ; toutes les
 // autres viennent d'animaux.
+// La ligne des totaux, laissee vide sous un titre qui n'en a pas : les
+// titres restent tous sur la meme ligne, au-dessus de celle des totaux.
+const VIDE = '<br><span class="total">&nbsp;</span>';
+
 function deBoss(mp) {
   const fiche = ((noms.mp[mp] || {}).fiches || [])[0];
   return !!fiche && fiche.slice(5, 8) !== "dxa";
@@ -853,7 +857,7 @@ function tableMps(liste, quoi, boss) {
       + (trop ? '<td class="n"><b>' + nombre(enTrop(m)) + "</b></td>" : "")
       + "</tr>";
   }
-  return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP</th><th>État</th>'
+  return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP' + VIDE + "</th><th>État" + VIDE + "</th>"
     + '<th class="n" title="Ce que le hall contient, à la qualité demandée ou plus">Stock'
     + "<br>" + total((m) => m.stock) + "</th>"
     + '<th class="n" title="Crafts de toutes les recettes qui utilisent cette MP, faits ensemble">Crafts<br>possibles<br>'
