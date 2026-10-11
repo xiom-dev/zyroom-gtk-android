@@ -498,7 +498,9 @@ function badge(statut, boss) {
 function recalculer() {
   // Un joueur recoit les resultats tout faits : les recettes ne quittent
   // pas le serveur (mp.php).
-  calcul = etat.resultats ? { recettes: [], mps: etat.resultats } : calculer();
+  // Un editeur autre que Xiom recoit en plus le resume de chaque recette,
+  // sans sa composition.
+  calcul = etat.resultats ? { recettes: etat.resumes || [], mps: etat.resultats } : calculer();
   const reg = etat.reglages;
   const forer = calcul.mps.filter((m) => m.statut === "rupture" || m.statut === "forer");
   const stop = calcul.mps.filter((m) => m.statut === "stop");
@@ -895,16 +897,20 @@ function tableMps(liste, quoi, boss) {
 
 function vueRecettes() {
   const ORDRE = { rupture: 0, forer: 1, ok: 2 };
+  // Sans la composition (editeur autre que Xiom) : ni depliage, et le
+  // filtre et la recherche ne voient que le nom et la MP qui bloque.
+  const proprietaire = Boolean(etat.proprietaire);
+  const mpsDe = (x) => x.besoins ? x.besoins.map((b) => b.mp) : x.bloque ? [x.bloque] : [];
   const liste = calcul.recettes.filter((x) =>
-    (!eco || x.besoins.some((b) => b.mp.split("_")[1] === eco))
-    && retenue(x.r.nom + " " + x.besoins.map((b) => ((noms.mp[b.mp] || {}).nom || "")
-                                    + " " + b.mp.replace(/_/g, " ")).join(" ")))
+    (!eco || mpsDe(x).some((mp) => mp.split("_")[1] === eco))
+    && retenue(x.r.nom + " " + mpsDe(x).map((mp) => ((noms.mp[mp] || {}).nom || "")
+                                    + " " + mp.replace(/_/g, " ")).join(" ")))
     .sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut] || a.possibles - b.possibles
                     || a.r.nom.localeCompare(b.r.nom));
   const lignes = liste.map((x) => {
-    const ouverte = ouvertes.has(x.r.id);
-    let html = '<tr class="recette' + (ouverte ? " ouverte" : "") + '" data-id="'
-      + esc(x.r.id) + '"><td>' + esc(x.r.nom) + '<div class="faible">'
+    const ouverte = proprietaire && ouvertes.has(x.r.id);
+    let html = "<tr" + (proprietaire ? ' class="recette' + (ouverte ? " ouverte" : "") + '" data-id="'
+      + esc(x.r.id) + '"' : "") + "><td>" + esc(x.r.nom) + '<div class="faible">'
       + esc(noms.plans[x.r.plan] || "Plan " + x.r.plan) + "</div></td>"
       + "<td>" + badge(x.statut) + "</td>"
       + '<td class="n"><b>' + nombre(x.possibles) + "</b> / " + x.objectif + "</td>"
@@ -1005,7 +1011,9 @@ function brancherReglages() {
       const texte = new TextDecoder("windows-1252").decode(await f.arrayBuffer());
       const r = lireKc(f.name, texte);
       if (!r) { lignes.push("<li class=\"inconnue\">" + esc(f.name) + " : pas de recette</li>"); continue; }
-      const existe = etat.recettes.find((e) => e.id === r.id);
+      // Sans la composition, le serveur garde lui-meme les reglages propres.
+      const existe = (etat.recettes || (etat.resumes || []).map((x) => x.r))
+        .find((e) => e.id === r.id);
       if (existe) {
         // On garde ce qui a ete regle sur le site pour cette recette.
         for (const cle of ["objectif", "qualite"]) if (existe[cle] != null) r[cle] = existe[cle];

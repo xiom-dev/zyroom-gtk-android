@@ -20,6 +20,10 @@
 // calculait dans le navigateur, et recevait donc les recettes. Pour un joueur,
 // le calcul se fait ici, et seuls les totaux par MP partent.
 //
+// **La composition des recettes ne sort que pour Xiom** (Ludo, 12 octobre
+// 2026). Les autres editeurs recoivent, par recette, son nom, son etat, ses
+// crafts possibles et la MP qui bloque -- calcules ici, comme pour un joueur.
+//
 // **Un mot de passe par personne pour ecrire.** Le jeton porte le nom de celui qui l'a
 // recu : chaque modification est signee, et le journal dit qui a change
 // quoi. Retirer quelqu'un de la liste ferme sa porte aussitot, meme si son
@@ -32,6 +36,8 @@
 declare(strict_types=1);
 
 const UTILISATEURS = '__UTILISATEURS__';
+// Le seul editeur qui recoit la composition des recettes.
+const PROPRIETAIRE = 'Xiom';
 // L'empreinte du mot de passe de lecture, commun a la guilde.
 const LECTURE = '__LECTURE__';
 const SEL = '__SEL__';
@@ -219,36 +225,74 @@ function stock(): array
     return $stock;
 }
 
+// La quantite d'une MP en qualite $qmin ou plus, toutes fiches.
+function utile_mp(array $noms, array $stock, string $mp, int $qmin): int
+{
+    $total = 0;
+    foreach ($noms[$mp]['fiches'] ?? [] as $f) {
+        foreach ($stock[$f] ?? [] as [$q, $n]) {
+            if ($q >= $qmin) {
+                $total += $n;
+            }
+        }
+    }
+    return $total;
+}
+
+// Une meme MP dans deux emplacements : les quantites s'additionnent.
+function besoins_de(array $r, array $reg): array
+{
+    $qc = (int) ($r['qualite'] ?? $reg['qualite']);
+    $parMp = [];
+    foreach ($r['pieces'] as $p) {
+        $min = max($qc, (int) (((array) ($r['minimums'] ?? []))[$p['mp']] ?? 0));
+        $parMp[$p['mp']] ??= ['n' => 0, 'min' => $min];
+        $parMp[$p['mp']]['n'] += (int) $p['n'];
+    }
+    return $parMp;
+}
+
+// Par recette, ce que voit un editeur autre que Xiom : ni pieces ni
+// qualites, seulement le resultat. Meme calcul que la page.
+function resumes(array $etat): array
+{
+    $noms = (lire(NOMS) ?? [])['mp'] ?? [];
+    $stock = stock();
+    $reg = $etat['reglages'];
+    $sortie = [];
+    foreach ($etat['recettes'] as $r) {
+        $objectif = (int) ($r['objectif'] ?? $reg['objectif']);
+        $possibles = PHP_INT_MAX;
+        $bloque = null;
+        foreach (besoins_de($r, $reg) as $mp => $b) {
+            $crafts = intdiv(utile_mp($noms, $stock, (string) $mp, $b['min']), max(1, $b['n']));
+            if ($crafts < $possibles) {
+                $possibles = $crafts;
+                $bloque = (string) $mp;
+            }
+        }
+        $statut = ($possibles > 0 && $possibles < (int) $reg['rupture']) ? 'rupture'
+            : ($possibles < $objectif ? 'forer' : 'ok');
+        $sortie[] = ['r' => ['id' => $r['id'], 'nom' => $r['nom'], 'plan' => $r['plan']],
+                     'objectif' => $objectif, 'possibles' => $possibles,
+                     'bloque' => $bloque, 'statut' => $statut];
+    }
+    return $sortie;
+}
+
 function resultats(array $etat): array
 {
     $noms = (lire(NOMS) ?? [])['mp'] ?? [];
     $stock = stock();
     $reg = $etat['reglages'];
-    $utile = function (string $mp, int $qmin) use ($noms, $stock): int {
-        $total = 0;
-        foreach ($noms[$mp]['fiches'] ?? [] as $f) {
-            foreach ($stock[$f] ?? [] as [$q, $n]) {
-                if ($q >= $qmin) {
-                    $total += $n;
-                }
-            }
-        }
-        return $total;
-    };
+    $utile = fn(string $mp, int $qmin): int => utile_mp($noms, $stock, $mp, $qmin);
     $presqueVide = fn(int $crafts): bool =>
         $crafts > 0 && $crafts < (int) $reg['rupture'];
 
     $demandes = [];
     foreach ($etat['recettes'] as $r) {
         $objectif = (int) ($r['objectif'] ?? $reg['objectif']);
-        $qc = (int) ($r['qualite'] ?? $reg['qualite']);
-        $parMp = [];
-        foreach ($r['pieces'] as $p) {
-            $min = max($qc, (int) (((array) ($r['minimums'] ?? []))[$p['mp']] ?? 0));
-            $parMp[$p['mp']] ??= ['n' => 0, 'min' => $min];
-            $parMp[$p['mp']]['n'] += (int) $p['n'];
-        }
-        foreach ($parMp as $mp => $b) {
+        foreach (besoins_de($r, $reg) as $mp => $b) {
             $demandes[$mp][] = ['min' => $b['min'], 'besoin' => $objectif * $b['n'],
                                 'parCraft' => $b['n']];
         }
@@ -292,10 +336,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     }
     [$nom, $editeur] = $p;
     $etat = etat();
-    if ($editeur) {
+    if ($editeur && $nom === PROPRIETAIRE) {
         $etat['qui'] = $nom;
         $etat['editeur'] = true;
+        $etat['proprietaire'] = true;
         repond(200, $etat);
+    }
+    if ($editeur) {
+        repond(200, ['version' => 1, 'reglages' => $etat['reglages'],
+                     'resultats' => resultats($etat), 'resumes' => resumes($etat),
+                     'qui' => $nom, 'editeur' => true, 'proprietaire' => false]);
     }
     repond(200, ['version' => 1, 'reglages' => $etat['reglages'],
                  'resultats' => resultats($etat), 'qui' => $nom,
@@ -467,6 +517,24 @@ if ($action === 'recette') {
         if (($existante['id'] ?? '') === $r['id']) {
             $place = $i;
         }
+    }
+    // Un editeur autre que Xiom n'a pas vu les reglages propres de la
+    // recette qu'il remplace : on les garde pour lui.
+    if ($place !== null && $auteur !== PROPRIETAIRE) {
+        $existante = $recettes[$place];
+        foreach (['objectif', 'qualite'] as $cle) {
+            if (isset($existante[$cle])) {
+                $r[$cle] = $existante[$cle];
+            }
+        }
+        $mps = array_column($r['pieces'], 'mp');
+        $minimums = [];
+        foreach ((array) ($existante['minimums'] ?? []) as $mp => $q) {
+            if (in_array($mp, $mps, true)) {
+                $minimums[$mp] = $q;
+            }
+        }
+        $r['minimums'] = (object) $minimums;
     }
     if ($place === null) {
         if (count($recettes) >= MAX_RECETTES) {
