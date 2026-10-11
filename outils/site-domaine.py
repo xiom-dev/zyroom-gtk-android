@@ -186,7 +186,7 @@ def main() -> int:
     # Les icones de la Lune restent avec la page, dans le sous-site. Celles
     # de la racine sont le X de l'accueil, ecrites a la main : ne pas les
     # ecraser.
-    for icone in ("favicon.png", "favicon-32.png"):
+    for icone in ("favicon.png", "favicon-32.png", "apercu.png"):
         shutil.copy2(os.path.join(PAGES, icone), os.path.join(dossier, icone))
     # Le .htaccess reste a la racine : il vaut pour tout le site, sous-dossiers
     # compris.

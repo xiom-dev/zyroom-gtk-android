@@ -69,7 +69,10 @@ if (jeton_valide((string) ($_COOKIE[COOKIE] ?? ''))) {
     exit;
 }
 
-http_response_code($refuse ? 403 : 401);
+// 200 et non plus 401 tant qu'aucun mot de passe faux n'a ete donne :
+// Discord n'affiche pas l'apercu d'une page qui repond par une erreur. Rien
+// ne change pour la securite, la reponse reste ce formulaire.
+http_response_code($refuse ? 403 : 200);
 header('Content-Type: text/html; charset=utf-8');
 ?>
 <!DOCTYPE html>
@@ -79,6 +82,18 @@ header('Content-Type: text/html; charset=utf-8');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Les applications de La Lune Éternelle</title>
+<!-- Apercu des liens (Discord...) : la meme image que la page sur GitHub -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="La Lune Éternelle">
+<meta property="og:title" content="Les applications de La Lune Éternelle">
+<meta property="og:description" content="Vos inventaires Ryzom et les coffres de la guilde, hors ligne. ZyRoom pour Linux et Windows, V-RyLune pour Android, KipeeCraft pour les recettes de craft.">
+<meta property="og:url" content="https://xiom.be/Lune-eternelle/">
+<meta property="og:image" content="https://xiom.be/Lune-eternelle/apercu.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Les quatre applications côte à côte : ZyRoom-GTK, ZyRoom-Qt, KipeeCraft-GTK et V-RyLune.">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="favicon.png" sizes="512x512" type="image/png">
 <style>
