@@ -134,4 +134,6 @@ if __name__ == "__main__":
     for page in PAGES:
         carte(*page)
         favicon(page[0], page[3])
+    # Les jeux de chat : pas de vignette a faire, chaque jeu a deja la sienne
+    favicon("kat", "\U0001F63A")
     print("apercus ecrits dans", SITE)
