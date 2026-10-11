@@ -210,6 +210,7 @@
     <button type="button" data-onglet="forer" aria-pressed="true">À stocker <span class="compte" id="n-forer"></span></button>
     <button type="button" data-onglet="stop" aria-pressed="false">Ne plus stocker <span class="compte" id="n-stop"></span></button>
     <button type="button" data-onglet="inutiles" aria-pressed="false">MP inutilisées <span class="compte" id="n-inutiles"></span></button>
+    <button type="button" data-onglet="speciales" aria-pressed="false">MP spéciales <span class="compte" id="n-speciales"></span></button>
     <button type="button" data-onglet="toutes" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
     <button type="button" data-onglet="tenues" aria-pressed="false">Armures <span class="compte" id="n-tenues"></span></button>
     <button type="button" data-onglet="bijoux" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
@@ -517,7 +518,8 @@ function recalculer() {
   $("#n-stop").parentElement.title =
     trop(false) + " forées en trop · " + trop(true) + " lootées en trop";
   $("#n-toutes").textContent = pieces(calcul.mps);
-  $("#n-inutiles").textContent = pieces(inutilisees());
+  $("#n-inutiles").textContent = pieces(inutilisees().filter((m) => !m.speciale));
+  $("#n-speciales").textContent = pieces(inutilisees().filter((m) => m.speciale));
   // Armures et bijoux : le nombre d'ensembles complets.
   const complets = (bijoux) => nf.format(ensembles(bijoux).reduce((t, g) => t + g.complets, 0));
   $("#n-tenues").textContent = complets(false);
@@ -548,6 +550,7 @@ function afficher() {
   else if (onglet === "recettes") vue.innerHTML = vueRecettes();
   else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
   else if (onglet === "inutiles") vue.innerHTML = vueInutiles();
+  else if (onglet === "speciales") vue.innerHTML = vueSpeciales();
   else if (onglet === "tenues" || onglet === "bijoux") vue.innerHTML = vueEnsembles(onglet === "bijoux");
   else vue.innerHTML = vueMps(onglet);
 }
@@ -596,6 +599,10 @@ function inutilisees() {
     for (const [q, n] of piles) parQualite.set(q, (parQualite.get(q) || 0) + n);
     liste.push({
       fiche, nom: info[0], anglais: info[1], boss: !foree,
+      // Forees sans ecosysteme (lettre "c") : MP d'OP, cristaux de Maraudeur,
+      // larves de Kitin. Elles ont leur onglet, hors des inutilisees. Les
+      // loots communs des boss (Yubo...) restent des inutilisees.
+      speciale: foree && fiche[8] === "c",
       sorte: (foree ? SORTES_FORAGE : SORTES_BETES)[fiche[9]] || "",
       eco: LETTRES_ECO[fiche[8]] || "", type: typeDuNom(info[0]),
       stock: [...parQualite.values()].reduce((t, n) => t + n, 0),
@@ -621,14 +628,20 @@ function typeDuNom(nom) {
 
 function vueInutiles() {
   const liste = inutilisees().filter((m) =>
-    (!eco || m.eco === eco) && retenue(m.nom + " " + m.anglais));
-  return '<div class="deux">' + tableInutiles(liste.filter((m) => !m.boss), false)
-    + tableInutiles(liste.filter((m) => m.boss), true) + "</div>";
+    !m.speciale && (!eco || m.eco === eco) && retenue(m.nom + " " + m.anglais));
+  return '<div class="deux">' + tableInutiles(liste.filter((m) => !m.boss), "MP forées")
+    + tableInutiles(liste.filter((m) => m.boss), "MP lootées sur les boss") + "</div>";
 }
 
-function tableInutiles(liste, boss) {
-  const titre = "<h2>" + (boss ? "MP lootées sur les boss" : "MP forées") + "</h2>";
-  if (!liste.length) return "<div>" + titre + "<p>Aucune MP inutilisée.</p></div>";
+function vueSpeciales() {
+  const liste = inutilisees().filter((m) =>
+    m.speciale && (!eco || m.eco === eco) && retenue(m.nom + " " + m.anglais));
+  return '<div class="deux">' + tableInutiles(liste, "MP d'OP, cristaux et larves") + "</div>";
+}
+
+function tableInutiles(liste, nom) {
+  const titre = "<h2>" + nom + "</h2>";
+  if (!liste.length) return "<div>" + titre + "<p>Aucune MP.</p></div>";
   const groupes = new Map();
   for (const m of liste) {
     if (!groupes.has(m.type)) groupes.set(m.type, []);
