@@ -506,8 +506,10 @@ function recalculer() {
     trop(false) + " forées en trop · " + trop(true) + " lootées en trop";
   $("#n-toutes").textContent = pieces(calcul.mps);
   $("#n-inutiles").textContent = pieces(inutilisees());
-  $("#n-tenues").textContent = ensembles(false).length;
-  $("#n-bijoux").textContent = ensembles(true).length;
+  // Armures et bijoux : le nombre d'ensembles complets.
+  const complets = (bijoux) => nf.format(ensembles(bijoux).reduce((t, g) => t + g.complets, 0));
+  $("#n-tenues").textContent = complets(false);
+  $("#n-bijoux").textContent = complets(true);
   $("#n-recettes").textContent = calcul.recettes.length;
   const aForer = forer.reduce((t, m) => t + m.manque, 0);
   let quand = "date du relevé inconnue";
@@ -748,7 +750,8 @@ function vueEnsembles(bijoux) {
       + "<td>" + (g.manque.length ? '<div class="manque">Manque : ' + esc(resume(g.manque)) + "</div>" : "")
       + "</td></tr>").join("");
   return '<div class="cadre collant"><table><thead><tr><th>' + (bijoux ? "Parure" : "Armure") + "</th>"
-    + '<th class="n" title="Ensembles complets">Complets</th>'
+    + '<th class="n" title="Ensembles complets">Complets<br><span class="total">'
+    + nombre(liste.reduce((t, g) => t + g.complets, 0)) + "</span></th>"
     + pieces.map(([, nom, n]) => '<th class="n">' + nom + (n > 1 ? " (×" + n + ")" : "") + "</th>").join("")
     + "<th></th></tr></thead><tbody>" + lignes + "</tbody></table></div>";
 }
