@@ -523,7 +523,6 @@ function recalculer() {
   $("#n-tenues").textContent = complets(false);
   $("#n-bijoux").textContent = complets(true);
   $("#n-recettes").textContent = calcul.recettes.length;
-  const aForer = forer.reduce((t, m) => t + m.manque, 0);
   let quand = "date du relevé inconnue";
   if (releve) {
     const min = Math.round((Date.now() - releve) / 60000);
@@ -533,8 +532,7 @@ function recalculer() {
   $("#resume").innerHTML =
     "La Lune Éternelle · " + esc(quand) + " · objectif <b>" + reg.objectif
     + " crafts</b> par recette, <b>" + reg.rupture + " crafts</b> minimum, <b>" + reg.stop
-    + " crafts</b> maximum · <b>"
-    + nombre(aForer) + "</b> MP à forer en tout";
+    + " crafts</b> maximum";
   afficher();
 }
 
