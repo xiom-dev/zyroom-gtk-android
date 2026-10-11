@@ -23,6 +23,8 @@
 // **La composition des recettes ne sort que pour Xiom** (Ludo, 12 octobre
 // 2026). Les autres editeurs recoivent, par recette, son nom, son etat, ses
 // crafts possibles et la MP qui bloque -- calcules ici, comme pour un joueur.
+// Seule exception : les recettes qu'ils ont ajoutees eux-memes (champ
+// "auteur"), dont ils recoivent la composition.
 //
 // **Un mot de passe par personne pour ecrire.** Le jeton porte le nom de celui qui l'a
 // recu : chaque modification est signee, et le journal dit qui a change
@@ -343,8 +345,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         repond(200, $etat);
     }
     if ($editeur) {
+        $siennes = array_values(array_filter(
+            $etat['recettes'], fn($r) => ($r['auteur'] ?? '') === $nom));
         repond(200, ['version' => 1, 'reglages' => $etat['reglages'],
                      'resultats' => resultats($etat), 'resumes' => resumes($etat),
+                     'recettes' => $siennes,
                      'qui' => $nom, 'editeur' => true, 'proprietaire' => false]);
     }
     repond(200, ['version' => 1, 'reglages' => $etat['reglages'],
@@ -518,9 +523,16 @@ if ($action === 'recette') {
             $place = $i;
         }
     }
-    // Un editeur autre que Xiom n'a pas vu les reglages propres de la
-    // recette qu'il remplace : on les garde pour lui.
-    if ($place !== null && $auteur !== PROPRIETAIRE) {
+    // L'auteur ne vient jamais de la page : celui de la recette remplacee,
+    // sinon celui qui l'ajoute (rien pour Xiom, qui voit tout).
+    $avant = $place !== null ? (string) ($recettes[$place]['auteur'] ?? '') : '';
+    $proprio = $place !== null ? $avant : ($auteur !== PROPRIETAIRE ? $auteur : '');
+    if ($proprio !== '') {
+        $r['auteur'] = $proprio;
+    }
+    // Un editeur qui remplace une recette qui n'est pas la sienne n'en a pas
+    // vu les reglages propres : on les garde pour lui.
+    if ($place !== null && $auteur !== PROPRIETAIRE && $avant !== $auteur) {
         $existante = $recettes[$place];
         foreach (['objectif', 'qualite'] as $cle) {
             if (isset($existante[$cle])) {

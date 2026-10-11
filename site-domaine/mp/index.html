@@ -397,25 +397,33 @@ function presqueVide(crafts, reglages) {
   return crafts > 0 && crafts < reglages.rupture;
 }
 
+// Une recette seule : ses besoins, ses crafts possibles, la MP qui bloque.
+function calculerRecette(r, reg) {
+  const objectif = r.objectif ?? reg.objectif;
+  const besoins = besoinsDe(r, reg);
+  let possibles = Infinity, bloque = null;
+  for (const b of besoins) {
+    b.utile = utile(b.mp, b.min);
+    b.crafts = Math.floor(b.utile / b.n);
+    if (b.crafts < possibles) { possibles = b.crafts; bloque = b.mp; }
+  }
+  const statut = presqueVide(possibles, reg) ? "rupture"
+               : possibles < objectif ? "forer" : "ok";
+  return { r, objectif, besoins, possibles, bloque, statut };
+}
+
 function calculer() {
   const reg = etat.reglages;
   const recettes = [];
   const demandes = new Map();   // mp -> [{min, besoin, parCraft, recette}]
   for (const r of etat.recettes) {
-    const objectif = r.objectif ?? reg.objectif;
-    const besoins = besoinsDe(r, reg);
-    let possibles = Infinity, bloque = null;
-    for (const b of besoins) {
-      b.utile = utile(b.mp, b.min);
-      b.crafts = Math.floor(b.utile / b.n);
-      if (b.crafts < possibles) { possibles = b.crafts; bloque = b.mp; }
+    const x = calculerRecette(r, reg);
+    for (const b of x.besoins) {
       if (!demandes.has(b.mp)) demandes.set(b.mp, []);
-      demandes.get(b.mp).push({ min: b.min, besoin: objectif * b.n,
+      demandes.get(b.mp).push({ min: b.min, besoin: x.objectif * b.n,
                                 parCraft: b.n, recette: r });
     }
-    const statut = presqueVide(possibles, reg) ? "rupture"
-                 : possibles < objectif ? "forer" : "ok";
-    recettes.push({ r, objectif, besoins, possibles, bloque, statut });
+    recettes.push(x);
   }
 
   const mps = [];
@@ -499,8 +507,12 @@ function recalculer() {
   // Un joueur recoit les resultats tout faits : les recettes ne quittent
   // pas le serveur (mp.php).
   // Un editeur autre que Xiom recoit en plus le resume de chaque recette,
-  // sans sa composition.
-  calcul = etat.resultats ? { recettes: etat.resumes || [], mps: etat.resultats } : calculer();
+  // sans sa composition -- sauf pour celles qu'il a ajoutees lui-meme.
+  const siennes = (x) => (etat.recettes || []).find((r) => r.id === x.r.id);
+  calcul = etat.resultats
+    ? { recettes: (etat.resumes || []).map((x) => siennes(x) ? calculerRecette(siennes(x), etat.reglages) : x),
+        mps: etat.resultats }
+    : calculer();
   const reg = etat.reglages;
   const forer = calcul.mps.filter((m) => m.statut === "rupture" || m.statut === "forer");
   const stop = calcul.mps.filter((m) => m.statut === "stop");
@@ -897,9 +909,9 @@ function tableMps(liste, quoi, boss) {
 
 function vueRecettes() {
   const ORDRE = { rupture: 0, forer: 1, ok: 2 };
-  // Sans la composition (editeur autre que Xiom) : ni depliage, et le
-  // filtre et la recherche ne voient que le nom et la MP qui bloque.
-  const proprietaire = Boolean(etat.proprietaire);
+  // Sans la composition (recette d'un autre, pour qui n'est pas Xiom) : ni
+  // depliage, et le filtre et la recherche ne voient que le nom et la MP
+  // qui bloque.
   const mpsDe = (x) => x.besoins ? x.besoins.map((b) => b.mp) : x.bloque ? [x.bloque] : [];
   const liste = calcul.recettes.filter((x) =>
     (!eco || mpsDe(x).some((mp) => mp.split("_")[1] === eco))
@@ -908,8 +920,9 @@ function vueRecettes() {
     .sort((a, b) => ORDRE[a.statut] - ORDRE[b.statut] || a.possibles - b.possibles
                     || a.r.nom.localeCompare(b.r.nom));
   const lignes = liste.map((x) => {
-    const ouverte = proprietaire && ouvertes.has(x.r.id);
-    let html = "<tr" + (proprietaire ? ' class="recette' + (ouverte ? " ouverte" : "") + '" data-id="'
+    const depliable = Boolean(x.besoins);
+    const ouverte = depliable && ouvertes.has(x.r.id);
+    let html = "<tr" + (depliable ? ' class="recette' + (ouverte ? " ouverte" : "") + '" data-id="'
       + esc(x.r.id) + '"' : "") + "><td>" + esc(x.r.nom) + '<div class="faible">'
       + esc(noms.plans[x.r.plan] || "Plan " + x.r.plan) + "</div></td>"
       + "<td>" + badge(x.statut) + "</td>"
@@ -1011,9 +1024,10 @@ function brancherReglages() {
       const texte = new TextDecoder("windows-1252").decode(await f.arrayBuffer());
       const r = lireKc(f.name, texte);
       if (!r) { lignes.push("<li class=\"inconnue\">" + esc(f.name) + " : pas de recette</li>"); continue; }
-      // Sans la composition, le serveur garde lui-meme les reglages propres.
-      const existe = (etat.recettes || (etat.resumes || []).map((x) => x.r))
-        .find((e) => e.id === r.id);
+      // La recette d'un autre, sans sa composition : le serveur garde
+      // lui-meme ses reglages propres.
+      const existe = (etat.recettes || []).find((e) => e.id === r.id)
+        || (etat.resumes || []).map((x) => x.r).find((e) => e.id === r.id);
       if (existe) {
         // On garde ce qui a ete regle sur le site pour cette recette.
         for (const cle of ["objectif", "qualite"]) if (existe[cle] != null) r[cle] = existe[cle];
