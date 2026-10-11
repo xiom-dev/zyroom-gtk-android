@@ -849,7 +849,7 @@ function tableMps(liste, quoi, boss) {
   }
   return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP</th><th>État</th>'
     + '<th class="n" title="Ce que le hall contient, à la qualité demandée ou plus">Stock'
-    + (quoi === "toutes" ? "<br>" + total((m) => m.stock) : "") + "</th>"
+    + "<br>" + total((m) => m.stock) + "</th>"
     + '<th class="n" title="Crafts de toutes les recettes qui utilisent cette MP, faits ensemble">Crafts<br>possibles</th>'
     + (forer ? '<th class="n" title="MP à ' + verbe + ' pour atteindre ' + etat.reglages.objectif
                + ' crafts de chaque recette">À ' + verbe + "<br>" + total((m) => m.manque) + "</th>" : "")
