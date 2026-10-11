@@ -600,7 +600,7 @@ GABARIT = """<!DOCTYPE html>
      réponse arrive sans lui. La page se retouche souvent, et un navigateur
      qui garde l'ancienne fait perdre un aller-retour entier. -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233f7a68'/><circle cx='20' cy='12' r='11' fill='%2310171a'/></svg>">
+<link rel="icon" href="favicon.png" type="image/png">
 <style>
   /* Les couleurs de xiom.be, reprises telles quelles. */
   :root {

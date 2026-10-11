@@ -106,6 +106,18 @@ def carte(dossier: str, titre: str, sous: str, icone) -> None:
     im.save(os.path.join(SITE, dossier, "apercu.png"), optimize=True)
 
 
+def favicon(dossier: str, icone: str) -> None:
+    """L'onglet porte le meme emoji que la vignette. ZyRoom garde le sien :
+    l'icone de l'application, posee par outils/page-zyroom.py."""
+    if dossier == "zyroom":
+        return
+    image = emoji(icone, 64)
+    carre = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    carre.paste(image, ((64 - image.width) // 2, (64 - image.height) // 2),
+                image)
+    carre.save(os.path.join(SITE, dossier, "favicon.png"), optimize=True)
+
+
 def accueil() -> None:
     """La racine : l'image « Xiom » elle-meme, recadree."""
     im = Image.open(os.path.join(SITE, "xiom.webp")).convert("RGB")
@@ -121,4 +133,5 @@ if __name__ == "__main__":
     accueil()
     for page in PAGES:
         carte(*page)
+        favicon(page[0], page[3])
     print("apercus ecrits dans", SITE)
