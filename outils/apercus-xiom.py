@@ -15,7 +15,6 @@ leur titre, jamais une capture de leur contenu.
 from __future__ import annotations
 
 import os
-import tempfile
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -32,19 +31,22 @@ FAIBLE = (154, 168, 165)
 GRAS = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 NORMAL = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
-# dossier, titre, sous-titre, icone (None = le croissant de lune du site)
+EMOJI = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
+
+# dossier, titre, sous-titre, emoji : celui du salon Discord de la page
 PAGES = (
     ("carte", "Carte de La Lune Éternelle",
-     "Où vivent les membres de la guilde", None),
+     "Où vivent les membres de la guilde", "\U0001F5FA"),
     ("forage", "Relevé de forage des Primes",
-     "Où et quand sortent les matières suprêmes et excellentes", None),
+     "Où et quand sortent les matières suprêmes et excellentes", "\u26CF"),
     ("mp", "MP du hall de guilde",
-     "Les MP à forer pour les recettes, d'après le stock du hall", None),
+     "Les MP à forer pour les recettes, d'après le stock du hall",
+     "\U0001F4DA"),
     ("zyroom", "ZyRoom",
      "Les inventaires de La Lune Éternelle, dans le navigateur",
-     os.path.join(RACINE, "zyroom-gtk", "data", "net.ryzom.zyroomgtk.svg")),
+     "\U0001F50D"),
     ("OP", "Guerre d'OP",
-     "Trier ensemble les participants des guerres d'avant-poste", None),
+     "Trier ensemble les participants des guerres d'avant-poste", "\u2694"),
 )
 
 
@@ -52,28 +54,16 @@ def police(chemin: str, taille: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(chemin, taille)
 
 
-def lune(taille: int) -> Image.Image:
-    """Le croissant de la favicon : un disque sarcelle mange par le fond."""
-    fois = 4  # dessine en grand puis reduit : bords lisses
-    t = taille * fois
-    im = Image.new("RGBA", (t, t), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    r = t * 13 / 32
-    d.ellipse((t / 2 - r, t / 2 - r, t / 2 + r, t / 2 + r), fill=SARCELLE)
-    r2, cx, cy = t * 11 / 32, t * 20 / 32, t * 12 / 32
-    d.ellipse((cx - r2, cy - r2, cx + r2, cy + r2), fill=(0, 0, 0, 0))
-    return im.resize((taille, taille), Image.LANCZOS)
-
-
-def svg(chemin: str, taille: int) -> Image.Image:
-    # GdkPixbuf lit le SVG : deja la, puisque ZyRoom-GTK en depend
-    import gi
-    gi.require_version("GdkPixbuf", "2.0")
-    from gi.repository import GdkPixbuf
-    pb = GdkPixbuf.Pixbuf.new_from_file_at_size(chemin, taille, taille)
-    with tempfile.NamedTemporaryFile(suffix=".png") as png:
-        pb.savev(png.name, "png", [], [])
-        return Image.open(png.name).convert("RGBA")
+def emoji(car: str, taille: int) -> Image.Image:
+    """L'emoji en couleur. Noto n'existe qu'en 109 px : dessine a cette
+    taille, rogne au plus juste, puis agrandi."""
+    im = Image.new("RGBA", (160, 160), (0, 0, 0, 0))
+    ImageDraw.Draw(im).text((80, 80), car, font=ImageFont.truetype(EMOJI, 109),
+                            embedded_color=True, anchor="mm")
+    im = im.crop(im.getbbox())
+    echelle = taille / max(im.size)
+    return im.resize((round(im.width * echelle), round(im.height * echelle)),
+                     Image.LANCZOS)
 
 
 def lignes(texte: str, fonte, largeur: int, d: ImageDraw.ImageDraw) -> list:
@@ -94,8 +84,9 @@ def carte(dossier: str, titre: str, sous: str, icone) -> None:
     d = ImageDraw.Draw(im)
     d.rounded_rectangle((40, 40, LARGEUR - 40, HAUTEUR - 40), 28,
                         fill=SURFACE, outline=(50, 66, 70), width=2)
-    image = svg(icone, 260) if icone else lune(260)
-    im.paste(image, (110, (HAUTEUR - 260) // 2), image)
+    image = emoji(icone, 240)
+    im.paste(image, (110 + (260 - image.width) // 2,
+                     (HAUTEUR - image.height) // 2), image)
 
     x, large = 430, LARGEUR - 430 - 90
     f_titre, f_sous = police(GRAS, 64), police(NORMAL, 34)
