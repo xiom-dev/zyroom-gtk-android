@@ -582,6 +582,18 @@ GABARIT = """<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Relevé de forage des Primes</title>
+<!-- Apercu des liens (Discord...) : image faite par outils/apercus-xiom.py -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="La Lune Éternelle">
+<meta property="og:title" content="Relevé de forage des Primes">
+<meta property="og:description" content="Où et quand sortent les matières suprêmes et excellentes des Primes : le relevé de la guilde.">
+<meta property="og:url" content="https://xiom.be/forage/">
+<meta property="og:image" content="https://xiom.be/forage/apercu.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Relevé de forage des Primes">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="description" content="Où et quand sortent les matières des Primes : le relevé de la guilde La Lune Éternelle, à remplir en forant.">
 <meta name="theme-color" content="#10171a">
 <!-- L'hébergeur ne relaie pas le Cache-Control du .htaccess : vérifié, la
@@ -589,9 +601,6 @@ GABARIT = """<!DOCTYPE html>
      qui garde l'ancienne fait perdre un aller-retour entier. -->
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%233f7a68'/><circle cx='20' cy='12' r='11' fill='%2310171a'/></svg>">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Relevé de forage des Primes">
-<meta property="og:url" content="https://xiom.be/forage/">
 <style>
   /* Les couleurs de xiom.be, reprises telles quelles. */
   :root {
