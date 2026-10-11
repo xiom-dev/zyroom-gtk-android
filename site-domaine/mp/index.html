@@ -143,6 +143,9 @@
   td.plus { color: var(--stop); }
   div.manque { color: var(--texte); font-weight: 600; }
   th .total { font-weight: 700; color: var(--texte); }
+  /* Les titres alignes par le bas : les totaux tombent tous sur la meme
+     ligne, meme sous un titre de deux lignes ("Crafts possibles"). */
+  table.types thead th { vertical-align: bottom; }
   td.complets { color: var(--sarcelle); }
   .goutte { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
             margin-left: 3px; vertical-align: middle; }
