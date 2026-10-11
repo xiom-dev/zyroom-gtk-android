@@ -561,7 +561,10 @@ function afficher() {
     { b.hidden = onglet === "tenues" || onglet === "bijoux"; });
   const vue = $("#vue");
   if (onglet === "kc") vueKc(vue);
-  else if (onglet === "recettes") vue.innerHTML = vueRecettes();
+  else if (onglet === "recettes") {
+    vue.innerHTML = (etat.editeur ? "" : vueImport()) + vueRecettes();
+    if (!etat.editeur) brancherImport();
+  }
   else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
   else if (onglet === "inutiles") vue.innerHTML = vueInutiles();
   else if (onglet === "speciales") vue.innerHTML = vueSpeciales();
@@ -937,7 +940,8 @@ function vueRecettes() {
 }
 
 function detail(x) {
-  const connecte = Boolean(etat.editeur);
+  // Un joueur regle ses propres recettes.
+  const connecte = Boolean(etat.editeur || (x.r.auteur && x.r.auteur === etat.qui));
   const reg = etat.reglages;
   const qc = x.r.qualite ?? reg.qualite;
   const lignes = x.besoins.map((b) => {
@@ -978,7 +982,13 @@ function vueReglages() {
     + champ("stop", "Ne plus forer au-delà de (× le besoin)", 1, 100)
     + champ("rupture", "Bientôt en rupture sous (crafts)", 0, 100000)
     + '</div><button type="button" class="principal" id="r-enregistrer">Enregistrer</button></section>'
-    + '<section class="panneau"><h2>Importer des recettes KipeeCraft</h2>'
+    + vueImport();
+}
+
+// L'import des .kc : dans les reglages pour un editeur, en tete des
+// recettes pour un joueur, qui n'a pas d'onglet Reglages.
+function vueImport() {
+  return '<section class="panneau"><h2>Importer des recettes KipeeCraft</h2>'
     + "<p>Fichiers <code>.kc</code>. Une recette du même nom est remplacée ; "
     + "ses réglages propres (objectif, qualités) sont gardés.</p>"
     + '<input type="file" id="fichiers" accept=".kc" multiple>'
@@ -1016,6 +1026,10 @@ function brancherReglages() {
     }
     if (await envoyer({ action: "reglages", reglages: r })) bandeau("Réglages enregistrés");
   });
+  brancherImport();
+}
+
+function brancherImport() {
   $("#fichiers").addEventListener("change", async (ev) => {
     aImporter = [];
     const lignes = [];
@@ -1099,7 +1113,8 @@ function recetteEditee(id) {
 // ------------------------------------------------------------ connexion
 
 function afficherConnexion() {
-  // Recettes et reglages : aux editeurs seulement (Ludo, Luz, Nizyros).
+  // Reglages : aux editeurs seulement (Ludo, Luz, Nizyros). Recettes : a
+  // tous, chaque joueur n'y voyant que les siennes.
   const editeur = Boolean(etat && etat.editeur);
   $("#connecte").textContent = etat && etat.qui ? "Connecté : " + etat.qui + " " : "";
   // Annuler la porte ne doit pas laisser la page sans moyen d'y revenir.
@@ -1107,8 +1122,8 @@ function afficherConnexion() {
   $("#entrer").textContent = "Se connecter";
   $("#sortir").hidden = !jeton;
   $("#onglet-reglages").hidden = !editeur;
-  $("#onglet-recettes").hidden = !editeur;
-  if (!editeur && (onglet === "reglages" || onglet === "recettes")) onglet = "forer";
+  $("#onglet-recettes").hidden = !etat;
+  if ((!editeur && onglet === "reglages") || (!etat && onglet === "recettes")) onglet = "forer";
 }
 
 $("#entrer").addEventListener("click", ouvrirPorte);

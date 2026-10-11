@@ -7,9 +7,9 @@
 //
 // GET  : a un editeur, les recettes et les reglages ; a un joueur, les
 //        reglages et les resultats du calcul, sans les recettes.
-// POST : entrer (nom + mot de passe -> jeton), puis, avec un jeton
-//        d'editeur : enregistrer une recette, en supprimer une, changer les
-//        reglages.
+// POST : entrer (nom + mot de passe -> jeton), puis enregistrer une
+//        recette ou en supprimer une (un joueur : les siennes seulement), et,
+//        avec un jeton d'editeur, changer les reglages.
 //
 // **Deux portes.** Un nom de joueur de l'effectif de la guilde et le mot de
 // passe de la guilde ouvrent la lecture. Un nom de la liste des editeurs et
@@ -25,6 +25,10 @@
 // crafts possibles et la MP qui bloque -- calcules ici, comme pour un joueur.
 // Seule exception : les recettes qu'ils ont ajoutees eux-memes (champ
 // "auteur"), dont ils recoivent la composition.
+//
+// **Tout joueur de la guilde peut ajouter ses recettes** (Ludo, 12 octobre
+// 2026). Il ne voit, ne modifie et ne supprime que les siennes ; les
+// reglages communs restent aux editeurs.
 //
 // **Un mot de passe par personne pour ecrire.** Le jeton porte le nom de celui qui l'a
 // recu : chaque modification est signee, et le journal dit qui a change
@@ -125,13 +129,6 @@ function porteur(): ?array
     // Un effectif illisible ne ferme pas la porte a qui l'a deja passee.
     $effectif = effectif();
     return ($effectif === null || membre($nom, $effectif) !== '') ? [$nom, false] : null;
-}
-
-// Le nom de qui peut ecrire, ou '' (joueur ou inconnu).
-function qui(): string
-{
-    $p = porteur();
-    return ($p !== null && $p[1]) ? $p[0] : '';
 }
 
 // ------------------------------------------------------------- le releve
@@ -352,9 +349,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                      'recettes' => $siennes,
                      'qui' => $nom, 'editeur' => true, 'proprietaire' => false]);
     }
+    $siennes = array_values(array_filter(
+        $etat['recettes'], fn($r) => ($r['auteur'] ?? '') === $nom));
+    $ids = array_column($siennes, 'id');
     repond(200, ['version' => 1, 'reglages' => $etat['reglages'],
-                 'resultats' => resultats($etat), 'qui' => $nom,
-                 'editeur' => false]);
+                 'resultats' => resultats($etat),
+                 'resumes' => array_values(array_filter(
+                     resumes($etat), fn($x) => in_array($x['r']['id'], $ids, true))),
+                 'recettes' => $siennes, 'qui' => $nom, 'editeur' => false]);
 }
 
 $brut = (string) file_get_contents('php://input', false, null, 0, MAX_CORPS);
@@ -396,10 +398,11 @@ if (($demande['action'] ?? '') === 'entrer') {
                  'jeton' => jeton($joueur, 'j', time() + DUREE)]);
 }
 
-$auteur = qui();
-if ($auteur === '') {
+$porteur = porteur();
+if ($porteur === null) {
     repond(401, ['erreur' => 'mot de passe']);
 }
+[$auteur, $estEditeur] = $porteur;
 
 // ------------------------------------------------------------- les controles
 //
@@ -512,6 +515,14 @@ function refuse($fh, int $code, string $erreur): never
     repond($code, ['erreur' => $erreur]);
 }
 
+// Un joueur ne touche qu'a ses propres recettes.
+$sienne = function (?array $recette) use ($auteur, $estEditeur): bool {
+    return $estEditeur || ($recette !== null && ($recette['auteur'] ?? '') === $auteur);
+};
+if (!$estEditeur && !in_array($action, ['recette', 'supprimer'], true)) {
+    refuse($fh, 403, 'réservé aux éditeurs');
+}
+
 if ($action === 'recette') {
     $r = recette_valide($demande['recette'] ?? null);
     if ($r === null) {
@@ -522,6 +533,9 @@ if ($action === 'recette') {
         if (($existante['id'] ?? '') === $r['id']) {
             $place = $i;
         }
+    }
+    if ($place !== null && !$sienne($recettes[$place])) {
+        refuse($fh, 403, 'une autre recette porte déjà ce nom');
     }
     // L'auteur ne vient jamais de la page : celui de la recette remplacee,
     // sinon celui qui l'ajoute (rien pour Xiom, qui voit tout).
@@ -564,6 +578,9 @@ if ($action === 'recette') {
     $nom = $id;
     foreach ($recettes as $existante) {
         if (($existante['id'] ?? '') === $id) {
+            if (!$sienne($existante)) {
+                refuse($fh, 403, 'pas ta recette');
+            }
             $nom = (string) ($existante['nom'] ?? $id);
         }
     }
