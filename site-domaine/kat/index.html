@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trois jeux de chat</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="Trois jeux de chat — clique ici pour jouer">
+<meta property="og:description" content="Trois mini-jeux en pixel art dans le même pré nocturne. Rien à installer.">
+<meta property="og:url" content="https://xiom.be/kat/">
+<meta property="og:image" content="https://xiom.be/kat/apercu_kat_astrophe.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Un chat en pixel art traverse un pré nocturne semé de fleurs.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#fa5111">
+<link rel="icon" href="apercu_kat_astrophe.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root {
+  --nuit: #05060f; --scene: #0d1028; --orange: #fa5111; --dore: #f9d749;
+  --texte: #c9c7d6; --sourdine: #6f6d85; --trait: #1c2040;
+  --pixel: "Silkscreen", "Courier New", monospace;
+  --plume: "IBM Plex Sans", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--nuit); color: var(--texte);
+  font-family: var(--plume);
+  display: flex; justify-content: center;
+  padding: clamp(16px, 4vw, 44px);
+}
+.cadre { width: 100%; max-width: 1080px; }
+h1 {
+  margin: 0 0 6px; font-family: var(--pixel);
+  font-size: clamp(17px, 3.6vw, 30px); font-weight: 700;
+  letter-spacing: .05em; color: var(--orange); text-wrap: balance;
+}
+h1 span { color: var(--texte); }
+.sous { margin: 0 0 clamp(20px, 4vw, 34px); font-size: 14px; color: var(--sourdine); }
+.grille {
+  display: grid; gap: clamp(14px, 2.4vw, 22px);
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 780px) { .grille { grid-template-columns: 1fr; } }
+.carte {
+  display: flex; flex-direction: column;
+  background: var(--scene); border: 1px solid var(--trait);
+  text-decoration: none; color: inherit; overflow: hidden;
+  transition: border-color .15s, transform .15s;
+}
+.carte:hover { border-color: var(--orange); transform: translateY(-3px); }
+.carte:focus-visible { outline: 2px solid var(--dore); outline-offset: 3px; }
+/* La vignette est recadree sur sa moitie droite : son titre et son
+   accroche sont deja repris juste dessous, les repeter en tout petit
+   n'apporte rien. Ce qui compte ici, c'est l'action. */
+.carte img {
+  display: block; width: 100%; height: auto; aspect-ratio: 1200 / 400;
+  /* Cale en bas : la vignette fait 630 px de haut, son titre occupe les
+     230 premiers. Un cadre de 400 px aligne en bas les retire pile, sans
+     couper de lettres — d'ou ces deux nombres, qui vont ensemble. */
+  object-fit: cover; object-position: 50% 100%;
+  image-rendering: pixelated; border-bottom: 1px solid var(--trait);
+}
+.dedans { padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; gap: 8px; }
+.carte h2 {
+  margin: 0; font-family: var(--pixel); font-size: 14px;
+  letter-spacing: .05em; color: var(--orange);
+}
+.accroche { margin: 0; font-family: var(--pixel); font-size: 10px;
+             letter-spacing: .1em; color: var(--dore); }
+.regle { margin: 0 0 4px; font-size: 13px; line-height: 1.5; flex: 1; }
+.jouer {
+  align-self: flex-start; font-family: var(--pixel); font-size: 11px;
+  letter-spacing: .12em; color: var(--nuit); background: var(--orange);
+  padding: 8px 16px;
+}
+.carte:hover .jouer { filter: brightness(1.15); }
+footer { margin-top: clamp(22px, 4vw, 36px); font-size: 12px; color: var(--sourdine); }
+footer { line-height: 1.7; }
+footer a { color: var(--sourdine); }
+footer a:hover { color: var(--texte); }
+@media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+  <div class="cadre">
+    <h1>TROIS FAÇONS<span> DE </span>S'EN PRENDRE AU CHAT</h1>
+    <p class="sous">Le même pré, la même nuit, trois règles du jeu. Rien à installer.</p>
+    <div class="grille">
+      <a class="carte" href="kat_astrophe.html">
+        <img src="apercu_kat_astrophe.png" alt="" loading="lazy">
+        <div class="dedans">
+          <h2>Kat-astrophe</h2>
+          <p class="accroche">Neuf vies. Une seule fin.</p>
+          <p class="regle">Un réticule, un chat, neuf vies. Il court plus vite et bondit plus haut à chaque fois.</p>
+          <span class="jouer">JOUER</span>
+        </div>
+      </a>
+      <a class="carte" href="kat_killer.html">
+        <img src="apercu_kat_killer.png" alt="" loading="lazy">
+        <div class="dedans">
+          <h2>Kat Killer</h2>
+          <p class="accroche">Trois vies. Une seule fin.</p>
+          <p class="regle">Un chat qui passe vivant coûte une vie. Fleur jaune : une vie rendue. Rouge : une de moins. Mauve : rien.</p>
+          <span class="jouer">JOUER</span>
+        </div>
+      </a>
+      <a class="carte" href="dynami_kat.html">
+        <img src="apercu_dynami_kat.png" alt="" loading="lazy">
+        <div class="dedans">
+          <h2>Dynami Kat</h2>
+          <p class="accroche">Vise là où il sera.</p>
+          <p class="regle">À la dynamite. Le bâton met neuf dixièmes de seconde à retomber : vise devant, pas dessus.</p>
+          <span class="jouer">JOUER</span>
+        </div>
+      </a>
+    </div>
+    <footer>Aucun chat n'a été blessé : il est fait de 4&nbsp;800 pixels et
+      revient à chaque partie.<br>Le chat et le pré sont repris de la scène
+      animée du bas de <a href="https://docs.mistral.ai/" target="_blank"
+      rel="noopener">docs.mistral.ai</a> : hommage personnel, sans
+      affiliation. Musique et code originaux.</footer>
+  </div>
+</body>
+</html>

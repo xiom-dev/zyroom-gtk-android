@@ -1,0 +1,1679 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Kat Killer — clique ici pour jouer">
+<meta property="og:description" content="Trois vies, et les chats vont de plus en plus vite. Fleur jaune : une vie. Fleur rouge : une de moins.">
+<meta property="og:url" content="https://xiom.be/kat/kat_killer.html">
+<meta property="og:image" content="https://xiom.be/kat/apercu_kat_killer.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Un chat en pixel art traverse un pré nocturne semé de fleurs.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#fa5111">
+<link rel="icon" href="apercu_kat_killer.png">
+</head>
+<body>
+<title>Kat Killer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+/* La page assume un seul monde visuel : une nuit d'arcade. Pas de theme
+   clair, mais toutes les couleurs sont posees explicitement pour que la
+   page tienne quel que soit le fond de l'hote. */
+:root {
+  --nuit:      #05060f;
+  --scene:     #0d1028;
+  --herbe:     #00a514;
+  --orange:    #fa5111;
+  --dore:      #f9d749;
+  --texte:     #c9c7d6;
+  --sourdine:  #6f6d85;
+  --trait:     #1c2040;
+  --pixel: "Silkscreen", "Courier New", monospace;
+  --plume: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--nuit);
+  color: var(--texte);
+  font-family: var(--plume);
+  display: flex;
+  justify-content: center;
+  padding: clamp(12px, 3vw, 32px);
+}
+
+.cadre {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- Bandeau ---- */
+.hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 18px;
+  font-family: var(--pixel);
+  flex-wrap: wrap;
+}
+.titre {
+  margin: 0;
+  font-size: clamp(15px, 3.2vw, 24px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--orange);
+  text-wrap: balance;
+}
+.titre span { color: var(--texte); }
+
+.jauge { display: flex; align-items: center; gap: 8px; }
+.jauge-etiquette {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--sourdine);
+}
+.vies { display: flex; gap: 3px; }
+.vie {
+  width: 10px; height: 10px;
+  background: var(--dore);
+  /* silhouette de tete de chat, en pixels : deux oreilles et un museau */
+  clip-path: polygon(0 0, 20% 0, 20% 30%, 80% 30%, 80% 0, 100% 0, 100% 100%, 0 100%);
+  transition: background .25s, opacity .25s, transform .25s;
+}
+.vie.perdue { background: var(--trait); opacity: .5; transform: scale(.75); }
+
+.compteurs {
+  display: flex; gap: 16px;
+  font-family: var(--pixel);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.compteurs b { color: var(--texte); font-weight: 400; }
+.compteurs i { color: var(--sourdine); font-style: normal; letter-spacing: .12em; }
+
+/* ---- Scene ---- */
+.scene {
+  position: relative;
+  border: 1px solid var(--trait);
+  /* Meme couleur que la bande de ciel la plus haute du canvas : quand la
+     scene est plus haute que lui, le raccord ne se voit pas. */
+  background: #060711;
+  overflow: hidden;
+  line-height: 0;
+  /* En dessous de ~900 px de large le canvas, qui garde son rapport 3:1,
+     devient trop bas pour contenir le texte des voiles. On lui donne un
+     plancher et on le colle en bas : le vide gagne fait du ciel en plus. */
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  touch-action: manipulation;
+}
+canvas.vise { cursor: none; }
+canvas:focus-visible { outline: 2px solid var(--orange); outline-offset: -2px; }
+
+/* ---- Voiles ---- */
+.voile {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: clamp(10px, 2.4vw, 14px);
+  padding: clamp(14px, 4vw, 22px);
+  text-align: center;
+  overflow-y: auto;
+  /* assez opaque pour que le texte tienne, assez clair pour laisser
+     voir les neuf fantomes alignes derriere */
+  background: rgba(5, 6, 15, .78);
+  line-height: 1.5;
+}
+.voile[hidden] { display: none; }
+.voile h2 {
+  margin: 0;
+  font-family: var(--pixel);
+  font-size: clamp(16px, 3.6vw, 26px);
+  color: var(--dore);
+  letter-spacing: .04em;
+  text-wrap: balance;
+  text-shadow: 0 2px 0 rgba(5, 6, 15, .9);
+}
+.voile p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 14px;
+  color: var(--texte);
+  text-shadow: 0 1px 0 rgba(5, 6, 15, .9);
+}
+.voile .discret { color: var(--sourdine); font-size: 12.5px; }
+/* La legende des fleurs : chaque mention porte la couleur dont elle parle,
+   sinon il faudrait la retenir au lieu de la reconnaitre. */
+.voile .fleurs {
+  font-family: var(--pixel); font-size: 10.5px; letter-spacing: .06em;
+  line-height: 2;
+}
+/* Chaque groupe reste d'un seul tenant : la ligne peut casser entre deux
+   couleurs, jamais entre une couleur et son effet. */
+.voile .fleurs b { font-weight: 400; white-space: nowrap; }
+.voile .fleurs .j { color: #f9d749; }
+.voile .fleurs .r { color: #fa5111; }
+.voile .fleurs .m { color: #ff91dc; }
+.voile kbd {
+  font-family: var(--pixel);
+  font-size: 10px;
+  border: 1px solid var(--trait);
+  padding: 1px 5px;
+  color: var(--texte);
+}
+
+.bouton {
+  font-family: var(--pixel);
+  font-size: 13px;
+  letter-spacing: .1em;
+  color: var(--nuit);
+  background: var(--orange);
+  border: 0;
+  padding: 11px 22px;
+  cursor: pointer;
+  transition: transform .12s, filter .12s;
+}
+.bouton:hover { filter: brightness(1.15); }
+.bouton:active { transform: translateY(2px); }
+.bouton:focus-visible { outline: 2px solid var(--dore); outline-offset: 3px; }
+
+/* Le bilan : les chiffres d'abord, en gros, la phrase ensuite. */
+.bilan {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: clamp(14px, 4vw, 34px);
+  font-family: var(--pixel);
+  font-variant-numeric: tabular-nums;
+}
+.bilan div { display: flex; flex-direction: column; gap: 5px; }
+.bilan b { font-size: clamp(18px, 4vw, 26px); font-weight: 400; color: var(--orange); }
+.bilan span { font-size: 9.5px; letter-spacing: .16em; color: var(--sourdine); }
+
+/* ---- Tableaux de manches ----
+   Ils vivent SOUS le canvas et non dans le voile de fin : le voile fait
+   320 px de haut, vingt lignes n'y tiennent pas, et les garder visibles
+   pendant la partie donne la marque a battre. */
+.tableaux {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(14px, 3vw, 30px);
+}
+.tableaux[hidden] { display: none; }
+@media (max-width: 700px) { .tableaux { grid-template-columns: 1fr; } }
+
+.tableau { min-width: 0; }
+.tableau h2 {
+  margin: 0 0 9px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: .14em;
+  color: var(--dore);
+}
+.tableau table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--pixel);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.tableau th {
+  font-weight: 400;
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: var(--sourdine);
+  padding: 0 0 7px 8px;
+  border-bottom: 1px solid var(--trait);
+}
+.tableau td {
+  padding: 6px 0 6px 8px;
+  color: var(--texte);
+  border-bottom: 1px solid var(--trait);
+}
+.tableau th, .tableau td { text-align: right; }
+.tableau th:first-child,
+.tableau td:first-child { text-align: left; padding-left: 0; }
+.tableau .rang  { color: var(--sourdine); }
+.tableau .gros  { color: var(--orange); }
+/* La manche qui vient d'etre jouee, reperable d'un coup d'oeil dans les
+   deux tableaux a la fois. */
+.tableau tr.frais td { background: rgba(250, 81, 17, .16); color: var(--dore); }
+.tableau tr.frais .rang { color: var(--dore); }
+.hausse { color: #35c94a; }
+.baisse { color: #d0455c; }
+.plat   { color: var(--sourdine); }
+.tableau .vide td {
+  color: var(--sourdine);
+  text-align: left;
+  border-bottom: 0;
+}
+.note {
+  margin: 9px 0 0;
+  font-size: 11px;
+  color: var(--sourdine);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+}
+
+/* ---- Pied ---- */
+.pied {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--sourdine);
+}
+.boutons-son { display: flex; gap: 8px; }
+.pied a { color: var(--sourdine); text-decoration: underline; }
+.pied a:hover { color: var(--texte); }
+.son {
+  background: none; border: 1px solid var(--trait);
+  color: var(--sourdine);
+  font-family: var(--pixel); font-size: 10px;
+  padding: 4px 10px; cursor: pointer;
+  letter-spacing: .1em;
+}
+.son:hover { color: var(--texte); border-color: var(--sourdine); }
+/* Le retour au menu prend l'allure des boutons de son : c'est la meme
+   barre, il n'a pas a se distinguer. */
+a.son { text-decoration: none; display: inline-block; }
+.son:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: .01ms !important; }
+}
+</style>
+
+<div class="cadre">
+
+  <header class="hud">
+    <h1 class="titre">KAT <span>KILLER</span></h1>
+    <div class="jauge">
+      <span class="jauge-etiquette">VIES</span>
+      <div class="vies" id="vies" role="status" aria-label="Vies restantes"></div>
+    </div>
+    <div class="compteurs">
+      <span><i>CHATS</i> <b id="tues">0</b></span>
+      <span><i>TEMPS</i> <b id="temps">0.0</b></span>
+      <span><i>TIRS</i> <b id="tirs">0</b></span>
+    </div>
+  </header>
+
+  <div class="scene">
+    <canvas id="jeu" width="960" height="320" tabindex="0"
+            aria-label="Scène de nuit : un chat traverse un pré. Cliquez dessus pour tirer."></canvas>
+
+    <div class="voile" id="depart">
+      <h2>Trois vies. Une seule fin.</h2>
+      <p>Chaque chat qui passe vivant te coûte une vie. Chaque chat abattu
+         rend le suivant plus rapide — jusqu'à ce qu'aucun réflexe ne suffise.</p>
+      <p class="fleurs">LES FLEURS &nbsp;
+        <b class="j">JAUNE +1 VIE</b> &nbsp;
+        <b class="m">MAUVE RIEN</b> &nbsp;
+        <b class="r">ROUGE −1 VIE</b></p>
+      <p class="discret">Clic pour tirer, ou <kbd>Espace</kbd>.</p>
+      <button class="bouton" id="commencer">ARMER</button>
+    </div>
+
+    <div class="voile" id="fin" hidden>
+      <h2 id="fin-titre"></h2>
+      <div class="bilan">
+        <div><b id="fin-tues">0</b><span>CHATS</span></div>
+        <div><b id="fin-fleurs">0</b><span>FLEURS</span></div>
+        <div><b id="fin-precision">0</b><span>% TOUCHÉ</span></div>
+        <div><b id="fin-temps">0.0</b><span>SECONDES</span></div>
+      </div>
+      <p id="fin-mot"></p>
+      <button class="bouton" id="rejouer">ENCORE</button>
+    </div>
+  </div>
+
+  <section class="tableaux" id="tableaux" hidden>
+    <div class="tableau">
+      <h2>LES CINQ MEILLEURES</h2>
+      <table>
+        <thead><tr><th>#</th><th>Chats</th><th>%</th><th>Temps</th></tr></thead>
+        <tbody id="records"></tbody>
+      </table>
+      <p class="note"><span>Classées aux chats, puis à la précision.</span></p>
+    </div>
+    <div class="tableau">
+      <h2>LES VINGT DERNIÈRES MANCHES</h2>
+      <table>
+        <thead><tr><th>#</th><th>Chats</th><th>%</th><th>Temps</th><th>Évol.</th></tr></thead>
+        <tbody id="historique"></tbody>
+      </table>
+      <p class="note"><span>La plus récente en haut.</span>
+        <button class="son" id="effacer">EFFACER</button></p>
+    </div>
+  </section>
+
+  <footer class="pied">
+    <span>Aucun chat n'a été blessé : ils sont faits de 4&nbsp;800 pixels
+          et reviennent tous à chaque partie.      <br>Le chat et le pré sont repris de la scène animée du bas de
+      <a href="https://docs.mistral.ai/" target="_blank" rel="noopener">docs.mistral.ai</a> :
+      hommage personnel, sans affiliation.</span>
+    <span class="boutons-son">
+      <a class="son" href="index.html">LES TROIS JEUX</a>
+      <button class="son" id="son" aria-pressed="true">BRUITAGES ON</button>
+      <button class="son" id="musique" aria-pressed="true">MUSIQUE ON</button>
+    </span>
+  </footer>
+
+</div>
+
+<script>
+"use strict";
+
+// =====================================================================
+// Sprites, embarques en data URI : la page doit rester autonome.
+// Ils sont a leur resolution d'art d'origine, relevee sur docs.mistral.ai.
+// =====================================================================
+const SRC = {
+  chat:   "data:image/png;base64,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",      // planche 7x4, cases de 160x120
+  sol:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAZ0lEQVR4nH2OsRGAIAxFXzhrKmeBipoJrJxBGmdiCGoqdnEHLBBPvNPfvPzkJxchzpUfqb8hgJL1AOCLBKOrQO2M+zL4yToPJDoBNqNvL8Hoap2n5BZ6U7VkU8lpeLDk60Jv9M1nfQKBDy/U583fFQAAAABJRU5ErkJggg==",   // 8x8
+  herbe:  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAL0lEQVR4nGNgGAWjYFiC/yTyGZhQJJeKICsixMcwgCzAiGY6BES/YSDIh+ql2AUActQSKh5XJ9kAAAAASUVORK5CYII=",    // 16x16
+  fleurs: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAOCAYAAABZ/o57AAAA8UlEQVR4nMWVsQ2DMBBFvxGCOhIj0DBKytQMwSwZgpqSUWgyAhJ10pDCGHxnH5gC8yV0HNw7fxsMgKv5IJd0KZfwou/wtIt5Lg72ez0Ix3KRm98fwrFcNAoAMOaWGCxjbonBMuaW6JXXKLCaPa2zJo32TAKC0bzqSQxV1k0khko1JYneGuucPOq86sFzVr9y9ipm3QSeS5y9iqopwXOb4w32Xn7fYHdxVoO2mA8aReVS62bIDHyNonB6M7WFuSjNSN/TdZsicimDgXp0/xR8IHfQy7kEgEI9ug18ua5T6xGRI58nL7gBBuKKwskNqG7faH+obpZANumCTwAAAABJRU5ErkJggg==",  // 3 teintes de 14x14, cote a cote
+  miaou:  "data:audio/mpeg;base64,SUQzBAAAAAAAIlRTU0UAAAAOAAADTGF2ZjYxLjcuMTAzAAAAAAAAAAAAAAD/+1DAAAAAAAAAAAAAAAAAAAAAAABJbmZvAAAADwAAADwAADHKAAgMDBAUFBkZHSEhJSUpLi4yMjY6Oj4+Q0dHS0tPU1NYWFxgYGRkaG1tcXF1eXl9fYKGhoqKjpKSl5ebn5+jo6esrLCwtLi4vLzBxcXJyc3R0dbW2t7e4uLm6+vv7/P39/v7/wAAAABMYXZjNjEuMTkAAAAAAAAAAAAAAAAkAycAAAAAAAAxykCuybkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//tQxAABCR2OqCCMWklUNJuiiiABAH+mwDI2v0ZBbAZf/7+QW0eE8UzLJ0rDDGTpYV2VFdn//92Z//6M7kOioUzMci////1QpiuMIFkXozHRXIv1RTCRxYlHbIYkLAwIANA70pI5CMhJCC6vnnIx0aTISfIz/0afI0hHQmucjK71PdvU7oRlP8jZPq9OTzneRrclX1chMjQghjnq+d8mSc+rq9X5Jz1t78jkIx3Y7nQI4zTQWBqyZDt0zci+pAnizmKVHv4hw8Bo++PBFA2A0f/7UsQOgA32EQoZRQABcxmnNx5gAPfzC5Ir/37BeCoUC8Gwg/55P8CQF4WSdQXx3//tiIPULB4tyRf///cRB4tiuUGANgsFzP///+71HoyLCDFuF+QRgJhAFMIj////7////4XgwLE9u2zkjt9+2utltjaJABuMYlVaKMqkdIUj08XDPzSl2LfCT0jyRo6kzFFDEdqsEWBBT/kyc1fAxgFhk7NU9PL5u4jFuzFKi4vaxjbjDS4oxHHQFQ9Emm42bHvd/d2VCRlsbWsyCKB8XQP3//tSxAYAC9y7K5zDAAF2j+VRlI4QAUELo8lZTeJCYZXQui/zymbT1rCT4NWzQ2Z3rw2fZ75ErRfJx217/7V3/re0bFMz5rImgg1RQUEIPTBdspfI9Vi8VWLa5rqfDLF4caDOk7uYqlgTBUCIkTYwwOOmTKdtpoqhQoFQNgZ6rsKGGcYla5cP37b6NjWOfDCFGlNusXkQYjJCQnNE/JE9XK52wYtLWGQ+hLwYacc9h+GGE6i+67onMIiv3uB0v8Nu/dObuxSVCRBgARCCq5MZHAb/+1LEBYALzIExjbBQwXGP5rGWFhgxEOMJPzm0h1EEJcV2iIJWmnoFwFdECX4svqB13veWt1OEaVCgS4hZVKeOPKMfyL/fOpGD2YDQSS445aWrVCbMWGJuRxQ+WNUd/UL28//Uv/56sYoEByAjBWqaqTK2iT0F2KY2+uELNy5ljXlOVR1q2E6hhva8BRnM8V/0wl01Pn/E+7vSnzaICKUOqL6BYoGCIH82ZSFpR00wsTJgcVecKcCv/RZf09ld8lT6oJi8VYgEOAIcVZthjEtg8P/7UsQGAAvYczmNPGnBehxpsPSJ5qBTuAG8wlsOgOSwLAo0aYDryQAOqX/gHqShbtldKO/wijoaKQYrMya8efIXIAgw4D4DHFjgPEaj5gJFHFR5LtoSFmOCMVSynb//80m5v6bzhIg60SGwplsqxommcgR8sgnQFQt6NN8hjqWQcwQtLX8wMOZ6wKgu/Zijf/FhBPHmHZ3IXSephitUnyERSEZZr88su6bK7OIf/W8UAAKaEcccF7kUr9n/ze5Cn35dDwgQS5V0AjkMAgSNp83+//tSxAUAC2B1OYyksMF4nmk9gwoYWBGTD31Gh5jKgedHAaFWe3CJKx08sxcJkYOGR8RAMFAwxQqEcqeqKTWXNn4pf5CGCQOA+aEY5cgMM2C4bFibu3c1DQ4gPbnfM///9f4gTtaRqTGCUiAgW5LxU0mGZupG2cioGuk3kAc2+qdLRkO7L6GMxG5T1CMwmZNEXaXmIiRiNP//S6CnhQx186rRULVF4A5G1M53sd9//ViEKyZQyZcER2d7f/9/fyEpQMrPiqplQDswIAASTt8jry7/+1LEBgAL+O1H7KRLgWQQ6T2HlWibg1yKx5AUcrYsgXFLJMqJqBIwU9+TS6jq9U0nqBiEkQfORbn/90OzkUOHnBFcl3uShEWjqcWzJXQyMlvX9ZnYwkdgZA+g83+j9RfBRLv9oWYck7VQlB4AyIBkp1NyJbqCoXYpWRTglwaY+bYYLl4JmgF6Wpnfqwnab6PxX+tVyvgcxaPo31GCDN6B4BgIHGSHRYEBh+BAwG7SCv9YkGGgrItSf///q/97llaobquKBZMVMvEu+QnCMU6Cfv/7UsQHgAtI+U/nqLRBUBxpvYWJqN6hT78CTFHDUTir+3sKYGPH+fTUXBIljXqcHgBMn+0a/m0V/RDBYu/uYeBE6klE3+k5E8v+sowjoVCMQowE0IYQ///Z0/2D00Bws+JqQSzBShwCtDcGz2Wu1DEEs4pBEJqFNNuy7UmI/A8DR7bvPybASy2OXIDtFROdf+qiiv6zE+ilH/oHn6IWpW+6v/qtegMVCgq5oQZ/////lZvjZqp8phaUBThoDvET8RYSLw5pT0sA9iMpZZfxbMl4//tSxA4ACgiLU+eoUMFIFCv89bXeRD79XpQJQDZcyqYyC+EI36s/+p0+Uo/EojfeJSFMJYpMbwVOA8fOh0Lg+Lb////9S7F8mpndgKFBjjZAJBNCdWQdHMqCd6PUx8HyToksdAGTi0v2oHUPsWEOfdczJiXArxkf5xv8TYYBD8xLpv/mRziMnw3fcUBNAoSLv1gsc/////wHQucqerQAgwQEECFAzvFBDBQR6Cu8SFVH8boNzdL9ZLVTnh6HmZUMCB7sj0CuQ/7/5IAHF5afegz/+1LEGoAKXPNP5mFHAT2PrbyVnebEg57dyw3f+cac///6X8wqXL8W////+f1DATaMKzDzDEMMLLo0EUGDqM8GY7MhwHRfkSpNEcNeIO2SpfokQCENjI8gTU4dImr/6v9DoDgcAprBfxE12I3/6EcKn9pT//+qznCBODp8XCLEuFjLanmTAJMCCoABwNYq287KHxTAAUAcPMr3qRGwJ2MtP8yBzjgKFfWYof+mgbv5qPpAHoaP+qKc/lKjHf6f//mRSHR/Snt/////////zN2ULP/7UsQnAApxh1nmNE+JQZTr/MOWEGjgZbbcG86UCqA0mALuDDowvRBXrgJYWA/jJKhDdMyLLRJQR476hEDAlFvyhRRhjf7GfzgguKGFn6Kp3dH2ERAECuIT/+GQQICUFaeLN////+8cGW8xzeeh2gF7CA7hALmi8RxepbOSST3ReHMZ+KM0T4fH8qNf79tRFMXd/H3+hnU/9I4B9DAIkwgnLAvqPAIMez1KYWAwFAgY/////okCQVEBgmOJB2u2LFsMkSACgEQxTp1FplgdRG5e//tSxDMACkiJYeY8S0FPMOv884phuQomq3RPxj1/y3GMZE20emOg9HGt//6joShOeee3ZHGOf/dj/6K/+ir+Yxxjnon///////////pYhwXVhEsR+lZmQCgRQwAEsKglTEIcdSCm0dWai+MRHgIfi4EgAzghHmlHHUQxjgSL2H6WDpx1GKcBw//5EHCrDAHcHnKFEEOACzf/17ySdzk////+90sKGDGh3iEE3QzcITlEgIou43hbRkHmLf07hcrKghMqEkpSCjCYRiIlSMuEx0f/+1LEPgAKWH9j7LCukUSG7jz8JYIIgk6H26Ch1lBcY4CHTqgzFR4BKf3I1DUCthDXRR///+Vfc6Jx5UrUuJgzBBAlAA3hU84KxihqFsZqrqRCSGVqqIbfJHrm0rbsrLdGac2ml/CFeVIhokw4MgsADDESH+TV+gnfQIoXKqPYt////1ESLw0FTrwbOhSy3hzYDICbAEdGJYjFKhudJHvOzAGoRnfRKF+tNP/A348fLhLa5s7f0VjlpuigEctlOnKd/52Q/7mf//yXf+X////////7UsRKAAoYgWHniNLBQzJsfMGKSf//9s90U6EVxIZg76Gay5ljBDEnAE7x3B0Cc5QTlcZyewKBIbjffZdU+z25GVApZoDARL8wmNgrbQUWjgN2RKGHO+fL+/9C1N97qkrr/kv8/6///////3kGgMVRNvsKSsQiARAJIAbG0y6c6OKbEoiNC6E/Ss25ZjI77HVhkLchCf9oQoh2Ipjhw79shEoSQZMIDxAcqvST/VKL97+v///////1P1Op3RiN7POPD4ksDN/z1f9rQ22kSU64//tSxFcACiV7Z+YEUsFQL+z8kRYx6OQEBLFjag/MFnB87dGULUg/sFlNMK6wOgGO7kiUu//nAQdVPZNC3jWE6j6FkHDkVAA5VfiQndL0s5IGSH1//5GsADkKmxwJDRM4Z91kwSmZJgA3Dk1OLiQ4W0ihorLzYeFyzTxKTjIDCsuUhwZqWawv+9pqkZ9XdI9nHdrmdmtnuYm/v/y+v//7a//p////9/mpNZcgvQOcOYE/pejey0cyEgAK+5LCsbI5JA0cDkCIMmxvQ6J54croppv/+1LEYgAKdKF1piRj0UOvbjzBifG6rObg0GZFN///N6ouhGUQLSQRIf9K5dhG7kSh5Phdqw8AqLyEeKmaf/7P9evTseeQDwQKdG7k46uxCmADdu4YI4+KhrhjCQqJi+ACOYKDwVyCX3F2NaK7ZBJ3cLXT/LpZaMgEih/WL/kZdPFMaiQhg+Dov/Oebo//Z9Ke8eu5lDHODLlmx9KlysuJJCMSgAJXcSDUbD5UejpguueOVcHkxYFuSdxZB27rE1Recy3v//+ShABJl05ZvctR5P/7UsRtgAqEq3HmDNNBSZRuPJYMON73/jxgKdR4iJAowsiqzb/8v19Ntv//////12/p9XS9kfZxnsVMTLoaIRJkhXSneUZP1SZChaGjZ26a0nJ0FdrKgEt2UMTjGKF3ZEQrs/7uHBCXdzLL2/9KbFca0Ur+FGPFlEJID/P//ZsTZ5VbULOoBdVXcZWYqXZDMRSBCuFWoZARWlyMAs0nQ2snKkHTesUyB1Q9jpbcKDi1mpSqX6kFFIxjh9kEFKW//Zu8AyC1/8LAN9Vk/z1///+X//tSxHgACyWFbeYYrcFBlS/88wnSfLMUcHFZbpTLzDqiIQtApbSojYgnRoBAowQiXhIAqSxLKJYoTbUZ+4rU4vp0JKjy8yzZMYHxwmTAFShZzf52jl50ZTsk3//axtB1uJAFxU/5Xu/96NIGfQ9aQkjYihWHdoQiMAJAKuuNQKYJ4kHaKA8Lmn2Ew6Kl/TWWz0OMAMbaiIfzp0ytIzlGQodV6f+h5pK0cazt//62f7dVK7PM//////zIs5mtqSA5WoFRQieaDKHl3ZSEgAAACVz/+1LEgQAJxKV/54yukVib7/zAiso/G4v4YAmMUt05+Ilrbw8IdBOEerjb10C4DnaLVmZv+0lc98t1BaZ04UUMkglQiI//BrEMBhUX/v2zAA1kQ6eV/p/+1vkFO5GaiHckQAJBTvuhiZMoWoXlo5D1CL5MHnDfxUbvLWSwunY4khv5853Fzmkk71FYq8//yFIjTqxAcUQn/7f+n/GCoFk/L0rO/+Rw2cqeiJhpZ8LPDu6iRgBABVsrUPkKofdTjOuMrlPpk8NaTjNUJp03n6RHLv/7UsSMgAp5YXvmDFERRROuPPSJeiGxi0zGdy7My5mtnPb06EZmf/1Ml9I4tDDL/pFy5Rw9zmHQ2fNZz/2Y7yLN4YpC78qqVniGIjAAAU7hrL0YVSYOc7DrJ0O4jKRwTkszZXuY87XNiJliiHrQ57EUjv3sVyBC9Ht/0Vn7MctTL//9UOtaJ6zKGFhYjVlIz//1n54uEXIPBso7vDsZoAAEp23NguPIRDeEGoeFwcyQJaYwEo+gXLvcLmVM4DWAGC4PBAM4GWFUE1FGCzB/hMha//tSxJgACizzf+ewo5FPFe888wnq4x/FK0JBUszoT//0coL3uxa5CiJZIucsfnJ3eoYjIAAJTulgnQhKlRbaLicIaBKCAEmjSh+dLt6Yc2paLBvbqUmIzjlUPWuUrPXQlTUV9TkZd1I71Zif/9fKRLuPxQvDpr53//p1wiUhAXNO4HZnlTEhAAASpBMn4qUPJscgEyJtQxIkOKaQx++KC4sAOGBYvHEmPuxw08eLHUaVfl287cnWNCygnuQIIALsf+b2Md+j///9aHKBUVTf79P/+1LEowAKZPd956RJUUKHMDzGMAJ4eXUjMAAJTutofo/kur5ltJKTLOpm5vndPo1Pp/mS6iQtGx6REl4lZggNEJ9bamMm1ysY7Lcj6crdWb//l+q9v23ln/o3////KT8qqTYqooh711RESxohAAJLl+sAFyUZK0Q/lqSrpwSkZ9UZNV9KEY0ZFH+3MLZjiIwyK0OxNXfUuRUfUjlKjpYzLiUM//kaWmf8n+KocFCBnKUeIBjpO//P8PnQKFSG0WqVu/ibAAABUlfF8moaIucNPP/7UsSvAApw4X3nsEeROY6u/PSg0lLi00cLiwqHyZ+wdqGWSoI1zIvJqlMuZaFdDaP/dYlY0d8KFMUqaG/1HrYuvt//XU9jNVdpm/OxQU0js8mBw9/7luir/75aaq6VXQRABMblfm6cxiFNMcJIow+k1HQnmA9qjGb4daa9C++1lmadWlZW5E7aKRI1qr1V///+61Q1ffbr/2YpEY+n/////+akzqXpOd0JyI1M//QSiZmVZhAQCXdrnVR9JZKP2M0xSBsUAFCBW4fJXJmU5WVN//tSxLwACnVtfeeMVJFeoTA8xAniXW32tM1PT5/UWKKn+gVv0Yoky/ZaHv9lmdvMZFd1VNspSpQzqIUzTKzv6L9t////5f+hghikruCPCkFS8TLwjMAAE05LKXFkL0WExW+VHKMyx7LR4vYTfEWv+kzazb/efbUVBRq+NH+KxBd8Hg6g6jU1tvIMKRY1b1LSH43ILuzv0i1jzt9P3V//3Mv+wFDwv7Pd+1Wa3///b/6N6PSYqjhZx7wmck/liJeCVgAQUXJBCCmgljBLqTh6V6X/+1LExAAK2PlzpgxYUVC0MPz2CPaOZcRlDqArWqD/Kd5S7hbvbNn1FKXq18Yv/5R9qg1pWjz9w3gUBOR+v6QHgzHbF1cegSCdNV/M31zvVur3R29kIgcgpVxP3P//62ZZg4Hg0p5lQl1xMxBswEIo1WYaKKtGlsfrJY1Udx6bRuKanVv8psnAxN+6a9pF4RxBQdfX1nEQtqi8tvT4ownEHf6jwcc+htR4aKz393b/jHr+5mbdOQOvTdndEVJaXXf8//mLmb8/4sv14RsAiTmq1P/7UsTMgAutjX3nsEfRrTCuvPaXS3BGh1qliZhzZgASQVJRDpGdGECJkOE9CDPjsM5ZZnS+1Omf/Ktaa73ePuJAlEsgY1dw34SASJvURP6Q+AdGczZAFCBURj0api8Z1U3///XbLU4DiTQqZqDceqv//QGUxd5sTCYucETQvyFVUu1OBkE242ofBwFgNVUJQ3Ehl4W8pKDMKqWin/7crI276zfEkE8It//j+6RJo4wKS0keaWDFDkUkGP75u/Tg+TnZ6NNHoUIMnoWRQ7l/sCGb//tSxMYADQz5ceesWJGwse748o9u/Z/3qhCtvpI7vT1N///Sn+uQm9WMMwubiIH2dwYWq8mkmAMSknGxBciQGGdgRY6bIxGqFJwTCZpFColL+VkCSi9HmdNAA8n//xREECO1CruXqkMOsLAF/++aFHjziQH2M+gq2mWtkICBEt4HD/1Nc8ACoxJgiqrd//1i7VJMsh2cAIGBYcloCmahlmAEQB7OqLK1WoSuF2obNxQpskI1T/fTqf4MOFYX7oVKACMb39QYa7dbDyiqfUwuZw7/+1LEuYAMnPNz56y2UcAucDzxi4ajzKwjLfMoyJCIPZIY5eKfHixIVYQp1n//+0QKoaSY4tLSzWLRmZhkdwEkQVNRQAxBA9hZEoTyv50cFodF5UPzhBmZOtf6s4z55kK9lg6t84gX/OUcS/s7CwKnuRT3+Rndf1pe/6+3o4ZSFZTXV//+dUUWWYZU4Smg+5C3DKq5hJgTJEEtwROAgOxJCp9Ob2PRe2ULJFqrmH/K/hOYh/P01aG45Odb/KAuf7Iooj/ZXFTt7q7/KlVf+63X/f/7UsStAA04r4PnrM9xZJWv+PQV3uvTo7hwYB80LtzSU//9IApYMD04bbOCr30KeadjdwESQS7RIZvE8OI7CrUiKwiD2cS+v19mYSF/4WVU51/vSG/SJFMrrHbyYDjf50DAZ/ZkCYEDvHsRSD4S8gFK3B9h1t4nFBLD6WXjz7///ewUWPLurKzr7KYimZHYCAIAqVxQkqNR0pT9kSToow40qJEhBhLhgbP7l6dngrH985h833CNr+/3pvGmrHjfRggIO/1YWve2pwZv0QQCP/e///tSxKmACwDzfeY8VBFhnrD8x4j+/7858h3PNPCMzicce/6n+RVwyZqCJ4BLtDCaeaWEdwIQgCnHKnUP08CuHJlfZk6LC5bUCyTU0TD/goxuV6/SmHrDDI3S3/2vRAAQVwp1IJAUtvMwmKP6bCS/UUAQcKmf9mNb///foIEE18lb/02K5DSCyd62L4ciKh0hwICgUrJDBNwrrmKhqHCyUEPE2yHyfqrSJMcVyCxDSNnWbG8GwSTeqsdgyUl/IYXLMlVcwSZ28rCYWz/iRAxnTW7/+1LErwALeIV355y2EYMgLnzziwqIn7zrLoYMn3/0eDS86p+vr6EuP2izaYi3U4YSAoEqWU7XRTRlheiH/04dNCiYIDxlTHlfqFjhxc41TVyuca4/1uDkhMf6FEm/oGGMvoSj/ixzN9usPv/KYxjfwf+sA4rTz3FgOxsEypQVNAybS71LmygIEgpyuGe8PuOonI2U2fYdRX0CJZkA6IRehTSU2q9zwFAPGX9SpZ0P86LKfRxmI5l/yo2HLeQBclCZ/MZmf1RiEwU/xFqeW8JHv//7UsSugAuJAXPnpLYRbxVuvPaV4tIdR/iUiLZUUF9YoRqIt0N1AgTRClkM87EFskxRXVGjvQrqM/E8dycY/H546XMRlrVhuHajE9uoewrLDO//aCUblrYplhI/+Vf6BESb/b9VMPX//6r/y/6O///7IZ///skqdNjCbU3KeIczVAEGyinXFawnmo3BvXjUipERjT89kcwx4P5WWZmKbfzvRMTwWnSitWkeKTFVPqxt/5oezlN7V1WI2q0iG6TOPzgyf3AAWZx1uf/KVH/2/gyl//tSxLCACtSpd+eYVhFrme589Klid/oDA6H/K///5z/8bJ+YzS+ZioPYP9qJqmaEQVICAoElOoozZUanZ6UQtRGwaOIKfOpdbx6AN6+nUJhb/q3H8D3mx8+1JHwiix89/BKHURtiFItkkohB7trVESjW/UwsCP//8yj/9v1VSjG/LQn///8r//xv/VNdWaPDicZNXDJDCx2NJSCIlWI5HKhIwS2VP8sUeA9Sa5gM36JZkwTaBv+tWMlxN5L/e99dl7Ol9J9BQKSKp3niUd9EdW//+1LEtYALYY1156yvUbIxbbzyi4vzgiIv//1UfFpK2fN9ulyYN/0b//////oEbf3OpQrMzsjCUOMqUYmnc3YFNspNxo/DnMhRFuJTIZ5yi4lJtbUp0kzJ0hvsiLm4g2XHtBowhoQcW+vXcMyDzd1+0cPU13sRIEwmZ9TlJCZ/5wmB7GAQdfprf9SSA5jT3/8vskTRmfDEvhgT2//5rqhc8weAxAJmiWJHQDWkkqWxu7+CoUjAWtrg64S1c0FckEpk/xLPj+l8XKW2gJmpKj7Itf/7UsSvgAyFjWPnrLhRkzKvvPOLLggEb8gh7/CABy/kJ/7lKXzt/topW//50dS6EY7a867af////0SjfV9DHKxgbmBMtWiWFGEDKVZRLtZPDgDqLpBMjZUGFK8Q0ym1JvnwPYUUVRMOK4xk3rItupaQQJRb7uFXLiR+mgozDAA2RknPpBMB9NEqn51LR3TJ4HcL8YmyPpjvb/X/qQ7eoOUv5zG//////5VZauxqcx40IDRK5L1ZxQCwBCYIkzj3jS3o3ENwR1pUHdkMXTV2zCUo//tSxKkADVD9deepuLFsMu389goScTkslRYyOrTZ5bmGI0X3nRPz/x/JJkKSkDiwSgzR/8mwuaKz/oFVvWoxDkxyDYzRS8xGxFeYqA4NN+r1/v/3X//8/////VTKu6uueNSMmoIqeag1ZAVLWq03MZcOoH0ybwYaNtBbj1fTITBImvc/Bj16kct2+d6y1A2BLTYzTGsfD/TVUJICknnV8KEUnF7tuF2OInVkARNUz0JCb+VHW93KM4lOUfYGe4SN1O4nO24NJfYHYvtF2EFfQij/+1LEpAAOAZNjx7S1ubGxqr2onqj6Z7izUwHOT4ltRMCxMlygJC3I4hw4QPmsExlsrlmcxKFpPPTo0nRQUG8PQ89XTMX6LTpSB2FCv0xqQ/oFNP+dTT/n55fnBJS8YA+crM2TxzWA+Qd/ox15Dt84J3v6F6AFnRGNR3DtfcPwVVfDr5rdzqQI73z8iJUAKdFyJ1b+Up6DQlAaepqlJA4jFta8xIht0EUUgEwJqUW/H8o/5cf+LMqIToqe5kXHb8OBH/p/nPb6oZPeiv/t/JItGf/7UsSTgAxo2XPntVhxjxsq/Py10Llf20EP7QaargFQgEvQWrra1ka6w2A39j0o/XT5PFswQ6gbbAMgh7Y+nWtZdPdNbuYB0J7X816kmOkyGNicdkvUCDfzzf6kTUor449kZ9wIm2//ozHM32Jb944/++vzjfU59/6EuSQHanfgEATEAinFre6MJ3mmk8m8aareGSh67ELFcIYARHyhavkz81rWyMU7Fq9LJ6W1Pv81FSqMVAFFh6fgP+X/vIqoSQz3N8Mff/0Z0uenp/1FdXz3//tSxI4ADOlxXew0VWGELiq8+h3w/9LxbGDgAEoDUrwzxr1RLOwF5YoR6g1wCsDSSIfZY4u88upOGT9X6IGinmVjTf9DgQgrb6hCf1sqelHZmbTMUi3p7r/oFCB0R+6V0bXcqMqP/x4MVSOmACGM0gEgEXIHrbvIewwz8NxFipxqhWgjVSwp/eTLdE5b/t504tEeSyEDYkrE0ytFFa+9z4aiUAnjFsK/+3a++v/clDP/rhIvISod/HtSd6OVOsTM/w07rjb/aJK69E2SRejENu//+1LEh4AKnSNZp5xYUUkoKnzyimBVaRKmzw62W4SgeqNjBiYHE8JW9bLzhqnPfi23j+0QxaLmeE9fMjLGxh0/zNfIZa//3REH1//DihRs+9uNtA+BSanU/3Ind3Syhcd8U9lumbCqu0oLy00bSSDCzz2cTOPhckqH1UW8VEaGDFccMLM4ofUsMbdVzitv6JAyZmmE/pAamR+hRfmo0wCAtf/QdJf6jw+Y9J62YFRyzu95Q6BB/+Vm/pIn0bpp/eenl6mGpLpFGoCaAr1iIiEV5P/7UsSRgAtY00Og5WPBd5rrdYehrt0ruPu+OUOw5Bh2m8sof0jHoghqVSEzvh8RuyAJzIrpSatVL+/+MeC+mse7nViO/T5vMrbna0vyof/++QKQlDTbYKnWf1i51aZGdUBIU3kcaTQg6rNGIKdxvK0vr8N4F8hsIYjd1K4qKgOKqzV/MN/mM973yqkGJ/9iHLVpjTuMhSjRo73ljS9AXOqpC9ZdxoSjFrWLkzSP9VYaUhYbBh8rA70Uz7e7BLeTsMhWqDwQGS00pFLyg8B8Phae//tSxJMAC9VPW6ecuPFQn2l9hYm8TiD/hM7GOnd3Qrvae++Tgh6sp92FjKd4etNM60vkXDc880486ZzLDFMo8jw56z5qEgAEAbTZZgFHRWqtWJNhUVf5YY8PxPoDJOWSsvVzoVD86MEGkMGLUoeRM2EY+eXCBCmpRJQ4pVkL/Tt/eFUzKW2U4x//5/8OSH+KI4KPovFCMhOqzoYI6wtusjYBLf21ErICKEMGysn3ukUKH4QFgZHQspy3E/ALT6vvSXEYIaS2H1qizNjVlJs6oWr/+1LEl4AKQI1b57BNMUIfJ7GkjV2wK18MJVGnZtXyoydD7Xo4NrCIjGuba+kXDoIPGbVZQIHdfVqV+NbizuHIegocv6r96KxDkXlgbHHEuZneN693VcU0rSvUcA0CuONk83j0GNskL8gbU/dwu1bF8Cz7/wXz8hN+5tRP++ncokTtAeElVjaoDYJBhWxo2Q2neUqOaGS6EErKToxOtYD2q51ubOQZV51I15xJcOqu6sQy2WzwEctN72NfUGUzoe2jGV//36p0uyswMWUCnvj8Sf/7UsSkAAps+zesrGrBRpyrfMQKXjs9DgA2KckbaYEposrc/SZOjilYHnYu1i2zTYHjnsavdoJVMikC3UbczEuhg9VmV2/X/smbkapFOso4XNjgOUUE3pUpem9j2j0NODN40BLYoFQBoV98yGF63rOpD69XpBkpGqMpOo0CRMaGtFage4NIKixiIXw6u1pHk4VGqscyUSRzQWUsOzB0jvjTCiURnd54Najt8yqv/p+inNf1qgEwCRZGkkSAPrv2ZY4HFzmVbJLXf20EoHiNv0mr//tSxK+AClCXOa0sbylIn6c1pglhmVtaJz2brmveswHT4QEigUHPaTJuCwnUgLCYaXCQx0VCYYqZLouR0mkSG/v//vZ//+gAkBuR/SqDlPa+L7OckJYxXsL/3djeIxTzsSXVuZow8XCq5cb5hpeniSATCQJiiyzSCiIqkGRczDYBCjhx3PnyVUPWobEJMFmlWUX/8itv+z88m+oAQTR2SNJIgBESfvTNOgCVAhGupmaD1UaDClRhaWFfc1zHU2HFIRAk0ODymRogEI8IDx5goKD/+1LEuwAJ0J01rJRwgTaQJfGmDVCr1HFBAigiJGQyYGAPw5GMuIFkW7P/b/+uoEhOSWe8oAEwsjf5dwLFhtZifUvNP84+ipAS1zEMG0EEgQ94cQiL81E1TfgEhFFQjKliq47cgIOMhoRhA8GFqCTGFFq5H2a7/f/X/WO/TQFTeiB8YBryNIPngtuR5osTvlGyU8LBlWr2QcDYNBl4UUElqYKDhigTBMFwKaB1wWLHo4YRNhK+UHiy274SKLowQ4VLWimufvc15A8ssaQbpVRkzv/7UsTKgAngUS+mYYZBTQ5lcPYNIIwAKPqAAyW3+UduK4nImsO/zB6gFHDHbhxyswShMxkWjeFK5ONYoDbNzPwe4ugWvN7nHa7xd11dTEmBu9zsX4+lpe7fP8tz4E/8d13kyn/+n6e/32/jtd/v/goAgNQADRVRv3VUgBxqrvPmKJUXRKw3AYOkkDLF8bVijT3a7UtCCS7+iFuXDqbZ5TWm6lhmIy0QN6G6k/aTkPxMUUHhGqA4itOnzxYLi05bWAS59s5Bu8E8gt+t+KADFbgV//tSxNcACfBPL6K8xME4k6WwJgywQ3zuykMKcx1tpBKF/2wIjeUSQNTyVrcItIR2epIvzUEzzsyQlrRqZntPrj2TmohEri832FX8BKaZHQE6iNbV9cb3b/36Ve19eZA8e+pr+ZU/1a3+WO+3/VUAFZQAKl65axl9wmQIsd7vaDv8I5nxgugzIPplh8ig3COPzxCU6YhJTs0ttZWIyI6iw1pN/7GVy7ej5bPQ9IPMSKyXjq39u8X/jvcm+XX/IiVIzp/U+z/uf5zV/v1+0ZAk4S//+1LE5gBKoEknBg0AgWWLZOTEmCml2SXIH5lDpooyICgTCpdI4sWaSxybrMPiQCeswcii4BHU3BHQSM+yjgg5oWpMQZZLSmOvrmYUke9h+tNZGi59KoQzUu7HT/oJIfn98nUBrTv4DgLaE/NlplX9P+Edb/yVARGiQAAAaKP3bXbHjpy8d3zkU4C2Y3iriAMncMJMNVAKnHfzLNHKms4t3OwN9Q4lAOexBw/zvvJqdbP9C8pqHcqt23D6W7i3u//+TWLrJXu9B+D/V94ij3fg6f/7UMTsgEuU7yMHpGHBcxdkoMMNaYASvQmQcDunTsU3I3Jhjmg4OqQaTbIT5faJa5byXd5jg5yb1uk9HLY7qTdG0Vs9aIctKGShnZ+rrLVHYzSmdm7XeSj7upXbb7m+O4BPHRZUcsIVIrh1hYXbnYhQAEW2UAACMxNIVpA03M2WEgFuQnulb2kntO8JbDkbZelo6ss4s7hqawEqiia1/FdgMnMt8ZxUuFerbalrgT7f1Mxf+wnvgYV0xj7alcL5u/8937ta//m7+WVg6SWgAgb/+1LE7QLLyNsjB5hlyZQkJCC0DXGOfEXXceJr60olJsWDmQnPPKo3CmI72tqwMzzYi2rrkK2w2/dRyyPEoX1+3RoYLMFCJ7kyGToaKh+XXcc11+ZGmH5f7k7yyqSXOY1il7+N34719Acl1s7D/+Xhxi0gBZR6RD7BfN3M9RmOoqwMNc3QTouw48LYoaFVVSjQ3siuSQlnmHHkTBBQ7KR73+k1rOSkRmOeU8XTiyMd80FWebJCwUMn6sSBvNKyFyk0DNMzn4m3H8K03CII8ibzJ//7UsTpAMtolyUlGGPJbqjkoNMI+JbOgCKjbtslrcSSBNXJ538el/ttktEEJ0xQQZpSVTWYkmbelniq12vWuxkkz0tLka4fEB44LAosQnEqYx58NCGvcKCeDmkzdVqyqSO8V0FKf7vqAQZiAAAHyr3DE8saePj3piRhtwfbKJ2kg9cQh2IMk6EikQ/WD7fEMZ2lLmPqtesQ7sREb2nAx1QpJrwi/UrwUvslRNiLb6f6q340L4zIxIiv2Lj7sK39+lOeVKfYTwlPvlfDO4uJBOjN//tSxOuCS1hdJSYMwYmEoqRgsw0xAATxKAtBTLMJ375jTiJOtvmDQRKhBMEbyiLARC/Sgig1ZwTOmaa56WfWZeZfVqdLq5acyKe1Pyu2pRPkRyd7H8KD4jXUDJBq5mwJTjEVuaReI+G74pYQJjT4AFa0LRRWYlAABYmBWzkB9Yndo9oJb53EbKMICAmZNQjAUE8GYO2MZwFF1fyJDyhbBYCReXPUHDUBK+1p3QLtYDH79jmgXrpXGYc4BGVv77cHrsbAPP/37Ed1xnp71r60VnX/+1LE64AMUSkgJ5hgCT4RJjTzDTif/VAFWo4TAOp52O/yYKO7jSQVbGgJjqQ4AMgVonBbPghGYSPEiwztdGaKWfDsMo0SAtdk+C78Vn8SkWbebI8kybZ5niGqBX0W/zsVbafJb/s8dzq5ne+vVE2+W369RQGatpCw3LV1khCFVFPHE4eQbEuEJRg4LvXF4GrGcIyijcUFFRJzmlKwcXM+PuG5VzObaRkCgMO4yXtF1ejsn3vQ3pT+jLVf/2m3+vj391rfX93d+3x/35cX9+7BAv/7UsTwgE0ljyMnmGfBdp+kpPMMeOrUQAGtAfpNfGzXY9kQhVE1uWlkwWxKAgqQ6wL6phAQsyE5su2hk1I7nUhrz1hj0VEY8ZMOCJ9rdxI7j1rOJkFDUTxlCT6KGpLIkQn5l6ip2wgWSVwmQXStAASaAAQY1/NTMTFvpep7NBcCsypeQ5ZXjgagXCJwQtrGoe0C0isrVh4CLGEmOwNnEXJsjIlDn5Nr4accv68Jih/D+GqN0gc4Wqk07qYKfXO6IUL1uv0+AkmRMtlIaH/01qOY//tSxOsATBiNJSeYY8lvFOSgwwwxTI0EniS12UgIVygWQ8rGaDmWRW44FBiSZH7qc1OZKBW51uhBttdT7SkC6MpJ+XfuoD5s+J4UxGeTevzAjtt/JNKutlX0rJ96F1qY2a9I7+Wq/TNP+CEv/cu+//ud4//vtQAF9AAJINVzy+o+W16tqU4LoAQBQvXw3PbFZqFs8xgS+5Q6iF+ahV46lx8eFCdm3xPD5DxbEoLz73kE4KLJ33MGVbJBKZ4G0qvjb1/1f6olDPWX9/+fr//7+h3/+1LE6oALaGclBiBjyWoUZOTDDHi0AIvMCdh4iN9XYS99J+JTE0QBDky4SbDTjHN+Zvleury6cPma5f1qtsl8ejTI3KzdLQPnORRqmkJDnrg/Ow6w9gIxPH1EAeaFtM5xviHH6dae4ZJ5lZPPDrv1/PztL7Evy3nZACMAACejFRSihvZH09twUJhz4Yp76iV4ars0Ym2b6rVV+MfqUZvgYUdVVir9UKAlV/9mh1dgwotBUNB1hKtYKgqCoKnqBEeERUFXA0/rwa4ifiV3npZ+RP/7UsTtgE1VkSEHmGXBY4rkoPGYIQVaqEYGhBCRgYRBIhoRk0IjIaYRGZNf/+EjAwiEZDA0I69CM//cj+ZH/+Zk5GrBQwIOhkytaR/8v2WWW/5qwUGjkf/cya/IZS//kdmTS5kysDolTEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//tSxOmAS3yrIweYY8mMlORg8ZhZVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+1LE6AIK+Ncax4RrAUw0GIgQjnlVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==",     // enregistrement, 1,5 s
+};
+
+// ---- Geometrie de la scene, en pixels de canvas ----
+const L = 960, H = 320;
+const TUILE = 64;                 // taille d'affichage d'une tuile de sol
+const HAUT_SOL = H - TUILE;       // ligne de terre
+const CHEV = 6;                   // enfoncement de l'herbe dans le sol
+const BAS_DECOR = HAUT_SOL + CHEV;
+const MONDE = 1920;               // longueur du decor avant repetition
+const CASE_W = 160, CASE_H = 120; // une case de la planche du chat
+const CHAT_PATTES = 107;          // ligne des pattes dans la case
+const CHAT_BOITE = { x: 20, y: 12, w: 119, h: 96 };  // zone touchable
+const FLEUR_T = 56;               // 14 px d'art, agrandis 4 fois
+// Ordre des teintes dans flowers.png, releve sur les pixels de la planche.
+// C'est la couleur qui decide de tout : il faut l'identifier AVANT de tirer,
+// et c'est la que le pre cesse d'etre un decor pour devenir un piege.
+const FLEUR_JAUNE = 0;            // #f9d749 -> une vie de plus
+const FLEUR_ROUGE = 1;            // #fa5111 -> une vie de moins
+const FLEUR_MAUVE = 2;            // #ff91dc -> rien du tout
+// Ecart entre deux elements du decor. Les deux nombres sont mesures sur les
+// pixels opaques des planches, pas sur la taille des tuiles :
+//   - le dessin d'une fleur remplit ses 56 px de bord a bord ;
+//   - la touffe s'etend de +4 a +56 dans sa tuile de 64.
+// Le bord droit des deux tombe donc a +56 : c'est le seuil exact en dessous
+// duquel quelque chose se recouvre.
+const RECOUVREMENT = 56;
+// La cible visee au placement, avec un peu de marge. Inutile de monter plus
+// haut : seize elements dans un monde de 1920 px et une bande d'insertion de
+// 896 px rendent un seuil ambitieux infaisable, et le repli superposerait
+// pour de bon.
+const ECART_DECOR = 68;
+const FLEUR_ART = 14;             // taille de l'art d'une fleur
+const FLEUR_MARGE = 8;            // resserrement de la boite touchable
+const VITESSE_SOL = 40;           // defilement du decor, en px/s
+
+// ---- Les vies sont maintenant celles du joueur, plus celles du chat ----
+const VIES_DEPART = 3;
+// Trois, et pas une de plus : on ne met pas de vies en banque. Une fleur ne
+// sert que si l'on a deja perdu quelque chose, ce qui oblige a choisir entre
+// tirer sur le chat et reparer sa faute.
+const VIES_MAX = 3;
+// La vitesse monte a chaque chat abattu, puis PLAFONNE au douzieme : au-dela
+// elle devenait injouable plutot que difficile. A ce palier le chat traverse
+// l'ecran en 1,2 s, pointe de vitesse non comprise.
+// La partie ne se termine donc plus par la seule vitesse : ce sont les
+// pointes imprevisibles, les bonds irreguliers et les fleurs rouges qui
+// finissent par avoir le joueur.
+const PALIER_MAX = 12;
+// ---- LES TROIS NOMBRES QUI REGLENT LA DIFFICULTE ----
+// Baisser VITESSE_PAR_CHAT rend toute la partie plus lente ; baisser
+// PALIER_MAX fait arriver le plafond plus tot, donc plus bas.
+//   vitesse du chat = VITESSE_BASE + palier x VITESSE_PAR_CHAT
+//   palier          = chats abattus, plafonne a PALIER_MAX
+// La progression est LINEAIRE : la part au carre qui l'accompagnait avant
+// ne se sentait pas jusqu'au dixieme chat puis emportait tout, et la fin de
+// partie tombait en quelques secondes.
+const VITESSE_BASE = 100;      // le premier chat, en px/s
+const VITESSE_PAR_CHAT = 34;   // ce que chaque chat abattu ajoute
+// Le sprint est un bonus ABSOLU, pas un multiplicateur : x2 sur 1700 px/s
+// mettrait le chat hors de tout reflexe d'un coup, et la surprise passerait
+// pour une injustice. Ici il ajoute toujours a peu pres autant.
+const SPRINT_MIN = 90, SPRINT_ETENDUE = 170;
+// Un joueur tres rapide peut empiler plusieurs explosions avant que la
+// precedente ne se soit eteinte : 700 eclats par chat, et un fillRect par
+// eclat et par image. On plafonne pour que la cadence ne s'ecroule pas.
+const ECLATS_MAX = 2600;
+
+// Le saut par-dessus les fleurs. Les deux poses ne sont pas choisies au
+// jugé : sur les 28 images, l'image 1 est celle dont les pattes sont les
+// plus ecartees (119 px) et l'image 3 la plus rassemblee (71 px).
+//
+// Le bond couvre une DISTANCE a peu pres constante, pas une duree : sa duree
+// suit donc l'inverse de la vitesse. C'est le contraire de la regle
+// d'origine, et c'est une correction, pas un gout : mesure faite, une duree
+// qui s'allonge avec le palier laisse le chat perpetuellement en l'air des
+// qu'il court vite. Il ne repose plus une patte, et le sommet du bond cesse
+// de tomber sur la fleur.
+const SAUT = {
+  portee: 215,          // px de decor franchis par bond, en moyenne
+  dureeMax: 0.62,       // plafond, pour les allures lentes
+  hauteur: 70, hauteurParPalier: 6, hauteurMax: 136,
+  // Chaque bond tire sa longueur et sa hauteur au sort : deux bonds ne se
+  // ressemblent pas, et on ne peut plus anticiper la trajectoire du chat en
+  // ayant vu le precedent.
+  varPortee: 0.44,      // +/- 22 % sur la longueur
+  // La hauteur n'est pas tiree en pourcentage puis rognee : aux premiers
+  // paliers le plafond frole le plancher, et tous les bonds retombaient sur
+  // la meme valeur. On tire directement dans [hauteurMin, plafond], avec une
+  // amplitude minimale garantie.
+  amplitudeMin: 34,
+  // Plancher, regle a la mesure. La fleur fait 56 px de haut, mais le chat ne
+  // la croise pas toujours au sommet de sa parabole : quand une deuxieme
+  // fleur surgit alors qu'il est deja en l'air, il la frole en redescendant.
+  // Balayage du plancher : 68 -> 81 %, 82 -> 85 %, 100 -> 87 %, 120 -> 83 %.
+  // A noter : SANS aucun alea le taux est de 84 %. Les ratages ne viennent
+  // donc pas du tirage au sort mais de ces fleurs rencontrees en plein vol —
+  // rendre les bonds irreguliers n'a rien coute.
+  hauteurMin: 100,
+  imgAir: 1, imgAppel: 3,
+};
+
+// ---- Ciel : bandes de #303990 sur du noir, opacite croissante vers le bas.
+// Composer sur du noir revient a multiplier, d'ou le produit direct. ----
+const CIEL_BLEU = [0x30, 0x39, 0x90];
+const CIEL_OPACITES = [0.8, 0.75, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+const BANDE_CIEL = 48;
+
+const MOINS_ANIME = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// =====================================================================
+// Etat
+// =====================================================================
+const jeu = {
+  phase: "depart",       // depart | jeu | fin
+  vies: VIES_DEPART,     // vies du JOUEUR
+  tues: 0,               // chats abattus : le score, et le palier
+  fleurs: 0,             // fleurs UTILES fauchees : les jaunes
+  bevues: 0,             // fleurs rouges, celles qu'il ne fallait pas
+  tirs: 0,
+  touches: 0,
+  fuites: 0,
+  debut: 0,
+  duree: 0,
+  defile: 0,             // decalage du sol
+  chat: null,
+  eclats: [],
+  fantomes: [],
+  impacts: [],
+  secousse: 0,
+  eclair: 0,
+  eclairRVB: "250,81,17",
+  recul: 0,
+  viseur: { x: L / 2, y: H / 2, dedans: false },
+};
+
+const etoiles = [];
+const decor = [];
+
+// Distance au plus proche voisin du decor, mesuree sur le monde qui boucle.
+function ecartMini(x, sauf) {
+  let mini = Infinity;
+  for (const o of decor) {
+    if (o === sauf) continue;
+    const d = Math.abs(o.x - x) % MONDE;
+    mini = Math.min(mini, Math.min(d, MONDE - d));
+  }
+  return mini;
+}
+
+// Au SEMIS : des places tirees au hasard, pour que le pre n'ait pas l'air
+// peigne. On retire tant que ca tombe trop pres d'un voisin.
+function placeAleatoire(etendue, tirage, sauf) {
+  let meilleur = 0, meilleurEcart = -1;
+  for (let essai = 0; essai < 60; essai++) {
+    const x = Math.floor(tirage() * etendue);
+    const e = ecartMini(x, sauf);
+    if (e >= ECART_DECOR) return x;
+    if (e > meilleurEcart) { meilleurEcart = e; meilleur = x; }
+  }
+  return meilleur;
+}
+
+// A la REPOUSSE : on balaye la bande hors ecran du plus proche au plus loin
+// et on prend la PREMIERE place assez degagee. Tirer au hasard dans une
+// bande etroite ne marchait pas — elle est souvent deja pleine, et le repli
+// « la moins mauvaise place » superposait. Ici la fleur revient au plus tot,
+// ce qui maintient la densite, et ne chevauche jamais.
+function placeProche(depart, etendue, sauf) {
+  const PAS = 12;
+  let meilleur = depart, meilleurEcart = -1;
+  // Depart decale au hasard : sans lui, toutes les fleurs reviendraient sur
+  // les memes quelques positions.
+  for (let d = Math.random() * PAS; d < etendue; d += PAS) {
+    const x = Math.floor((depart + d) % MONDE);
+    const e = ecartMini(x, sauf);
+    if (e >= ECART_DECOR) return x;
+    if (e > meilleurEcart) { meilleurEcart = e; meilleur = x; }
+  }
+  return meilleur;
+}
+
+// Semis deterministe : la scene est la meme a chaque ouverture de la page.
+(function semer() {
+  let g = 20260822;
+  const alea = () => {
+    g |= 0; g = (g + 0x6d2b79f5) | 0;
+    let t = Math.imul(g ^ (g >>> 15), 1 | g);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  // Etoiles : positions fixes, elles scintillent sur place. Densite calquee
+  // sur le vrai site, bien plus depouille qu'on ne l'imagine.
+  for (let i = 0; i < 26; i++) {
+    etoiles.push({
+      x: Math.floor(alea() * L),
+      y: Math.floor(alea() * (HAUT_SOL - 40)),
+      t: 2 + Math.floor(alea() * 4),
+      p: alea() * 6.283,
+      v: 0.6 + alea() * 1.4,
+    });
+  }
+  // Decor : cinq fleurs et sept touffes, semees une fois puis defilees en
+  // boucle. Les deux nombres ne jouent pas le meme role.
+  //   - Les FLEURS sont un reglage de jeu : c'est leur densite a l'ecran qui
+  //     partage l'attention entre le chat et le decor. Cinq donnent 2,65
+  //     fleurs visibles en moyenne, la valeur de reference.
+  //   - Les TOUFFES ne sont que du decor, et on en a retire. A seize
+  //     elements le monde etait trop serre : une fleur fauchee ne trouvait
+  //     plus ou repousser pres du bord sans en chevaucher une autre, et il
+  //     fallait choisir entre superposer et vider le pre.
+  // Les trois premieres fleurs prennent une teinte chacune : sans ca un
+  // tirage malheureux pouvait priver la partie de rouge ou de jaune.
+  const NB_FLEURS = 5, NB_TOUFFES = 7;
+  for (let i = 0; i < NB_FLEURS + NB_TOUFFES; i++) {
+    decor.push({
+      x: placeAleatoire(MONDE, alea, null),
+      fleur: i < NB_FLEURS,
+      teinte: i < 3 ? i : Math.floor(alea() * 3),
+    });
+  }
+  decor.sort((a, b) => a.x - b.x);
+})();
+
+// =====================================================================
+// Chargement
+// =====================================================================
+function charger(src) {
+  return new Promise((ok, ko) => {
+    const i = new Image();
+    i.onload = () => ok(i);
+    i.onerror = ko;
+    i.src = src;
+  });
+}
+
+const toile = document.getElementById("jeu");
+const ctx = toile.getContext("2d", { alpha: false });
+ctx.imageSmoothingEnabled = false;
+
+let img = {};
+// Copie hors ecran de la planche du chat : sert a lire ses pixels un a un
+// quand il explose. Le chat se desagrege donc en ses propres pixels.
+let pixelsChat = null;
+let pixelsFleurs = null;
+
+// =====================================================================
+// Dessin de la scene
+// =====================================================================
+function couleurCiel(indice) {
+  if (indice >= CIEL_OPACITES.length) return "rgb(0,0,0)";
+  const a = 0.4 * CIEL_OPACITES[indice];
+  const c = CIEL_BLEU.map((v) => Math.round(v * a));
+  return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+}
+
+function dessinerCiel() {
+  for (let bas = H, k = 0; bas > 0; bas -= BANDE_CIEL, k++) {
+    ctx.fillStyle = couleurCiel(k);
+    ctx.fillRect(0, Math.max(0, bas - BANDE_CIEL), L, Math.min(BANDE_CIEL, bas));
+  }
+}
+
+function dessinerEtoiles(t) {
+  for (const e of etoiles) {
+    const k = 0.45 + 0.55 * (Math.sin(t * e.v + e.p) + 1) / 2;
+    const n = Math.round(232 * k);
+    ctx.fillStyle = "rgb(" + n + "," + n + "," + Math.round(244 * k) + ")";
+    ctx.fillRect(e.x, e.y, e.t, e.t);
+  }
+}
+
+// Position a l'ecran d'un element du decor. Le dessin et la detection
+// des sauts doivent voir exactement la meme chose, d'ou la fonction commune.
+function positionDecor(o, dm) {
+  const x = o.x - dm;
+  return x < -TUILE ? x + MONDE : x;
+}
+
+function dessinerSol() {
+  const d = jeu.defile % TUILE;
+  for (let x = -d - TUILE; x < L + TUILE; x += TUILE) {
+    ctx.drawImage(img.sol, Math.round(x), HAUT_SOL, TUILE, TUILE);
+  }
+  const dm = jeu.defile % MONDE;
+  for (const o of decor) {
+    const x = positionDecor(o, dm);
+    if (x > L + TUILE) continue;
+    if (o.fleur) {
+      ctx.drawImage(img.fleurs, o.teinte * 14, 0, 14, 14,
+                    Math.round(x), BAS_DECOR - FLEUR_T, FLEUR_T, FLEUR_T);
+    } else {
+      ctx.drawImage(img.herbe, Math.round(x), BAS_DECOR - TUILE, TUILE, TUILE);
+    }
+  }
+}
+
+function dessinerChat(c) {
+  const col = c.image % 7, lig = Math.floor(c.image / 7);
+  ctx.save();
+  const y = Math.round(c.y - c.dz);
+  if (c.vx > 0) {
+    ctx.translate(Math.round(c.x), y);
+  } else {
+    // Le sprite regarde a droite : on le retourne pour l'autre sens.
+    ctx.translate(Math.round(c.x) + CASE_W, y);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(img.chat, col * CASE_W, lig * CASE_H, CASE_W, CASE_H,
+                0, 0, CASE_W, CASE_H);
+  ctx.restore();
+}
+
+function dessinerFantome(f) {
+  const col = f.image % 7, lig = Math.floor(f.image / 7);
+  const w = CASE_W * f.ech, h = CASE_H * f.ech;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, f.vie);
+  ctx.drawImage(img.chat, col * CASE_W, lig * CASE_H, CASE_W, CASE_H,
+                Math.round(f.x), Math.round(f.y), w, h);
+  // L'aureole : quelques traits de pixels, pas un cercle lisse.
+  ctx.fillStyle = "#f9d749";
+  const u = Math.max(2, Math.round(3 * f.ech));
+  const ax = Math.round(f.x + w * 0.6), ay = Math.round(f.y + u);
+  ctx.fillRect(ax - u * 5, ay, u * 10, u);
+  ctx.fillRect(ax - u * 6, ay + u, u, u);
+  ctx.fillRect(ax + u * 5, ay + u, u, u);
+  ctx.fillRect(ax - u * 5, ay + u * 2, u * 10, u);
+  ctx.restore();
+}
+
+function dessinerViseur() {
+  if (!jeu.viseur.dedans || jeu.phase !== "jeu") return;
+  const x = Math.round(jeu.viseur.x), y = Math.round(jeu.viseur.y);
+  // Au depart du coup, la cible s'ecarte puis revient.
+  const d = Math.round(jeu.recul * 5);
+  ctx.fillStyle = jeu.recul > 0.3 ? "#f9d749" : "#fa5111";
+  ctx.fillRect(x - 14 - d, y - 1, 9, 3);
+  ctx.fillRect(x + 6 + d, y - 1, 9, 3);
+  ctx.fillRect(x - 1, y - 14 - d, 3, 9);
+  ctx.fillRect(x - 1, y + 6 + d, 3, 9);
+  ctx.fillRect(x - 1, y - 1, 3, 3);
+}
+
+// =====================================================================
+// Boucle
+// =====================================================================
+let precedent = 0;
+
+function boucle(ms) {
+  requestAnimationFrame(boucle);
+  const dt = Math.min(0.05, (ms - precedent) / 1000) || 0;
+  precedent = ms;
+  const t = ms / 1000;
+
+  if (jeu.phase === "jeu") {
+    jeu.duree = (performance.now() - jeu.debut) / 1000;
+    document.getElementById("temps").textContent = jeu.duree.toFixed(1);
+  }
+  jeu.defile += VITESSE_SOL * dt;
+
+  avancerChat(dt);
+  avancerEclats(dt);
+  avancerFantomes(dt);
+  avancerImpacts(dt);
+
+  ctx.save();
+  if (jeu.secousse > 0) {
+    jeu.secousse = Math.max(0, jeu.secousse - dt * 5);
+    if (!MOINS_ANIME) {
+      const s = jeu.secousse * 6;
+      ctx.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
+    }
+  }
+
+  dessinerCiel();
+  dessinerEtoiles(t);
+  for (const f of jeu.fantomes) dessinerFantome(f);
+  dessinerSol();
+  if (jeu.chat && jeu.chat.vivant) dessinerChat(jeu.chat);
+
+  for (const e of jeu.eclats) {
+    ctx.fillStyle = e.c;
+    ctx.globalAlpha = Math.min(1, e.vie);
+    ctx.fillRect(Math.round(e.x), Math.round(e.y), e.t, e.t);
+  }
+  ctx.globalAlpha = 1;
+
+  for (const i of jeu.impacts) {
+    ctx.fillStyle = "rgba(201,199,214," + i.vie.toFixed(3) + ")";
+    const r = Math.round((1 - i.vie) * 14) + 2;
+    ctx.fillRect(i.x - r, i.y - 1, r * 2, 3);
+    ctx.fillRect(i.x - 1, i.y - r, 3, r * 2);
+  }
+
+  jeu.recul = Math.max(0, jeu.recul - dt * 5);
+
+  if (jeu.eclair > 0) {
+    jeu.eclair = Math.max(0, jeu.eclair - dt * 8);
+    ctx.fillStyle = "rgba(" + jeu.eclairRVB + "," + (jeu.eclair * 0.22).toFixed(3) + ")";
+    ctx.fillRect(0, 0, L, H);
+  }
+  ctx.restore();
+  dessinerViseur();
+}
+
+// =====================================================================
+// Le chat
+// =====================================================================
+function lacherChat() {
+  // Le palier suit les chats ABATTUS, pas les vies du joueur : rater un
+  // chat coute une vie, ca ne doit pas en plus durcir le jeu.
+  // 100, 134, 168, 202... jusqu'a 508 px/s au douzieme chat, soit un ecran
+  // traverse en 2,2 s — le temps de voir, viser et cliquer.
+  const niveau = Math.min(jeu.tues, PALIER_MAX);
+  const vitesse = VITESSE_BASE + niveau * VITESSE_PAR_CHAT;
+  const versGauche = Math.random() < 0.55;
+  jeu.chat = {
+    x: versGauche ? L + 20 : -CASE_W - 20,
+    y: HAUT_SOL + CHEV - CHAT_PATTES,
+    vx: versGauche ? -vitesse : vitesse,
+    image: 0,
+    horloge: 0,
+    vivant: true,
+    aMiaule: false,   // un seul cri par chat, au premier bond
+    dz: 0,        // hauteur au-dessus du sol
+    tSaut: -1,    // avancement du saut, en secondes ; -1 = au sol
+    sautDuree: 0, sautHauteur: 0,   // tires par preparerSaut, juste apres
+    sautVitesse: vitesse,
+    sautPlafond: Math.min(SAUT.hauteurMax,
+                          SAUT.hauteur + niveau * SAUT.hauteurParPalier),
+    // Une pointe de vitesse imprevisible a partir du troisieme chat.
+    sprint: niveau >= 2 ? SPRINT_MIN + Math.random() * SPRINT_ETENDUE : 0,
+    prochainSprint: 0.7 + Math.random() * 1.6,
+  };
+  preparerSaut(jeu.chat);
+}
+
+// Tire les caracteristiques du PROCHAIN bond. Appelee au lacher et a chaque
+// reception, jamais au decollage : fleurEnApproche a besoin de connaitre la
+// duree pour choisir l'instant du saut, sans quoi le sommet de la parabole
+// ne tomberait plus sur la fleur.
+function preparerSaut(c) {
+  const portee = SAUT.portee * (1 - SAUT.varPortee / 2 + Math.random() * SAUT.varPortee);
+  c.sautDuree = Math.min(SAUT.dureeMax, portee / c.sautVitesse);
+  const bas = SAUT.hauteurMin;
+  const haut = Math.min(SAUT.hauteurMax,
+                        Math.max(bas + SAUT.amplitudeMin, c.sautPlafond));
+  c.sautHauteur = bas + Math.random() * (haut - bas);
+}
+
+function avancerChat(dt) {
+  const c = jeu.chat;
+  if (!c || !c.vivant) return;
+
+  if (c.sprint) {
+    c.prochainSprint -= dt;
+    if (c.prochainSprint <= 0) {
+      const v = Math.abs(c.vx) + c.sprint;      // un bonus, pas un facteur
+      c.vx = c.vx < 0 ? -v : v;
+      c.sprint = 0;
+    }
+  }
+  c.x += c.vx * dt;
+
+  if (c.tSaut >= 0) {
+    c.tSaut += dt;
+    const p = c.tSaut / c.sautDuree;
+    if (p >= 1) {
+      c.tSaut = -1; c.dz = 0;
+      preparerSaut(c);          // le suivant ne ressemblera pas a celui-ci
+      poussiere(c);
+    } else {
+      // Parabole : nulle aux deux bouts, maximale au milieu.
+      c.dz = 4 * c.sautHauteur * p * (1 - p);
+      // Rassemble a l'appel et a la reception, tendu entre les deux.
+      c.image = (p < 0.16 || p > 0.84) ? SAUT.imgAppel : SAUT.imgAir;
+    }
+  } else {
+    if (fleurEnApproche(c)) {
+      c.tSaut = 0;
+      // UN seul cri par chat. Aux paliers rapides il enchaine jusqu'a
+      // cinquante bonds : un miaulement par bond, ce sont des cris qui se
+      // chevauchent, et l'enregistrement de 1,5 s empile en accelere sonne
+      // comme un rire de sorciere.
+      if (!c.aMiaule) { c.aMiaule = true; bruitMiaou(); }
+    }
+    // La foulee suit la vitesse : sinon il patine.
+    c.horloge += dt * (Math.abs(c.vx) / 95);
+    if (c.horloge >= 0.1) { c.horloge -= 0.1; c.image = (c.image + 1) % 28; }
+  }
+
+  if (c.x > L + 40 || c.x < -CASE_W - 40) {
+    if (jeu.phase === "jeu") { jeu.fuites++; perdreVie(); }
+    lacherChat();
+  }
+}
+
+// Le decor derive vers la gauche pendant que le chat court : c'est
+// l'ecart entre les deux vitesses qui determine quand decoller.
+function fleurEnApproche(c) {
+  const versDroite = c.vx > 0;
+  const rapprochement = Math.abs(c.vx) + (versDroite ? VITESSE_SOL : -VITESSE_SOL);
+  if (rapprochement <= 0) return false;      // il ne rattrapera jamais rien
+
+  // On raisonne sur le centre du corps, pas sur le nez : c'est lui qui
+  // doit se trouver au sommet de la parabole au-dessus de la fleur.
+  const centreChat = c.x + CASE_W / 2;
+
+  // On vise la fleur la PLUS PROCHE devant lui, pas la premiere venue
+  // dans le tableau : quand deux fleurs sont groupees et que le seuil de
+  // declenchement s'elargit avec la difficulte, plusieurs sont candidates
+  // en meme temps, et l'ordre du tableau ne veut rien dire.
+  const dm = jeu.defile % MONDE;
+  let plusProche = Infinity;
+  for (const o of decor) {
+    if (!o.fleur) continue;
+    const centre = positionDecor(o, dm) + FLEUR_T / 2;
+    const ecart = versDroite ? centre - centreChat : centreChat - centre;
+    if (ecart > 0 && ecart < plusProche) plusProche = ecart;
+  }
+  // On decolle quand il reste une demi-duree de saut avant la fleur :
+  // le sommet de la parabole tombe alors pile dessus. La duree variant
+  // d'un chat a l'autre, la distance de declenchement suit.
+  return plusProche / rapprochement <= c.sautDuree / 2;
+}
+
+// Une fleur fauchee ne disparait pas du pre : elle repousse aussitot
+// ailleurs, hors champ. Le nombre de fleurs a l'ecran reste donc constant,
+// et c'est lui qui partage l'attention du joueur entre le chat et le decor.
+// La faire disparaitre jusqu'au tour suivant vidait le pre a mesure qu'on
+// recoltait, et l'arbitrage fleur/chat s'evanouissait avec lui.
+// On ne peut pas pour autant remoissonner sur place : elle n'est plus la.
+// Elle repousse JUSTE au bord droit, pas n'importe ou dans le monde : le
+// decor ne defile qu'a 40 px/s, la semer au hasard dans les 900 px hors
+// champ la mettait 24 a 46 s hors de vue. Mesure faite, la densite tombait
+// alors de 2,65 fleurs a l'ecran a 1,32 — le pre se vidait sous la recolte,
+// et l'arbitrage fleur/chat avec lui. A 240 px du bord, elle revient en
+// 0,2 a 6 s, et la densite tient.
+const REPOUSSE = 240;
+
+function replanter(o) {
+  const dm = jeu.defile % MONDE;
+  // La recherche balaie TOUTE la portion hors ecran, du bord droit vers le
+  // large, et s'arrete a la premiere place degagee. La fleur revient donc au
+  // plus tot, et ne va loin que si le bord est encombre.
+  //
+  // Mesure faite, c'est le seul reglage qui tienne les deux exigences a la
+  // fois. Une bande courte de 240 px gardait la densite mais superposait des
+  // qu'on fauchait plus d'une fleur toutes les trois secondes : il n'y a que
+  // cinq fleurs, elles finissaient toutes dans la meme bande, soit 280 px de
+  // fleurs dans 240 px — infaisable.
+  //
+  //   cadence de recolte   bande 240 px          bande complete
+  //   1 / 8 s (realiste)   densite 3,20  0 rec.  densite 2,88  0 rec.
+  //   1 / 3 s (soutenue)   densite 3,00  36 rec. densite 2,87  0 rec.
+  //   1 / 1 s (forcenee)   densite 2,48 216 rec. densite 1,53  0 rec.
+  //
+  // La densite ne baisse qu'au-dela d'une fleur par seconde, cadence qu'on
+  // n'atteint pas : une fleur ne sert que si l'on a deja perdu une vie.
+  o.x = placeProche(dm + L, MONDE - L - TUILE, o);
+}
+
+// =====================================================================
+// Les vies du joueur
+// =====================================================================
+function flash(rvb, force) {
+  jeu.eclairRVB = rvb;
+  jeu.eclair = force;
+}
+
+function perdreVie() {
+  jeu.vies--;
+  majVies();
+  flash("176,30,47", 1.6);     // rouge, plus long que l'eclair du tir
+  jeu.secousse = 0.6;
+  bruitRate();
+  if (jeu.vies <= 0) terminer();
+}
+
+// Renvoie vrai si une vie a reellement ete rendue : au plafond, la fleur
+// est bien fauchee et comptee, mais elle ne rapporte rien.
+function gagnerVie() {
+  if (jeu.vies >= VIES_MAX) return false;
+  jeu.vies++;
+  majVies();
+  flash("0,165,20", 1.2);
+  return true;
+}
+
+// Petite gerbe de terre a la reception.
+function poussiere(c) {
+  if (MOINS_ANIME) return;
+  for (let i = 0; i < 10; i++) {
+    jeu.eclats.push({
+      x: c.x + CASE_W / 2 + (Math.random() - 0.5) * 56,
+      y: c.y + CHAT_PATTES - 4,
+      t: 3,
+      vx: (Math.random() - 0.5) * 80,
+      vy: -25 - Math.random() * 45,
+      vie: 0.45 + Math.random() * 0.3,
+      c: Math.random() < 0.5 ? "#a57355" : "#6e360e",
+    });
+  }
+}
+
+// =====================================================================
+// Le tir
+// =====================================================================
+function toucheLeChat(x, y) {
+  const c = jeu.chat;
+  if (!c || !c.vivant) return false;
+  // La boite est donnee dans le sens "regarde a droite" ; on la retourne
+  // avec le sprite quand le chat va vers la gauche.
+  const bx = c.vx > 0 ? CHAT_BOITE.x : CASE_W - CHAT_BOITE.x - CHAT_BOITE.w;
+  const cy = c.y - c.dz;
+  return x >= c.x + bx && x <= c.x + bx + CHAT_BOITE.w
+      && y >= cy + CHAT_BOITE.y && y <= cy + CHAT_BOITE.y + CHAT_BOITE.h;
+}
+
+// La boite de la fleur est resserree : l'art de 14 px ne remplit pas la
+// case de 56, et une fleur trop facile a toucher rendrait les vies gratuites.
+function toucheUneFleur(x, y) {
+  const dm = jeu.defile % MONDE;
+  for (const o of decor) {
+    if (!o.fleur) continue;
+    const fx = positionDecor(o, dm), fy = BAS_DECOR - FLEUR_T;
+    if (x >= fx + FLEUR_MARGE && x <= fx + FLEUR_T - FLEUR_MARGE
+     && y >= fy && y <= fy + FLEUR_T) return o;
+  }
+  return null;
+}
+
+function tirer(x, y) {
+  if (jeu.phase !== "jeu") return;
+  jeu.tirs++;
+  document.getElementById("tirs").textContent = jeu.tirs;
+  flash("250,81,17", 1);
+  jeu.recul = 1;
+  bruitTir();
+
+  // Le chat d'abord : il peut passer devant une fleur.
+  if (toucheLeChat(x, y)) {
+    jeu.touches++;
+    jeu.tues++;                     // le score, et le palier de difficulte
+    document.getElementById("tues").textContent = jeu.tues;
+    jeu.secousse = 1;
+    exploser(jeu.chat);
+    bruitBoum();
+    lacherChat();
+    return;
+  }
+
+  const fleur = toucheUneFleur(x, y);
+  if (fleur) {
+    const teinte = fleur.teinte;   // replanter la deplace : on lit avant
+    exploserFleur(fleur);          // les petales partent d'ou elle etait
+    replanter(fleur);
+    if (teinte === FLEUR_JAUNE) {
+      jeu.fleurs++;
+      if (gagnerVie()) bruitVieGagnee();
+      else bruitFleur();           // deja trois vies : rien a rendre
+    } else if (teinte === FLEUR_ROUGE) {
+      jeu.bevues++;
+      perdreVie();                 // peut terminer la partie sur-le-champ
+    } else {
+      bruitFleur();                // la mauve ne fait rien, et c'est deja
+    }                              // un tir perdu
+    return;
+  }
+
+  jeu.impacts.push({ x: Math.round(x), y: Math.round(y), vie: 1 });
+}
+
+// Le chat se desagrege en ses propres pixels : on lit la case courante de
+// la planche et on lance chaque pixel opaque comme un eclat.
+function exploser(c) {
+  c.vivant = false;
+  const col = c.image % 7, lig = Math.floor(c.image / 7);
+  const d = pixelsChat.getImageData(col * CASE_W, lig * CASE_H, CASE_W, CASE_H).data;
+  const pas = MOINS_ANIME ? 6 : 3;
+  const cx = CASE_W / 2, cy = CASE_H / 2;
+  const miroir = c.vx < 0;
+
+  for (let y = 0; y < CASE_H; y += pas) {
+    for (let x = 0; x < CASE_W; x += pas) {
+      const i = (y * CASE_W + x) * 4;
+      if (d[i + 3] < 128) continue;
+      const px = miroir ? CASE_W - x : x;
+      const dx = px - cx, dy = y - cy;
+      const dist = Math.hypot(dx, dy) || 1;
+      const force = 70 + Math.random() * 210;
+      jeu.eclats.push({
+        x: c.x + px, y: c.y - c.dz + y, t: pas,
+        vx: (dx / dist) * force + (Math.random() - 0.5) * 60,
+        vy: (dy / dist) * force - 130 - Math.random() * 90,
+        vie: 1 + Math.random() * 0.5,
+        c: "rgb(" + d[i] + "," + d[i + 1] + "," + d[i + 2] + ")",
+      });
+    }
+  }
+  // Et l'ame s'en va.
+  jeu.fantomes.push({ x: c.x, y: c.y - c.dz, image: c.image,
+                     vie: 0.75, ech: 1, monte: true });
+}
+
+// Meme principe que pour le chat : la fleur part en ses propres pixels,
+// lus dans la planche. Un pixel d'art vaut 4 pixels d'ecran.
+function exploserFleur(o) {
+  const dm = jeu.defile % MONDE;
+  const x0 = positionDecor(o, dm), y0 = BAS_DECOR - FLEUR_T;
+  const ech = FLEUR_T / FLEUR_ART;
+  const d = pixelsFleurs.getImageData(o.teinte * FLEUR_ART, 0,
+                                      FLEUR_ART, FLEUR_ART).data;
+  const pas = MOINS_ANIME ? 2 : 1;
+  for (let y = 0; y < FLEUR_ART; y += pas) {
+    for (let x = 0; x < FLEUR_ART; x += pas) {
+      const i = (y * FLEUR_ART + x) * 4;
+      if (d[i + 3] < 128) continue;
+      jeu.eclats.push({
+        x: x0 + x * ech, y: y0 + y * ech, t: ech * pas,
+        vx: (Math.random() - 0.5) * 160,
+        vy: -80 - Math.random() * 160,
+        vie: 0.8 + Math.random() * 0.6,
+        c: "rgb(" + d[i] + "," + d[i + 1] + "," + d[i + 2] + ")",
+      });
+    }
+  }
+  jeu.impacts.push({ x: Math.round(x0 + FLEUR_T / 2),
+                     y: Math.round(y0 + FLEUR_T / 2), vie: 1 });
+}
+
+function avancerEclats(dt) {
+  for (let i = jeu.eclats.length - 1; i >= 0; i--) {
+    const e = jeu.eclats[i];
+    e.vy += 620 * dt;
+    e.x += e.vx * dt;
+    e.y += e.vy * dt;
+    if (e.y > HAUT_SOL + 10) { e.y = HAUT_SOL + 10; e.vy *= -0.28; e.vx *= 0.6; }
+    e.vie -= dt * 0.85;
+    if (e.vie <= 0) jeu.eclats.splice(i, 1);
+  }
+  // Au-dela du plafond on sacrifie les plus vieux : ce sont ceux qui sont
+  // deja presque transparents, leur disparition ne se voit pas.
+  if (jeu.eclats.length > ECLATS_MAX) {
+    jeu.eclats.splice(0, jeu.eclats.length - ECLATS_MAX);
+  }
+}
+
+function avancerFantomes(dt) {
+  for (let i = jeu.fantomes.length - 1; i >= 0; i--) {
+    const f = jeu.fantomes[i];
+    if (!f.monte) continue;          // les neuf du bilan restent en place
+    f.y -= 26 * dt;
+    f.vie -= dt * 0.32;
+    if (f.vie <= 0) jeu.fantomes.splice(i, 1);
+  }
+}
+
+function avancerImpacts(dt) {
+  for (let i = jeu.impacts.length - 1; i >= 0; i--) {
+    jeu.impacts[i].vie -= dt * 3;
+    if (jeu.impacts[i].vie <= 0) jeu.impacts.splice(i, 1);
+  }
+}
+
+// =====================================================================
+// Son : synthetise, aucun fichier a charger.
+// =====================================================================
+let audio = null, sonActif = true;
+
+function ctxAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!audio) audio = new AC();
+  if (audio.state === "suspended") audio.resume();
+  return audio;
+}
+
+// Bruit blanc qui s'eteint tout seul. `forme` regle la brutalite de la
+// decroissance : 1 = lineaire, 12 = un claquement quasi instantane.
+function bruitBlanc(a, duree, forme) {
+  const n = Math.max(1, Math.floor(a.sampleRate * duree));
+  const buf = a.createBuffer(1, n, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, forme);
+  }
+  const s = a.createBufferSource();
+  s.buffer = buf;
+  return s;
+}
+
+// Un coup de feu n'est pas un son mais quatre, superposes. Un bip
+// descendant ne rend rien : il manque le claquement et le grave.
+function bruitTir() {
+  if (!sonActif) return;
+  const a = ctxAudio(); if (!a) return;
+  const t = a.currentTime;
+  const sortie = a.createGain();
+  sortie.gain.value = 0.5;
+  sortie.connect(a.destination);
+
+  // 1. La detonation : trente millisecondes d'aigu, tres sec.
+  const claque = bruitBlanc(a, 0.03, 12);
+  const hp = a.createBiquadFilter();
+  hp.type = "highpass"; hp.frequency.value = 1800;
+  const g1 = a.createGain(); g1.gain.value = 0.9;
+  claque.connect(hp).connect(g1).connect(sortie);
+  claque.start(t);
+
+  // 2. Le souffle : du bruit dont la coupure s'effondre vers le grave.
+  const souffle = bruitBlanc(a, 0.18, 3);
+  const lp = a.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.setValueAtTime(2400, t);
+  lp.frequency.exponentialRampToValueAtTime(180, t + 0.16);
+  const g2 = a.createGain(); g2.gain.value = 0.8;
+  souffle.connect(lp).connect(g2).connect(sortie);
+  souffle.start(t);
+
+  // 3. Le coup dans le ventre : une sinusoide qui plonge, coupee court.
+  // Elle ne descend plus jusqu'a 42 Hz : si bas et si longtemps, elle
+  // bourdonnait apres le coup au lieu de le ponctuer.
+  const grave = a.createOscillator();
+  grave.type = "sine";
+  grave.frequency.setValueAtTime(170, t);
+  grave.frequency.exponentialRampToValueAtTime(70, t + 0.05);
+  const g3 = a.createGain();
+  g3.gain.setValueAtTime(0.7, t);
+  g3.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+  grave.connect(g3).connect(sortie);
+  grave.start(t); grave.stop(t + 0.08);
+}
+
+function bruitBoum() {
+  if (!sonActif) return;
+  const a = ctxAudio(); if (!a) return;
+  const t = a.currentTime;
+  const s = bruitBlanc(a, 0.32, 2.2);
+  const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 900;
+  const g = a.createGain(); g.gain.value = 0.3;
+  s.connect(f).connect(g).connect(a.destination);
+  s.start(t);
+  // Le petit carillon de l'ame qui monte.
+  const o = a.createOscillator(), gg = a.createGain();
+  o.type = "triangle";
+  o.frequency.setValueAtTime(660, t + 0.1);
+  o.frequency.exponentialRampToValueAtTime(1320, t + 0.5);
+  gg.gain.setValueAtTime(0.0001, t + 0.1);
+  gg.gain.exponentialRampToValueAtTime(0.05, t + 0.16);
+  gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+  o.connect(gg).connect(a.destination);
+  o.start(t + 0.1); o.stop(t + 0.62);
+}
+
+// =====================================================================
+// Musique : une boucle chiptune originale, synthetisee note par note.
+// Rien n'est charge depuis l'exterieur — la page doit rester autonome, et
+// de toute facon un fichier audio pesant plus que tout le reste reunis.
+//
+// Une case = une croche. Les notes sont des numeros MIDI, null = silence.
+// Huit mesures en la mineur, deux mesures par accord : Am - F - C - G.
+// =====================================================================
+const MUSIQUE = {
+  bpm: 138,
+  melodie: [
+    // Am
+    81, null, 79, 77, 76, null, 74, 72,  74, null, 76, null, 77, null, null, null,
+    // F
+    77, null, 76, 74, 72, null, 71, 69,  71, null, 72, null, 74, null, null, null,
+    // C
+    76, null, 79, 76, 72, null, 76, 79,  81, null, 79, null, 76, null, null, null,
+    // G
+    74, null, 71, 74, 79, null, 77, 74,  71, null, 69, null, 69, null, null, null,
+  ],
+  basse: [
+    45, null, 57, null, 45, null, 52, null, 45, null, 57, null, 45, null, 52, null,
+    41, null, 53, null, 41, null, 48, null, 41, null, 53, null, 41, null, 48, null,
+    48, null, 60, null, 48, null, 55, null, 48, null, 60, null, 48, null, 55, null,
+    43, null, 55, null, 43, null, 50, null, 43, null, 55, null, 43, null, 50, null,
+  ],
+};
+
+let musGain = null, musProchain = 0, musTimer = null, musiqueActive = true;
+
+function hertz(midi) {
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+function jouerNote(a, t, midi, duree, forme, volume) {
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = forme;
+  o.frequency.setValueAtTime(hertz(midi), t);
+  // Attaque quasi instantanee puis extinction : le grain 8 bits.
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(volume, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+  o.connect(g).connect(musGain);
+  o.start(t); o.stop(t + duree + 0.02);
+}
+
+function jouerPercu(a, t, grave) {
+  const s = bruitBlanc(a, grave ? 0.12 : 0.03, grave ? 4 : 6);
+  const f = a.createBiquadFilter();
+  f.type = grave ? "lowpass" : "highpass";
+  f.frequency.value = grave ? 160 : 6000;
+  const g = a.createGain();
+  g.gain.value = grave ? 0.9 : 0.16;
+  s.connect(f).connect(g).connect(musGain);
+  s.start(t);
+}
+
+// Programme une boucle entiere d'avance et renvoie l'instant de la suivante.
+function planifierBoucle(a, t0) {
+  const pas = 30 / MUSIQUE.bpm;          // duree d'une croche, en secondes
+  for (let i = 0; i < MUSIQUE.melodie.length; i++) {
+    const t = t0 + i * pas;
+    const m = MUSIQUE.melodie[i];
+    if (m !== null) jouerNote(a, t, m, pas * 1.6, "square", 0.13);
+    const b = MUSIQUE.basse[i];
+    if (b !== null) jouerNote(a, t, b, pas * 1.2, "triangle", 0.22);
+    if (i % 8 === 0) jouerPercu(a, t, true);        // grosse caisse
+    if (i % 8 === 4) jouerPercu(a, t, false);       // caisse claire
+    if (i % 2 === 1) jouerPercu(a, t, false);       // charleston
+  }
+  return t0 + MUSIQUE.melodie.length * pas;
+}
+
+function musiqueDemarrer() {
+  if (!musiqueActive) return;
+  const a = ctxAudio(); if (!a) return;
+  if (!musGain) { musGain = a.createGain(); musGain.connect(a.destination); }
+  musGain.gain.cancelScheduledValues(a.currentTime);
+  // La musique reste sous les bruitages : le coup de feu culmine a 0,73,
+  // au-dela la somme saturerait a chaque tir.
+  musGain.gain.setValueAtTime(0.34, a.currentTime);
+  clearTimeout(musTimer);
+  musProchain = a.currentTime + 0.08;
+  enchainer();
+}
+
+function enchainer() {
+  const a = ctxAudio(); if (!a) return;
+  musProchain = planifierBoucle(a, musProchain);
+  // On se reveille juste avant la fin pour enchainer sans trou.
+  const attente = (musProchain - a.currentTime - 0.4) * 1000;
+  musTimer = setTimeout(enchainer, Math.max(100, attente));
+}
+
+function musiqueArreter() {
+  clearTimeout(musTimer); musTimer = null;
+  if (!musGain) return;
+  const a = ctxAudio(); if (!a) return;
+  // On abandonne le noeud de sortie au lieu de le reutiliser : les notes
+  // deja programmees de la boucle en cours lui restent accrochees, et se
+  // remettraient a sonner des qu'on remonterait le volume pour rejouer.
+  const vieux = musGain;
+  musGain = null;
+  vieux.gain.cancelScheduledValues(a.currentTime);
+  vieux.gain.setValueAtTime(vieux.gain.value, a.currentTime);
+  vieux.gain.linearRampToValueAtTime(0.0001, a.currentTime + 0.3);
+  setTimeout(() => vieux.disconnect(), 400);
+}
+
+// Les jingles passent en direct par la sortie, pas par le bus musique :
+// ils doivent s'entendre musique coupee, et ne pas s'eteindre avec elle.
+// Ils demarrent 0,13 s apres le clic, le temps que la detonation retombe :
+// sinon la somme des deux saturerait.
+function tonSimple(a, t, midi, duree, forme, volume) {
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = forme;
+  o.frequency.setValueAtTime(hertz(midi), t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(volume, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + duree);
+  o.connect(g).connect(a.destination);
+  o.start(t); o.stop(t + duree + 0.02);
+}
+
+// Un chat est passe : deux notes qui tombent.
+function bruitRate() {
+  if (!sonActif) return;
+  const a = ctxAudio(); if (!a) return;
+  const t = a.currentTime + 0.01;
+  tonSimple(a, t,        57, 0.16, "square", 0.18);
+  tonSimple(a, t + 0.14, 50, 0.34, "square", 0.18);
+}
+
+// Une vie de plus : la petite montee obligatoire.
+function bruitVieGagnee() {
+  if (!sonActif) return;
+  const a = ctxAudio(); if (!a) return;
+  const t = a.currentTime + 0.13;
+  [72, 76, 79, 84].forEach((m, i) =>
+    tonSimple(a, t + i * 0.07, m, 0.18, "square", 0.15));
+}
+
+// Fleur fauchee alors que les trois vies sont la : juste un tintement.
+function bruitFleur() {
+  if (!sonActif) return;
+  const a = ctxAudio(); if (!a) return;
+  tonSimple(a, a.currentTime + 0.13, 84, 0.16, "triangle", 0.15);
+}
+
+// Le miaulement est un vrai enregistrement, embarque en data URI comme les
+// sprites. On clone l'element a chaque fois : sans cela, deux sauts
+// rapproches couperaient le premier miaulement pour rejouer le second.
+let miaouSource = null;
+let miaouJusqua = 0;      // instant ou le cri en cours doit finir
+
+function bruitMiaou() {
+  if (!sonActif) return;
+  // Verrou : JAMAIS deux cris en meme temps. Un chat ne crie deja qu'une
+  // fois, mais au palier le plus rapide il en passe un toutes les 1,5 s,
+  // soit la duree exacte de l'enregistrement — les deux se toucheraient.
+  // On compte le temps plutot que d'interroger l'element : un play()
+  // refuse par le navigateur laisse celui-ci dans un etat qui bloquerait
+  // tous les cris suivants.
+  const t = performance.now();
+  if (t < miaouJusqua) return;
+
+  if (!miaouSource) {
+    miaouSource = new Audio(SRC.miaou);
+    miaouSource.preload = "auto";
+  }
+  const a = miaouSource.cloneNode();
+  a.volume = 0.55;
+  // duration vaut NaN tant que les metadonnees ne sont pas lues : NaN est
+  // faux, le repli de 1,5 s prend alors le relais.
+  miaouJusqua = t + (miaouSource.duration || 1.5) * 1000;
+  const p = a.play();
+  if (p) p.catch(() => {});      // refus d'autoplay : on laisse passer
+}
+
+// =====================================================================
+// Les manches jouees : gardees dans le navigateur, rien a installer.
+// Chaque machine a les siennes ; elles survivent a la fermeture de l'onglet.
+// =====================================================================
+const CLE = "chat-astrophe-2:manches";
+const MEMOIRE_MAX = 200;      // borne la taille du stockage
+const HISTORIQUE = 20;
+const RECORDS = 5;
+
+function lireManches() {
+  try {
+    const brut = localStorage.getItem(CLE);
+    const t = brut ? JSON.parse(brut) : [];
+    return Array.isArray(t) ? t : [];
+  } catch (e) {
+    return [];              // navigation privee, stockage refuse : tant pis
+  }
+}
+
+function ecrireManches(t) {
+  try { localStorage.setItem(CLE, JSON.stringify(t.slice(-MEMOIRE_MAX))); }
+  catch (e) { /* rien a faire : la partie se joue quand meme */ }
+}
+
+// Une fleur touchee est un tir reussi elle aussi : sinon viser les fleurs,
+// qui est le seul moyen de survivre, ferait chuter la precision.
+function precision() {
+  return Math.round(((jeu.touches + jeu.fleurs) / Math.max(1, jeu.tirs)) * 100);
+}
+
+function enregistrerManche() {
+  const t = lireManches();
+  // Le numero continue de monter meme quand les vieilles manches sont
+  // oubliees : c'est lui qui identifie la ligne fraiche dans les deux
+  // tableaux, et il ne doit jamais se repeter.
+  const manche = {
+    n: t.length ? t[t.length - 1].n + 1 : 1,
+    t: jeu.tues,
+    f: jeu.fleurs,
+    p: precision(),
+    s: Math.round(jeu.duree * 10) / 10,
+  };
+  t.push(manche);
+  ecrireManches(t);
+  return manche.n;
+}
+
+function cellule(texte, classe) {
+  const td = document.createElement("td");
+  td.textContent = texte;
+  if (classe) td.className = classe;
+  return td;
+}
+
+function majTableaux(frais) {
+  const t = lireManches();
+  document.getElementById("tableaux").hidden = t.length === 0;
+  if (!t.length) return;
+
+  // ---- a gauche : les meilleures. Les chats d'abord, la precision ne
+  // departage que les ex aequo, et le temps le plus court les derniers.
+  const rec = document.getElementById("records");
+  rec.innerHTML = "";
+  t.slice().sort((a, b) => b.t - a.t || b.p - a.p || a.s - b.s)
+    .slice(0, RECORDS)
+    .forEach((m, i) => {
+      const tr = document.createElement("tr");
+      if (m.n === frais) tr.className = "frais";
+      tr.appendChild(cellule(i + 1, "rang"));
+      tr.appendChild(cellule(m.t, "gros"));
+      tr.appendChild(cellule(m.p + " %"));
+      tr.appendChild(cellule(m.s.toFixed(1) + " s"));
+      rec.appendChild(tr);
+    });
+
+  // ---- a droite : les dernieres manches, la plus recente en haut. On en
+  // prend une de plus que le tableau n'en montre : elle sert a calculer
+  // l'ecart de la ligne la plus ancienne, sans quoi celle-ci afficherait
+  // un tiret alors qu'une manche la precede bel et bien.
+  const hist = document.getElementById("historique");
+  hist.innerHTML = "";
+  const fenetre = t.slice(-(HISTORIQUE + 1)).reverse();
+  fenetre.slice(0, HISTORIQUE).forEach((m, i) => {
+    const avant = fenetre[i + 1];
+    let ecart = "—", classe = "plat";
+    if (avant) {
+      const d = m.t - avant.t;
+      ecart = d > 0 ? "+" + d : d < 0 ? "\u2212" + (-d) : "=";
+      classe = d > 0 ? "hausse" : d < 0 ? "baisse" : "plat";
+    }
+    const tr = document.createElement("tr");
+    if (m.n === frais) tr.className = "frais";
+    tr.appendChild(cellule("#" + m.n, "rang"));
+    tr.appendChild(cellule(m.t, "gros"));
+    tr.appendChild(cellule(m.p + " %"));
+    tr.appendChild(cellule(m.s.toFixed(1) + " s"));
+    tr.appendChild(cellule(ecart, classe));
+    hist.appendChild(tr);
+  });
+}
+
+// =====================================================================
+// Interface
+// =====================================================================
+function majVies() {
+  const boite = document.getElementById("vies");
+  boite.innerHTML = "";
+  // Les cases eteintes montrent la marge qu'il reste a regagner sur les fleurs.
+  for (let i = 0; i < VIES_MAX; i++) {
+    const d = document.createElement("div");
+    d.className = "vie" + (i >= jeu.vies ? " perdue" : "");
+    boite.appendChild(d);
+  }
+}
+
+const MOTS = [
+  "Ils allaient de plus en plus vite. C'était prévu.",
+  "Quelque part, un chat blanc de 4 800 pixels tient un carnet.",
+  "Les fleurs n'avaient rien demandé à personne. Surtout les rouges.",
+  "Ils reviennent. Ils reviennent toujours. C'est un peu le principe.",
+];
+
+function titreFin(n) {
+  if (n === 0)  return "Pas un seul. Ils sont tous rentrés dîner.";
+  if (n === 1)  return "Une auréole. Une.";
+  if (n < 6)    return n + " auréoles. Ils étaient plus nombreux.";
+  if (n < 15)   return n + " auréoles. Puis ils ont accéléré.";
+  if (n < 25)   return n + " auréoles. Tu as tenu longtemps.";
+  return n + " auréoles. Personne ne tient plus.";
+}
+
+function terminer() {
+  jeu.phase = "fin";
+  jeu.duree = (performance.now() - jeu.debut) / 1000;
+  toile.classList.remove("vise");
+  document.getElementById("fin-tues").textContent = jeu.tues;
+  document.getElementById("fin-fleurs").textContent = jeu.fleurs;
+  document.getElementById("fin-temps").textContent = jeu.duree.toFixed(1);
+  document.getElementById("fin-precision").textContent = precision();
+  document.getElementById("fin-titre").textContent = titreFin(jeu.tues);
+  document.getElementById("fin-mot").textContent =
+    MOTS[Math.floor(Math.random() * MOTS.length)];
+
+  // Les abattus reviennent, alignes, et te regardent. En demi-taille,
+  // sinon neuf chats de 160 px ne tiennent pas dans 960 ; au-dela de neuf
+  // la ligne est pleine, et c'est deja un aveu.
+  jeu.fantomes.length = 0;
+  const rang = Math.min(jeu.tues, 9), pas = 104;
+  const gauche = (L - rang * pas) / 2 + 6;
+  for (let i = 0; i < rang; i++) {
+    jeu.fantomes.push({
+      x: gauche + i * pas,
+      y: BAS_DECOR - CHAT_PATTES * 0.5 - (i % 2) * 10,
+      image: 0, vie: 0.85, ech: 0.5, monte: false,
+    });
+  }
+  majTableaux(enregistrerManche());
+  musiqueArreter();          // le silence fait sa part sur l'ecran de fin
+  document.getElementById("fin").hidden = false;
+  document.getElementById("rejouer").focus({ preventScroll: true });
+}
+
+function demarrer() {
+  jeu.phase = "jeu";
+  jeu.vies = VIES_DEPART; jeu.tirs = 0; jeu.touches = 0; jeu.fuites = 0;
+  jeu.tues = 0; jeu.fleurs = 0; jeu.bevues = 0;
+  jeu.eclats.length = 0; jeu.fantomes.length = 0; jeu.impacts.length = 0;
+  jeu.debut = performance.now();
+  document.getElementById("tirs").textContent = "0";
+  document.getElementById("tues").textContent = "0";
+  document.getElementById("depart").hidden = true;
+  document.getElementById("fin").hidden = true;
+  toile.classList.add("vise");
+  majVies();
+  lacherChat();
+  ctxAudio();
+  musiqueDemarrer();
+  toile.focus({ preventScroll: true });
+}
+
+function versToile(ev) {
+  const r = toile.getBoundingClientRect();
+  return {
+    x: (ev.clientX - r.left) * (L / r.width),
+    y: (ev.clientY - r.top) * (H / r.height),
+  };
+}
+
+toile.addEventListener("pointermove", (ev) => {
+  const p = versToile(ev);
+  jeu.viseur.x = p.x; jeu.viseur.y = p.y; jeu.viseur.dedans = true;
+});
+toile.addEventListener("pointerleave", () => { jeu.viseur.dedans = false; });
+toile.addEventListener("pointerdown", (ev) => {
+  if (jeu.phase !== "jeu") return;
+  ev.preventDefault();
+  const p = versToile(ev);
+  jeu.viseur.x = p.x; jeu.viseur.y = p.y; jeu.viseur.dedans = true;
+  tirer(p.x, p.y);
+});
+toile.addEventListener("keydown", (ev) => {
+  if (ev.key !== " " && ev.key !== "Enter") return;
+  ev.preventDefault();
+  tirer(jeu.viseur.x, jeu.viseur.y);
+});
+
+document.getElementById("effacer").addEventListener("click", () => {
+  if (!confirm("Effacer toutes les manches enregistrées ?")) return;
+  try { localStorage.removeItem(CLE); } catch (e) {}
+  majTableaux(0);
+});
+
+document.getElementById("commencer").addEventListener("click", demarrer);
+document.getElementById("rejouer").addEventListener("click", demarrer);
+document.getElementById("son").addEventListener("click", (ev) => {
+  sonActif = !sonActif;
+  ev.currentTarget.textContent = sonActif ? "BRUITAGES ON" : "BRUITAGES OFF";
+  ev.currentTarget.setAttribute("aria-pressed", String(sonActif));
+});
+
+document.getElementById("musique").addEventListener("click", (ev) => {
+  musiqueActive = !musiqueActive;
+  ev.currentTarget.textContent = musiqueActive ? "MUSIQUE ON" : "MUSIQUE OFF";
+  ev.currentTarget.setAttribute("aria-pressed", String(musiqueActive));
+  if (musiqueActive) { if (jeu.phase === "jeu") musiqueDemarrer(); }
+  else musiqueArreter();
+});
+
+// =====================================================================
+// Amorcage
+// =====================================================================
+Promise.all([charger(SRC.chat), charger(SRC.sol),
+             charger(SRC.herbe), charger(SRC.fleurs)])
+  .then(([chat, sol, herbe, fleurs]) => {
+    img = { chat, sol, herbe, fleurs };
+    const hors = document.createElement("canvas");
+    hors.width = chat.width; hors.height = chat.height;
+    pixelsChat = hors.getContext("2d", { willReadFrequently: true });
+    pixelsChat.drawImage(chat, 0, 0);
+    const horsF = document.createElement("canvas");
+    horsF.width = fleurs.width; horsF.height = fleurs.height;
+    pixelsFleurs = horsF.getContext("2d", { willReadFrequently: true });
+    pixelsFleurs.drawImage(fleurs, 0, 0);
+    majVies();
+    majTableaux(0);        // 0 ne correspond a aucune manche : rien de frais
+    lacherChat();
+    requestAnimationFrame(boucle);
+  });
+</script>
+
+</body>
+</html>
