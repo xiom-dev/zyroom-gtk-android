@@ -17,9 +17,10 @@ import time
 from pathlib import Path
 
 from kipeecraft.core import audit as _audit
-from kipeecraft.core.craft import Ingredient, Recipe, craft as _craft
+from kipeecraft.core.craft import Ingredient, Recipe, compute_precraft, craft as _craft
 from kipeecraft.core.enums import Color, Ecosystem, Grade, Origin, Part, Stat, Tier
-from kipeecraft.core.evolver import Evolver, EvolverError, Settings, build_pools
+from kipeecraft.core.evolver import (Evolver, EvolverError, Score, Settings, build_pools,
+                                     deficit, evaluate, tolerance_for)
 from kipeecraft.core.wizard import Choices, Level, Sources, Wish, Wizard, WizardError
 from kipeecraft.core.jeweler import (Jeweler, JewelerError, JewelerSettings,
                                      shopping_list)
@@ -152,6 +153,83 @@ def lire_kc(texte: str) -> str:
 
 def ecrire_kc(demande: str) -> str:
     return kc.dumps(_recette(json.loads(demande)))
+
+
+# ------------------------------------------------------------------ armure complete
+#
+# Une armure complete, ce sont deux plans du jeu aux memes pieces (coque ou
+# tissu, doublure, rembourrage, attache) : les grandes pieces (veste,
+# pantalon, et le casque en lourde) et les petites (bottes, gants, manches),
+# qui en demandent moins. Le joueur compose les grandes ; les petites en
+# reprennent les memes MP, dans les memes proportions.
+
+
+def _repartir(quantites: list[int], total: int) -> list[int]:
+    """Ramene des quantites a `total` en gardant leurs proportions.
+
+    Plus forts restes : chacun recoit la partie entiere de sa part, puis les
+    unites qui restent vont aux plus grosses parties decimales.
+    """
+    somme = sum(quantites)
+    if not somme:
+        return [0] * len(quantites)
+    parts = [q * total / somme for q in quantites]
+    sortie = [math.floor(x) for x in parts]
+    ordre = sorted(range(len(parts)), key=lambda i: (sortie[i] - parts[i], -quantites[i]))
+    for i in ordre[:total - sum(sortie)]:
+        sortie[i] += 1
+    return sortie
+
+
+def _petite(grande: Recipe, plan) -> Recipe:
+    """Les petites pieces, composees comme les grandes."""
+    recette = Recipe(plan=plan, option=0, comment=grande.comment)
+    for rang, case in enumerate(grande.slots):
+        voulu = plan.parts[rang].quantity
+        posees = sum(i.quantity for i in case)
+        n = _repartir([i.quantity for i in case], voulu if posees else 0)
+        recette.slots[rang] = [Ingredient(i.material, q) for i, q in zip(case, n) if q]
+    return recette
+
+
+def _pieces_ensemble(grande: Recipe, petite: Recipe, qualite=250, rite=False,
+                     qformule=0) -> list:
+    """Chaque plan avec son precraft, et le postcraft de chacune de ses pieces."""
+    sortie = []
+    for recette in (grande, petite):
+        options = list(postcraft.options_of(recette.plan.id)) or [0]
+        resultats = []
+        for option in options:
+            recette.option = option
+            try:
+                r = _craft(recette, postcraft.get(recette.plan.id, option),
+                           quality=qualite, rite=rite, formula_quality=qformule)
+            except PostcraftError:
+                r = _craft(recette, None, quality=qualite)
+            resultats.append((option, r))
+        recette.option = options[0]
+        r = resultats[0][1]
+        sortie.append({
+            "plan": recette.plan.id, "recette": _vers_page(recette),
+            "precraft": _nombres(r.precraft), "moyenne": r.average,
+            "qualite": r.quality, "grade": r.grade.value if r.grade else None,
+            "couleur": r.color.value if r.color else None, "cout": r.cost,
+            "complete": recette.is_complete, "vide": recette.is_empty,
+            "pieces": [{"option": o, "postcraft": _nombres(x.postcraft)}
+                       for o, x in resultats],
+        })
+    return sortie
+
+
+def ensemble(demande: str) -> str:
+    """Le simulateur d'une armure complete : la recette des grandes pieces,
+    et `petit`, le plan des petites."""
+    d = json.loads(demande)
+    grande = _recette(d)
+    petite = _petite(grande, plans[int(d["petit"])])
+    return json.dumps({"plans": _pieces_ensemble(
+        grande, petite, int(d.get("qualite", 250)), bool(d.get("rite")),
+        int(d.get("qformule", 0)))}, ensure_ascii=False)
 
 
 # ------------------------------------------------------------------ formules
@@ -391,6 +469,82 @@ def assistant(demande: str) -> str:
                       ensure_ascii=False)
 
 
+class EvolverEnsemble(Evolver):
+    """L'Evolver d'une armure complete.
+
+    Il compose les grandes pieces, comme d'habitude ; chaque recette essayee
+    est aussi reduite aux petites pieces, et c'est la moins bonne des deux
+    qui compte : une condition n'est tenue que si elle l'est partout.
+    """
+
+    def __init__(self, settings: Settings, pools, petit) -> None:
+        super().__init__(settings, pools)
+        self.petit = petit
+        self._petites = tuple(p.quantity for p in petit.parts)
+
+    def _une(self, genome) -> tuple:
+        totals: dict = {}
+        counts: dict = {}
+        colors: dict = {}
+        for pool, gene, part in zip(self.pools, genome, self._parts, strict=True):
+            for index, quantity in gene:
+                material = pool[index]
+                colors[material.color] = colors.get(material.color, 0) + quantity
+                for stat, value in zip(part.stats, material.values, strict=True):
+                    totals[stat] = totals.get(stat, 0.0) + value * quantity
+                    counts[stat] = counts.get(stat, 0) + quantity
+        averages = {stat: totals[stat] / counts[stat] for stat in Stat if counts.get(stat)}
+        precraft, average, offset = compute_precraft(averages)
+        plain = sum(averages.values()) / len(averages) if averages else 0.0
+        boost = plain / offset if offset else 1.0
+        matches = True
+        if self.settings.forced_color is not None and colors:
+            dominant = max(colors.items(), key=lambda item: (item[1], -int(item[0])))[0]
+            matches = dominant is self.settings.forced_color
+        s = self.settings
+        return precraft, evaluate(precraft, self._conditions, average, matches,
+                                  s.tolerance, s.equal_tolerance, boost=boost,
+                                  prefer_boost=s.prefer_boost)
+
+    def _reduit(self, genome) -> tuple:
+        sortie = []
+        for gene, voulu in zip(genome, self._petites, strict=True):
+            tally: dict = {}
+            for value in gene:
+                tally[value] = tally.get(value, 0) + 1
+            cles = sorted(tally)
+            n = _repartir([tally[k] for k in cles], voulu)
+            sortie.append(tuple((k, q) for k, q in zip(cles, n) if q))
+        return tuple(sortie)
+
+    def _measure(self, genome):
+        known = self._cache.get(genome)
+        if known is not None:
+            return known
+        self._evaluations += 1
+        grande = []
+        for gene in genome:
+            tally: dict = {}
+            for value in gene:
+                tally[value] = tally.get(value, 0) + 1
+            grande.append(tuple(sorted(tally.items())))
+        precraft, a = self._une(tuple(grande))
+        petit, b = self._une(self._reduit(genome))
+        s = self.settings
+        # Tenue des deux cotes, ou pas tenue du tout
+        tenues = sum(1 for c in self._conditions
+                     if all(x.get(c.stat) is not None
+                            and deficit(c, x[c.stat]) <= tolerance_for(c, s.tolerance, s.equal_tolerance)
+                            for x in (precraft, petit)))
+        outcome = (precraft, Score(
+            penalty=a.penalty + b.penalty, satisfied=tenues, total=a.total,
+            average=min(a.average, b.average),
+            matches_color=a.matches_color and b.matches_color,
+            boost=min(a.boost, b.boost), prefer_boost=a.prefer_boost))
+        self._cache[genome] = outcome
+        return outcome
+
+
 async def evoluer(demande: str, avancer) -> str:
     """Cherche une recette qui tient les conditions (pourcentages de precraft)."""
     d = json.loads(demande)
@@ -412,7 +566,8 @@ async def evoluer(demande: str, avancer) -> str:
         pools = _filtrer(pools, plan, d.get("liste_ecartes", ()),
                          set(d["permis"]) if d.get("permis") is not None else None,
                          projet.use_ignored)
-        moteur = Evolver(reglages, pools)
+        petit = plans[int(d["petit"])] if d.get("petit") is not None else None
+        moteur = EvolverEnsemble(reglages, pools, petit) if petit else Evolver(reglages, pools)
     except EvolverError as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
 
@@ -422,6 +577,27 @@ async def evoluer(demande: str, avancer) -> str:
         return json.dumps({"erreur": "aucune recette trouvée"})
     recette = solution.recipe
     recette.comment = "Créée par l'Armurerie"
+    if petit:
+        petite = _petite(recette, petit)
+        ensemble_ = _pieces_ensemble(recette, petite)
+        manque = {}
+        for x in ensemble_:
+            for c in projet.conditions:
+                if not c.is_set:
+                    continue
+                v = x["precraft"].get(c.stat.value)
+                # Pas de NaN : JSON.parse le refuse
+                ecart = 100.0 if v is None else deficit(c, v)
+                if ecart > tolerance_for(c):
+                    manque[c.stat.label] = max(manque.get(c.stat.label, 0), ecart)
+        return json.dumps({
+            "verdict": solution.score.describe(),
+            "manque": [[k, v] for k, v in manque.items()],
+            "generations": solution.generation,
+            "recette": _vers_page(recette),
+            "ensemble": ensemble_,
+            "kc": kc.dumps(recette), "kc_petit": kc.dumps(petite),
+        }, ensure_ascii=False)
     try:
         r = _craft(recette, postcraft.get(plan.id, recette.option))
     except PostcraftError:

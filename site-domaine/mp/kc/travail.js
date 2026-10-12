@@ -31,6 +31,7 @@ const OPERATIONS = {
   calculer: (d) => kc.calculer(JSON.stringify(d)),
   lire_kc: (texte) => kc.lire_kc(texte),
   ecrire_kc: (d) => kc.ecrire_kc(JSON.stringify(d)),
+  ensemble: (d) => kc.ensemble(JSON.stringify(d)),
   formules: (plan, option) => kc.formules(plan, option),
   retoucher: (nom, texte) => kc.retoucher(nom, texte),
   retablir: (nom) => kc.retablir(nom),

@@ -98,6 +98,8 @@ function preparer(meta) {
     gardee.cases = gardee.cases.map((c, i) => c.filter(([k]) => index.has(plan.pieces[i][0] + "|" + k)));
     S.recette = gardee;
     S.palier = plan.palier;
+    const ens = ensembleDe(plan.palier, gardee.ensemble);
+    if (!ens || ens.grande !== plan.id) delete S.recette.ensemble;
   } else {
     nouvelle(S.meta.plans.find((p) => p.palier === S.palier));
   }
@@ -108,6 +110,8 @@ function preparer(meta) {
   S.assist = lire("kc-assistant", null);
   const evo = lire("kc-evolveur", null);
   S.evo = evo && planDe(evo.plan) ? Object.assign(evoVierge(evo.plan), evo) : evoVierge(S.recette.plan);
+  const ensEvo = ensembleDe(planDe(S.evo.plan).palier, S.evo.ensemble);
+  if (!ensEvo || ensEvo.grande !== S.evo.plan) S.evo.ensemble = null;
   if (!S.assist) S.assist = { souhaits: [], grade: 1, sources: "ANY", primes: true };
   ajusterAssistant();
 }
@@ -117,6 +121,32 @@ function plansBijoux() {
   return S.meta.plans.filter((p) => p.pieces.length === 2 && p.pieces[0][0] === "jewelsetting"
                                     && p.pieces[1][0] === "jewel");
 }
+// Les armures completes : deux plans du palier aux memes pieces, les
+// grandes (veste, pantalon, et le casque en lourde) et les petites (bottes,
+// gants, manches). Le poids se lit dans l'intitule du plan.
+const POIDS = [["legere", /lég/i, "Armure légère complète"],
+               ["moyenne", /moyen/i, "Armure moyenne complète"],
+               ["lourde", /lourd/i, "Armure lourde complète"]];
+function ensembles(palier) {
+  const armures = S.meta.plans.filter((p) => p.palier === palier && p.pieces.length === 4
+                                            && p.pieces[1][0] === "lining");
+  const sortie = [];
+  for (const [cle, motif, nom] of POIDS) {
+    const deux = armures.filter((p) => motif.test(p.intitule));
+    const petite = deux.find((p) => /^bottes/i.test(p.intitule));
+    const grande = deux.find((p) => p !== petite);
+    if (deux.length === 2 && petite && grande) sortie.push({ cle, nom, grande: grande.id, petite: petite.id });
+  }
+  return sortie;
+}
+function ensembleDe(palier, cle) { return cle ? ensembles(palier).find((x) => x.cle === cle) || null : null; }
+// Le menu des objets : les plans du palier, puis ses armures completes.
+function objets(palier) {
+  return [...S.meta.plans.filter((x) => x.palier === palier).map((x) => [x.id, x.intitule]),
+          ...ensembles(palier).map((x) => ["ens-" + x.cle, x.nom])];
+}
+function objetChoisi(f) { return f.ensemble ? "ens-" + f.ensemble : f.plan; }
+
 function nouvelle(plan) {
   S.recette = { plan: plan.id, option: plan.options[0] || 0, commentaire: "",
                 cases: plan.pieces.map(() => []) };
@@ -232,11 +262,10 @@ function dessiner() {
 function vueSimu() {
   const plan = planDe(S.recette.plan);
   const p = S.prefs;
-  const plans = S.meta.plans.filter((x) => x.palier === S.palier);
   return '<div class="kc-barre">'
     + selecteur('data-kc="palier"', S.meta.paliers, S.palier, ' title="Palier de qualité"')
-    + selecteur('data-kc="plan"', plans.map((x) => [x.id, x.intitule]), plan.id, ' title="Objet à fabriquer"')
-    + (plan.options.length > 1 ? '<select data-kc="option" title="Variante">' + options(plan, S.recette.option) + "</select>" : "")
+    + selecteur('data-kc="plan"', objets(S.palier), objetChoisi(S.recette), ' title="Objet à fabriquer"')
+    + (plan.options.length > 1 && !S.recette.ensemble ? '<select data-kc="option" title="Variante">' + options(plan, S.recette.option) + "</select>" : "")
     + '<button type="button" data-kc="vider">Vider</button>'
     + '<button type="button" data-kc="ouvrir">Ouvrir un .kc</button>'
     + '<button type="button" data-kc="enregistrer">Télécharger le .kc</button>'
@@ -251,6 +280,7 @@ function vueSimu() {
 }
 
 function vueApercu() {
+  if (S.recette.ensemble) return vueApercuEnsemble();
   const plan = planDe(S.recette.plan);
   const r = S.resultat;
   let resume = "Recette vide — choisis des matériaux.";
@@ -280,6 +310,68 @@ function vueApercu() {
     + '<label class="kc-com">Commentaire<textarea data-kc="commentaire" rows="3">' + esc(S.recette.commentaire) + "</textarea></label>"
     + '<p><button type="button" data-kc="detail" aria-pressed="' + S.detail + '">Détail de la recette</button></p>'
     + (S.detail ? vueDetail() : "");
+}
+
+// Armure complete : un precraft par plan, un postcraft par piece portee.
+function tableEnsemble(res, voulues) {
+  const pieces = res.plans.flatMap((x) => {
+    const noms = planDe(x.plan).intitule.split(" / ");
+    return x.pieces.map((pc, i) => {
+      const nom = noms.length === x.pieces.length ? noms[i] : "variante " + pc.option;
+      return [nom.charAt(0).toUpperCase() + nom.slice(1), pc.postcraft];
+    });
+  });
+  const plan = planDe(res.plans[0].plan);
+  const lignes = plan.stats.map((x) => '<tr class="' + (voulues && voulues.has(x) ? "kc-voulue" : "") + '">'
+    + '<td class="kc-nomstat">' + esc(S.meta.stats[x][0]) + "</td>"
+    + res.plans.map((p) => '<td class="n">' + (p.precraft[x] != null ? nfr(p.precraft[x], 2) : "") + "</td>").join("")
+    + pieces.map(([, pc]) => '<td class="n">' + (pc[x] != null ? nfr(pc[x], 2) : "") + "</td>").join("")
+    + "</tr>").join("");
+  // Le nom en premier : le tableau est large, il defile, les noms restent lisibles
+  return '<div class="cadre"><table class="kc-stats"><thead><tr><th>Caractéristique</th>'
+    + '<th class="n" title="Précraft des grandes pièces">Précraft<br>grandes</th>'
+    + '<th class="n" title="Précraft des petites pièces">Précraft<br>petites</th>'
+    + pieces.map(([nom]) => '<th class="n" title="Postcraft">' + esc(nom) + "</th>").join("")
+    + "</tr></thead><tbody>" + lignes + "</tbody></table></div>";
+}
+
+// Les MP de toute l'armure : chaque recette autant de fois qu'elle a de
+// pieces, et ce que le hall en a.
+function totalEnsemble(res, qmin) {
+  const total = new Map();
+  for (const x of res.plans) {
+    const plan = planDe(x.plan);
+    x.recette.cases.forEach((c, i) => c.forEach(([k, q]) => {
+      const cle = plan.pieces[i][0] + "|" + k;
+      const t = total.get(cle) || { piece: plan.pieces[i][0], k, n: 0 };
+      t.n += q * x.pieces.length;
+      total.set(cle, t);
+    }));
+  }
+  const pieces = res.plans.reduce((t, x) => t + x.pieces.length, 0);
+  return "<h3>MP pour l'armure complète (" + pieces + " pièces)</h3>" + [...total.values()].map((t) => {
+    const m = materiau(t.piece, t.k);
+    const hall = auHall(t.k, qmin);
+    return '<div class="kc-ingr">' + t.n + '× <span class="' + ecoClasse(m) + '">' + esc(nomComplet(m)) + "</span> "
+      + '<span class="faible">hall</span> ' + hallHtml(t.k, qmin)
+      + (hall !== null && hall < t.n ? ' <span class="kc-bas">manque ' + (t.n - hall) + "</span>" : "") + "</div>";
+  }).join("");
+}
+
+function vueApercuEnsemble() {
+  const ens = ensembleDe(S.palier, S.recette.ensemble);
+  const res = S.ensRes;
+  let corps = '<p class="faible">Recette vide — choisis des matériaux.</p>';
+  if (res && !res.plans[0].vide) {
+    const resume = res.plans.map((r, i) => (i ? "Petites" : "Grandes") + " : Q" + r.qualite + " · "
+      + (r.grade ? S.meta.grades[r.grade][0] : "—") + " · " + (r.couleur ? S.meta.couleurs[r.couleur][0] : "—")
+      + " · moyenne " + nfr(r.moyenne, 1) + " % · " + (r.complete ? "complète" : "incomplète"));
+    corps = resume.map((x) => '<p class="kc-ligne">' + esc(x) + "</p>").join("")
+      + tableEnsemble(res, null) + totalEnsemble(res, 0);
+  }
+  return "<h2>" + esc(ens.nom) + " — " + esc(S.meta.paliers.find(([k]) => k === S.palier)[1]) + "</h2>"
+    + corps
+    + '<label class="kc-com">Commentaire<textarea data-kc="commentaire" rows="3">' + esc(S.recette.commentaire) + "</textarea></label>";
 }
 
 // Les colonnes arrondies tronquent, comme l'original : 94,77 s'y lit 94.
@@ -315,7 +407,10 @@ function vueDetail() {
 
 function vuePieces() {
   const plan = planDe(S.recette.plan);
-  return plan.pieces.map(([piece, voulu], i) => {
+  const ens = S.recette.ensemble ? ensembleDe(S.palier, S.recette.ensemble) : null;
+  return (ens ? '<p class="faible">Composition des grandes pièces (' + esc(plan.intitule)
+      + ") : les petites (" + esc(planDe(ens.petite).intitule) + ") reprennent les mêmes MP, dans les mêmes proportions.</p>" : "")
+    + plan.pieces.map(([piece, voulu], i) => {
     const cases = S.recette.cases[i];
     const pose = cases.reduce((t, [, n]) => t + n, 0);
     return '<div class="kc-piece"><div class="kc-titre"><b>' + esc(S.meta.pieces[piece].nom) + " "
@@ -341,6 +436,19 @@ function caseHtml(m, n, i, j) {
 
 async function recalculer() {
   if (!S.meta) return;
+  if (S.recette.ensemble) {
+    try {
+      S.ensRes = await appelerJson("ensemble", Object.assign({}, S.recette, {
+        petit: ensembleDe(S.palier, S.recette.ensemble).petite,
+        qualite: S.prefs.qualite, rite: S.prefs.rite, qformule: S.prefs.qformule }));
+    } catch (souci) {
+      S.ensRes = null;
+      bandeau("Calcul impossible : " + souci.message, true);
+    }
+    const zone = document.getElementById("kc-apercu");
+    if (zone) zone.innerHTML = vueApercu();
+    return;
+  }
   try {
     S.resultat = await appelerJson("calculer", Object.assign({}, S.recette, {
       qualite: S.prefs.qualite, rite: S.prefs.rite, qformule: S.prefs.qformule }));
@@ -618,6 +726,8 @@ async function chercher(quoi) {
   const f = quoi === "bij" ? S.bij : S.evo;
   const demande = Object.assign({}, f, { liste_ecartes: [...S.ecartes] });
   if (f.hall) demande.permis = permisDuHall(planDe(f.plan), f.qmin);
+  const ens = quoi === "evo" ? ensembleDe(planDe(f.plan).palier, f.ensemble) : null;
+  if (ens) demande.petit = ens.petite;
   S.enCours = quoi;
   S.dernier = quoi;
   if (quoi === "bij") S.bijRes = null; else S.evoRes = null;
@@ -632,6 +742,7 @@ async function chercher(quoi) {
     r = { erreur: "La recherche a échoué : " + souci.message };
     S.avance = "";
   }
+  if (ens && !r.erreur) r.cle = ens.cle;
   if (quoi === "bij") S.bijRes = r; else S.evoRes = r;
   S.enCours = "";
   surAvance = null;
@@ -667,11 +778,10 @@ function vueEvo() {
 function vueFormulaire() {
   const e = S.evo;
   const plan = planDe(e.plan);
-  const plans = S.meta.plans.filter((x) => x.palier === plan.palier);
   const couleurs = [[0, "Aucune"], ...Object.entries(S.meta.couleurs).map(([c, x]) => [c, x[0]])];
   return '<div class="kc-barre">'
     + selecteur('data-e="palier"', S.meta.paliers, plan.palier, ' title="Palier de qualité"')
-    + selecteur('data-e="plan"', plans.map((x) => [x.id, x.intitule]), plan.id, ' title="Objet à fabriquer"')
+    + selecteur('data-e="plan"', objets(plan.palier), objetChoisi(e), ' title="Objet à fabriquer"')
     + boutonChercher("evo")
     + '<button type="button" data-kc="kce-ouvrir">Ouvrir un .kce</button>'
     + '<button type="button" data-kc="kce-enregistrer">Télécharger le .kce</button>'
@@ -728,7 +838,6 @@ function vueAssistant() {
   const e = S.evo;
   const a = S.assist;
   const plan = planDe(e.plan);
-  const plans = S.meta.plans.filter((x) => x.palier === plan.palier);
   const stats = [[0, "— aucune —"], ...plan.stats.map((x) => [x, S.meta.stats[x][0]])];
   const souhaits = a.souhaits.map((w, i) => '<div class="kc-barre"><span class="kc-rang">' + (i + 1) + "</span>"
     + selecteur('data-a="stat" data-i="' + i + '"', stats, w.stat)
@@ -738,7 +847,7 @@ function vueAssistant() {
     + '<div class="kc-assistant">'
     + '<section class="panneau"><h2>1. Que veux-tu fabriquer ?</h2><div class="kc-barre">'
     + selecteur('data-e="palier"', S.meta.paliers, plan.palier, ' title="Palier de qualité"')
-    + selecteur('data-e="plan"', plans.map((x) => [x.id, x.intitule]), plan.id, ' title="Objet à fabriquer"')
+    + selecteur('data-e="plan"', objets(plan.palier), objetChoisi(e), ' title="Objet à fabriquer"')
     + '</div><p class="faible">Le palier fixe le niveau du plan ; l\'objet fixe les pièces à remplir.</p></section>'
     + '<section class="panneau"><h2>2. Qu\'est-ce qui compte ?</h2>'
     + '<p class="faible">Jusqu\'à cinq caractéristiques, la plus importante en premier. Tout ce qu\'on gagne '
@@ -770,6 +879,7 @@ async function lancerAssistant() {
 function appliquerProjetEvo(p) {
   const vierge = evoVierge(planDe(p.plan) ? p.plan : S.evo.plan);
   S.evo = Object.assign(vierge, {
+    ensemble: vierge.plan === S.evo.plan ? S.evo.ensemble : null,
     duree: S.evo.duree, variete: S.evo.variete, hall: S.evo.hall, tot: S.evo.tot,
     qmin: p.qmin, qmax: p.qmax, couleur: p.couleur, ecartes: p.ecartes, boost: p.boost, maitre: p.maitre,
     conditions: vierge.conditions.map((c, i) => p.conditions[i] ? Object.assign({}, p.conditions[i],
@@ -783,6 +893,7 @@ function vueEvoResultat() {
   const r = S.evoRes;
   if (!r) return "";
   if (r.erreur) return '<section class="panneau"><p class="inconnue">' + esc(r.erreur) + "</p></section>";
+  if (r.ensemble) return vueEvoEnsemble(r);
   const plan = planDe(r.recette.plan);
   const res = r.resultat || {};
   const voulues = new Set(S.evo.conditions.filter((c) => c.stat).map((c) => c.stat));
@@ -805,6 +916,26 @@ function vueEvoResultat() {
     + '<button type="button" data-kc="evo-kc">Télécharger le .kc</button></p>'
     + '<div class="kc-res"><table class="kc-stats"><thead><tr><th class="n">Précraft</th><th class="n">Postcraft</th><th></th></tr></thead><tbody>'
     + lignes + "</tbody></table><div>" + ingredients + "</div></div></section>";
+}
+
+function vueEvoEnsemble(r) {
+  const voulues = new Set(S.evo.conditions.filter((c) => c.stat).map((c) => c.stat));
+  const res = { plans: r.ensemble };
+  const recettes = r.ensemble.map((x, n) => {
+    const plan = planDe(x.plan);
+    return "<h3>" + (n ? "Petites pièces" : "Grandes pièces") + " — " + esc(plan.intitule) + "</h3>"
+      + x.recette.cases.map((c, i) => '<div class="faible">' + esc(S.meta.pieces[plan.pieces[i][0]].nom) + "</div>"
+        + c.map(([k, q]) => '<div class="kc-ingr">' + q + '× <span class="' + ecoClasse(materiau(plan.pieces[i][0], k)) + '">'
+          + esc(nomComplet(materiau(plan.pieces[i][0], k))) + "</span></div>").join("")).join("");
+  }).join("");
+  return '<section class="panneau"><h2>Résultat</h2><p class="kc-ligne">' + esc(r.verdict) + "</p>"
+    + '<p class="faible">' + (r.manque.length ? "Non tenu sur au moins une taille de pièce : "
+      + r.manque.map(([x, ec]) => esc(x) + " (écart " + nfr(ec, 2) + ")").join(" · ")
+      : "Toutes les conditions sont tenues, grandes et petites pièces · " + r.generations + " générations") + "</p>"
+    + '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
+    + '<button type="button" data-kc="evo-kc">Télécharger les 2 .kc</button></p>'
+    + tableEnsemble(res, voulues)
+    + '<div class="kc-ens"><div>' + recettes + "</div><div>" + totalEnsemble(res, S.evo.qmin) + "</div></div></section>";
 }
 
 // ------------------------------------------------------------ bijouterie
@@ -1041,10 +1172,15 @@ async function surClic(ev) {
   } else if (quoi === "enregistrer") {
     const plan = planDe(S.recette.plan);
     telecharger(plan.intitule + ".kc", await appeler("ecrire_kc", S.recette));
+    // Armure complete : les petites pieces aussi, dans un second fichier
+    if (S.recette.ensemble && S.ensRes) {
+      const petite = S.ensRes.plans[1].recette;
+      telecharger(planDe(petite.plan).intitule + ".kc", await appeler("ecrire_kc", petite));
+    }
   } else if (quoi === "chercher") { if (b.dataset.v === "assist") lancerAssistant(); else chercher(b.dataset.v); }
   else if (quoi === "evo-mode") { S.evoMode = b.dataset.v; garder("kc-evo-mode", S.evoMode); dessiner(); }
   else if (quoi === "assist-proposer") { S.assist.souhaits = []; ajusterAssistant(); dessiner(); }
-  else if (quoi === "evo-zero") { S.evo = evoVierge(S.evo.plan); S.evoRes = null; sauverEvo(); dessiner(); }
+  else if (quoi === "evo-zero") { S.evo = Object.assign(evoVierge(S.evo.plan), { ensemble: S.evo.ensemble }); S.evoRes = null; sauverEvo(); dessiner(); }
   else if (quoi === "kce-enregistrer") telecharger("projet.kce", await appeler("projet_kce", S.evo));
   else if (quoi === "kce-ouvrir") {
     const f = await choisirFichier(".kce");
@@ -1057,13 +1193,17 @@ async function surClic(ev) {
     bandeau(f.nom + " ouvert");
   } else if (quoi === "evo-simuler") {
     S.recette = Object.assign({}, S.evoRes.recette);
+    if (S.evoRes.cle) S.recette.ensemble = S.evoRes.cle;
     S.palier = planDe(S.recette.plan).palier;
     S.sous = "simu";
     garder("kc-sous", S.sous);
     sauverRecette();
     dessiner();
     recalculer();
-  } else if (quoi === "evo-kc") telecharger(planDe(S.evoRes.recette.plan).intitule + ".kc", S.evoRes.kc);
+  } else if (quoi === "evo-kc") {
+    telecharger(planDe(S.evoRes.recette.plan).intitule + ".kc", S.evoRes.kc);
+    if (S.evoRes.ensemble) telecharger(planDe(S.evoRes.ensemble[1].plan).intitule + ".kc", S.evoRes.kc_petit);
+  }
   else if (quoi === "bij-zero") { S.bij = bijVierge(S.bij.plan); S.bijRes = null; sauverBij(); dessiner(); }
   else if (quoi === "kcj-enregistrer") telecharger("parure.kcj", await appeler("projet_kcj", S.bij));
   else if (quoi === "kcj-ouvrir") {
@@ -1108,11 +1248,20 @@ function surChangement(ev) {
   const d = t.dataset || {};
   const v = t.type === "checkbox" ? t.checked : t.value;
   if (d.kc === "palier") {
+    // Une armure complete reste complete d'un palier a l'autre
+    const ens = ensembleDe(v, S.recette.ensemble);
     S.palier = v;
-    nouvelle(S.meta.plans.find((p) => p.palier === v));
+    nouvelle(ens ? planDe(ens.grande) : S.meta.plans.find((p) => p.palier === v));
+    if (ens) { S.recette.ensemble = ens.cle; sauverRecette(); }
     dessiner();
     recalculer();
-  } else if (d.kc === "plan") { nouvelle(planDe(v)); dessiner(); recalculer(); }
+  } else if (d.kc === "plan") {
+    const ens = v.startsWith("ens-") ? ensembleDe(S.palier, v.slice(4)) : null;
+    nouvelle(planDe(ens ? ens.grande : v));
+    if (ens) { S.recette.ensemble = ens.cle; sauverRecette(); }
+    dessiner();
+    recalculer();
+  }
   else if (d.kc === "option") { S.recette.option = Number(v); sauverRecette(); recalculer(); }
   else if (d.kc === "pref") {
     S.prefs[d.v] = t.type === "checkbox" ? v : Math.max(Number(t.min), Math.min(Number(t.max), Number(v) || 0));
@@ -1164,7 +1313,11 @@ function surBij(ev, t, d, v) {
 function surEvo(ev, t, d, v) {
   const e = S.evo;
   if (d.e === "palier" || d.e === "plan") {
-    const plan = d.e === "plan" ? planDe(v) : S.meta.plans.find((p) => p.palier === v);
+    const palier = d.e === "palier" ? v : planDe(e.plan).palier;
+    const ens = d.e === "plan" ? (v.startsWith("ens-") ? ensembleDe(palier, v.slice(4)) : null)
+                               : ensembleDe(palier, e.ensemble);
+    const plan = ens ? planDe(ens.grande) : d.e === "plan" ? planDe(v) : S.meta.plans.find((p) => p.palier === v);
+    e.ensemble = ens ? ens.cle : null;
     // Les pieces changent : leurs filtres repartent de zero. Les conditions
     // restent, sauf celles que le nouvel objet ne porte pas.
     e.plan = plan.id;
@@ -1304,6 +1457,10 @@ tr.kc-ecarte td { opacity: .5; }
           align-items: start; }
 @media (max-width: 700px) { .kc-res { grid-template-columns: 1fr; } }
 .kc-bijou { margin-bottom: 10px; }
+.kc-nomstat { white-space: nowrap; }
+.kc-ens { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 10px; }
+@media (max-width: 1400px) { .kc-ens { grid-template-columns: 1fr; } }
+.kc-ens h3, .kc h3 { font-size: .95rem; margin: 10px 0 4px; }
 .kc-bijou button { padding: 2px 8px; font-size: .85rem; }
 .kc-ingr { margin-left: 12px; }
 tr.kc-voulue td { color: var(--or); }
