@@ -19,8 +19,8 @@
     },
     "systemes": {
       "windows": {
-        "versionCode": 134,
-        "versionName": "1.11.104"
+        "versionCode": 136,
+        "versionName": "1.11.105"
       },
       "linux": {
         "versionCode": 136,
