@@ -11,6 +11,7 @@ Range dans `kipeecraft.zip` par `outils/page-kc.py`.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import math
 import time
@@ -376,6 +377,80 @@ def _filtrer(pools, plan, ecartes_, permis, employer_ecartes):
     return pools
 
 
+# ------------------------------------------------------------------ stock du hall
+#
+# "Seulement le stock du hall" : la page envoie, MP par MP, ce que le hall en
+# a. Une recette qui en demande plus est penalisee de mille points par unite
+# en trop : elle passe derriere toutes celles qui tiennent dans le stock. Si
+# la meilleure trouvee deborde encore, c'est que le hall ne suffit pas.
+
+TROP = 1000.0
+
+
+def _stock(d: dict):
+    """Le stock du hall envoye par la page, ou None hors de ce mode."""
+    permis = d.get("permis")
+    return {k: int(n) for k, n in permis.items()} if isinstance(permis, dict) else None
+
+
+def _unites(genes, pools, compte: dict, fois: int = 1) -> None:
+    """Ajoute a `compte` les unites de chaque MP d'un genome (rangs tries)."""
+    for pool, gene in zip(pools, genes):
+        for rang in gene:
+            cle = pool[rang].legacy_key
+            compte[cle] = compte.get(cle, 0) + fois
+
+
+def _exces(compte: dict, stock: dict) -> int:
+    return sum(max(0, n - stock.get(k, 0)) for k, n in compte.items())
+
+
+def _exces_recettes(recettes, stock: dict) -> int:
+    """Unites demandees au-dela du stock, pour des (recette, nombre de pieces)."""
+    compte: dict = {}
+    for recette, fois in recettes:
+        for case in recette.slots:
+            for i in case:
+                cle = i.material.legacy_key
+                compte[cle] = compte.get(cle, 0) + i.quantity * fois
+    return _exces(compte, stock)
+
+
+def _brider(moteur, stock: dict, unites) -> None:
+    """Penalise, dans `moteur`, ce qui depasse le stock. `unites(x)` rend les
+    unites de chaque MP de l'individu x ; _measure rend un Score ou un
+    couple (precraft, Score) selon le moteur."""
+    mesure = moteur._measure
+    connus: dict = {}
+
+    def _measure(x):
+        r = connus.get(x)
+        if r is not None:
+            return r
+        r = mesure(x)
+        trop = _exces(unites(x), stock)
+        if trop:
+            score = r[1] if isinstance(r, tuple) else r
+            score = dataclasses.replace(score, penalty=score.penalty + TROP * trop, satisfied=0)
+            r = (r[0], score) if isinstance(r, tuple) else score
+        connus[x] = r
+        return r
+
+    moteur._measure = _measure
+
+
+def _hall_insuffisant(trop: int) -> str:
+    return json.dumps({"erreur": f"Le hall n'a pas assez de MP pour ces conditions : la meilleure "
+                       f"recette trouvée en demande {trop} de plus que son stock. Assouplis les "
+                       "conditions, baisse Q min, ou décoche « Seulement le stock du hall »."},
+                      ensure_ascii=False)
+
+
+def _nb_pieces(plan) -> int:
+    """Pieces d'une armure complete faites avec ce plan : une par variante."""
+    return len(list(postcraft.options_of(plan.id)) or [0])
+
+
 def _conditions(d: dict):
     return tuple(proj.Condition(
         stat=Stat(c["stat"]) if c.get("stat") else None,
@@ -572,6 +647,26 @@ async def evoluer(demande: str, avancer) -> str:
         moteur = EvolverEnsemble(reglages, pools, petit) if petit else Evolver(reglages, pools)
     except EvolverError as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
+    stock = _stock(d)
+    if stock is not None:
+        if petit:
+            n_grandes, n_petites = _nb_pieces(plan), _nb_pieces(petit)
+
+            def unites(genome):
+                compte: dict = {}
+                _unites(genome, moteur.pools, compte, n_grandes)
+                # Les petites pieces : (rang, quantite) apres reduction
+                for pool, gene in zip(moteur.pools, moteur._reduit(genome)):
+                    for rang, q in gene:
+                        cle = pool[rang].legacy_key
+                        compte[cle] = compte.get(cle, 0) + q * n_petites
+                return compte
+        else:
+            def unites(genome):
+                compte: dict = {}
+                _unites(genome, moteur.pools, compte)
+                return compte
+        _brider(moteur, stock, unites)
 
     await _derouler(moteur, reglages, avancer)
     solution = moteur.best
@@ -579,6 +674,12 @@ async def evoluer(demande: str, avancer) -> str:
         return json.dumps({"erreur": "aucune recette trouvée"})
     recette = solution.recipe
     recette.comment = "Créée par l'Armurerie"
+    if stock is not None:
+        faites = ([(recette, _nb_pieces(plan)), (_petite(recette, petit), _nb_pieces(petit))]
+                  if petit else [(recette, 1)])
+        trop = _exces_recettes(faites, stock)
+        if trop:
+            return _hall_insuffisant(trop)
     if petit:
         petite = _petite(recette, petit)
         ensemble_ = _pieces_ensemble(recette, petite)
@@ -645,11 +746,23 @@ async def bijouter(demande: str, avancer) -> str:
         moteur = Jeweler(reglages, pools)
     except (JewelerError, EvolverError) as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
+    stock = _stock(d)
+    if stock is not None:
+        def unites(parure):
+            compte: dict = {}
+            for bijou in parure:
+                _unites(bijou, moteur.pools, compte)
+            return compte
+        _brider(moteur, stock, unites)
 
     await _derouler(moteur, reglages, avancer)
     parure = moteur.best
     if parure is None:
         return json.dumps({"erreur": "aucune parure trouvée"})
+    if stock is not None:
+        trop = _exces_recettes([(r, 1) for r in parure.jewels], stock)
+        if trop:
+            return _hall_insuffisant(trop)
     conditions = projet.conditions
     return json.dumps({
         "verdict": parure.score.describe(), "cle": list(parure.score.key),

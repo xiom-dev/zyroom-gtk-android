@@ -786,10 +786,17 @@ function surFormulaire(f, cle, d, t, v) {
   else f[cle] = n;
 }
 
-// Les MP que le hall a, en qualite >= qmin, pour les pieces d'un plan.
+// Les MP que le hall a, en qualite >= qmin, pour les pieces d'un plan, et
+// combien : la recherche ne depasse jamais ces quantites.
 function permisDuHall(plan, qmin) {
-  return [...new Set(plan.pieces.flatMap(([p]) => S.meta.materiaux[p]
-    .filter((m) => auHall(m.k, qmin) > 0).map((m) => m.k)))];
+  const permis = {};
+  for (const [p] of plan.pieces) {
+    for (const m of S.meta.materiaux[p]) {
+      const n = auHall(m.k, qmin);
+      if (n > 0) permis[m.k] = n;
+    }
+  }
+  return permis;
 }
 
 async function chercher(quoi) {
@@ -896,7 +903,7 @@ function vueFormulaire() {
     + champNombre(e, "e", "variete", "Variété", 0, 12, 1, "Matériaux différents par pièce. 0 : sans limite.")
     + champNombre(e, "e", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
     + "</div><div class=\"kc-barre\">"
-    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min")
+    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min, sans jamais dépasser son stock")
     + champCoche(e, "e", "ecartes", "Employer les matériaux écartés")
     + champCoche(e, "e", "boost", "Privilégier le boost", "À égalité, préférer la recette dont l'excédent est rendu plutôt que perdu")
     + champCoche(e, "e", "tot", "S'arrêter dès que les conditions sont tenues", "Sinon la recherche va au bout du temps et continue d'enrichir la recette")
@@ -956,7 +963,7 @@ function vueAssistant() {
     + "</div><div class=\"kc-barre\">"
     + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
     + champNombre(e, "e", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
-    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min")
+    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min, sans jamais dépasser son stock")
     + "</div></section></div>"
     + vueEvoResultat()
     + '<p class="faible">Tes réponses remplissent aussi le formulaire complet : passe dessus pour affiner.</p>';
@@ -1065,7 +1072,7 @@ function vueBij() {
     + champNombre(b, "b", "variete", "Variété", 0, 12, 1, "Matériaux différents par pièce. 0 : sans limite.")
     + champNombre(b, "b", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
     + "</div><div class=\"kc-barre\">"
-    + champCoche(b, "b", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min")
+    + champCoche(b, "b", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min, sans jamais dépasser son stock")
     + champCoche(b, "b", "ecartes", "Employer les matériaux écartés")
     + champCoche(b, "b", "tot", "S'arrêter dès que les conditions sont tenues", "Sinon la recherche emploie tout son temps à les dépasser")
     + "</div><details><summary>Race de chaque bijou</summary><div class=\"kc-races\">"
