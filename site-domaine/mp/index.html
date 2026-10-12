@@ -91,6 +91,8 @@
     background: linear-gradient(rgba(63, 122, 104, .35), rgba(63, 122, 104, .35)),
                 url("kc/kipee.png") center 42% / cover; }
   .filtres input[type="search"] { flex: 0 1 260px; min-width: 160px; }
+  /* L'import des recettes a droite, sous l'onglet KipeeCraft */
+  #choisir-kc { margin-left: auto; }
   .compte { color: var(--faible); font-size: .85rem; font-weight: 400; }
   [aria-pressed="true"] .compte { color: #08120f; }
 
@@ -229,6 +231,7 @@
     <button type="button" data-eco="Jungle" aria-pressed="false">Jungle</button>
     <button type="button" data-eco="Lake" aria-pressed="false">Lacs</button>
     <button type="button" data-eco="none" aria-pressed="false">Communes</button>
+    <button type="button" class="principal" id="choisir-kc" hidden title="Fichiers .kc enregistrés depuis KipeeCraft">Importer des recettes KipeeCraft</button>
   </div>
 
   <div id="vue"></div>
@@ -560,14 +563,15 @@ function afficher() {
   document.querySelectorAll("[data-onglet]").forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.onglet === onglet)));
   $("#filtres").hidden = onglet === "reglages" || onglet === "kc";
+  $("#choisir-kc").hidden = onglet !== "recettes";
   // Les ecosystemes ne disent rien d'une armure ni d'un bijou.
   document.querySelectorAll("[data-eco]").forEach((b) =>
     { b.hidden = onglet === "tenues" || onglet === "bijoux"; });
   const vue = $("#vue");
   if (onglet === "kc") vueKc(vue);
   else if (onglet === "recettes") {
-    vue.innerHTML = (etat.editeur ? "" : vueImport()) + vueRecettes();
-    if (!etat.editeur) brancherImport();
+    vue.innerHTML = vueImportCourt() + vueRecettes();
+    brancherImport();
   }
   else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
   else if (onglet === "inutiles") vue.innerHTML = vueInutiles();
@@ -992,6 +996,14 @@ function vueReglages() {
 
 // L'import des .kc : dans les reglages pour un editeur, en tete des
 // recettes pour un joueur, qui n'a pas d'onglet Reglages.
+// L'import de l'onglet Recettes, pour tous : le bouton est dans la barre
+// des filtres (#choisir-kc), ici seulement ce qu'il choisit et Importer.
+function vueImportCourt() {
+  return '<input type="file" id="fichiers" accept=".kc" multiple hidden>'
+    + '<ul id="apercu"></ul>'
+    + '<button type="button" class="principal" id="importer" hidden>Importer</button>';
+}
+
 function vueImport() {
   return '<section class="panneau"><h2>Importer des recettes KipeeCraft</h2>'
     + "<p>Fichiers <code>.kc</code>. Une recette du même nom est remplacée ; "
@@ -1173,6 +1185,8 @@ document.querySelectorAll("[data-eco]").forEach((b) =>
     afficher();
   }));
 $("#cherche").addEventListener("input", afficher);
+// Le bouton d'import ouvre le choix des fichiers de l'onglet Recettes
+$("#choisir-kc").addEventListener("click", () => { const f = $("#fichiers"); if (f) f.click(); });
 
 $("#vue").addEventListener("click", async (ev) => {
   const bouton = ev.target.closest("[data-action]");
