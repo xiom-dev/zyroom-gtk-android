@@ -820,7 +820,9 @@ async function chercher(quoi) {
     return;
   }
   const f = quoi === "bij" ? S.bij : S.evo;
-  const demande = Object.assign({}, f, { liste_ecartes: [...S.ecartes] });
+  // Le joueur connecte signe la recette trouvee (son commentaire)
+  const auteur = typeof etat === "object" && etat && etat.qui ? etat.qui : "";
+  const demande = Object.assign({}, f, { liste_ecartes: [...S.ecartes], auteur });
   if (f.hall) demande.permis = permisDuHall(planDe(f.plan), f.qmin);
   const ens = quoi === "evo" ? ensembleDe(planDe(f.plan).palier, f.ensemble) : null;
   if (ens) demande.petit = ens.petite;
@@ -1353,7 +1355,7 @@ async function surClic(ev) {
     dessiner();
     bandeau(f.nom + " ouvert");
   } else if (quoi === "bij-simuler") {
-    S.recette = Object.assign({}, S.bijRes.bijoux[Number(b.dataset.i)], { commentaire: "Créée par la Bijouterie" });
+    S.recette = Object.assign({}, S.bijRes.bijoux[Number(b.dataset.i)]);
     S.palier = planDe(S.recette.plan).palier;
     S.sous = "simu";
     garder("kc-sous", S.sous);

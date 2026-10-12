@@ -446,6 +446,13 @@ def _hall_insuffisant(trop: int) -> str:
                       ensure_ascii=False)
 
 
+def _signature(lieu: str, d: dict) -> str:
+    """Le commentaire d'une recette trouvee : qui l'a cherchee, et avec quoi.
+    Le nom vient de la page, celui du joueur connecte."""
+    auteur = str(d.get("auteur") or "").strip()
+    return f"Créée par {auteur} avec {lieu}" if auteur else f"Créée par {lieu}"
+
+
 def _nb_pieces(plan) -> int:
     """Pieces d'une armure complete faites avec ce plan : une par variante."""
     return len(list(postcraft.options_of(plan.id)) or [0])
@@ -673,7 +680,7 @@ async def evoluer(demande: str, avancer) -> str:
     if solution is None:
         return json.dumps({"erreur": "aucune recette trouvée"})
     recette = solution.recipe
-    recette.comment = "Créée par l'Armurerie"
+    recette.comment = _signature("l'Armurerie", d)
     if stock is not None:
         faites = ([(recette, _nb_pieces(plan)), (_petite(recette, petit), _nb_pieces(petit))]
                   if petit else [(recette, 1)])
@@ -764,6 +771,8 @@ async def bijouter(demande: str, avancer) -> str:
         if trop:
             return _hall_insuffisant(trop)
     conditions = projet.conditions
+    for r in parure.jewels:
+        r.comment = _signature("la Bijouterie", d)
     return json.dumps({
         "verdict": parure.score.describe(), "cle": list(parure.score.key),
         "manque": [[c.stat.label, ecart] for c, ecart in parure.unmet(conditions)],
