@@ -144,8 +144,9 @@
   .etat { display: inline-block; border-radius: 10px; padding: 1px 8px;
           font-size: .8rem; font-weight: 600; white-space: nowrap;
           color: #08120f; }
-  .etat.rupture { background: var(--rupture); }
-  .etat.forer { background: var(--or); }
+  /* A forer en rouge, bientot en rupture en jaune */
+  .etat.rupture { background: var(--or); }
+  .etat.forer { background: var(--rupture); }
   .etat.ok { background: var(--oui); }
   .etat.stop { background: var(--stop); }
   /* Armures et bijoux : la piece la moins nombreuse en jaune, la plus
@@ -913,7 +914,8 @@ function tableMps(liste, quoi, boss) {
 }
 
 function vueRecettes() {
-  const ORDRE = { rupture: 0, forer: 1, ok: 2 };
+  // A forer d'abord, puis bientot en rupture, puis suffisant
+  const ORDRE = { forer: 0, rupture: 1, ok: 2 };
   // Sans la composition (recette d'un autre, pour qui n'est pas Xiom) : ni
   // depliage, et le filtre et la recherche ne voient que le nom et la MP
   // qui bloque.
