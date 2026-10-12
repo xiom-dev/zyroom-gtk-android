@@ -19,26 +19,73 @@ let numero = 0;
 const attentes = new Map();
 let surAvance = null;
 
-function appeler(op, ...args) {
+function appelerSur(w, op, ...args) {
   return new Promise((ok, ko) => {
     const id = ++numero;
-    attentes.set(id, { ok, ko });
-    travail.postMessage({ id, op, args });
+    attentes.set(id, { ok, ko, w });
+    w.postMessage({ id, op, args });
   });
 }
+function appeler(op, ...args) { return appelerSur(travail, op, ...args); }
 async function appelerJson(op, ...args) { return JSON.parse(await appeler(op, ...args)); }
 
-function lancer() {
-  if (travail) return;
-  travail = new Worker("kc/travail.js" + VERSION);
-  travail.onmessage = (ev) => {
+// Un worker, et son Python a lui. Ce qu'il annonce en cours de recherche
+// arrive a surAvance avec son rang.
+function nouveauWorker(rang) {
+  const w = new Worker("kc/travail.js" + VERSION);
+  w.onmessage = (ev) => {
     const d = ev.data;
-    if (d.avance) { if (surAvance) surAvance(d.avance); return; }
+    if (d.avance) { if (surAvance) surAvance(d.avance, rang); return; }
     const a = attentes.get(d.id);
     attentes.delete(d.id);
     if (a) { if (d.ok) a.ok(d.valeur); else a.ko(new Error(d.erreur)); }
   };
-  travail.onerror = (ev) => { S.erreur = ev.message || "worker en panne"; dessiner(); };
+  return w;
+}
+// Un worker tombe : ses appels en attente echouent, au lieu d'attendre
+// pour toujours.
+function abandonner(w, message) {
+  for (const [id, a] of attentes) if (a.w === w) { attentes.delete(id); a.ko(new Error(message)); }
+}
+
+// ------------------------------------------------------------ recherches paralleles
+//
+// Une recherche n'occupe qu'un coeur. On en lance plusieurs a la fois, une
+// par worker, et on garde la meilleure : autant de recettes explorees en
+// plus dans le meme temps. La moitie des processeurs annonces (un coeur
+// physique en compte souvent deux), moins un laisse au jeu et au reste.
+const PARALLELES = Math.max(1, Math.floor((navigator.hardwareConcurrency || 2) / 2) - 1);
+let aides = [];          // les workers en plus de `travail`
+let aidesPerimes = false; // formules retouchees depuis leur demarrage
+
+function aidesPrets() {
+  if (aidesPerimes && !S.enCours) {
+    aides.forEach((w) => w.terminate());
+    aides = [];
+    aidesPerimes = false;
+  }
+  while (aides.length < PARALLELES - 1) {
+    const w = nouveauWorker(aides.length + 1);
+    w.onerror = () => { abandonner(w, "recherche parallèle en panne"); };
+    // Un aide qui ne demarre pas (memoire) : on cherche sans lui.
+    w.pret = appelerSur(w, "demarrer", lire("kc-retouches", {})).then(() => w)
+      .catch(() => { w.terminate(); return null; });
+    aides.push(w);
+  }
+  return Promise.all(aides.map((w) => w.pret)).then((l) => l.filter(Boolean));
+}
+
+// Comparer deux cles de score, comme Python compare deux tuples : la plus
+// petite est la meilleure.
+function avant(a, b) {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] < b[i];
+  return a.length < b.length;
+}
+
+function lancer() {
+  if (travail) return;
+  travail = nouveauWorker(0);
+  travail.onerror = (ev) => { S.erreur = ev.message || "worker en panne"; abandonner(travail, S.erreur); dessiner(); };
   appeler("demarrer", lire("kc-retouches", {}))
     .then((texte) => { preparer(JSON.parse(texte)); dessiner(); recalculer(); })
     .catch((souci) => { S.erreur = souci.message; dessiner(); });
@@ -255,6 +302,8 @@ function dessiner() {
     + '<div id="kc-corps">' + ({ simu: vueSimu, evo: vueEvo, bij: vueBij, base: vueBase, form: vueForm,
                                  audit: vueAudit }[S.sous] || vueSimu)() + "</div>";
   if (S.sous === "form" && !S.form) chargerFormules();
+  // Les recherches paralleles se chargent pendant qu'on remplit le formulaire
+  if (S.sous === "evo" || S.sous === "bij") aidesPrets();
 }
 
 // ------------------------------------------------------------ simulateur
@@ -720,7 +769,12 @@ function permisDuHall(plan, qmin) {
 
 async function chercher(quoi) {
   if (S.enCours) {
-    if (S.enCours === quoi) { travail.postMessage({ op: "arreter" }); S.avance = "Arrêt demandé…"; majAvance(); }
+    if (S.enCours === quoi) {
+      S.arret = true;
+      [travail, ...aides].forEach((w) => w.postMessage({ op: "arreter" }));
+      S.avance = "Arrêt demandé…";
+      majAvance();
+    }
     return;
   }
   const f = quoi === "bij" ? S.bij : S.evo;
@@ -731,15 +785,32 @@ async function chercher(quoi) {
   S.enCours = quoi;
   S.dernier = quoi;
   if (quoi === "bij") S.bijRes = null; else S.evoRes = null;
-  S.avance = "Recherche…";
+  S.avance = PARALLELES > 1 ? "Démarrage des " + PARALLELES + " recherches…" : "Recherche…";
   dessiner();
-  surAvance = (x) => { S.avance = "génération " + x.generation + " — " + x.etat; majAvance(); };
+  S.arret = false;
+  const ouvriers = [travail, ...(await aidesPrets())];
+  // Arret demande pendant le demarrage : rien n'est encore lance
+  if (S.arret) { S.enCours = ""; S.avance = ""; surAvance = null; dessiner(); return; }
+  const n = ouvriers.length;
+  // L'avancement affiche la meilleure des recherches en cours
+  const avances = [];
+  surAvance = (x, rang) => {
+    avances[rang] = x;
+    const tete = avances.filter((a) => a && a.cle).reduce((m, a) => (!m || avant(a.cle, m.cle) ? a : m), null) || x;
+    S.avance = "génération " + tete.generation + " — " + tete.etat + (n > 1 ? " · " + n + " recherches" : "");
+    majAvance();
+  };
+  const op = quoi === "bij" ? "bijouter" : "evoluer";
+  const rendus = await Promise.allSettled(ouvriers.map((w) => appelerSur(w, op, demande).then(JSON.parse)));
+  const bons = rendus.filter((x) => x.status === "fulfilled" && !x.value.erreur).map((x) => x.value);
   let r;
-  try {
-    r = await appelerJson(quoi === "bij" ? "bijouter" : "evoluer", demande);
-    S.avance = r.erreur ? "" : "Terminé";
-  } catch (souci) {
-    r = { erreur: "La recherche a échoué : " + souci.message };
+  if (bons.length) {
+    r = bons.reduce((m, x) => (avant(x.cle, m.cle) ? x : m));
+    S.avance = "Terminé" + (bons.length > 1 ? " · meilleure de " + bons.length + " recherches" : "");
+  } else {
+    // Toutes en echec : la meme erreur partout, la premiere suffit
+    const e = rendus[0];
+    r = e.status === "fulfilled" ? e.value : { erreur: "La recherche a échoué : " + e.reason.message };
     S.avance = "";
   }
   if (ens && !r.erreur) r.cle = ens.cle;
@@ -1110,6 +1181,7 @@ async function appliquerFormules() {
   const retouches = lire("kc-retouches", {});
   retouches[f.fichier] = texte;
   garder("kc-retouches", retouches);
+  aidesPerimes = true;
   await chargerFormules(f.plan, f.option);
   S.form.message = r.problemes.length ? r.problemes.length + " ligne(s) ignorée(s)" : "Appliqué.";
   dessiner();
@@ -1122,6 +1194,7 @@ async function retablirFormules() {
   const retouches = lire("kc-retouches", {});
   delete retouches[f.fichier];
   garder("kc-retouches", retouches);
+  aidesPerimes = true;
   await chargerFormules(f.plan, f.option);
   S.form.message = "Original rétabli.";
   dessiner();

@@ -353,8 +353,10 @@ async def _derouler(moteur, reglages, avancer) -> None:
         if time.monotonic() - souffle >= 0.15:
             souffle = time.monotonic()
             meilleur = moteur.best
+            # cle : pour que la page compare les recherches paralleles
             avancer(json.dumps({"generation": moteur.generation, "ecoule": ecoule,
-                                "etat": meilleur.score.describe() if meilleur else "…"},
+                                "etat": meilleur.score.describe() if meilleur else "…",
+                                "cle": list(meilleur.score.key) if meilleur else None},
                                ensure_ascii=False))
             await asyncio.sleep(0)
 
@@ -591,7 +593,7 @@ async def evoluer(demande: str, avancer) -> str:
                 if ecart > tolerance_for(c):
                     manque[c.stat.label] = max(manque.get(c.stat.label, 0), ecart)
         return json.dumps({
-            "verdict": solution.score.describe(),
+            "verdict": solution.score.describe(), "cle": list(solution.score.key),
             "manque": [[k, v] for k, v in manque.items()],
             "generations": solution.generation,
             "recette": _vers_page(recette),
@@ -603,7 +605,7 @@ async def evoluer(demande: str, avancer) -> str:
     except PostcraftError:
         r = _craft(recette, None)
     return json.dumps({
-        "verdict": solution.score.describe(),
+        "verdict": solution.score.describe(), "cle": list(solution.score.key),
         "manque": [[c.stat.label, ecart] for c, ecart in solution.unmet(projet.conditions)],
         "generations": solution.generation,
         "recette": _vers_page(recette),
@@ -650,7 +652,7 @@ async def bijouter(demande: str, avancer) -> str:
         return json.dumps({"erreur": "aucune parure trouvée"})
     conditions = projet.conditions
     return json.dumps({
-        "verdict": parure.score.describe(),
+        "verdict": parure.score.describe(), "cle": list(parure.score.key),
         "manque": [[c.stat.label, ecart] for c, ecart in parure.unmet(conditions)],
         "distincts": parure.distinct_jewels(),
         "generations": parure.generation,
