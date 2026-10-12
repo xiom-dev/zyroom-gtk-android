@@ -174,11 +174,13 @@ fun chercheDansTout(
     }
     // Le nom lisible et la fiche : sans pack chargé, il ne reste que la fiche,
     // et chercher « m0117 » doit continuer de répondre.
+    // Chaque mot pour lui-meme, dans n'importe quel ordre : "dent gubani"
+    // trouve "Dent supreme / Gubani du Desert".
+    val mots = cherche.split(Regex("\\s+")).filter { it.isNotEmpty() }
     return inventaires.mapNotNull { inventaire ->
         val trouves = inventaire.items.filter {
-            filtres.passe(it) &&
-                (cherche in normalise(nameOf(it)) || cherche in normalise(it.sheet) ||
-                    cherche in normalise(autreNom(it)))
+            val cle = normalise(nameOf(it)) + " " + normalise(it.sheet) + " " + normalise(autreNom(it))
+            filtres.passe(it) && mots.all { mot -> mot in cle }
         }
         if (trouves.isEmpty()) null
         else inventaire.label to sortItems(trouves, order, nameOf)

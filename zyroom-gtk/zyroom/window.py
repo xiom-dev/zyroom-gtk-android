@@ -2260,9 +2260,12 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         sale_only = self._sale_only.get_active()
 
         visible = 0
+        # Chaque mot pour lui-meme, dans n'importe quel ordre : « dent gubani »
+        # trouve « Dent supreme / Gubani du Desert ».
+        mots = needle.split()
         for child, item, search_key, categorie in self._rows:
             ok = True
-            if needle and needle not in search_key:
+            if mots and not all(m in search_key for m in mots):
                 ok = False
             elif qualites and item.quality not in qualites:
                 ok = False

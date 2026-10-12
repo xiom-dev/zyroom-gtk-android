@@ -2188,9 +2188,12 @@ class FenetrePrincipale(QMainWindow):
         avec_bonus = self._avec_bonus.isChecked()
         en_vente = self._en_vente.isChecked()
 
+        # Chaque mot pour lui-meme, dans n'importe quel ordre : « dent gubani »
+        # trouve « Dent supreme / Gubani du Desert ».
+        mots = motif.split()
         for case, objet, cle, categorie in self._cases:
             ok = True
-            if motif and motif not in cle:
+            if mots and not all(m in cle for m in mots):
                 ok = False
             elif qualites and objet.quality not in qualites:
                 ok = False

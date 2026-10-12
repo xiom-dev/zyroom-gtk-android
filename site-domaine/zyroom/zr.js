@@ -522,7 +522,8 @@ function surFiltre(ev) {
 // Comme window._apply_filter.
 function retenu(o, mot, qualites) {
   const f = Z.f;
-  if (mot && !o.cle.includes(mot)) return false;
+  // Chaque mot pour lui-meme, dans n'importe quel ordre (window._apply_filter)
+  if (mot && !mot.split(" ").every((m) => o.cle.includes(m))) return false;
   if (qualites.size && !qualites.has(o.q)) return false;
   if (!(f.qmin <= o.q && o.q <= f.qmax)) return false;
   if (!f.types.has(o.categorie)) return false;

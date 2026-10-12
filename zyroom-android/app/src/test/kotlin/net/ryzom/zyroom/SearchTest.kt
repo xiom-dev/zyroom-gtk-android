@@ -89,6 +89,14 @@ class RechercheDansTousLesCoffresTest {
         assertEquals(cherche("Écorce").map { it.first }, cherche("ecorce").map { it.first })
     }
 
+    /** Chaque mot compte pour lui-même, dans n'importe quel ordre. */
+    @Test
+    fun `les mots se cherchent séparément et dans le désordre`() {
+        assertEquals(listOf("Coffre 3"), cherche("zorai anneau").map { it.first })
+        assertEquals(listOf("Coffre 3"), cherche("anneau  cheville").map { it.first })
+        assertEquals(emptyList<String>(), cherche("anneau beckers").map { it.first })
+    }
+
     /** Sans pack chargé il ne reste que la fiche : elle doit rester cherchable. */
     @Test
     fun `chercher une fiche fonctionne aussi`() {
