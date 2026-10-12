@@ -1,0 +1,2 @@
+* La recherche prend chaque mot pour lui-même, dans n'importe quel ordre :
+  « dent gubani » trouve « Dent suprême / Gubani du Désert ».
