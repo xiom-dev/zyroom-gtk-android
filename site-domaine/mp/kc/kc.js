@@ -237,6 +237,29 @@ function hallHtml(cle, qmin) {
   return n ? '<span class="kc-hall">' + nombre(n) + "</span>" : '<span class="faible">0</span>';
 }
 
+// Ou prendre la MP au hall : ses coffres, et ce que chacun en a en qualite
+// >= qmin. Ceux qui suffisent seuls a `besoin` d'abord, puis les mieux
+// garnis.
+function coffresHtml(cle, qmin, besoin) {
+  const e = (typeof noms === "object" && noms.mp) ? noms.mp[cle] : null;
+  if (!e) return "";
+  const parCoffre = new Map();
+  for (const f of e.fiches) {
+    for (const [q, k, c] of (stock.get(f) || [])) {
+      if (q < (qmin || 0) || !c) continue;
+      const x = parCoffre.get(c) || { c, n: 0, piles: [] };
+      x.n += k;
+      x.piles.push([q, k]);
+      parCoffre.set(c, x);
+    }
+  }
+  if (!parCoffre.size) return "";
+  const liste = [...parCoffre.values()].sort((a, b) =>
+    (b.n >= (besoin || 0)) - (a.n >= (besoin || 0)) || b.n - a.n || a.c - b.c);
+  return ' <span class="kc-coffres">' + liste.map((x) => "coffre " + x.c + " ("
+    + x.piles.sort((a, b) => b[0] - a[0]).map(([q, k]) => "Q" + q + " ×" + nombre(k)).join(", ") + ")").join(" · ") + "</span>";
+}
+
 function telecharger(nom, texte) {
   // KipeeCraft lit du Windows-1252 : on ecrit octet par octet ce qui y tient.
   const octets = new Uint8Array(texte.length);
@@ -403,7 +426,8 @@ function totalEnsemble(res, qmin) {
     const hall = auHall(t.k, qmin);
     return '<div class="kc-ingr">' + t.n + '× <span class="' + ecoClasse(m) + '">' + esc(nomComplet(m)) + "</span> "
       + '<span class="faible">hall</span> ' + hallHtml(t.k, qmin)
-      + (hall !== null && hall < t.n ? ' <span class="kc-bas">manque ' + (t.n - hall) + "</span>" : "") + "</div>";
+      + (hall !== null && hall < t.n ? ' <span class="kc-bas">manque ' + (t.n - hall) + "</span>" : "")
+      + coffresHtml(t.k, qmin, t.n) + "</div>";
   }).join("");
 }
 
@@ -619,6 +643,7 @@ function statsChoix() {
     + '<p class="faible">' + (m.o ? "Looté" : "Foragé") + " · " + esc(S.meta.couleurs[m.c][0])
     + (qualites(m) ? " · Q " + qualites(m) : "") + "<br>Au hall : "
     + (n === null ? "fiche du jeu inconnue" : nombre(n) + (c.qmin ? " (dont " + nombre(auHall(m.k, c.qmin)) + " en Q ≥ " + c.qmin + ")" : ""))
+    + (n ? "<br>" + coffresHtml(m.k, c.qmin, 0) : "")
     + "</p><table>" + stats.map((s, i) => "<tr><td>" + esc(S.meta.stats[s][0]) + '</td><td class="n">'
       + m.v[i] + "</td></tr>").join("") + "</table>";
 }
@@ -979,7 +1004,8 @@ function vueEvoResultat() {
       const hall = auHall(k, S.evo.qmin);
       return '<div class="kc-ingr">' + q + '× <span class="' + ecoClasse(m) + '">' + esc(nomComplet(m)) + "</span> "
         + '<span class="faible">hall</span> ' + hallHtml(k, S.evo.qmin)
-        + (hall !== null && hall < q ? ' <span class="kc-bas">manque ' + (q - hall) + "</span>" : "") + "</div>"; }).join("")).join("");
+        + (hall !== null && hall < q ? ' <span class="kc-bas">manque ' + (q - hall) + "</span>" : "")
+        + coffresHtml(k, S.evo.qmin, q) + "</div>"; }).join("")).join("");
   return '<section class="panneau"><h2>Résultat</h2><p class="kc-ligne">' + esc(r.verdict) + "</p>"
     + '<p class="faible">' + (r.manque.length ? "Non tenu : " + r.manque.map(([x, ec]) => esc(x) + " (écart " + nfr(ec, 2) + ")").join(" · ")
       : "Toutes les conditions sont tenues · " + r.generations + " générations") + "</p>"
@@ -1096,7 +1122,8 @@ function vueBijResultat() {
     const m = materiau(piece, k);
     const hall = auHall(k, S.bij.qmin);
     return "<tr><td class=\"n\">" + q + '</td><td><span class="' + ecoClasse(m) + '">' + esc(nomComplet(m)) + "</span></td>"
-      + '<td class="n">' + hallHtml(k, S.bij.qmin) + "</td><td>" + (hall !== null && hall < q ? '<span class="kc-bas">manque ' + (q - hall) + "</span>" : "") + "</td></tr>";
+      + '<td class="n">' + hallHtml(k, S.bij.qmin) + "</td><td>" + (hall !== null && hall < q ? '<span class="kc-bas">manque ' + (q - hall) + "</span>" : "")
+      + coffresHtml(k, S.bij.qmin, q) + "</td></tr>";
   }).join("");
   return '<section class="panneau"><h2>Résultat</h2><p class="kc-ligne">' + esc(r.verdict) + "</p>"
     + '<p class="faible">' + (r.manque.length ? "Non tenu : " + r.manque.map(([s, e]) => esc(s) + " (écart " + nfr(e, 2) + ")").join(" · ")
@@ -1536,6 +1563,7 @@ tr.kc-ecarte td { opacity: .5; }
 .kc-ens h3, .kc h3 { font-size: .95rem; margin: 10px 0 4px; }
 .kc-bijou button { padding: 2px 8px; font-size: .85rem; }
 .kc-ingr { margin-left: 12px; }
+.kc-coffres { color: var(--clair); font-size: .85rem; }
 tr.kc-voulue td { color: var(--or); }
 .kc-mode button { padding: 4px 14px; }
 .kc-assistant { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }

@@ -349,13 +349,14 @@ async function chargerStock() {
   ]);
   // Le releve range le hall coffre par coffre, "fiche|qualite" -> quantite.
   // On additionne tous les coffres : une MP compte ou qu'elle soit rangee.
+  // Le numero du coffre suit, pour KipeeCraft qui dit ou aller la prendre.
   stock = new Map();
   for (const [coffre, contenu] of Object.entries(s)) {
     if (!coffre.startsWith("chest") || typeof contenu !== "object") continue;
     for (const [cle, quantite] of Object.entries(contenu)) {
       const [fiche, q] = cle.split("|");
       if (!stock.has(fiche)) stock.set(fiche, []);
-      stock.get(fiche).push([Number(q), Number(quantite)]);
+      stock.get(fiche).push([Number(q), Number(quantite), Number(coffre.slice(5))]);
     }
   }
   const secondes = parseInt(t, 10);
