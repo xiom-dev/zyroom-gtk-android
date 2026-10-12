@@ -349,8 +349,8 @@ function vueSimu() {
     + selecteur('data-kc="plan"', objets(S.palier), objetChoisi(S.recette), ' title="Objet à fabriquer"')
     + (plan.options.length > 1 && !S.recette.ensemble ? '<select data-kc="option" title="Variante">' + options(plan, S.recette.option) + "</select>" : "")
     + '<button type="button" data-kc="vider">Vider</button>'
-    + '<button type="button" data-kc="ouvrir">Ouvrir un .kc</button>'
-    + '<button type="button" data-kc="enregistrer">Enregistrer le .kc</button>'
+    + '<button type="button" data-kc="ouvrir" title="Fichier .kc : les MP de chaque pièce">Ouvrir une recette</button>'
+    + '<button type="button" data-kc="enregistrer" title="Fichier .kc : les MP de chaque pièce">Enregistrer la recette</button>'
     + "</div>"
     + '<div class="kc-barre kc-reglages">'
     + '<label title="Qualité visée de l\'objet ; les matériaux peuvent l\'abaisser">Qualité <input type="number" data-kc="pref" data-v="qualite" min="1" max="250" value="' + p.qualite + '"></label>'
@@ -896,8 +896,8 @@ function vueFormulaire() {
     + selecteur('data-e="palier"', S.meta.paliers, plan.palier, ' title="Palier de qualité"')
     + selecteur('data-e="plan"', objets(plan.palier), objetChoisi(e), ' title="Objet à fabriquer"')
     + boutonChercher("evo")
-    + '<button type="button" data-kc="kce-ouvrir">Ouvrir un .kce</button>'
-    + '<button type="button" data-kc="kce-enregistrer">Enregistrer le .kce</button>'
+    + '<button type="button" data-kc="kce-ouvrir" title="Fichier .kce : les conditions et les filtres, sans MP">Ouvrir une recherche</button>'
+    + '<button type="button" data-kc="kce-enregistrer" title="Fichier .kce : les conditions et les filtres, sans MP">Enregistrer la recherche</button>'
     + '<button type="button" data-kc="evo-zero">Tout remettre à zéro</button>'
     + avanceHtml("evo") + "</div>"
     + '<div class="kc-bij"><div>'
@@ -1027,7 +1027,7 @@ function vueEvoResultat() {
     + '<p class="faible">' + (r.manque.length ? "Non tenu : " + r.manque.map(([x, ec]) => esc(x) + " (écart " + nfr(ec, 2) + ")").join(" · ")
       : "Toutes les conditions sont tenues · " + r.generations + " générations") + "</p>"
     + '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
-    + '<button type="button" data-kc="evo-kc">Enregistrer le .kc</button></p>'
+    + '<button type="button" data-kc="evo-kc" title="Fichier .kc, à rouvrir dans le Simulateur">Enregistrer la recette</button></p>'
     + '<div class="kc-res"><table class="kc-stats"><thead><tr><th class="n">Précraft</th><th class="n">Postcraft</th><th></th></tr></thead><tbody>'
     + lignes + "</tbody></table><div>" + ingredients + "</div></div></section>";
 }
@@ -1047,7 +1047,7 @@ function vueEvoEnsemble(r) {
       + r.manque.map(([x, ec]) => esc(x) + " (écart " + nfr(ec, 2) + ")").join(" · ")
       : "Toutes les conditions sont tenues, grandes et petites pièces · " + r.generations + " générations") + "</p>"
     + '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
-    + '<button type="button" data-kc="evo-kc">Enregistrer les 2 .kc</button></p>'
+    + '<button type="button" data-kc="evo-kc" title="Deux fichiers .kc, à rouvrir dans le Simulateur">Enregistrer les 2 recettes</button></p>'
     + tableEnsemble(res, voulues)
     + '<div class="kc-ens"><div>' + recettes + "</div><div>" + totalEnsemble(res, S.evo.qmin) + "</div></div></section>";
 }
@@ -1071,8 +1071,8 @@ function vueBij() {
   return '<div class="kc-barre">'
     + selecteur('data-b="plan"', plansBijoux().map((p) => [p.id, p.complet]), b.plan)
     + boutonChercher("bij")
-    + '<button type="button" data-kc="kcj-ouvrir">Ouvrir un .kcj</button>'
-    + '<button type="button" data-kc="kcj-enregistrer">Enregistrer le .kcj</button>'
+    + '<button type="button" data-kc="kcj-ouvrir" title="Fichier .kcj : les conditions et les filtres, sans MP">Ouvrir une recherche</button>'
+    + '<button type="button" data-kc="kcj-enregistrer" title="Fichier .kcj : les conditions et les filtres, sans MP">Enregistrer la recherche</button>'
     + '<button type="button" data-kc="bij-zero">Tout remettre à zéro</button>'
     + avanceHtml("bij") + "</div>"
     + '<div class="kc-bij"><div>'
@@ -1122,7 +1122,7 @@ function vueBijResultat() {
     return '<div class="kc-bijou"><b>Bijou ' + rang + " — ×" + positions.length + "</b>"
       + (races.length ? ' <span class="faible">(' + races.map((x) => RACES[x]).join(", ") + ")</span>" : "")
       + ' <button type="button" data-kc="bij-simuler" data-i="' + positions[0] + '">Simuler</button>'
-      + ' <button type="button" data-kc="bij-kc" data-i="' + positions[0] + '" data-r="' + rang + '">.kc</button>'
+      + ' <button type="button" data-kc="bij-kc" data-i="' + positions[0] + '" data-r="' + rang + '" title="Fichier .kc, à rouvrir dans le Simulateur">Enregistrer</button>'
       + b.cases.map((c, i) => '<div class="faible">' + esc(S.meta.pieces[plan.pieces[i][0]].nom) + "</div>"
         + c.map(([k, q]) => { const m = materiau(plan.pieces[i][0], k);
           return '<div class="kc-ingr">' + q + '× <span class="' + ecoClasse(m) + '">' + esc(nomComplet(m)) + "</span></div>"; }).join("")).join("")
@@ -1300,7 +1300,7 @@ async function surClic(ev) {
   else if (quoi === "assist-proposer") { S.assist.souhaits = []; ajusterAssistant(); dessiner(); }
   else if (quoi === "evo-zero") { S.evo = Object.assign(evoVierge(S.evo.plan), { ensemble: S.evo.ensemble }); S.evoRes = null; sauverEvo(); dessiner(); }
   else if (quoi === "kce-enregistrer") {
-    const nom = demanderNom("projet");
+    const nom = demanderNom("recherche");
     if (nom !== null) telecharger(nom + ".kce", await appeler("projet_kce", S.evo));
   }
   else if (quoi === "kce-ouvrir") {
@@ -1332,7 +1332,7 @@ async function surClic(ev) {
   }
   else if (quoi === "bij-zero") { S.bij = bijVierge(S.bij.plan); S.bijRes = null; sauverBij(); dessiner(); }
   else if (quoi === "kcj-enregistrer") {
-    const nom = demanderNom("parure");
+    const nom = demanderNom("recherche parure");
     if (nom !== null) telecharger(nom + ".kcj", await appeler("projet_kcj", S.bij));
   }
   else if (quoi === "kcj-ouvrir") {
