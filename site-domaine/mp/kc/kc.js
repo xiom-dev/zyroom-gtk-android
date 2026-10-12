@@ -261,6 +261,15 @@ function coffresHtml(cle, qmin, besoin) {
     + x.piles.sort((a, b) => b[0] - a[0]).map(([q, k]) => "Q" + q + " ×" + nombre(k)).join(", ") + ")</span>").join("");
 }
 
+// Le nom du fichier, demande au joueur avant d'enregistrer. Ce nom devient
+// aussi celui de la recette quand on l'importe dans l'onglet Recettes.
+// null : le joueur a annule.
+function demanderNom(defaut) {
+  const nom = window.prompt("Nom de la recette :", defaut);
+  if (nom === null) return null;
+  return nom.trim().replace(/\.(kc|kce|kcj)$/i, "") || defaut;
+}
+
 function telecharger(nom, texte) {
   // KipeeCraft lit du Windows-1252 : on ecrit octet par octet ce qui y tient.
   const octets = new Uint8Array(texte.length);
@@ -1278,18 +1287,22 @@ async function surClic(ev) {
     recalculer();
     bandeau(f.nom + " ouvert");
   } else if (quoi === "enregistrer") {
-    const plan = planDe(S.recette.plan);
-    telecharger(plan.intitule + ".kc", await appeler("ecrire_kc", S.recette));
+    const ens = S.recette.ensemble ? ensembleDe(S.palier, S.recette.ensemble) : null;
+    const nom = demanderNom(ens ? ens.nom : planDe(S.recette.plan).intitule);
+    if (nom === null) return;
     // Armure complete : les petites pieces aussi, dans un second fichier
-    if (S.recette.ensemble && S.ensRes) {
-      const petite = S.ensRes.plans[1].recette;
-      telecharger(planDe(petite.plan).intitule + ".kc", await appeler("ecrire_kc", petite));
-    }
+    if (ens && S.ensRes) {
+      telecharger(nom + " (grandes pièces).kc", await appeler("ecrire_kc", S.recette));
+      telecharger(nom + " (petites pièces).kc", await appeler("ecrire_kc", S.ensRes.plans[1].recette));
+    } else telecharger(nom + ".kc", await appeler("ecrire_kc", S.recette));
   } else if (quoi === "chercher") { if (b.dataset.v === "assist") lancerAssistant(); else chercher(b.dataset.v); }
   else if (quoi === "evo-mode") { S.evoMode = b.dataset.v; garder("kc-evo-mode", S.evoMode); dessiner(); }
   else if (quoi === "assist-proposer") { S.assist.souhaits = []; ajusterAssistant(); dessiner(); }
   else if (quoi === "evo-zero") { S.evo = Object.assign(evoVierge(S.evo.plan), { ensemble: S.evo.ensemble }); S.evoRes = null; sauverEvo(); dessiner(); }
-  else if (quoi === "kce-enregistrer") telecharger("projet.kce", await appeler("projet_kce", S.evo));
+  else if (quoi === "kce-enregistrer") {
+    const nom = demanderNom("projet");
+    if (nom !== null) telecharger(nom + ".kce", await appeler("projet_kce", S.evo));
+  }
   else if (quoi === "kce-ouvrir") {
     const f = await choisirFichier(".kce");
     const r = await appelerJson("kce_vers_page", f.texte);
@@ -1309,11 +1322,19 @@ async function surClic(ev) {
     dessiner();
     recalculer();
   } else if (quoi === "evo-kc") {
-    telecharger(planDe(S.evoRes.recette.plan).intitule + ".kc", S.evoRes.kc);
-    if (S.evoRes.ensemble) telecharger(planDe(S.evoRes.ensemble[1].plan).intitule + ".kc", S.evoRes.kc_petit);
+    const ens = S.evoRes.cle ? ensembleDe(planDe(S.evoRes.recette.plan).palier, S.evoRes.cle) : null;
+    const nom = demanderNom(ens ? ens.nom : planDe(S.evoRes.recette.plan).intitule);
+    if (nom === null) return;
+    if (S.evoRes.ensemble) {
+      telecharger(nom + " (grandes pièces).kc", S.evoRes.kc);
+      telecharger(nom + " (petites pièces).kc", S.evoRes.kc_petit);
+    } else telecharger(nom + ".kc", S.evoRes.kc);
   }
   else if (quoi === "bij-zero") { S.bij = bijVierge(S.bij.plan); S.bijRes = null; sauverBij(); dessiner(); }
-  else if (quoi === "kcj-enregistrer") telecharger("parure.kcj", await appeler("projet_kcj", S.bij));
+  else if (quoi === "kcj-enregistrer") {
+    const nom = demanderNom("parure");
+    if (nom !== null) telecharger(nom + ".kcj", await appeler("projet_kcj", S.bij));
+  }
   else if (quoi === "kcj-ouvrir") {
     const f = await choisirFichier(".kcj");
     const r = await appelerJson("projet_vers_page", f.texte);
@@ -1339,7 +1360,10 @@ async function surClic(ev) {
     sauverRecette();
     dessiner();
     recalculer();
-  } else if (quoi === "bij-kc") telecharger("bijou " + b.dataset.r + ".kc", S.bijRes.kc[Number(b.dataset.i)]);
+  } else if (quoi === "bij-kc") {
+    const nom = demanderNom("bijou " + b.dataset.r);
+    if (nom !== null) telecharger(nom + ".kc", S.bijRes.kc[Number(b.dataset.i)]);
+  }
   else if (quoi === "form-appliquer") appliquerFormules();
   else if (quoi === "form-retablir") retablirFormules();
   else if (quoi === "auditer" && !S.auditEnCours) {
