@@ -256,8 +256,9 @@ function coffresHtml(cle, qmin, besoin) {
   if (!parCoffre.size) return "";
   const liste = [...parCoffre.values()].sort((a, b) =>
     (b.n >= (besoin || 0)) - (a.n >= (besoin || 0)) || b.n - a.n || a.c - b.c);
-  return ' <span class="kc-coffres">' + liste.map((x) => "coffre " + x.c + " ("
-    + x.piles.sort((a, b) => b[0] - a[0]).map(([q, k]) => "Q" + q + " ×" + nombre(k)).join(", ") + ")").join(" · ") + "</span>";
+  // Un coffre par ligne, sous la MP
+  return liste.map((x) => '<span class="kc-coffres">coffre ' + x.c + " ("
+    + x.piles.sort((a, b) => b[0] - a[0]).map(([q, k]) => "Q" + q + " ×" + nombre(k)).join(", ") + ")</span>").join("");
 }
 
 function telecharger(nom, texte) {
@@ -643,7 +644,7 @@ function statsChoix() {
     + '<p class="faible">' + (m.o ? "Looté" : "Foragé") + " · " + esc(S.meta.couleurs[m.c][0])
     + (qualites(m) ? " · Q " + qualites(m) : "") + "<br>Au hall : "
     + (n === null ? "fiche du jeu inconnue" : nombre(n) + (c.qmin ? " (dont " + nombre(auHall(m.k, c.qmin)) + " en Q ≥ " + c.qmin + ")" : ""))
-    + (n ? "<br>" + coffresHtml(m.k, c.qmin, 0) : "")
+    + (n ? coffresHtml(m.k, c.qmin, 0) : "")
     + "</p><table>" + stats.map((s, i) => "<tr><td>" + esc(S.meta.stats[s][0]) + '</td><td class="n">'
       + m.v[i] + "</td></tr>").join("") + "</table>";
 }
@@ -1570,7 +1571,8 @@ tr.kc-ecarte td { opacity: .5; }
 .kc-ens h3, .kc h3 { font-size: .95rem; margin: 10px 0 4px; }
 .kc-bijou button { padding: 2px 8px; font-size: .85rem; }
 .kc-ingr { margin-left: 12px; }
-.kc-coffres { color: var(--clair); font-size: .85rem; }
+/* Les coffres sur leur propre ligne, sous la MP */
+.kc-coffres { display: block; margin-left: 1.5em; color: var(--clair); font-size: .85rem; }
 tr.kc-voulue td { color: var(--or); }
 .kc-mode button { padding: 4px 14px; }
 .kc-assistant { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
