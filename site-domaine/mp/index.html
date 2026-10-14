@@ -108,6 +108,8 @@
      ecran etroit. */
   .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .deux > div { min-width: 0; }
+  /* deux tableaux dans une meme colonne (MP speciales) */
+  .deux > div > div + div { margin-top: 28px; }
   .deux h2 { font-size: 1.05rem; color: var(--or); margin: 4px 0 8px; }
   @media (max-width: 1100px) { .deux { grid-template-columns: 1fr; } }
   /* Sur un telephone, le nom de la MP garde de quoi tenir sur trois lignes
@@ -213,7 +215,7 @@
     <button type="button" data-onglet="forer" title="MP qui manquent pour atteindre l'objectif de crafts de chaque recette" aria-pressed="true">À stocker <span class="compte" id="n-forer"></span></button>
     <button type="button" data-onglet="stop" title="MP dont le stock dépasse le maximum de crafts : le surplus peut sortir du hall" aria-pressed="false">Ne plus stocker <span class="compte" id="n-stop"></span></button>
     <button type="button" data-onglet="inutiles" title="MP du hall qui ne font partie d'aucune recette" aria-pressed="false">MP inutilisées <span class="compte" id="n-inutiles"></span></button>
-    <button type="button" data-onglet="speciales" title="MP d'OP, cristaux de Maraudeur et larves de Kitin, comptés à part" aria-pressed="false">MP spéciales <span class="compte" id="n-speciales"></span></button>
+    <button type="button" data-onglet="speciales" title="MP d'OP, cristaux de Maraudeur, larves de Kitin, outils et MP de fabrication des coffres, comptés à part" aria-pressed="false">MP spéciales <span class="compte" id="n-speciales"></span></button>
     <button type="button" data-onglet="toutes" title="Toutes les MP demandées par les recettes, avec leur stock" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
     <button type="button" data-onglet="tenues" title="Armures du hall, rangées en ensembles complets (même nom, qualité et bonus)" aria-pressed="false">Armures <span class="compte" id="n-tenues"></span></button>
     <button type="button" data-onglet="bijoux" title="Bijoux du hall, rangés en parures complètes (même nom, qualité et bonus)" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
@@ -540,7 +542,7 @@ function recalculer() {
     + trop(false) + " forées en trop · " + trop(true) + " lootées en trop";
   $("#n-toutes").textContent = pieces(calcul.mps);
   $("#n-inutiles").textContent = pieces(inutilisees().filter((m) => !m.speciale));
-  $("#n-speciales").textContent = pieces(inutilisees().filter((m) => m.speciale));
+  $("#n-speciales").textContent = pieces(inutilisees().filter((m) => m.speciale).concat(autresDuHall()));
   // Armures et bijoux : le nombre d'ensembles complets.
   const complets = (bijoux) => nf.format(ensembles(bijoux).reduce((t, g) => t + g.complets, 0));
   $("#n-tenues").textContent = complets(false);
@@ -661,7 +663,36 @@ function vueInutiles() {
 function vueSpeciales() {
   const liste = inutilisees().filter((m) =>
     m.speciale && (!eco || m.eco === eco) && retenue(m.nom + " " + m.anglais));
-  return '<div class="deux">' + tableInutiles(liste, "MP d'OP, cristaux et larves") + "</div>";
+  // A droite, les outils, et dessous ce qui fabrique les coffres. Sans
+  // ecosysteme : un filtre d'ecosysteme les cache.
+  const autres = autresDuHall().filter((m) => !eco && retenue(m.nom));
+  return '<div class="deux">' + tableInutiles(liste, "MP d'OP, cristaux et larves")
+    + "<div>" + tableInutiles(autres.filter((m) => m.outil), "Outils")
+    + tableInutiles(autres.filter((m) => !m.outil), "MP fabrication coffre") + "</div></div>";
+}
+
+// Le reste du hall qui compte pour la guilde : outils de craft et de forage,
+// MP generiques molles et dures, pieces des coffres (noms.autres, fabrique
+// par outils/page-mp.py).
+function autresDuHall() {
+  const liste = [];
+  for (const [fiche, piles] of stock) {
+    const info = (noms.autres || {})[fiche];
+    if (!info) continue;
+    const outil = !fiche.startsWith("mp_");
+    const parQualite = new Map();
+    for (const [q, n] of piles) parQualite.set(q, (parQualite.get(q) || 0) + n);
+    liste.push({
+      fiche, nom: info[0], anglais: info[1], outil, sorte: "", eco: "",
+      // Un outil de Kami ou de Karavan se range avec les autres de sa sorte :
+      // "Pioche de forage Greslin-Duk" -> "Pioche de forage".
+      type: outil ? info[0].replace(/\s+\S+-(Duk|Gen|Jen|Mar)$/, "").replace(/ \/ .*$/, "")
+                  : fiche === "mp_soft.sitem" || fiche === "mp_hard.sitem" ? "MP génériques" : "Pièces de coffre",
+      stock: [...parQualite.values()].reduce((t, n) => t + n, 0),
+      piles: [...parQualite].sort((a, b) => b[0] - a[0]),
+    });
+  }
+  return liste;
 }
 
 function tableInutiles(liste, nom) {

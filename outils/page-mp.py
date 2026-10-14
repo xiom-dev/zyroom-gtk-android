@@ -85,6 +85,11 @@ TYPES_FR = {
 }
 
 
+# Outils (it..., et ceux des Kamis ic...t...) et MP generiques ou de coffre.
+AUTRES = (r"(it|ic[a-z]+t)(ammo|armor|jewel|mwea|rwea|forage|tool)(_\d)?\.sitem$"
+          r"|mp_(soft|hard|colonne|ornement|revetement|socle)\.sitem$")
+
+
 def plat(texte: str) -> str:
     """En minuscules et sans accents, pour comparer des noms."""
     texte = texte.replace("Œ", "Oe").replace("œ", "oe")
@@ -339,11 +344,17 @@ def main() -> int:
     # demande, et KipeeCraft ne connait pas toutes ces matieres.
     fiches = {f: [n, anglais.get(f, "")] for f, n in sorted(lire_noms_du_jeu().items())
               if re.match(r"m\d{4}[a-z]{3}[a-z]{2}01\.sitem$", f)}
+    # Ce que le hall garde hors des MP du jeu et qui compte quand meme pour la
+    # guilde : les outils de craft et de forage, les MP generiques molles et
+    # dures, et les pieces qui fabriquent les coffres (onglet MP speciales).
+    autres = {f: [n, ""] for f, n in sorted(lire_noms_du_jeu().items())
+              if re.match(AUTRES, f)}
     # Les armures et bijoux craftes, pour les onglets Tenues et Bijoux.
     equipements = {f: n for f, n in sorted(lire_noms_du_jeu().items())
                    if re.match(r"ic[a-z][aj]", f)}
     ecrire("noms.json", {"mp": table, "plans": intitules_des_plans(),
-                         "fiches": fiches, "equipements": equipements})
+                         "fiches": fiches, "equipements": equipements,
+                         "autres": autres})
     print(f"→ noms.json : {len(table)} MP ({len(manquent)} sans fiche dans le jeu),"
           f" {len(fiches)} fiches du jeu")
     for chemin in NOMS_ANGLAIS:
