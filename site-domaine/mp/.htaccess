@@ -22,3 +22,7 @@
 <FilesMatch "\.html$">
     Header set Cache-Control "no-cache, must-revalidate"
 </FilesMatch>
+# Meme chose pour la table des noms, qui grossit quand on ajoute des onglets.
+<Files "noms.json">
+    Header set Cache-Control "no-cache, must-revalidate"
+</Files>

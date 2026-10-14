@@ -81,6 +81,17 @@
   .onglets, .filtres { display: flex; gap: 6px; flex-wrap: wrap;
                        margin: 0 0 10px; align-items: center; }
   .onglets button { font-size: 1rem; }
+  /* menus deroulants des onglets : la liste s'ouvre sous le titre */
+  .menu { position: relative; }
+  .menu-liste { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30;
+                display: flex; flex-direction: column; gap: 4px; min-width: 240px;
+                padding: 6px; background: var(--fond); border: 1px solid var(--trait);
+                border-radius: 9px; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
+  .menu-liste[hidden] { display: none; }
+  .menu-liste button { display: flex; justify-content: space-between; gap: 18px;
+                       align-items: baseline; text-align: left; white-space: nowrap; }
+  /* la roue dentee des reglages, devant le pseudo */
+  #onglet-reglages { padding: 4px 7px; line-height: 0; vertical-align: middle; margin-right: 5px; }
   /* KipeeCraft tout a droite, le kipee en fond du bouton ; un voile sombre
      (sarcelle quand l'onglet est ouvert) garde le texte lisible. */
   #onglet-kc { margin-left: auto; padding: 6px 60px; color: #fff; font-weight: 600;
@@ -108,7 +119,7 @@
      ecran etroit. */
   .deux { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   .deux > div { min-width: 0; }
-  /* deux tableaux dans une meme colonne (MP speciales) */
+  /* deux tableaux dans une meme colonne (Armes) */
   .deux > div > div + div { margin-top: 28px; }
   .deux h2 { font-size: 1.05rem; color: var(--or); margin: 4px 0 8px; }
   @media (max-width: 1100px) { .deux { grid-template-columns: 1fr; } }
@@ -203,6 +214,8 @@
 <header>
   <h1>MP du hall de guilde</h1>
   <div>
+    <!-- Reglages : une roue dentee devant le pseudo, aux editeurs seulement -->
+    <button type="button" data-onglet="reglages" title="Réglages : objectif, qualité et seuils communs ; import des recettes KipeeCraft" aria-label="Réglages" aria-pressed="false" hidden id="onglet-reglages"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.84a.5.5 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.67 8.48a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.04.24.25.42.49.42h3.84c.24 0 .45-.18.49-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg></button>
     <span id="connecte" class="faible"></span>
     <button id="entrer" type="button">Se connecter pour modifier</button>
     <button id="sortir" type="button" hidden>Se déconnecter</button>
@@ -211,16 +224,39 @@
 <main>
   <p id="resume">Chargement…</p>
 
+  <!-- Onglets ranges en trois menus deroulants (MP, Stuff, Divers), puis
+       Recettes et KipeeCraft -->
   <div class="onglets" role="tablist">
-    <button type="button" data-onglet="forer" title="MP qui manquent pour atteindre l'objectif de crafts de chaque recette" aria-pressed="true">À stocker <span class="compte" id="n-forer"></span></button>
-    <button type="button" data-onglet="stop" title="MP dont le stock dépasse le maximum de crafts : le surplus peut sortir du hall" aria-pressed="false">Ne plus stocker <span class="compte" id="n-stop"></span></button>
-    <button type="button" data-onglet="inutiles" title="MP du hall qui ne font partie d'aucune recette" aria-pressed="false">MP inutilisées <span class="compte" id="n-inutiles"></span></button>
-    <button type="button" data-onglet="speciales" title="MP d'OP, cristaux de Maraudeur, larves de Kitin, outils et MP de fabrication des coffres, comptés à part" aria-pressed="false">MP spéciales <span class="compte" id="n-speciales"></span></button>
-    <button type="button" data-onglet="toutes" title="Toutes les MP demandées par les recettes, avec leur stock" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
-    <button type="button" data-onglet="tenues" title="Armures du hall, rangées en ensembles complets (même nom, qualité et bonus)" aria-pressed="false">Armures <span class="compte" id="n-tenues"></span></button>
-    <button type="button" data-onglet="bijoux" title="Bijoux du hall, rangés en parures complètes (même nom, qualité et bonus)" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
+    <div class="menu" data-menu="mp">
+      <button type="button" class="menu-titre" aria-expanded="false" aria-pressed="false">MP<span class="choix"></span> ▾</button>
+      <div class="menu-liste" hidden>
+        <button type="button" data-onglet="forer" title="MP qui manquent pour atteindre l'objectif de crafts de chaque recette" aria-pressed="true">À stocker <span class="compte" id="n-forer"></span></button>
+        <button type="button" data-onglet="stop" title="MP dont le stock dépasse le maximum de crafts : le surplus peut sortir du hall" aria-pressed="false">Ne plus stocker <span class="compte" id="n-stop"></span></button>
+        <button type="button" data-onglet="op" title="MP d'OP, cristaux de Maraudeur et larves de Kitin, comptées à part" aria-pressed="false">MP d'OP <span class="compte" id="n-op"></span></button>
+        <button type="button" data-onglet="inutiles" title="MP du hall qui ne font partie d'aucune recette" aria-pressed="false">MP inutilisées <span class="compte" id="n-inutiles"></span></button>
+        <button type="button" data-onglet="coffre" title="MP génériques molles et dures, pièces de fabrication des coffres" aria-pressed="false">MP de coffre <span class="compte" id="n-coffre"></span></button>
+        <button type="button" data-onglet="toutes" title="Toutes les MP demandées par les recettes, avec leur stock" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
+      </div>
+    </div>
+    <div class="menu" data-menu="stuff">
+      <button type="button" class="menu-titre" aria-expanded="false" aria-pressed="false">Stuff<span class="choix"></span> ▾</button>
+      <div class="menu-liste" hidden>
+        <button type="button" data-onglet="tenues" title="Armures du hall, rangées en ensembles complets (même nom, qualité et bonus)" aria-pressed="false">Armures <span class="compte" id="n-tenues"></span></button>
+        <button type="button" data-onglet="armes" title="Armes, amplificateurs, boucliers et munitions du hall" aria-pressed="false">Armes <span class="compte" id="n-armes"></span></button>
+        <button type="button" data-onglet="bijoux" title="Bijoux du hall, rangés en parures complètes (même nom, qualité et bonus)" aria-pressed="false">Bijoux <span class="compte" id="n-bijoux"></span></button>
+        <button type="button" data-onglet="plans" title="Plans d'armure du Maraudeur du hall" aria-pressed="false">Plans d'armure <span class="compte" id="n-plans"></span></button>
+        <button type="button" data-onglet="outils" title="Outils de création et pioches de forage du hall" aria-pressed="false">Outils <span class="compte" id="n-outils"></span></button>
+      </div>
+    </div>
+    <div class="menu" data-menu="divers">
+      <button type="button" class="menu-titre" aria-expanded="false" aria-pressed="false">Divers<span class="choix"></span> ▾</button>
+      <div class="menu-liste" hidden>
+        <button type="button" data-onglet="potions" title="Potions du hall" aria-pressed="false">Potions <span class="compte" id="n-potions"></span></button>
+        <button type="button" data-onglet="feux" title="Feux d'artifice du hall" aria-pressed="false">Feux d'artifice <span class="compte" id="n-feux"></span></button>
+        <button type="button" data-onglet="divers" title="Tout le reste du hall : fleurs, recharges, cristaux, plans…" aria-pressed="false">Autres <span class="compte" id="n-divers"></span></button>
+      </div>
+    </div>
     <button type="button" data-onglet="recettes" title="Les recettes suivies : état, crafts possibles et MP qui bloque" aria-pressed="false" hidden id="onglet-recettes">Recettes <span class="compte" id="n-recettes"></span></button>
-    <button type="button" data-onglet="reglages" title="Objectif, qualité et seuils communs ; import des recettes KipeeCraft" aria-pressed="false" hidden id="onglet-reglages">Réglages</button>
     <button type="button" data-onglet="kc" title="KipeeCraft dans le navigateur, pour composer une recette" aria-pressed="false" id="onglet-kc">KipeeCraft</button>
   </div>
 
@@ -301,7 +337,9 @@ async function charger() {
   if (!jeton) { verrouiller(); return; }
   try {
     const [n, e] = await Promise.all([
-      fetch("noms.json").then((r) => r.json()),
+      // Revalidee a chaque visite : sans cela, le navigateur garde des jours
+      // une ancienne table, sans les noms ajoutes depuis.
+      fetch("noms.json", { cache: "no-cache" }).then((r) => r.json()),
       lireEtat(),
     ]);
     noms = n;
@@ -542,7 +580,11 @@ function recalculer() {
     + trop(false) + " forées en trop · " + trop(true) + " lootées en trop";
   $("#n-toutes").textContent = pieces(calcul.mps);
   $("#n-inutiles").textContent = pieces(inutilisees().filter((m) => !m.speciale));
-  $("#n-speciales").textContent = pieces(inutilisees().filter((m) => m.speciale).concat(autresDuHall()));
+  const autres = autresDuHall();
+  $("#n-op").textContent = pieces(inutilisees().filter((m) => m.speciale));
+  for (const [id, categorie] of [["coffre", "coffre"], ["outils", "outil"], ["armes", "arme"], ["plans", "plan"],
+                                 ["potions", "potion"], ["feux", "feu"], ["divers", "divers"]])
+    $("#n-" + id).textContent = pieces(autres.filter((m) => m.categorie === categorie));
   // Armures et bijoux : le nombre d'ensembles complets.
   const complets = (bijoux) => nf.format(ensembles(bijoux).reduce((t, g) => t + g.complets, 0));
   $("#n-tenues").textContent = complets(false);
@@ -568,7 +610,13 @@ function afficher() {
   $("#choisir-kc").hidden = onglet !== "recettes";
   // Les ecosystemes ne disent rien d'une armure ni d'un bijou.
   document.querySelectorAll("[data-eco]").forEach((b) =>
-    { b.hidden = onglet === "tenues" || onglet === "bijoux"; });
+    { b.hidden = !["forer", "stop", "op", "inutiles", "toutes"].includes(onglet); });
+  // Le menu de l'onglet ouvert s'allume et dit lequel : "MP : A stocker".
+  document.querySelectorAll(".menu").forEach((m) => {
+    const choisi = m.querySelector('[data-onglet][aria-pressed="true"]');
+    m.querySelector(".menu-titre").setAttribute("aria-pressed", String(Boolean(choisi)));
+    m.querySelector(".choix").textContent = choisi ? " : " + choisi.firstChild.textContent.trim() : "";
+  });
   const vue = $("#vue");
   if (onglet === "kc") vueKc(vue);
   else if (onglet === "recettes") {
@@ -577,7 +625,14 @@ function afficher() {
   }
   else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
   else if (onglet === "inutiles") vue.innerHTML = vueInutiles();
-  else if (onglet === "speciales") vue.innerHTML = vueSpeciales();
+  else if (onglet === "op") vue.innerHTML = vueOp();
+  else if (onglet === "armes") vue.innerHTML = vueArmes();
+  else if (onglet === "coffre") vue.innerHTML = vueCategorie("coffre", "MP fabrication coffre");
+  else if (onglet === "outils") vue.innerHTML = vueCategorie("outil", "Outils");
+  else if (onglet === "plans") vue.innerHTML = vueCategorie("plan", "Plans d'armure du Maraudeur");
+  else if (onglet === "potions") vue.innerHTML = vueCategorie("potion", "Potions");
+  else if (onglet === "feux") vue.innerHTML = vueCategorie("feu", "Feux d'artifice");
+  else if (onglet === "divers") vue.innerHTML = vueCategorie("divers", "Autres");
   else if (onglet === "tenues" || onglet === "bijoux") vue.innerHTML = vueEnsembles(onglet === "bijoux");
   else vue.innerHTML = vueMps(onglet);
 }
@@ -639,6 +694,26 @@ function inutilisees() {
   return liste;
 }
 
+// Le groupe d'une ligne des onglets tires de noms.autres (outils, armes...).
+function typeAutre(categorie, fiche, nom) {
+  if (categorie === "coffre")
+    return fiche === "mp_soft.sitem" || fiche === "mp_hard.sitem" ? "MP génériques" : "Pièces de coffre";
+  // Un outil de Kami ou de Karavan se range avec les autres de sa sorte :
+  // "Pioche de forage Greslin-Duk" -> "Pioche de forage".
+  if (categorie === "outil") return nom.replace(/\s+\S+-(Duk|Gen|Jen|Mar)$/, "").replace(/ \/ .*$/, "");
+  // "Potion de mage divine" -> "Potion de mage".
+  if (categorie === "potion") return nom.replace(/\s+(basique|mineure|majeure|excellente|suprême|divine)$/i, "");
+  // "Munition perforante de Ma-kam" -> "Munition perforante".
+  if (categorie === "feu") return nom.replace(/\s+type\s.*$/, "");
+  // "Plan d'armure du Maraudeur - Bottes partie I" -> "Bottes".
+  if (categorie === "plan") return (nom.split(" - ")[1] || nom).replace(/\s+partie\s.*$/, "");
+  // "Plan d'armure du Maraudeur - Bottes partie I" -> "Plan d'armure du Maraudeur".
+  if (categorie === "divers" && / - /.test(nom)) return nom.split(" - ")[0];
+  if (/^Munition/.test(nom)) return nom.replace(/\s+de\s.*$/, "");
+  if (/^Ampli/.test(nom)) return "Amplificateurs magiques";
+  return nom.split(" ")[0];
+}
+
 // Le type d'une MP d'apres son nom du jeu, sans la sorte : "Dent suprême /
 // Bolobi" -> "Dent", "Fragment suprême de carapace Intelligente / Désert" ->
 // "Fragment de carapace".
@@ -660,34 +735,51 @@ function vueInutiles() {
     + tableInutiles(liste.filter((m) => m.boss), "MP lootées sur les boss") + "</div>";
 }
 
-function vueSpeciales() {
+function vueOp() {
   const liste = inutilisees().filter((m) =>
     m.speciale && (!eco || m.eco === eco) && retenue(m.nom + " " + m.anglais));
-  // A droite, les outils, et dessous ce qui fabrique les coffres. Sans
-  // ecosysteme : un filtre d'ecosysteme les cache.
-  const autres = autresDuHall().filter((m) => !eco && retenue(m.nom));
-  return '<div class="deux">' + tableInutiles(liste, "MP d'OP, cristaux et larves")
-    + "<div>" + tableInutiles(autres.filter((m) => m.outil), "Outils")
-    + tableInutiles(autres.filter((m) => !m.outil), "MP fabrication coffre") + "</div></div>";
+  return '<div class="deux">' + tableInutiles(liste, "MP d'OP, cristaux et larves") + "</div>";
+}
+
+// Une categorie de noms.autres en un tableau ; assez longue (Autres), elle se
+// partage en deux colonnes, sans couper un groupe.
+function vueCategorie(categorie, titre) {
+  const liste = autresDuHall().filter((m) => m.categorie === categorie && retenue(m.nom));
+  const types = [...new Set(liste.map((m) => m.type))].sort((a, b) => a.localeCompare(b));
+  if (liste.length < 25 || types.length < 2) return '<div class="deux">' + tableInutiles(liste, titre) + "</div>";
+  const moitie = new Set(types.slice(0, Math.ceil(types.length / 2)));
+  return '<div class="deux">' + tableInutiles(liste.filter((m) => moitie.has(m.type)), titre)
+    + tableInutiles(liste.filter((m) => !moitie.has(m.type)), titre + " (suite)") + "</div>";
+}
+
+// Armes : la melee a gauche (avec les amplificateurs), le tir a droite, les
+// boucliers et les munitions dessous. La lettre apres le peuple le dit :
+// "icfm..." melee, "icfr..." tir, "icfp..." munition, "icfs..." bouclier ;
+// "icokamm..." pour les armes des Kamis et des Karavaniers.
+function vueArmes() {
+  const liste = autresDuHall().filter((m) => m.categorie === "arme" && retenue(m.nom));
+  const sorte = (m) => (m.fiche.match(/^ic(?:o[a-z]{3}|[a-z])([mrps])/) || [])[1] || "m";
+  return '<div class="deux"><div>' + tableInutiles(liste.filter((m) => sorte(m) === "m"), "Armes de mêlée")
+    + tableInutiles(liste.filter((m) => sorte(m) === "s"), "Boucliers") + "</div><div>"
+    + tableInutiles(liste.filter((m) => sorte(m) === "r"), "Armes de tir")
+    + tableInutiles(liste.filter((m) => sorte(m) === "p"), "Munitions") + "</div></div>";
 }
 
 // Le reste du hall qui compte pour la guilde : outils de craft et de forage,
-// MP generiques molles et dures, pieces des coffres (noms.autres, fabrique
-// par outils/page-mp.py).
+// MP generiques molles et dures, pieces des coffres, armes, potions, feux
+// d'artifice et le reste (noms.autres, fabrique par outils/page-mp.py, porte
+// la categorie).
 function autresDuHall() {
   const liste = [];
   for (const [fiche, piles] of stock) {
     const info = (noms.autres || {})[fiche];
     if (!info) continue;
-    const outil = !fiche.startsWith("mp_");
+    const categorie = info[2];
     const parQualite = new Map();
     for (const [q, n] of piles) parQualite.set(q, (parQualite.get(q) || 0) + n);
     liste.push({
-      fiche, nom: info[0], anglais: info[1], outil, sorte: "", eco: "",
-      // Un outil de Kami ou de Karavan se range avec les autres de sa sorte :
-      // "Pioche de forage Greslin-Duk" -> "Pioche de forage".
-      type: outil ? info[0].replace(/\s+\S+-(Duk|Gen|Jen|Mar)$/, "").replace(/ \/ .*$/, "")
-                  : fiche === "mp_soft.sitem" || fiche === "mp_hard.sitem" ? "MP génériques" : "Pièces de coffre",
+      fiche, nom: info[0], anglais: info[1], categorie, sorte: "", eco: "",
+      type: typeAutre(categorie, fiche, info[0]),
       stock: [...parQualite.values()].reduce((t, n) => t + n, 0),
       piles: [...parQualite].sort((a, b) => b[0] - a[0]),
     });
@@ -752,7 +844,12 @@ function ensembles(bijoux) {
   const groupes = new Map();
   for (const [cle, n] of equipement) {
     const [fiche, q, bonus] = cle.split("|");
-    const m = fiche.match(bijoux ? /^(ic[a-z]j)([a-z])(.*)$/ : /^(ic[a-z]a([lmh]))([a-z])(.*)$/);
+    // La robe de mage ("ic.acp", "Pantalon d'armure de mage") remplace le
+    // pantalon d'une armure legere : elle compte comme le pantalon leger du
+    // meme peuple et de la meme variante ("iczacp_3" -> "iczalp_3").
+    const robe = !bijoux && /^ic[a-z]acp/.test(fiche);
+    const vue = robe ? fiche.replace(/^(ic[a-z]a)cp/, "$1lp") : fiche;
+    const m = vue.match(bijoux ? /^(ic[a-z]j)([a-z])(.*)$/ : /^(ic[a-z]a([lmh]))([a-z])(.*)$/);
     if (!m) continue;
     const piece = bijoux ? m[2] : m[3];
     const base = bijoux ? m[1] + "?" + m[3] : m[1] + "?" + m[4];
@@ -761,10 +858,11 @@ function ensembles(bijoux) {
     const id = base + "|" + q + "|" + bonus;
     if (!groupes.has(id)) {
       groupes.set(id, { id, base, q: Number(q), bonus,
-                        poids: bijoux ? "" : m[2], pieces: {}, fiches: [] });
+                        poids: bijoux ? "" : m[2], pieces: {}, fiches: [], robes: 0 });
     }
     const g = groupes.get(id);
     g.pieces[piece] = (g.pieces[piece] || 0) + n;
+    if (robe) g.robes += n;
     g.fiches.push(fiche);
   }
   return [...groupes.values()].map((g) => {
@@ -789,10 +887,13 @@ function ensembles(bijoux) {
 // "Gilet Kostom" -> "Kostom" ; "Bague fyros de qualité Haute" -> "Fyros de
 // qualité Haute". Le nom d'une piece, sans le mot de la piece.
 function nomEnsemble(g, bijoux) {
-  const n = (noms.equipements || {})[g.fiches[0]] || g.base;
+  // Le nom d'une piece d'armure legere plutot que celui d'une robe de mage,
+  // qui porte un autre nom ("Zo'Lin-ko" pour l'ensemble "Zo'Nin-ka").
+  const fiche = g.fiches.find((f) => !/^ic[a-z]acp/.test(f)) || g.fiches[0];
+  const n = (noms.equipements || {})[fiche] || g.base;
   let reste = bijoux
     ? n.replace(/^(Diadème|Boucle d'oreille|Pendentif|Bague|Bracelet|Anneau de cheville)\s+/i, "")
-    : n.replace(/^\S+\s+/, "").replace(/^(lourde?s?|légères?|légers?|moyennes?)\s*\/\s*/i, "");
+    : n.replace(/^\S+\s+(?=\S)/, "").replace(/^(lourde?s?|légères?|légers?|moyennes?)\s*\/\s*/i, "");
   reste = reste.charAt(0).toUpperCase() + reste.slice(1);
   return bijoux ? reste : POIDS[g.poids] + " · " + reste;
 }
@@ -824,7 +925,10 @@ function vueEnsembles(bijoux) {
         const e = n / voulu[1];
         // Toutes les pieces au meme compte : l'ensemble est juste, tout en bleu.
         const classe = e === g.plus ? " plus" : e === g.moins ? " moins" : "";
-        return '<td class="n' + classe + '">' + n + "</td>";
+        // Le pantalon d'une armure legere peut etre une robe de mage : dit dessous.
+        const robes = p === "p" && g.robes ? '<div class="faible" title="Robes de mage (pantalons d\'armure de mage)">dont '
+          + g.robes + (g.robes > 1 ? " robes" : " robe") + "</div>" : "";
+        return '<td class="n' + classe + '">' + n + robes + "</td>";
       }).join("")
       + "<td>" + (g.manque.length ? '<div class="manque">Manque : ' + esc(resume(g.manque)) + "</div>" : "")
       + "</td></tr>").join("");
@@ -1207,7 +1311,25 @@ $("#porte-form").addEventListener("submit", async (ev) => {
 // ------------------------------------------------------------ evenements
 
 document.querySelectorAll("[data-onglet]").forEach((b) =>
-  b.addEventListener("click", () => { onglet = b.dataset.onglet; afficher(); }));
+  b.addEventListener("click", () => { onglet = b.dataset.onglet; fermerMenus(); afficher(); }));
+// Menus deroulants : un clic sur le titre ouvre sa liste (et ferme les
+// autres) ; un clic ailleurs ou Echap les ferme.
+function fermerMenus(sauf) {
+  document.querySelectorAll(".menu").forEach((m) => {
+    if (m === sauf) return;
+    m.querySelector(".menu-liste").hidden = true;
+    m.querySelector(".menu-titre").setAttribute("aria-expanded", "false");
+  });
+}
+document.querySelectorAll(".menu-titre").forEach((t) =>
+  t.addEventListener("click", () => {
+    const m = t.closest(".menu"), liste = m.querySelector(".menu-liste");
+    fermerMenus(m);
+    liste.hidden = !liste.hidden;
+    t.setAttribute("aria-expanded", String(!liste.hidden));
+  }));
+document.addEventListener("click", (ev) => { if (!ev.target.closest(".menu")) fermerMenus(); });
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") fermerMenus(); });
 document.querySelectorAll("[data-eco]").forEach((b) =>
   b.addEventListener("click", () => {
     eco = b.dataset.eco;

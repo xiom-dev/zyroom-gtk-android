@@ -86,8 +86,35 @@ TYPES_FR = {
 
 
 # Outils (it..., et ceux des Kamis ic...t...) et MP generiques ou de coffre.
-AUTRES = (r"(it|ic[a-z]+t)(ammo|armor|jewel|mwea|rwea|forage|tool)(_\d)?\.sitem$"
-          r"|mp_(soft|hard|colonne|ornement|revetement|socle)\.sitem$")
+OUTILS = r"(it|ic[a-z]+t)(ammo|armor|jewel|mwea|rwea|forage|tool)(_\d)?\.sitem$"
+COFFRE = r"mp_(soft|hard|colonne|ornement|revetement|socle)\.sitem$"
+
+
+def categorie_autre(fiche: str, nom: str) -> str:
+    """outil, coffre, arme, plan, potion, feu, divers, ou "" (MP, armures,
+    bijoux)."""
+    if re.match(OUTILS, fiche) or fiche.startswith("rpjobitem_204_"):
+        return "outil"   # rpjobitem_204 : l'Outil revolutionnaire
+    if re.match(COFFRE, fiche):
+        return "coffre"
+    if not fiche.endswith(".sitem"):
+        return ""
+    if re.search(r"potion", nom, re.I) or fiche.startswith("pvp_boost_"):
+        return "potion"
+    # Armes : les ic... hors armures et bijoux (ic + peuple + a ou j), hors
+    # friandises et casques d'evenement.
+    if (fiche.startswith("ic") and not re.match(r"ic[a-z][aj]", fiche)
+            and not re.match(r"ic_(candy|anlor_helmet)", fiche)):
+        return "arme"
+    if fiche.startswith("marauder_armor_recipe_"):
+        return "plan"   # plans d'armure du Maraudeur, ranges dans Stuff
+    if fiche.startswith("conso_fireworks_"):
+        return "feu"
+    # Les MP et les armures et bijoux ont leurs propres tables ; tout le
+    # reste (fleurs, recharges, cristaux, plans...) va dans Divers.
+    if re.match(r"m\d{4}[a-z]{3}[a-z]{2}01\.sitem$", fiche) or re.match(r"ic[a-z][aj]", fiche):
+        return ""
+    return "divers"
 
 
 def plat(texte: str) -> str:
@@ -345,10 +372,14 @@ def main() -> int:
     fiches = {f: [n, anglais.get(f, "")] for f, n in sorted(lire_noms_du_jeu().items())
               if re.match(r"m\d{4}[a-z]{3}[a-z]{2}01\.sitem$", f)}
     # Ce que le hall garde hors des MP du jeu et qui compte quand meme pour la
-    # guilde : les outils de craft et de forage, les MP generiques molles et
-    # dures, et les pieces qui fabriquent les coffres (onglet MP speciales).
-    autres = {f: [n, ""] for f, n in sorted(lire_noms_du_jeu().items())
-              if re.match(AUTRES, f)}
+    # guilde, avec sa categorie : outils de craft et de forage, MP generiques
+    # molles et dures et pieces des coffres, armes, potions, feux d'artifice
+    # et tout le reste (Divers). fiche -> [nom francais, "", categorie]
+    autres = {}
+    for f, n in sorted(lire_noms_du_jeu().items()):
+        categorie = categorie_autre(f, n)
+        if categorie:
+            autres[f] = [n, "", categorie]
     # Les armures et bijoux craftes, pour les onglets Tenues et Bijoux.
     equipements = {f: n for f, n in sorted(lire_noms_du_jeu().items())
                    if re.match(r"ic[a-z][aj]", f)}
