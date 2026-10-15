@@ -390,7 +390,8 @@ function vueApercu() {
     + '<table class="kc-stats"><thead><tr><th class="n">' + choixCol("gauche") + '</th><th class="n">'
     + choixCol("droite") + "</th><th>Caractéristique</th></tr></thead><tbody>" + lignes + "</tbody></table>"
     + '<label class="kc-com">Commentaire<textarea data-kc="commentaire" rows="3">' + esc(S.recette.commentaire) + "</textarea></label>"
-    + '<p><button type="button" data-kc="detail" aria-pressed="' + S.detail + '">Détail de la recette</button></p>'
+    + '<p><button type="button" data-kc="detail" aria-pressed="' + S.detail + '">Détail de la recette</button> '
+    + '<button type="button" data-kc="copier" title="La liste des MP, pièce par pièce, à coller dans un message">Copier les ingrédients</button></p>'
     + (S.detail ? vueDetail() : "");
 }
 
@@ -454,7 +455,22 @@ function vueApercuEnsemble() {
   }
   return "<h2>" + esc(ens.nom) + " — " + esc(S.meta.paliers.find(([k]) => k === S.palier)[1]) + "</h2>"
     + corps
-    + '<label class="kc-com">Commentaire<textarea data-kc="commentaire" rows="3">' + esc(S.recette.commentaire) + "</textarea></label>";
+    + '<label class="kc-com">Commentaire<textarea data-kc="commentaire" rows="3">' + esc(S.recette.commentaire) + "</textarea></label>"
+    + (res && !res.plans[0].vide ? '<p><button type="button" data-kc="copier" title="La liste des MP, pièce par pièce, à coller dans un message">Copier les ingrédients</button></p>' : "");
+}
+
+// La recette en texte simple, une piece par ligne : pour la coller dans un
+// message en jeu ou sur Discord.
+function texteRecette(recette) {
+  const plan = planDe(recette.plan);
+  return plan.complet + "\n" + recette.cases.map((c, i) => S.meta.pieces[plan.pieces[i][0]].nom + " : "
+    + c.map(([k, q]) => q + "× " + nomComplet(materiau(plan.pieces[i][0], k))).join(", ")).join("\n");
+}
+function texteIngredients() {
+  if (S.recette.ensemble && S.ensRes) return S.ensRes.plans.map((x) => texteRecette(x.recette)).join("\n\n");
+  return texteRecette(S.recette)
+    + (S.recette.bonus && sorteBonus(planDe(S.recette.plan)) ? "\nCase bonus : 1× " + nomBonus(S.recette.bonus)
+      + " (" + AVERTI_BONUS + ")" : "");
 }
 
 // Les colonnes arrondies tronquent, comme l'original : 94,77 s'y lit 94.
@@ -488,6 +504,76 @@ function vueDetail() {
   return h + "</tbody></table></div>";
 }
 
+// ------------------------------------------------------------ case bonus
+//
+// Les MP d'avant-poste : une case de plus dans la recette, une seule MP.
+// Maga et Cheng pour les amplis, Tekorn et Vedice pour les autres armes.
+// Leur effet tient du hasard (un pourcentage de chance) : il n'entre pas
+// dans le calcul, la recette peut seulement sortir meilleure que prevu.
+// Les quatre variantes : Nexus naturelle, Maraudeur raffinee, Karavan
+// modifiee, Kami purifiee.
+
+const BONUS = {
+  ampli: [
+    ["Liane de Maga", "20 % de chances d'intervention divine (coûts en vie et/ou sève)",
+     ["m0820dxacc01", "naturelle"], ["m0828dxacc01", "raffinée"], ["m0742dxacc01", "modifiée"], ["m0746dxacc01", "purifiée"]],
+    ["Racine de Cheng", "20 % de chances d'intervention divine",
+     ["m0824dxacc01", "naturelle"], ["m0832dxacc01", "raffinée"], ["m0750dxacc01", "modifiée"], ["m0754dxacc01", "purifiée"]],
+  ],
+  arme: [
+    ["Ronce de Tekorn", "+10 % de chances de coup critique",
+     ["m0819dxacc01", "naturelle"], ["m0827dxacc01", "raffinée"], ["m0741dxacc01", "modifiée"], ["m0745dxacc01", "purifiée"]],
+    ["Suc de Vedice", "5 % de chances d'effet vampirisant",
+     ["m0823dxacc01", "naturel"], ["m0831dxacc01", "raffiné"], ["m0749dxacc01", "modifié"], ["m0753dxacc01", "purifié"]],
+  ],
+};
+const AVERTI_BONUS = "Effet au hasard, non compté dans les stats : la recette peut sortir meilleure que prévu.";
+
+// "ampli", "arme" ou null, d'apres le nom anglais du plan.
+function sorteBonus(plan) {
+  if (/Magic Amplifier/.test(plan.nom)) return "ampli";
+  if (/Ammo|Shield|Buckler/.test(plan.nom)) return null;
+  return /Axe|Sword|Dagger|Lance|Mace|Pike|Staff|Pistol|Rifle|Launcher/.test(plan.nom) ? "arme" : null;
+}
+// Les variantes d'une sorte : [fiche, nom complet, effet].
+function variantesBonus(sorte) {
+  return (BONUS[sorte] || []).flatMap(([nom, effet, ...v]) => v.map(([f, x]) => [f, nom + " " + x, effet]));
+}
+function hallFiche(fiche) {
+  if (typeof stock !== "object" || !stock) return null;
+  return [...(stock.get(fiche + ".sitem") || [])].reduce((t, [, n]) => t + n, 0);
+}
+function nomBonus(fiche) {
+  const v = variantesBonus("ampli").concat(variantesBonus("arme")).find(([f]) => f === fiche);
+  return v ? v[1] : "";
+}
+
+function bonusHtml() {
+  const plan = planDe(S.recette.plan);
+  const sorte = sorteBonus(plan);
+  if (!sorte) return "";
+  const v = variantesBonus(sorte);
+  const choisie = v.find(([f]) => f === S.recette.bonus);
+  return '<div class="kc-piece"><div class="kc-titre"><b>Case bonus d\'avant-poste</b><span></span></div>'
+    + '<div class="kc-barre">' + selecteur('data-kc="bonus"', [["", "— aucune —"], ...v.map(([f, n]) => {
+      const h = hallFiche(f);
+      return [f, "1× " + n + (h === null ? "" : " (hall " + h + ")")];
+    })], S.recette.bonus || "") + "</div>"
+    + (choisie ? '<p class="faible">' + esc(choisie[2]) + ". " + AVERTI_BONUS + "</p>"
+      : '<p class="faible">' + esc(BONUS[sorte].map((b) => b[0]).join(" ou ")) + " : une seule MP, effet au hasard.</p>")
+    + "</div>";
+}
+
+// La ligne des resultats de l'Armurerie : la case possible, sans choix.
+function bonusPossible(plan) {
+  const sorte = sorteBonus(plan);
+  if (!sorte) return "";
+  return '<p class="faible">Case bonus d\'avant-poste possible : 1× ' + BONUS[sorte].map(([nom, effet, ...v]) => {
+    const h = v.reduce((t, [f]) => t + (hallFiche(f) || 0), 0);
+    return esc(nom) + " (" + esc(effet) + ", hall " + h + ")";
+  }).join(" ou 1× ") + ". " + AVERTI_BONUS + "</p>";
+}
+
 function vuePieces() {
   const plan = planDe(S.recette.plan);
   const ens = S.recette.ensemble ? ensembleDe(S.palier, S.recette.ensemble) : null;
@@ -502,7 +588,8 @@ function vuePieces() {
       + (pose < voulu ? '<button type="button" class="kc-case kc-vide" data-kc="ajouter" data-i="' + i
         + '" title="Choisir un matériau (' + (voulu - pose) + ' libre(s))">+</button>' : "")
       + "</div></div>";
-  }).join("") + '<p class="faible kc-aide">Clic sur une case pleine : remplacer ou retirer. Clic droit : retirer.</p>';
+  }).join("") + (ens ? "" : bonusHtml())
+    + '<p class="faible kc-aide">Clic sur une case pleine : remplacer ou retirer. Clic droit : retirer.</p>';
 }
 
 function caseHtml(m, n, i, j) {
@@ -869,7 +956,7 @@ function majAvance() { const z = document.getElementById("kc-avance"); if (z) z.
 
 function evoVierge(planId) {
   return {
-    plan: planId, qmin: 0, qmax: 0, couleur: 0, variete: 0, duree: 20,
+    plan: planId, qmin: 0, qmax: 0, couleur: 0, race: 0, variete: 0, duree: 20,
     ecartes: false, tot: false, boost: false, hall: false,
     conditions: Array.from({ length: 10 }, () => ({ stat: 0, priorite: 1, op: 0, valeur: 0 })),
     filtres: filtresVierges(planDe(planId)),
@@ -883,6 +970,16 @@ function basculeEvo() {
   return '<div class="kc-barre kc-mode">' + [["assistant", "Assistant"], ["formulaire", "Formulaire complet"]]
     .map(([k, t]) => '<button type="button" data-kc="evo-mode" data-v="' + k + '" aria-pressed="' + (S.evoMode === k) + '">'
       + t + "</button>").join("") + "</div>";
+}
+
+// Le jeu refuse de melanger les MP de deux pays : une recette, c'est un pays
+// et des Primes Racines. La race fixe le pays ; le Maraudeur (skin 3,
+// multi-race) permet tout.
+const RACES_EVO = [[0, "Indifférente"], [1, "Fyros (Désert)"], [2, "Matis (Forêt)"],
+                   [3, "Tryker (Lacs)"], [4, "Zoraï (Jungle)"], [5, "Maraudeur (multi-race, skin 3)"]];
+function choixRace(f, cle = "e", champ = "race") {
+  return '<label title="Les MP d\'un seul pays, plus Primes Racines. Indifférente : le pays le meilleur, mais un seul. Maraudeur : toutes les MP">Race '
+    + selecteur('data-' + cle + '="' + champ + '"', RACES_EVO, f[champ] || 0) + "</label>";
 }
 
 function vueEvo() {
@@ -907,6 +1004,7 @@ function vueFormulaire() {
     + '<p class="faible">Sur les pourcentages de précraft, de 0 à 100 : « esquive = 100, protection &gt; 80 ».</p>'
     + conditionsHtml(e, "e", plan.stats, 100, "Valeur")
     + '<div class="kc-barre" style="margin-top:10px">'
+    + choixRace(e)
     + '<label>Couleur imposée ' + selecteur('data-e="couleur"', couleurs, e.couleur) + "</label>"
     + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
     + champNombre(e, "e", "qmax", "Q max", 0, 500, 5, "Qualité maximale des matériaux. 0 : sans limite.")
@@ -972,6 +1070,7 @@ function vueAssistant() {
     + "<label>Grade minimal " + selecteur('data-a="grade"', [5, 4, 3, 2, 1].map((g) => [g, S.meta.grades[g][0]]), a.grade) + "</label>"
     + "<label>Sources " + selecteur('data-a="sources"', SOURCES, a.sources) + "</label>"
     + '<label><input type="checkbox" data-a="primes"' + (a.primes ? " checked" : "") + "> Primes Racines</label>"
+    + choixRace(e)
     + "</div><div class=\"kc-barre\">"
     + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
     + champNombre(e, "e", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
@@ -995,7 +1094,7 @@ function appliquerProjetEvo(p) {
   const vierge = evoVierge(planDe(p.plan) ? p.plan : S.evo.plan);
   S.evo = Object.assign(vierge, {
     ensemble: vierge.plan === S.evo.plan ? S.evo.ensemble : null,
-    duree: S.evo.duree, variete: S.evo.variete, hall: S.evo.hall, tot: S.evo.tot,
+    duree: S.evo.duree, variete: S.evo.variete, hall: S.evo.hall, tot: S.evo.tot, race: S.evo.race,
     qmin: p.qmin, qmax: p.qmax, couleur: p.couleur, ecartes: p.ecartes, boost: p.boost, maitre: p.maitre,
     conditions: vierge.conditions.map((c, i) => p.conditions[i] ? Object.assign({}, p.conditions[i],
       { priorite: Math.max(1, p.conditions[i].priorite) }) : c),
@@ -1030,6 +1129,7 @@ function vueEvoResultat() {
       : "Toutes les conditions sont tenues · " + r.generations + " générations") + "</p>"
     + '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
     + '<button type="button" data-kc="evo-kc" title="Fichier .kc, à rouvrir dans le Simulateur">Enregistrer la recette</button></p>'
+    + bonusPossible(plan)
     + '<div class="kc-res"><table class="kc-stats"><thead><tr><th class="n">Précraft</th><th class="n">Postcraft</th><th></th></tr></thead><tbody>'
     + lignes + "</tbody></table><div>" + ingredients + "</div></div></section>";
 }
@@ -1058,7 +1158,7 @@ function vueEvoEnsemble(r) {
 
 function bijVierge(plan) {
   return {
-    plan, nombre: 10, qmin: 0, variete: 2, duree: 30, ecartes: false, tot: false, hall: false,
+    plan, nombre: 10, qmin: 0, variete: 2, duree: 30, ecartes: false, tot: false, hall: false, pays: 0,
     conditions: Array.from({ length: 14 }, () => ({ stat: 0, priorite: 1, op: 0, valeur: 0 })),
     filtres: filtresVierges(planDe(plan)),
     maitre: { fores: [], lootes: [], ecos: [] },
@@ -1096,7 +1196,8 @@ function vueBij() {
     + '<section class="panneau"><h2>Priorités (1 = la plus faible) et conditions</h2>'
     + '<p class="faible">Sur ce que la parure totalise, une fois les dix bijoux portés : un bijou apporte au plus 8 '
     + "sur une caractéristique, donc 80 pour la parure entière.</p>"
-    + conditionsHtml(b, "b", S.meta.bijou, 10000, "Total visé") + "</section>"
+    + conditionsHtml(b, "b", S.meta.bijou, 10000, "Total visé")
+    + '<div class="kc-barre" style="margin-top:10px">' + choixRace(b, "b", "pays") + "</div></section>"
     + filtresHtml(b, "b", plan, "unités par bijou") + "</div></div>";
 }
 
@@ -1277,6 +1378,10 @@ async function surClic(ev) {
   else if (quoi === "ajouter") ouvrirChoix(Number(b.dataset.i), null);
   else if (quoi === "case") ouvrirChoix(Number(b.dataset.i), Number(b.dataset.j));
   else if (quoi === "vider") { nouvelle(planDe(S.recette.plan)); dessiner(); recalculer(); }
+  else if (quoi === "copier") {
+    try { await navigator.clipboard.writeText(texteIngredients()); bandeau("Ingrédients copiés"); }
+    catch (souci) { bandeau("Copie impossible : " + souci.message, true); }
+  }
   else if (quoi === "detail") { S.detail = !S.detail; document.getElementById("kc-apercu").innerHTML = vueApercu(); }
   else if (quoi === "ouvrir") {
     const f = await choisirFichier(".kc");
@@ -1344,7 +1449,7 @@ async function surClic(ev) {
     const p = r.projet;
     const vierge = bijVierge(planDe(p.plan) ? p.plan : S.bij.plan);
     S.bij = Object.assign(vierge, {
-      plan: vierge.plan, qmin: p.qmin, ecartes: p.ecartes, maitre: p.maitre,
+      plan: vierge.plan, qmin: p.qmin, ecartes: p.ecartes, maitre: p.maitre, pays: S.bij.pays,
       conditions: vierge.conditions.map((c, i) => p.conditions[i] ? Object.assign({}, p.conditions[i],
         { priorite: Math.max(1, p.conditions[i].priorite) }) : c),
       filtres: vierge.filtres.map((x, i) => p.filtres[i] || x),
@@ -1396,6 +1501,7 @@ function surChangement(ev) {
     dessiner();
     recalculer();
   }
+  else if (d.kc === "bonus") { S.recette.bonus = v; sauverRecette(); document.getElementById("kc-pieces").innerHTML = vuePieces(); }
   else if (d.kc === "option") { S.recette.option = Number(v); sauverRecette(); recalculer(); }
   else if (d.kc === "pref") {
     S.prefs[d.v] = t.type === "checkbox" ? v : Math.max(Number(t.min), Math.min(Number(t.max), Number(v) || 0));

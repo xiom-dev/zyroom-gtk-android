@@ -418,8 +418,14 @@ def _exces_recettes(recettes, stock: dict) -> int:
 
 def _brider(moteur, stock: dict, unites) -> None:
     """Penalise, dans `moteur`, ce qui depasse le stock. `unites(x)` rend les
-    unites de chaque MP de l'individu x ; _measure rend un Score ou un
-    couple (precraft, Score) selon le moteur."""
+    unites de chaque MP de l'individu x."""
+    _penaliser(moteur, lambda x: _exces(unites(x), stock))
+
+
+def _penaliser(moteur, exces) -> None:
+    """Penalise, dans `moteur`, de TROP points chaque unite que `exces(x)`
+    compte en faute ; _measure rend un Score ou un couple (precraft, Score)
+    selon le moteur."""
     mesure = moteur._measure
     connus: dict = {}
 
@@ -428,7 +434,7 @@ def _brider(moteur, stock: dict, unites) -> None:
         if r is not None:
             return r
         r = mesure(x)
-        trop = _exces(unites(x), stock)
+        trop = exces(x)
         if trop:
             score = r[1] if isinstance(r, tuple) else r
             score = dataclasses.replace(score, penalty=score.penalty + TROP * trop, satisfied=0)
@@ -437,6 +443,51 @@ def _brider(moteur, stock: dict, unites) -> None:
         return r
 
     moteur._measure = _measure
+
+
+# ------------------------------------------------------------------ un seul pays
+#
+# Le jeu refuse une armure, une arme ou un bijou qui melange les MP de deux pays :
+# Desert et Jungle ensemble, c'est impossible. Une recette, c'est donc un pays
+# et des Primes Racines, rien d'autre : ni MP sans region (basiques, fines) ni
+# corrompues. Un pays seul, sans Primes Racines, reste permis. La race choisie
+# fixe le pays : Matis = Foret. Exception, le Maraudeur (skin 3, multi-race) :
+# tout est permis, tous les pays ensemble et toutes les MP.
+# TODO a verifier en jeu : les MP corrompues, permises seulement en Maraudeur.
+
+PAYS = {Ecosystem.FOREST, Ecosystem.LAKE, Ecosystem.DESERT, Ecosystem.JUNGLE}
+#: Race demandee par la page (1 a 4) -> son pays.
+RACES = {1: Ecosystem.DESERT, 2: Ecosystem.FOREST, 3: Ecosystem.LAKE, 4: Ecosystem.JUNGLE}
+MARAUDEUR = 5
+
+
+def _du_pays(pools, plan, pays=None):
+    """Les pools reduits aux Primes Racines et a `pays` (a tous les pays si
+    None : la penalite _hors_pays en garde ensuite un seul)."""
+    permis = {Ecosystem.PRIME_ROOTS} | ({pays} if pays else PAYS)
+    pieces = [pp.part for pp in plan.parts]
+    pools = tuple(tuple(m for m in pool if m.ecosystem in permis) for pool in pools)
+    vides = [p.label for p, pool in zip(pieces, pools) if not pool]
+    if vides:
+        quoi = pays.label if pays else "d'un pays"
+        raise EvolverError(f"aucun matériau {quoi} ou Primes Racines pour " + ", ".join(vides))
+    return pools
+
+
+def _hors_pays(genome, pools) -> int:
+    """Unites d'un genome qui ne sont pas du pays le plus employe."""
+    compte: dict = {}
+    for pool, gene in zip(pools, genome):
+        for rang in gene:
+            e = pool[rang].ecosystem
+            if e in PAYS:
+                compte[e] = compte.get(e, 0) + 1
+    return sum(compte.values()) - max(compte.values(), default=0)
+
+
+def _pays_recette(recette) -> set:
+    return {i.material.ecosystem for case in recette.slots for i in case
+            if i.material.ecosystem in PAYS}
 
 
 def _hall_insuffisant(trop: int) -> str:
@@ -650,6 +701,10 @@ async def evoluer(demande: str, avancer) -> str:
         pools = _filtrer(pools, plan, d.get("liste_ecartes", ()),
                          set(d["permis"]) if d.get("permis") is not None else None,
                          projet.use_ignored)
+        choix = int(d.get("race") or 0)
+        race = RACES.get(choix)
+        if choix != MARAUDEUR:
+            pools = _du_pays(pools, plan, race)
         petit = plans[int(d["petit"])] if d.get("petit") is not None else None
         moteur = EvolverEnsemble(reglages, pools, petit) if petit else Evolver(reglages, pools)
     except EvolverError as exc:
@@ -674,12 +729,20 @@ async def evoluer(demande: str, avancer) -> str:
                 _unites(genome, moteur.pools, compte)
                 return compte
         _brider(moteur, stock, unites)
+    if race is None and choix != MARAUDEUR:
+        # Race indifferente : le pays est libre, mais un seul
+        _penaliser(moteur, lambda x: _hors_pays(x, moteur.pools))
 
     await _derouler(moteur, reglages, avancer)
     solution = moteur.best
     if solution is None:
         return json.dumps({"erreur": "aucune recette trouvée"})
     recette = solution.recipe
+    melange = _pays_recette(recette) if choix != MARAUDEUR else set()
+    if len(melange) > 1:
+        return json.dumps({"erreur": "Aucune recette d'un seul pays trouvée (le jeu refuse de mélanger "
+                           + " et ".join(sorted(e.label for e in melange)) + ") : choisis une race, "
+                           "ou assouplis les conditions."}, ensure_ascii=False)
     recette.comment = _signature("l'Armurerie", d)
     if stock is not None:
         faites = ([(recette, _nb_pieces(plan)), (_petite(recette, petit), _nb_pieces(petit))]
@@ -750,6 +813,11 @@ async def bijouter(demande: str, avancer) -> str:
         pools = _filtrer(pools, plan, d.get("liste_ecartes", ()),
                          set(d["permis"]) if d.get("permis") is not None else None,
                          projet.use_ignored)
+        # "race" est deja la race decorative de chaque bijou : "pays" ici
+        choix = int(d.get("pays") or 0)
+        race = RACES.get(choix)
+        if choix != MARAUDEUR:
+            pools = _du_pays(pools, plan, race)
         moteur = Jeweler(reglages, pools)
     except (JewelerError, EvolverError) as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
@@ -761,11 +829,20 @@ async def bijouter(demande: str, avancer) -> str:
                 _unites(bijou, moteur.pools, compte)
             return compte
         _brider(moteur, stock, unites)
+    if race is None and choix != MARAUDEUR:
+        # Pays libre, mais un seul par bijou : chacun est un craft a part
+        _penaliser(moteur, lambda parure: sum(_hors_pays(b, moteur.pools) for b in parure))
 
     await _derouler(moteur, reglages, avancer)
     parure = moteur.best
     if parure is None:
         return json.dumps({"erreur": "aucune parure trouvée"})
+    melange = set().union(*(_pays_recette(r) for r in parure.jewels
+                            if choix != MARAUDEUR and len(_pays_recette(r)) > 1))
+    if melange:
+        return json.dumps({"erreur": "Aucune parure d'un seul pays par bijou trouvée (le jeu refuse de mélanger "
+                           + " et ".join(sorted(e.label for e in melange)) + ") : choisis une race, "
+                           "ou assouplis les conditions."}, ensure_ascii=False)
     if stock is not None:
         trop = _exces_recettes([(r, 1) for r in parure.jewels], stock)
         if trop:
