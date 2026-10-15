@@ -2057,6 +2057,8 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
                          if item.hp_max else f"Durabilité : {item.hp}")
         if item.volume:
             lines.append(f"Volume : {item.volume:.2f}")
+        if item.weight:
+            lines.append(f"Poids : {item.weight:.2f}")
         if item.price:
             lines.append(f"Prix : {item.price:,.0f} dappers".replace(",", " "))
         if item.continent:

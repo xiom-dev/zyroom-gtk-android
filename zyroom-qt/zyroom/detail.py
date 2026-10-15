@@ -101,7 +101,7 @@ def construire(item: ItemInfo, nom_fn, category_db) -> QWidget:
     g.ajouter("Volume", f"{item.volume:.2f}" if item.volume else "")
     g.ajouter("Poids", f"{item.weight:.2f}" if item.weight else "")
     if item.item_type == ItemType.EQUIPMENT and item.hp:
-        g.ajouter("Durabilité", item.hp)
+        g.ajouter("Durabilité", f"{item.hp} / {item.hp_max}" if item.hp_max else item.hp)
     if item.locked:
         g.ajouter("Protégé", _("oui"))
     colonne.addWidget(g.boite)
@@ -110,18 +110,19 @@ def construire(item: ItemInfo, nom_fn, category_db) -> QWidget:
     c = _Section("Combat")
     c.ajouter("Dégâts", item.c_dmg or "")
     c.ajouter("Vitesse", item.c_speed or "")
-    c.ajouter("Portée", item.c_range or "")
-    c.ajouter("Mod. esquive", item.c_dodge or "")
-    c.ajouter("Mod. parade", item.c_parry or "")
-    c.ajouter("Mod. esquive adverse", item.c_adv_dodge or "")
-    c.ajouter("Mod. parade adverse", item.c_adv_parry or "")
+    # L'API donne la portee en millimetres.
+    c.ajouter("Portée", f"{item.c_range / 1000:.0f} m" if item.c_range else "")
+    c.ajouter("Mod. esquive", f"{item.c_dodge:+d}" if item.c_dodge else "")
+    c.ajouter("Mod. parade", f"{item.c_parry:+d}" if item.c_parry else "")
+    c.ajouter("Mod. esquive adverse", f"{item.c_adv_dodge:+d}" if item.c_adv_dodge else "")
+    c.ajouter("Mod. parade adverse", f"{item.c_adv_parry:+d}" if item.c_adv_parry else "")
     if c.compte:
         colonne.addWidget(c.boite)
 
     # Protection (armure)
     p = _Section("Protection")
     if item.c_factor_prot:
-        p.ajouter("Facteur de protection", f"{item.c_factor_prot:.2f}")
+        p.ajouter("Facteur de protection", f"{item.c_factor_prot:.2f} %")
     p.ajouter("Prot. tranchant max.", item.c_slash or "")
     p.ajouter("Prot. contondant max.", item.c_blunt or "")
     p.ajouter("Prot. perforant max.", item.c_pierce or "")
@@ -134,7 +135,7 @@ def construire(item: ItemInfo, nom_fn, category_db) -> QWidget:
         for nom, valeur in item.protections:
             j.ajouter(f"Protection {nom}", valeur)
         for nom, valeur in item.resistances:
-            j.ajouter(f"Résistance {nom}", f"{valeur:.2f}")
+            j.ajouter(f"Résistance {nom}", f"{valeur:.1f}")
         colonne.addWidget(j.boite)
 
     # Amplificateur magique

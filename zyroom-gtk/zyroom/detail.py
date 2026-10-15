@@ -69,7 +69,7 @@ def build_detail(item: ItemInfo, name_fn, category_db) -> Gtk.Widget:
     g.add("Volume", f"{item.volume:.2f}" if item.volume else "")
     g.add("Poids", f"{item.weight:.2f}" if item.weight else "")
     if item.item_type == ItemType.EQUIPMENT and item.hp:
-        g.add("Durabilité", item.hp)
+        g.add("Durabilité", f"{item.hp} / {item.hp_max}" if item.hp_max else item.hp)
     if item.locked:
         g.add("Protégé", "oui")
     root.append(g.box)
@@ -78,18 +78,19 @@ def build_detail(item: ItemInfo, name_fn, category_db) -> Gtk.Widget:
     c = _Section("Combat")
     c.add("Dégâts", item.c_dmg or "")
     c.add("Vitesse", item.c_speed or "")
-    c.add("Portée", item.c_range or "")
-    c.add("Mod. esquive", item.c_dodge or "")
-    c.add("Mod. parade", item.c_parry or "")
-    c.add("Mod. esquive adverse", item.c_adv_dodge or "")
-    c.add("Mod. parade adverse", item.c_adv_parry or "")
+    # L'API donne la portee en millimetres.
+    c.add("Portée", f"{item.c_range / 1000:.0f} m" if item.c_range else "")
+    c.add("Mod. esquive", f"{item.c_dodge:+d}" if item.c_dodge else "")
+    c.add("Mod. parade", f"{item.c_parry:+d}" if item.c_parry else "")
+    c.add("Mod. esquive adverse", f"{item.c_adv_dodge:+d}" if item.c_adv_dodge else "")
+    c.add("Mod. parade adverse", f"{item.c_adv_parry:+d}" if item.c_adv_parry else "")
     if c.count:
         root.append(c.box)
 
     # Protection (armure)
     p = _Section("Protection")
     if item.c_factor_prot:
-        p.add("Facteur de protection", f"{item.c_factor_prot:.2f}")
+        p.add("Facteur de protection", f"{item.c_factor_prot:.2f} %")
     p.add("Prot. tranchant max.", item.c_slash or "")
     p.add("Prot. contondant max.", item.c_blunt or "")
     p.add("Prot. perforant max.", item.c_pierce or "")
@@ -102,7 +103,7 @@ def build_detail(item: ItemInfo, name_fn, category_db) -> Gtk.Widget:
         for name, value in item.protections:
             j.add(f"Protection {name}", value)
         for name, value in item.resistances:
-            j.add(f"Résistance {name}", f"{value:.2f}")
+            j.add(f"Résistance {name}", f"{value:.1f}")
         root.append(j.box)
 
     # Amplificateur magique

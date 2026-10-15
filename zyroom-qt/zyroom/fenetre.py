@@ -2911,6 +2911,8 @@ class FenetrePrincipale(QMainWindow):
                           else _("Durabilité") + f" : {objet.hp}")
         if objet.volume:
             lignes.append(_("Volume") + f" : {objet.volume:.2f}")
+        if objet.weight:
+            lignes.append(_("Poids") + f" : {objet.weight:.2f}")
 
         if objet.price:
             lignes.append(_("Prix") + " : "
