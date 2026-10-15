@@ -2926,6 +2926,9 @@ class FenetrePrincipale(QMainWindow):
         gouttes = specialites.bloc_infobulle_html(objet)
         if gouttes:
             morceaux.append(gouttes)
+        stats = detail.stats_infobulle(objet)
+        if stats:
+            morceaux.append(html.escape(stats).replace("\n", "<br>"))
         sort = enchantements.resume(objet, self._names.name)
         if sort:
             # Les charges disent combien de fois le sort part encore ; le

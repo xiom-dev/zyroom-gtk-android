@@ -162,6 +162,63 @@ def build_detail(item: ItemInfo, name_fn, category_db) -> Gtk.Widget:
     return scroll
 
 
+def stats_infobulle(item: ItemInfo) -> str:
+    """Les caractéristiques de craft, en résumé pour l'infobulle d'un item.
+
+    Les mêmes que la fiche détaillée, sauf les bonus vie/sève/endurance/
+    concentration : l'infobulle les montre déjà, avec leur goutte. Chaîne
+    vide pour une matière ou un objet sans caractéristiques."""
+    blocs = []
+
+    combat = []
+    if item.c_dmg:
+        combat.append(f"Dégâts : {item.c_dmg}")
+    if item.c_speed:
+        combat.append(f"Vitesse : {item.c_speed}")
+    if item.c_range:
+        # L'API donne la portee en millimetres.
+        combat.append(f"Portée : {item.c_range / 1000:.0f} m")
+    for libelle, valeur in (("Esquive", item.c_dodge),
+                            ("Parade", item.c_parry),
+                            ("Esquive adverse", item.c_adv_dodge),
+                            ("Parade adverse", item.c_adv_parry)):
+        if valeur:
+            combat.append(f"{libelle} : {valeur:+d}")
+    if combat:
+        blocs.append(combat)
+
+    armure = []
+    if item.c_factor_prot:
+        armure.append(f"Protection : {item.c_factor_prot:.2f} %")
+    for libelle, valeur in (("tranchant", item.c_slash),
+                            ("contondant", item.c_blunt),
+                            ("perforant", item.c_pierce)):
+        if valeur:
+            armure.append(f"Max. {libelle} : {valeur}")
+    if armure:
+        blocs.append(armure)
+
+    bijou = [f"Protection {nom} : {valeur}" for nom, valeur in item.protections]
+    bijou += [f"Résistance {nom} : {valeur:.1f}" for nom, valeur in item.resistances]
+    if bijou:
+        blocs.append(bijou)
+
+    ampli = []
+    for libelle, vitesse, puissance in (
+            ("Élémentaire", item.a_elem_speed, item.a_elem_power),
+            ("Affliction off.", item.a_off_speed, item.a_off_power),
+            ("Soin", item.a_heal_speed, item.a_heal_power),
+            ("Affliction déf.", item.a_def_speed, item.a_def_power)):
+        if vitesse or puissance:
+            ampli.append(f"{libelle} : vitesse {vitesse}, puissance {puissance}")
+    if ampli:
+        blocs.append(ampli)
+
+    # Une ligne vide entre les familles : armure et bijou se suivent sinon
+    # sans qu'on voie ou l'une s'arrete.
+    return "\n\n".join("\n".join(bloc) for bloc in blocs)
+
+
 def show_detail(parent, item: ItemInfo, name_fn, category_db) -> None:
     friendly = name_fn(item.sheet) if name_fn else item.sheet
     win = Gtk.Window(title=friendly, transient_for=parent)

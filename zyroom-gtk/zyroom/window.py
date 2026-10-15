@@ -2107,6 +2107,9 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
         gouttes = specialites.bloc_infobulle(item)
         if gouttes is not None:
             boite.append(gouttes)
+        stats = detail.stats_infobulle(item)
+        if stats:
+            boite.append(Gtk.Label(label=stats, xalign=0.0))
         sort = enchantements.resume(item, self._names.name)
         if sort:
             # Les charges disent combien de fois le sort part encore ; le cout,
