@@ -925,11 +925,21 @@ async function chercher(quoi) {
   const n = ouvriers.length;
   // L'avancement affiche la meilleure des recherches en cours
   const avances = [];
+  // La recette a l'instant T de chaque recherche : la meilleure s'affiche a
+  // la place du resultat, pour pouvoir arreter des qu'elle suffit
+  const apercus = [];
   surAvance = (x, rang) => {
     avances[rang] = x;
     const tete = avances.filter((a) => a && a.cle).reduce((m, a) => (!m || avant(a.cle, m.cle) ? a : m), null) || x;
     S.avance = "génération " + tete.generation + " — " + tete.etat + (n > 1 ? " · " + n + " recherches" : "");
     majAvance();
+    if (!x.apercu || S.arret) return;
+    apercus[rang] = x.apercu;
+    const vue = apercus.filter(Boolean).reduce((m, a) => (avant(a.cle, m.cle) ? a : m));
+    const r = Object.assign({}, vue, { provisoire: true });
+    if (ens) r.cle = ens.cle;
+    if (quoi === "bij") S.bijRes = r; else S.evoRes = r;
+    majResultat(quoi);
   };
   const op = quoi === "bij" ? "bijouter" : "evoluer";
   const rendus = await Promise.allSettled(ouvriers.map((w) => appelerSur(w, op, demande).then(JSON.parse)));
@@ -951,6 +961,16 @@ async function chercher(quoi) {
   if (S.sous === "bij" || S.sous === "evo") dessiner();
 }
 function majAvance() { const z = document.getElementById("kc-avance"); if (z) z.textContent = S.avance; }
+// Le seul resultat redessine, et non la page : l'apercu change deux fois par
+// seconde, et un dessin complet couperait la saisie en cours.
+function majResultat(quoi) {
+  const z = document.getElementById("kc-resultat-" + quoi);
+  if (z) z.outerHTML = quoi === "bij" ? vueBijResultat() : vueEvoResultat();
+}
+function titreResultat(r) {
+  return r.provisoire ? '<h2>Résultat provisoire <span class="faible">— recherche en cours, Arrêter garde cette recette</span></h2>'
+    : "<h2>Résultat</h2>";
+}
 
 // ------------------------------------------------------------ evolveur
 
@@ -1104,6 +1124,9 @@ function appliquerProjetEvo(p) {
 }
 
 function vueEvoResultat() {
+  return '<div id="kc-resultat-evo">' + vueEvoResultatCorps() + "</div>";
+}
+function vueEvoResultatCorps() {
   const r = S.evoRes;
   if (!r) return "";
   if (r.erreur) return '<section class="panneau"><p class="inconnue">' + esc(r.erreur) + "</p></section>";
@@ -1124,11 +1147,11 @@ function vueEvoResultat() {
         + '<span class="faible">hall</span> ' + hallHtml(k, S.evo.qmin)
         + (hall !== null && hall < q ? ' <span class="kc-bas">manque ' + (q - hall) + "</span>" : "")
         + coffresHtml(k, S.evo.qmin, q) + "</div>"; }).join("")).join("");
-  return '<section class="panneau"><h2>Résultat</h2><p class="kc-ligne">' + esc(r.verdict) + "</p>"
+  return '<section class="panneau">' + titreResultat(r) + '<p class="kc-ligne">' + esc(r.verdict) + "</p>"
     + '<p class="faible">' + (r.manque.length ? "Non tenu : " + r.manque.map(([x, ec]) => esc(x) + " (écart " + nfr(ec, 2) + ")").join(" · ")
       : "Toutes les conditions sont tenues · " + r.generations + " générations") + "</p>"
-    + '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
-    + '<button type="button" data-kc="evo-kc" title="Fichier .kc, à rouvrir dans le Simulateur">Enregistrer la recette</button></p>'
+    + (r.provisoire ? "" : '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
+      + '<button type="button" data-kc="evo-kc" title="Fichier .kc, à rouvrir dans le Simulateur">Enregistrer la recette</button></p>')
     + bonusPossible(plan)
     + '<div class="kc-res"><table class="kc-stats"><thead><tr><th class="n">Précraft</th><th class="n">Postcraft</th><th></th></tr></thead><tbody>'
     + lignes + "</tbody></table><div>" + ingredients + "</div></div></section>";
@@ -1144,12 +1167,12 @@ function vueEvoEnsemble(r) {
         + c.map(([k, q]) => '<div class="kc-ingr">' + q + '× <span class="' + ecoClasse(materiau(plan.pieces[i][0], k)) + '">'
           + esc(nomComplet(materiau(plan.pieces[i][0], k))) + "</span></div>").join("")).join("");
   }).join("");
-  return '<section class="panneau"><h2>Résultat</h2><p class="kc-ligne">' + esc(r.verdict) + "</p>"
+  return '<section class="panneau">' + titreResultat(r) + '<p class="kc-ligne">' + esc(r.verdict) + "</p>"
     + '<p class="faible">' + (r.manque.length ? "Non tenu sur au moins une taille de pièce : "
       + r.manque.map(([x, ec]) => esc(x) + " (écart " + nfr(ec, 2) + ")").join(" · ")
       : "Toutes les conditions sont tenues, grandes et petites pièces · " + r.generations + " générations") + "</p>"
-    + '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
-    + '<button type="button" data-kc="evo-kc" title="Deux fichiers .kc, à rouvrir dans le Simulateur">Enregistrer les 2 recettes</button></p>'
+    + (r.provisoire ? "" : '<p><button type="button" data-kc="evo-simuler">Ouvrir dans le simulateur</button> '
+      + '<button type="button" data-kc="evo-kc" title="Deux fichiers .kc, à rouvrir dans le Simulateur">Enregistrer les 2 recettes</button></p>')
     + tableEnsemble(res, voulues)
     + '<div class="kc-ens"><div>' + recettes + "</div><div>" + totalEnsemble(res, S.evo.qmin) + "</div></div></section>";
 }
@@ -1202,6 +1225,9 @@ function vueBij() {
 }
 
 function vueBijResultat() {
+  return '<div id="kc-resultat-bij">' + vueBijResultatCorps() + "</div>";
+}
+function vueBijResultatCorps() {
   const r = S.bijRes;
   if (!r) return "";
   if (r.erreur) return '<section class="panneau"><p class="inconnue">' + esc(r.erreur) + "</p></section>";
@@ -1224,8 +1250,8 @@ function vueBijResultat() {
     const races = [...new Set(positions.map((p) => r.races[p]).filter((x) => x))];
     return '<div class="kc-bijou"><b>Bijou ' + rang + " — ×" + positions.length + "</b>"
       + (races.length ? ' <span class="faible">(' + races.map((x) => RACES[x]).join(", ") + ")</span>" : "")
-      + ' <button type="button" data-kc="bij-simuler" data-i="' + positions[0] + '">Simuler</button>'
-      + ' <button type="button" data-kc="bij-kc" data-i="' + positions[0] + '" data-r="' + rang + '" title="Fichier .kc, à rouvrir dans le Simulateur">Enregistrer</button>'
+      + (r.provisoire ? "" : ' <button type="button" data-kc="bij-simuler" data-i="' + positions[0] + '">Simuler</button>'
+        + ' <button type="button" data-kc="bij-kc" data-i="' + positions[0] + '" data-r="' + rang + '" title="Fichier .kc, à rouvrir dans le Simulateur">Enregistrer</button>')
       + b.cases.map((c, i) => '<div class="faible">' + esc(S.meta.pieces[plan.pieces[i][0]].nom) + "</div>"
         + c.map(([k, q]) => { const m = materiau(plan.pieces[i][0], k);
           return '<div class="kc-ingr">' + q + '× <span class="' + ecoClasse(m) + '">' + esc(nomComplet(m)) + "</span></div>"; }).join("")).join("")
@@ -1245,7 +1271,7 @@ function vueBijResultat() {
       + '<td class="n">' + hallHtml(k, S.bij.qmin) + "</td><td>" + (hall !== null && hall < q ? '<span class="kc-bas">manque ' + (q - hall) + "</span>" : "")
       + coffresHtml(k, S.bij.qmin, q) + "</td></tr>";
   }).join("");
-  return '<section class="panneau"><h2>Résultat</h2><p class="kc-ligne">' + esc(r.verdict) + "</p>"
+  return '<section class="panneau">' + titreResultat(r) + '<p class="kc-ligne">' + esc(r.verdict) + "</p>"
     + '<p class="faible">' + (r.manque.length ? "Non tenu : " + r.manque.map(([s, e]) => esc(s) + " (écart " + nfr(e, 2) + ")").join(" · ")
       : r.distincts + " bijoux différents sur " + n + " · " + r.generations + " générations") + "</p>"
     + '<div class="kc-res"><table class="kc-stats"><thead><tr><th class="n">Total</th><th class="n">Par bijou</th><th></th></tr></thead><tbody>'

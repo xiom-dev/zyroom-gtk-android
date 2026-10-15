@@ -321,17 +321,25 @@ def arreter() -> None:
     arret = True
 
 
-async def _derouler(moteur, reglages, avancer) -> None:
+async def _derouler(moteur, reglages, avancer, apercu=None) -> None:
     """La boucle de `run`, commune a l'Evolver et a la Bijouterie.
 
     `run` est d'un seul tenant : dans un worker, elle empecherait le message
     « arreter » d'arriver. On deroule donc ses tours ici, avec un `await`
     toutes les 150 ms -- la boucle est la meme, seule la respiration change.
+
+    `apercu(meilleur)` rend le resultat tel que la recherche le rendrait si
+    elle s'arretait la (None s'il serait refuse) : la page l'affiche en cours
+    de route, pour qu'on puisse arreter des que la recette suffit. Seulement
+    quand la meilleure a change, et au plus deux fois par seconde : le calcul
+    du postcraft n'est pas gratuit.
     """
     global arret
     arret = False
     debut = time.monotonic()
     souffle = debut
+    montre = 0.0
+    change = True
     oisif = 0
     population = moteur._new_population()
     moteur._record(population[0])
@@ -344,6 +352,7 @@ async def _derouler(moteur, reglages, avancer) -> None:
         moteur._generation += 1
         population = moteur._next_population(population)
         if moteur._record(population[0]):
+            change = True
             oisif = 0
         else:
             oisif += 1
@@ -355,10 +364,19 @@ async def _derouler(moteur, reglages, avancer) -> None:
             souffle = time.monotonic()
             meilleur = moteur.best
             # cle : pour que la page compare les recherches paralleles
-            avancer(json.dumps({"generation": moteur.generation, "ecoule": ecoule,
-                                "etat": meilleur.score.describe() if meilleur else "…",
-                                "cle": list(meilleur.score.key) if meilleur else None},
-                               ensure_ascii=False))
+            avance = {"generation": moteur.generation, "ecoule": ecoule,
+                      "etat": meilleur.score.describe() if meilleur else "…",
+                      "cle": list(meilleur.score.key) if meilleur else None}
+            if apercu and meilleur and change and souffle - montre >= 0.5:
+                montre = souffle
+                change = False
+                try:
+                    rendu = apercu(meilleur)
+                except Exception:
+                    # Un apercu rate ne doit pas couler la recherche
+                    rendu = {"erreur": "apercu"}
+                avance["apercu"] = None if rendu.get("erreur") else rendu
+            avancer(json.dumps(avance, ensure_ascii=False))
             await asyncio.sleep(0)
 
 
@@ -733,23 +751,30 @@ async def evoluer(demande: str, avancer) -> str:
         # Race indifferente : le pays est libre, mais un seul
         _penaliser(moteur, lambda x: _hors_pays(x, moteur.pools))
 
-    await _derouler(moteur, reglages, avancer)
-    solution = moteur.best
-    if solution is None:
+    await _derouler(moteur, reglages, avancer,
+                    lambda s: _rendu_evo(s, d, plan, petit, projet, stock, choix))
+    if moteur.best is None:
         return json.dumps({"erreur": "aucune recette trouvée"})
+    return json.dumps(_rendu_evo(moteur.best, d, plan, petit, projet, stock, choix),
+                      ensure_ascii=False)
+
+
+def _rendu_evo(solution, d, plan, petit, projet, stock, choix) -> dict:
+    """Le resultat de l'Armurerie pour `solution`, ou {"erreur": ...} si le
+    jeu ou le hall la refuserait."""
     recette = solution.recipe
     melange = _pays_recette(recette) if choix != MARAUDEUR else set()
     if len(melange) > 1:
-        return json.dumps({"erreur": "Aucune recette d'un seul pays trouvée (le jeu refuse de mélanger "
-                           + " et ".join(sorted(e.label for e in melange)) + ") : choisis une race, "
-                           "ou assouplis les conditions."}, ensure_ascii=False)
+        return {"erreur": "Aucune recette d'un seul pays trouvée (le jeu refuse de mélanger "
+                + " et ".join(sorted(e.label for e in melange)) + ") : choisis une race, "
+                "ou assouplis les conditions."}
     recette.comment = _signature("l'Armurerie", d)
     if stock is not None:
         faites = ([(recette, _nb_pieces(plan)), (_petite(recette, petit), _nb_pieces(petit))]
                   if petit else [(recette, 1)])
         trop = _exces_recettes(faites, stock)
         if trop:
-            return _hall_insuffisant(trop)
+            return json.loads(_hall_insuffisant(trop))
     if petit:
         petite = _petite(recette, petit)
         ensemble_ = _pieces_ensemble(recette, petite)
@@ -763,26 +788,26 @@ async def evoluer(demande: str, avancer) -> str:
                 ecart = 100.0 if v is None else deficit(c, v)
                 if ecart > tolerance_for(c):
                     manque[c.stat.label] = max(manque.get(c.stat.label, 0), ecart)
-        return json.dumps({
+        return {
             "verdict": solution.score.describe(), "cle": list(solution.score.key),
             "manque": [[k, v] for k, v in manque.items()],
             "generations": solution.generation,
             "recette": _vers_page(recette),
             "ensemble": ensemble_,
             "kc": kc.dumps(recette), "kc_petit": kc.dumps(petite),
-        }, ensure_ascii=False)
+        }
     try:
         r = _craft(recette, postcraft.get(plan.id, recette.option))
     except PostcraftError:
         r = _craft(recette, None)
-    return json.dumps({
+    return {
         "verdict": solution.score.describe(), "cle": list(solution.score.key),
         "manque": [[c.stat.label, ecart] for c, ecart in solution.unmet(projet.conditions)],
         "generations": solution.generation,
         "recette": _vers_page(recette),
         "resultat": {"precraft": _nombres(r.precraft), "postcraft": _nombres(r.postcraft)},
         "kc": kc.dumps(recette),
-    }, ensure_ascii=False)
+    }
 
 
 async def bijouter(demande: str, avancer) -> str:
@@ -833,24 +858,30 @@ async def bijouter(demande: str, avancer) -> str:
         # Pays libre, mais un seul par bijou : chacun est un craft a part
         _penaliser(moteur, lambda parure: sum(_hors_pays(b, moteur.pools) for b in parure))
 
-    await _derouler(moteur, reglages, avancer)
-    parure = moteur.best
-    if parure is None:
+    await _derouler(moteur, reglages, avancer,
+                    lambda p: _rendu_bij(p, d, projet, stock, choix))
+    if moteur.best is None:
         return json.dumps({"erreur": "aucune parure trouvée"})
+    return json.dumps(_rendu_bij(moteur.best, d, projet, stock, choix), ensure_ascii=False)
+
+
+def _rendu_bij(parure, d, projet, stock, choix) -> dict:
+    """Le resultat de la Bijouterie pour `parure`, ou {"erreur": ...} si le
+    jeu ou le hall la refuserait."""
     melange = set().union(*(_pays_recette(r) for r in parure.jewels
                             if choix != MARAUDEUR and len(_pays_recette(r)) > 1))
     if melange:
-        return json.dumps({"erreur": "Aucune parure d'un seul pays par bijou trouvée (le jeu refuse de mélanger "
-                           + " et ".join(sorted(e.label for e in melange)) + ") : choisis une race, "
-                           "ou assouplis les conditions."}, ensure_ascii=False)
+        return {"erreur": "Aucune parure d'un seul pays par bijou trouvée (le jeu refuse de mélanger "
+                + " et ".join(sorted(e.label for e in melange)) + ") : choisis une race, "
+                "ou assouplis les conditions."}
     if stock is not None:
         trop = _exces_recettes([(r, 1) for r in parure.jewels], stock)
         if trop:
-            return _hall_insuffisant(trop)
+            return json.loads(_hall_insuffisant(trop))
     conditions = projet.conditions
     for r in parure.jewels:
         r.comment = _signature("la Bijouterie", d)
-    return json.dumps({
+    return {
         "verdict": parure.score.describe(), "cle": list(parure.score.key),
         "manque": [[c.stat.label, ecart] for c, ecart in parure.unmet(conditions)],
         "distincts": parure.distinct_jewels(),
@@ -861,4 +892,4 @@ async def bijouter(demande: str, avancer) -> str:
         "races": list(parure.races),
         "courses": shopping_list(parure),
         "kc": [kc.dumps(r) for r in parure.jewels],
-    }, ensure_ascii=False)
+    }
