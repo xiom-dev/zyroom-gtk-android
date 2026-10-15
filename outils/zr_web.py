@@ -92,6 +92,54 @@ def _infobulle(it, nom: str) -> list[str]:
     return lignes
 
 
+def _stats(it) -> str:
+    """Comme detail.stats_infobulle (detail.py importe GTK, absent du zip)."""
+    blocs = []
+
+    combat = []
+    if it.c_dmg:
+        combat.append(f"Dégâts : {it.c_dmg}")
+    if it.c_speed:
+        combat.append(f"Vitesse : {it.c_speed}")
+    if it.c_range:
+        # L'API donne la portee en millimetres.
+        combat.append(f"Portée : {it.c_range / 1000:.0f} m")
+    for libelle, valeur in (("Esquive", it.c_dodge), ("Parade", it.c_parry),
+                            ("Esquive adverse", it.c_adv_dodge),
+                            ("Parade adverse", it.c_adv_parry)):
+        if valeur:
+            combat.append(f"{libelle} : {valeur:+d}")
+    if combat:
+        blocs.append(combat)
+
+    armure = []
+    if it.c_factor_prot:
+        armure.append(f"Protection : {it.c_factor_prot:.2f} %")
+    for libelle, valeur in (("tranchant", it.c_slash), ("contondant", it.c_blunt),
+                            ("perforant", it.c_pierce)):
+        if valeur:
+            armure.append(f"Max. {libelle} : {valeur}")
+    if armure:
+        blocs.append(armure)
+
+    bijou = [f"Protection {nom} : {valeur}" for nom, valeur in it.protections]
+    bijou += [f"Résistance {nom} : {valeur:.1f}" for nom, valeur in it.resistances]
+    if bijou:
+        blocs.append(bijou)
+
+    ampli = []
+    for libelle, vitesse, puissance in (
+            ("Élémentaire", it.a_elem_speed, it.a_elem_power),
+            ("Affliction off.", it.a_off_speed, it.a_off_power),
+            ("Soin", it.a_heal_speed, it.a_heal_power),
+            ("Affliction déf.", it.a_def_speed, it.a_def_power)):
+        if vitesse or puissance:
+            ampli.append(f"{libelle} : vitesse {vitesse}, puissance {puissance}")
+    if ampli:
+        blocs.append(ampli)
+
+    return "\n\n".join("\n".join(bloc) for bloc in blocs)
+
 def _objet(it) -> dict:
     nom = noms.name(it.sheet)
     bonus = [[libelle, getattr(it, attribut), couleur]
@@ -113,7 +161,7 @@ def _objet(it) -> dict:
         "eco": int(it.ecosystem), "classe": int(it.item_class),
         "equip": int(it.equip) if it.item_type == ItemType.EQUIPMENT else -1,
         "cadenas": it.locked, "vente": it.expires > 0,
-        "bonus": bonus, "bulle": _infobulle(it, nom), "enchant": enchant,
+        "bonus": bonus, "bulle": _infobulle(it, nom), "stats": _stats(it), "enchant": enchant,
         "sort": ryzom_api.brique_icon_url(brique) if brique else "",
     }
 

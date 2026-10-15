@@ -606,6 +606,7 @@ function surSurvol(ev) {
   const o = Z.ent.contenants[Number(caseEl.dataset.c)].objets[Number(caseEl.dataset.o)];
   b.innerHTML = esc(o.bulle.concat(garde()[o.sig] ? ["👁 Surveillé"] : []).join("\n"))
     + o.bonus.map(([l, v, c]) => '<div class="bonus">' + goutte(c) + esc(l + " +" + v) + "</div>").join("")
+    + (o.stats ? '<div style="margin-top:4px">' + esc(o.stats) + "</div>" : "")
     + (o.enchant ? '<div style="margin-top:4px">' + esc(o.enchant) + "</div>" : "");
   b.hidden = false;
   placerBulle(ev);
