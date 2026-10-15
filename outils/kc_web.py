@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from kipeecraft.core import audit as _audit
-from kipeecraft.core.craft import Ingredient, Recipe, compute_precraft, craft as _craft
+from kipeecraft.core.craft import Ingredient, Recipe, compute_precraft, precraft_boost, craft as _craft
 from kipeecraft.core.enums import Color, Ecosystem, Grade, Origin, Part, Stat, Tier
 from kipeecraft.core.evolver import (Evolver, EvolverError, Score, Settings, build_pools,
                                      deficit, evaluate, tolerance_for)
@@ -648,8 +648,7 @@ class EvolverEnsemble(Evolver):
                     counts[stat] = counts.get(stat, 0) + quantity
         averages = {stat: totals[stat] / counts[stat] for stat in Stat if counts.get(stat)}
         precraft, average, offset = compute_precraft(averages)
-        plain = sum(averages.values()) / len(averages) if averages else 0.0
-        boost = plain / offset if offset else 1.0
+        boost = precraft_boost(averages, offset)
         matches = True
         if self.settings.forced_color is not None and colors:
             dominant = max(colors.items(), key=lambda item: (item[1], -int(item[0])))[0]
