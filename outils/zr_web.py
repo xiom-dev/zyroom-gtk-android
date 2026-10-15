@@ -83,6 +83,8 @@ def _infobulle(it, nom: str) -> list[str]:
                       else f"Durabilité : {it.hp}")
     if it.volume:
         lignes.append(f"Volume : {it.volume:.2f}")
+    if it.weight:
+        lignes.append(f"Poids : {it.weight:.2f}")
     if it.price:
         lignes.append(f"Prix : {it.price:,.0f} dappers".replace(",", " "))
     if it.continent:
