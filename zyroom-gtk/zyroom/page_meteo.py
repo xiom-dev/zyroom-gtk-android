@@ -807,6 +807,13 @@ class PageMeteo:
         # fenêtre ne couvre que soixante-douze minutes réelles : à l'heure
         # ronde, il n'y aurait qu'un repère, parfois zéro — et à la demie,
         # trois pour une heure entière de prévision.
+        # Le nom des deux lignes d'heures, dans la colonne des seuils.
+        cr.set_source_rgba(1, 1, 1, 0.55)
+        cr.move_to(2, hauteur - self.PIED_DES_HEURES)
+        cr.show_text("IRL")
+        cr.move_to(2, marge_h - self.LONGUEUR_TIRET_ECRIT - 2)
+        cr.show_text("IG")
+
         maintenant = datetime.now()
         repere = maintenant.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
         for _ in range(self.PAS_DE_TEMPS):
