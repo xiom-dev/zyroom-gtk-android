@@ -87,18 +87,8 @@ class PageMeteo:
         self._meteo_refresh.connect("clicked", lambda *a: self._load_meteo(force=True))
         bar.append(self._meteo_refresh)
 
-        # L'heure d'Atys, juste au-dessus de la courbe. Une minute d'Atys dure
-        # trois secondes reelles : elle a donc son propre battement, d'une
-        # seconde, plus fin que celui de la courbe. Dans gtk-dev seulement,
-        # comme le releve (meme test que `forage_releve.ACTIF`).
-        self._meteo_horloge = Gtk.Label(xalign=0.5, use_markup=True)
-        self._pad(self._meteo_horloge)
-        if forage_releve.ACTIF:
-            page.append(self._meteo_horloge)
-        self._meteo_horloge_timer = None
-
         self._meteo_courbe = Gtk.DrawingArea()
-        self._meteo_courbe.set_content_height(190)
+        self._meteo_courbe.set_content_height(206)
         self._meteo_courbe.set_draw_func(self._dessiner_courbe)
         self._pad(self._meteo_courbe)
         page.append(self._meteo_courbe)
@@ -286,29 +276,13 @@ class PageMeteo:
             self._meteo_affiche = res
             self._refresh_meteo()
             # Le temps d'Atys avance tout seul : on ne redemande rien, on
-            # recale l'affichage. Toutes les dix secondes, soit un pas de trois
-            # heures et vingt d'Atys — le trait glisse au lieu de sauter.
+            # recale l'affichage. Toutes les trois secondes, soit une minute
+            # d'Atys : l'heure de l'en-tete, a la minute, reste juste.
             if self._meteo_timer is None:
                 self._meteo_timer = GLib.timeout_add_seconds(
-                    10, self._meteo_tick)
-            if forage_releve.ACTIF and self._meteo_horloge_timer is None:
-                self._meteo_horloge_timer = GLib.timeout_add_seconds(
-                    1, self._meteo_horloge_tick)
-                self._meteo_horloge_tick()
+                    3, self._meteo_tick)
 
         run_async(work, done)
-
-    def _meteo_horloge_tick(self) -> bool:
-        """Remet a l'heure l'horloge d'Atys au-dessus de la courbe."""
-        if self._meteo_releve is None:
-            self._meteo_horloge_timer = None
-            return False
-        heure = self._meteo_releve.a_present().heure_atys % 24
-        h, m = int(heure), int(heure % 1 * 60)
-        self._meteo_horloge.set_markup(
-            "<big>" + GLib.markup_escape_text(_("Atys : %02d:%02d") % (h, m))
-            + "</big>")
-        return True
 
     def _refresh_meteo(self) -> None:
         releve = self._meteo_affiche or self._meteo_releve
@@ -369,7 +343,7 @@ class PageMeteo:
             morceaux.append(clair(
                 f"   —   {meteo.texte_meteo(maintenant.text).lower()}, "
                 f"{meteo.nom_saison(releve.saison).lower()}, "
-                f"{releve.heure_du_jour} h sur Atys, "
+                f"{meteo.heure_minute(releve.heure_atys)} sur Atys, "
                 f"{'nuit' if releve.nuit else 'jour'}"))
             self._meteo_entete.set_markup("".join(morceaux))
         self._meteo_courbe.queue_draw()
@@ -717,9 +691,11 @@ class PageMeteo:
         if len(cycles) < 2:
             return
 
-        marge_g, marge_b = 34.0, 20.0
+        # La marge du haut porte l'heure d'Atys, en face des tirets du bas.
+        marge_g, marge_b, marge_h = 34.0, 20.0, 16.0
         large = largeur - marge_g
-        haut = hauteur - marge_b
+        haut = hauteur - marge_b - marge_h
+        bas = marge_h + haut
         if large <= 0 or haut <= 0:
             return
 
@@ -731,10 +707,10 @@ class PageMeteo:
             return marge_g + large * (heure - gauche) / self.FENETRE_HEURES
 
         def y(valeur: float) -> float:
-            return haut * (1.0 - min(1.0, max(0.0, valeur)))
+            return marge_h + haut * (1.0 - min(1.0, max(0.0, valeur)))
 
         cr.save()
-        cr.rectangle(marge_g, 0, large, haut)
+        cr.rectangle(marge_g, marge_h, large, haut)
         cr.clip()
 
         # Les nuits, comptées par heure et non par cycle : un cycle de trois
@@ -743,7 +719,7 @@ class PageMeteo:
         premiere = int(gauche) - 1
         for h in range(premiere, int(gauche + self.FENETRE_HEURES) + 2):
             if meteo.est_la_nuit(h % 24):
-                cr.rectangle(x(h), 0, large / self.FENETRE_HEURES, haut)
+                cr.rectangle(x(h), marge_h, large / self.FENETRE_HEURES, haut)
                 cr.fill()
 
         # La courbe et son aire. Un cycle couvre trois heures : le palier tient
@@ -758,11 +734,11 @@ class PageMeteo:
                        y(m.value))
 
         cr.set_source_rgba(0.25, 0.48, 0.41, 0.35)
-        cr.move_to(x(cycles[0].cycle * meteo.HEURES_PAR_CYCLE), haut)
+        cr.move_to(x(cycles[0].cycle * meteo.HEURES_PAR_CYCLE), bas)
         for gx, dx, py in parcourir():
             cr.line_to(gx, py)
             cr.line_to(dx, py)
-        cr.line_to(x((cycles[-1].cycle + 1) * meteo.HEURES_PAR_CYCLE), haut)
+        cr.line_to(x((cycles[-1].cycle + 1) * meteo.HEURES_PAR_CYCLE), bas)
         cr.close_path()
         cr.fill()
 
@@ -816,14 +792,14 @@ class PageMeteo:
         px = x(releve.heure_atys)
         cr.set_source_rgb(0.91, 0.76, 0.35)
         cr.set_line_width(2.0)
-        cr.move_to(px, 0)
-        cr.line_to(px, haut)
+        cr.move_to(px, marge_h)
+        cr.line_to(px, bas)
         cr.stroke()
 
         cr.set_source_rgba(1, 1, 1, 0.35)
         cr.set_line_width(1.0)
-        cr.move_to(marge_g, haut)
-        cr.line_to(largeur, haut)
+        cr.move_to(marge_g, bas)
+        cr.line_to(largeur, bas)
         cr.stroke()
 
         # L'heure réelle, tous les quarts d'heure — et un tiret toutes les cinq
@@ -848,9 +824,13 @@ class PageMeteo:
             cr.set_source_rgba(1, 1, 1, self.OPACITE_TIRET_ECRIT if ecrite
                                else self.OPACITE_TIRET_MUET)
             cr.set_line_width(1.0)
-            cr.move_to(x(atys), haut)
-            cr.line_to(x(atys), haut + (self.LONGUEUR_TIRET_ECRIT if ecrite
-                                        else self.LONGUEUR_TIRET_MUET))
+            longueur = (self.LONGUEUR_TIRET_ECRIT if ecrite
+                        else self.LONGUEUR_TIRET_MUET)
+            cr.move_to(x(atys), bas)
+            cr.line_to(x(atys), bas + longueur)
+            # Le meme tiret en haut, sous l'heure d'Atys.
+            cr.move_to(x(atys), marge_h)
+            cr.line_to(x(atys), marge_h - longueur)
             cr.stroke()
             if not ecrite:
                 continue
@@ -859,4 +839,10 @@ class PageMeteo:
                 else repere.strftime("%Hh%M")
             cr.move_to(min(largeur - 30, max(0.0, x(atys) - 14)),
                        hauteur - self.PIED_DES_HEURES)
+            cr.show_text(texte)
+            # L'heure d'Atys du meme instant, en haut, centree sur son tiret.
+            texte = meteo.heure_minute(atys)
+            cr.move_to(min(largeur - 30, max(0.0, x(atys)
+                                             - cr.text_extents(texte).width / 2)),
+                       marge_h - self.LONGUEUR_TIRET_ECRIT - 2)
             cr.show_text(texte)

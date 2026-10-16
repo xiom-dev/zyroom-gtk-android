@@ -464,6 +464,12 @@ def moment_du_redemarrage(minutes: float, maintenant=None) -> str:
     return quand.strftime("le %d/%m ") + heure
 
 
+def heure_minute(heure_atys: float) -> str:
+    """L'heure d'Atys à la minute, écrite comme les heures du graphique : 2h49."""
+    minutes = int(heure_atys * 60) % (24 * 60)
+    return f"{minutes // 60}h{minutes % 60:02d}"
+
+
 def nom_saison(index: int) -> str:
     return ("Printemps", "Été", "Automne", "Hiver")[index] if 0 <= index < 4 else "?"
 
