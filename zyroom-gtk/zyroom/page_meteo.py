@@ -87,6 +87,16 @@ class PageMeteo:
         self._meteo_refresh.connect("clicked", lambda *a: self._load_meteo(force=True))
         bar.append(self._meteo_refresh)
 
+        # L'heure d'Atys, juste au-dessus de la courbe. Une minute d'Atys dure
+        # trois secondes reelles : elle a donc son propre battement, d'une
+        # seconde, plus fin que celui de la courbe. Dans gtk-dev seulement,
+        # comme le releve (meme test que `forage_releve.ACTIF`).
+        self._meteo_horloge = Gtk.Label(xalign=0.5, use_markup=True)
+        self._pad(self._meteo_horloge)
+        if forage_releve.ACTIF:
+            page.append(self._meteo_horloge)
+        self._meteo_horloge_timer = None
+
         self._meteo_courbe = Gtk.DrawingArea()
         self._meteo_courbe.set_content_height(190)
         self._meteo_courbe.set_draw_func(self._dessiner_courbe)
@@ -281,8 +291,24 @@ class PageMeteo:
             if self._meteo_timer is None:
                 self._meteo_timer = GLib.timeout_add_seconds(
                     10, self._meteo_tick)
+            if forage_releve.ACTIF and self._meteo_horloge_timer is None:
+                self._meteo_horloge_timer = GLib.timeout_add_seconds(
+                    1, self._meteo_horloge_tick)
+                self._meteo_horloge_tick()
 
         run_async(work, done)
+
+    def _meteo_horloge_tick(self) -> bool:
+        """Remet a l'heure l'horloge d'Atys au-dessus de la courbe."""
+        if self._meteo_releve is None:
+            self._meteo_horloge_timer = None
+            return False
+        heure = self._meteo_releve.a_present().heure_atys % 24
+        h, m = int(heure), int(heure % 1 * 60)
+        self._meteo_horloge.set_markup(
+            "<big>" + GLib.markup_escape_text(_("Atys : %02d:%02d") % (h, m))
+            + "</big>")
+        return True
 
     def _refresh_meteo(self) -> None:
         releve = self._meteo_affiche or self._meteo_releve
