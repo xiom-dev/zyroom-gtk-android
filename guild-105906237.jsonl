@@ -10746,3 +10746,4 @@
 {"ts": 1792260753.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ixpca03.sitem", "q": 50, "kind": "modified", "delta": -3996, "old": 9990, "new": 5994}
 {"ts": 1792260753.0, "inv": "chest16", "label": "Coffre 16 — Laboratoire Lunaire", "sheet": "m0615chvje01.sitem", "q": 220, "kind": "modified", "delta": 30, "old": 36, "new": 66}
 {"ts": 1792260753.0, "inv": "chest16", "label": "Coffre 16 — Laboratoire Lunaire", "sheet": "m0613chvje01.sitem", "q": 220, "kind": "modified", "delta": 29, "old": 39, "new": 68}
+{"ts": 1792263196.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ipoc_wil.sitem", "q": 250, "kind": "modified", "delta": 1, "old": 53, "new": 54}
