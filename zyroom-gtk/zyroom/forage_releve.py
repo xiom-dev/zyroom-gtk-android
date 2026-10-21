@@ -479,6 +479,93 @@ def relire() -> None:
     _garder_tables(_depuis_le_site(_lire_le_site()))
 
 
+# ------------------------------------------------- les drapeaux pour PadUI
+#: Là où l'installateur PadUI vient chercher le relevé et les drapeaux de
+#: Xiom ; on y dépose les seconds avec la clef d'écriture du forage.
+PADUI = "https://xiom.be/padui/donnees.php"
+
+#: Les drapeaux du jeu, un fichier par personnage.
+DRAPEAUX_DU_JEU = "~/.local/share/Ryzom/*/save/landmarks_*.xml"
+
+#: Les continents des Primes dans le fichier des drapeaux.
+PRIMES = ("terre", "sources")
+
+#: Les noms français qu'on donne aux matières sur un drapeau -> nom du relevé.
+#: **Les mêmes que l'installateur PadUI** (padui_installeur/moteur.py), qui
+#: refait le tri de son côté : un drapeau envoyé mais pas reconnu là-bas est
+#: simplement ignoré.
+ALIAS_DRAPEAUX = {"colle": "Glue", "corne": "Horny", "cornee": "Horny", "grosse": "Big",
+                  "ardente": "Redhot", "mignone": "Cuty", "mignonne": "Cuty",
+                  "patee": "Patee", "scratch": "Scrath", "splint": "Splinter", "shal": "Sha"}
+
+
+def _dernier(motif: str):
+    fichiers = glob.glob(os.path.expanduser(motif))
+    return max(fichiers, key=os.path.getmtime) if fichiers else None
+
+
+def _rois_et_nommes() -> set:
+    """Les noms des rois et nommés, tirés du string_client.pack du jeu.
+
+    Une fiche de faune a six lettres (« chwfe7.creature ») : la dernière dit
+    1 à 4 une bête ordinaire, 5 un nommé, 7 un roi (voir outils/page-mobs.py).
+    C'est de là que vient aussi le catalogue de PadUI.
+    """
+    from . import config, namedb
+    chemin = config.detect_pack()
+    if not chemin:
+        raise ValueError("string_client.pack introuvable")
+    with open(chemin, "rb") as fh:
+        noms = namedb._parse_pack(fh.read())
+    return {_sans_accents(v) for k, v in noms.items()
+            if k.endswith(".creature") and len(k) == 15 and k[5] in "57"}
+
+
+def drapeaux_a_partager() -> list:
+    """Les drapeaux de forage des Primes et de rois/nommés du dernier
+    personnage joué : [{c, x, y, title}].
+
+    **Jamais les autres** — maison, rendez-vous, notes : un drapeau des Primes
+    n'est pris que s'il nomme une matière, un drapeau d'ailleurs que s'il
+    nomme un roi ou un nommé du catalogue de PadUI.
+    """
+    import xml.etree.ElementTree as ET
+    chemin = _dernier(DRAPEAUX_DU_JEU)
+    if not chemin:
+        raise ValueError("aucun fichier de drapeaux du jeu")
+    matieres = {_sans_accents(m) for m in _familles()} | set(ALIAS_DRAPEAUX)
+    mobs = _rois_et_nommes()
+    sortie = []
+    for groupe in ET.parse(chemin).getroot():
+        continent = groupe.get("continent") or ""
+        for d in groupe:
+            titre = (d.get("title") or "").strip()
+            try:
+                x, y = float(d.get("x")), float(d.get("y"))
+            except (TypeError, ValueError):
+                continue
+            mots = set(re.findall(r"[\w'-]+", _sans_accents(titre))) | set(re.findall(r"\w+", _sans_accents(titre)))
+            if mots & mobs or (continent in PRIMES and mots & matieres):
+                sortie.append({"c": continent, "x": x, "y": y, "title": titre})
+    return sortie
+
+
+def partager_drapeaux() -> int:
+    """Dépose les drapeaux à partager sur xiom.be/padui. Rend leur nombre."""
+    drapeaux = drapeaux_a_partager()
+    requete = urllib.request.Request(
+        PADUI, data=json.dumps({"cle": _secret(CLE_FICHIER), "drapeaux": drapeaux}).encode("utf-8"),
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(requete, timeout=30) as reponse:
+            retour = json.load(reponse)
+    except urllib.error.HTTPError as souci:
+        raise ValueError(f"HTTP {souci.code}")
+    if not retour.get("ok"):
+        raise ValueError(retour.get("erreur") or "refusé")
+    return int(retour.get("drapeaux", 0))
+
+
 def envoyer() -> dict:
     """Coche sur le relevé commun ce que le journal confirme.
 
@@ -526,4 +613,11 @@ def envoyer() -> dict:
         bilan["creneaux"] = appliquer_tables()
     except (OSError, ValueError, KeyError):
         pass
+    # Les drapeaux pour PadUI, au même clic : les Luneux les reçoivent par
+    # « Mettre à jour les drapeaux » de l'installateur. Un échec ici ne gâche
+    # pas le relevé, il est seulement dit.
+    try:
+        bilan["drapeaux"] = partager_drapeaux()
+    except (OSError, ValueError) as souci:
+        bilan["drapeaux_erreur"] = str(souci)
     return bilan

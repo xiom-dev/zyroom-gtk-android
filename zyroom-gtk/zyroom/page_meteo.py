@@ -421,17 +421,23 @@ class PageMeteo:
             # Le relevé vient d'être relu : les oranges cochées depuis la
             # fabrication de la table ne doivent plus s'afficher.
             self._refresh_meteo()
+            # Les drapeaux partages aux Luneux pour PadUI, au meme clic.
+            if "drapeaux" in bilan:
+                partage = " · " + _("%d drapeaux partagés (PadUI)") % bilan["drapeaux"]
+            else:
+                partage = " · " + _("drapeaux PadUI non envoyés : %s") % bilan.get("drapeaux_erreur", "?")
+            couleur = "#4bbf72" if "drapeaux" in bilan else "#e0645a"
             if bilan["posees"]:
                 # « Sources Interdites|Automne|Glue|XL|Worst » -> « Glue XL (Worst) »
                 noms = ", ".join("%s %s (%s)" % tuple(c.split("|")[2:5])
                                  for c in bilan.get("cochees", []))
-                dire("✓ " + _("cochée(s) sur le relevé : %s") % noms, "#4bbf72")
+                dire("✓ " + _("cochée(s) sur le relevé : %s") % noms + partage, couleur)
             elif bilan["prises"]:
-                pass            # rien de neuf : rien a dire
+                dire(partage[3:], couleur)   # rien de neuf au releve
             else:
                 dire(_("Aucune prise dans le journal. En jeu, « /chatLog » "
                        "l'allume — et l'écran météo doit rester ouvert pour "
-                       "noter le temps qu'il fait."), "#e8c15a")
+                       "noter le temps qu'il fait.") + partage, "#e8c15a")
 
         run_async(travail, apres)
 

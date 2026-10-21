@@ -233,5 +233,30 @@ class LesNomsFrançaisDuJeu(unittest.TestCase):
         self.assertEqual("Glue", next(n for b, n in mats.items() if b in texte))
 
 
+class LesDrapeauxPartagésPourPadUI(unittest.TestCase):
+    """Au clic sur « Relever mon forage », les drapeaux de forage et de
+    rois/nommés partent sur xiom.be/padui. Jamais les autres : la maison, un
+    rendez-vous, un drapeau de matière hors des Primes."""
+
+    def test_seulement_forage_et_rois_nommes(self):
+        import tempfile
+        from unittest import mock
+        from zyroom import forage_releve
+        with tempfile.TemporaryDirectory() as tmp:
+            chemin = os.path.join(tmp, "landmarks_xiom.xml")
+            with open(chemin, "w", encoding="utf-8") as fh:
+                fh.write('<landmarks>'
+                         '<g continent="terre"><l x="1" y="2" title="oath XL"/>'
+                         '<l x="3" y="4" title="ma maison"/>'
+                         '<l x="5" y="6" title="spot colle"/></g>'
+                         '<g continent="fyros"><l x="7" y="8" title="pop Mukah"/>'
+                         '<l x="9" y="10" title="oath ici"/></g>'
+                         '</landmarks>')
+            with mock.patch.object(forage_releve, "DRAPEAUX_DU_JEU", chemin), \
+                    mock.patch.object(forage_releve, "_rois_et_nommes", return_value={"mukah"}):
+                titres = [d["title"] for d in forage_releve.drapeaux_a_partager()]
+        self.assertEqual(titres, ["oath XL", "spot colle", "pop Mukah"])
+
+
 if __name__ == "__main__":
     unittest.main()
