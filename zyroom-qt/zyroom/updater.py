@@ -532,6 +532,10 @@ def _relais_windows(relancer_apres: bool = True, journal: str = "") -> bool:
     # version reste, ce qui est le cas sur lequel on sait revenir.
     contenu = """@echo off
 setlocal
+rem Depuis le dossier temporaire : cmd herite sinon du dossier de travail de
+rem l'application, celui qu'il faut renommer, et Windows le refuse tant qu'un
+rem programme y a son dossier courant.
+cd /d "%TEMP%"
 rem **Un journal, quand on le demande.** Ce script est le seul morceau de
 rem l'application qui tourne apres sa mort : quand il ne fait rien, il ne
 rem reste aucune trace, et l'on en est reduit a deviner. `ZY_JOURNAL` dit ou
@@ -592,8 +596,10 @@ del "%~f0"
         # Les trois poignees vers le neant, et non celles que nous laissons
         # derriere nous : nous allons mourir, et un tube branche sur les
         # poignees d'un mort ne vaut pas mieux que pas de poignees du tout.
+        # Dossier de travail : le temporaire, jamais celui de l'application
+        # (voir le cd /d du script).
         subprocess.Popen(["cmd", "/c", script], close_fds=True,
-                         env=environnement,
+                         env=environnement, cwd=tempfile.gettempdir(),
                          stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL,

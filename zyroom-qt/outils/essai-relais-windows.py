@@ -88,15 +88,17 @@ def _lu(dossier: str) -> str:
         return ""
 
 
-def joue_l_application(bac: str) -> int:
+def joue_l_application(bac: str, depuis: str) -> int:
     """Se fait passer pour l'application, lance le relais, et meurt.
 
     Le relais attend notre disparition avant de permuter : il faut donc un
     processus qui parte pour de bon, et non un appel dans celui qui mesure.
     """
     sys.frozen = True
-    sys.executable = os.path.join(bac, NOM + updater.SUFFIXE_NOUVEAU,
-                                  NOM + ".exe")
+    # depuis : "maison" (le cas courant, la mise a jour attend a cote) ou
+    # "attente" (on tourne depuis le .nouveau, jamais mis en place).
+    dossier = NOM if depuis == "maison" else NOM + updater.SUFFIXE_NOUVEAU
+    sys.executable = os.path.join(bac, dossier, NOM + ".exe")
     parti = updater._relais_windows(
         relancer_apres=False, journal=os.path.join(bac, "journal.txt"))
     print(f"    (relais parti : {parti}; raison : "
@@ -104,9 +106,13 @@ def joue_l_application(bac: str) -> int:
     return 0 if parti else 1
 
 
-def essai_de_permutation() -> bool:
-    """Le décor du joueur : une version qui attend à côté, jamais mise en place."""
-    print("Permutation des dossiers")
+def essai_de_permutation(depuis: str) -> bool:
+    """Le décor du joueur : une version qui attend à côté, jamais mise en place.
+
+    L'application tourne avec son propre dossier pour dossier de travail, comme
+    après un double-clic : c'est ce que le relais héritait, et ce qui tenait
+    ouvert le dossier à renommer chez les joueurs."""
+    print(f"Permutation des dossiers (application lancee depuis {depuis})")
     bac = tempfile.mkdtemp(prefix="essai-relais-")
     maison = os.path.join(bac, NOM)
     attente = maison + updater.SUFFIXE_NOUVEAU
@@ -114,7 +120,8 @@ def essai_de_permutation() -> bool:
     _poser(attente, "neuve")
 
     fils = subprocess.run(
-        [sys.executable, os.path.abspath(__file__), "--app", bac],
+        [sys.executable, os.path.abspath(__file__), "--app", bac, depuis],
+        cwd=maison if depuis == "maison" else attente,
         capture_output=True, text=True, timeout=120)
     print(fils.stdout.rstrip() or "    (le fils n'a rien dit)")
     if fils.returncode != 0:
@@ -149,11 +156,12 @@ def main() -> int:
     if os.name != "nt":
         print("Cet essai ne veut rien dire hors de Windows.")
         return 0
-    if len(sys.argv) > 2 and sys.argv[1] == "--app":
-        return joue_l_application(sys.argv[2])
+    if len(sys.argv) > 3 and sys.argv[1] == "--app":
+        return joue_l_application(sys.argv[2], sys.argv[3])
 
     tout = essai_des_drapeaux()
-    tout &= essai_de_permutation()
+    tout &= essai_de_permutation("maison")
+    tout &= essai_de_permutation("attente")
     print("\n" + ("Le relais fonctionne." if tout
                   else "Le relais ne fonctionne PAS."))
     return 0 if tout else 1
