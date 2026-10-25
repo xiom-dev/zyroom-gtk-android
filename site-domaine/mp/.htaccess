@@ -1,13 +1,20 @@
+# La page ne s'ouvre que par entree.php, qui verifie le laissez-passer de
+# l'entree de xiom.be (index/porte.php) ; index.html ne se lit pas en direct.
+DirectoryIndex entree.php
+<Files "index.html">
+    Require all denied
+</Files>
 # Les recettes et leurs sauvegardes ne se lisent que par mp.php, jamais en
 # direct : le fichier porte le nom de qui a modifie quoi, et les sauvegardes
 # s'enumereraient une a une. Meme regle que le releve du forage.
 <FilesMatch "\.json$">
     Require all denied
 </FilesMatch>
-# Sauf la table des noms des MP : la page la lit telle quelle.
-<Files "noms.json">
+# Sauf la table des noms des MP et la liste des boss : la page les lit
+# telles quelles.
+<FilesMatch "^(noms|mobs)\.json$">
     Require all granted
-</Files>
+</FilesMatch>
 # Le modele du PHP n'a rien a faire en ligne ; s'il y etait depose par
 # megarde, il ne doit ni s'executer ni se lire.
 <Files "mp.modele.php">
@@ -22,7 +29,8 @@
 <FilesMatch "\.html$">
     Header set Cache-Control "no-cache, must-revalidate"
 </FilesMatch>
-# Meme chose pour la table des noms, qui grossit quand on ajoute des onglets.
-<Files "noms.json">
+# Meme chose pour la table des noms, qui grossit quand on ajoute des onglets,
+# et pour la liste des boss, refaite par outils/page-mobs.py.
+<FilesMatch "^(noms|mobs)\.json$">
     Header set Cache-Control "no-cache, must-revalidate"
-</Files>
+</FilesMatch>

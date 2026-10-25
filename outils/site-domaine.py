@@ -10,13 +10,11 @@ retouchée. La racine de xiom.be n'affiche plus que l'image « Xiom » ;
 son `index.html`, son image et ses icônes (le X) sont écrits à la main et
 suivis par git — cet outil n'y écrit que le `.htaccess`.
 
-**Le sous-site est fermé par un mot de passe**, depuis le 29/09/2026. La page
-y est écrite sous le nom `page.html`, que le `.htaccess` du dossier refuse de
-servir ; seul `index.php` la rend, et seulement à qui a donné le mot de passe.
-Ce PHP vient de `outils/lune-porte.modele.php`, versionné sans secret :
-l'empreinte et le sel sont tirés de `~/.config/zyroom/lune.motdepasse` et
-`lune.sel`. Changer le mot de passe : réécrire le premier, relancer, redéposer
-`index.php`.
+**Le sous-site est derrière l'entrée de xiom.be.** La page y est écrite sous
+le nom `page.html`, que le `.htaccess` du dossier refuse de servir ; seul
+`index.php` la rend (copie de `outils/lune-porte.modele.php`), et seulement à
+qui porte le laissez-passer de l'entrée (`index/porte.php`) : on entre une
+fois par l'accueil, plus de mot de passe propre au sous-site.
 
 **Une seule page, deux adresses.** La page vit dans `pages/index.html`, d'où
 `livraison.sh` la publie sur GitHub Pages. La recopier à la main pour un
@@ -46,7 +44,6 @@ import re
 import shutil
 import sys
 
-import bcrypt
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = os.path.join(RACINE, "pages")
@@ -54,11 +51,13 @@ PAGES = os.path.join(RACINE, "pages")
 #: Le sous-dossier du site où vit la page des applis de la Lune.
 SOUS_SITE = "Lune-eternelle"
 
-#: La porte du sous-site, et ses deux secrets gardés hors du dépôt.
+#: Le lien de retour au sommaire, en bas à gauche de chaque page du site.
+RETOUR = """<!-- Retour au sommaire de xiom.be, le meme sur chaque page. -->
+<a class="xiom-retour" href="/index/" style="position:fixed;left:12px;bottom:12px;z-index:900;padding:6px 14px;border-radius:999px;background:rgba(16,23,26,.88);border:1px solid #4bbf72;color:#e2e8e6;font:600 13px/1.4 system-ui,sans-serif;text-decoration:none">← Sommaire</a>
+"""
+
+#: La porte du sous-site : elle renvoie à celle de tout xiom.be.
 PORTE = os.path.join(RACINE, "outils", "lune-porte.modele.php")
-SECRETS = os.path.expanduser("~/.config/zyroom")
-MOT_DE_PASSE = os.path.join(SECRETS, "lune.motdepasse")
-SEL = os.path.join(SECRETS, "lune.sel")
 
 #: L'adresse où les archives restent servies, tant qu'elles n'ont pas déménagé.
 BASE = "https://xiom-dev.github.io/zyroom-gtk-android/"
@@ -136,23 +135,9 @@ DirectoryIndex index.php
 
 
 def porte() -> str:
-    """Le PHP de la porte, avec l'empreinte du mot de passe et le sel."""
-    for chemin, aide in (
-            (MOT_DE_PASSE, "En poser un : echo 'ma-phrase' > " + MOT_DE_PASSE),
-            (SEL, "En tirer un : python3 -c \"import secrets; "
-                  "print(secrets.token_hex(24))\" > " + SEL)):
-        if not os.path.isfile(chemin):
-            raise SystemExit(f"Absent : {chemin}\n{aide}")
-    phrase = open(MOT_DE_PASSE, encoding="utf-8").read().strip()
-    sel = open(SEL, encoding="utf-8").read().strip()
-    # PHP attend le prefixe "$2y$" ; c'est le meme algorithme que "$2b$".
-    empreinte = "$2y$" + bcrypt.hashpw(phrase.encode(),
-                                       bcrypt.gensalt(12)).decode()[4:]
-    modele = open(PORTE, encoding="utf-8").read()
-    for trou in ("__EMPREINTE__", "__SEL__"):
-        if modele.count(trou) != 1:
-            raise SystemExit(f"{PORTE} : {trou} attendu une fois")
-    return modele.replace("__EMPREINTE__", empreinte).replace("__SEL__", sel)
+    """Le PHP de la porte : la page passe par celle de tout xiom.be
+    (index/porte.php), sans mot de passe propre."""
+    return open(PORTE, encoding="utf-8").read()
 
 
 def main() -> int:
@@ -164,6 +149,13 @@ def main() -> int:
         return 1
 
     page = absolu(open(source, encoding="utf-8").read())
+    # Le retour au sommaire de xiom.be, comme sur les autres pages du site
+    # (la version GitHub Pages, elle, n'en a pas besoin).
+    page = page.rstrip("\n") + "\n" + RETOUR
+    # Et la musique reprise la ou elle en etait sur les autres pages du site :
+    # musique.js se branche sur le lecteur de la page (mus-audio).
+    page += ('<!-- La musique reprise la ou elle en etait sur les autres pages (../musique.js). -->\n'
+             '<script src="../musique.js"></script>\n')
     # Le manifeste se lit là où il est publié : la page n'en emporte pas de
     # copie, sinon elle annoncerait des numéros figés au jour de sa création.
     page = page.replace('fetch("version.json")', f'fetch("{BASE}version.json")')

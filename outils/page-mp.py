@@ -16,7 +16,9 @@ Trois sorties, toutes à déposer sur xiom.be avec `index.html` et `.htaccess` :
 
 Deux sortes de mots de passe, dans `~/.config/zyroom/` :
 
-- `mp.lecture` : celui de la guilde, sans nom. Il ouvre la lecture seule.
+- la lecture seule s'ouvre avec les mots de passe de tout xiom.be
+  (`outils/acces.py` : six codes personnels, mot de passe commun) et un nom
+  de la guilde.
 - `mp.motsdepasse` : un par personne qui modifie, une ligne `Nom: phrase`.
   Ajouter quelqu'un : une ligne de plus, relancer, redéposer `mp.php`.
 
@@ -39,7 +41,6 @@ DOSSIER = os.path.join(RACINE, "site-domaine", "mp")
 MODELE = os.path.join(DOSSIER, "mp.modele.php")
 SECRETS = os.path.expanduser("~/.config/zyroom")
 MOTS_DE_PASSE = os.path.join(SECRETS, "mp.motsdepasse")
-LECTURE = os.path.join(SECRETS, "mp.lecture")
 SEL = os.path.join(SECRETS, "mp.sel")
 
 KIPEECRAFT = os.path.expanduser("~/jeu/ryzom/KipeeCraft")
@@ -252,6 +253,7 @@ RECETTES_REGLEES = {
 #: a ecouler, voire a supprimer), "bientot en rupture" sous trois crafts. La
 #: guilde est La Lune Eternelle.
 REGLAGES_DE_DEPART = {"objectif": 10, "qualite": 250, "stop": 50, "rupture": 3,
+                      "nexus_voulu": 30, "nexus_rupture": 10,
                       "guilde": 105906237}
 
 
@@ -297,17 +299,17 @@ def fabriquer_php() -> None:
             phrase.encode(), bcrypt.gensalt(12)).decode()[4:]
     with open(MODELE, encoding="utf-8") as fh:
         modele = fh.read()
-    lecture = lire_secret(LECTURE, "Le mot de passe de lecture de la guilde, seul sur sa ligne")
-    for trou in ("__UTILISATEURS__", "__LECTURE__", "__SEL__"):
+    for trou in ("__UTILISATEURS__", "__EMPREINTES__", "__VERIFIE__", "__SEL__"):
         if modele.count(trou) != 1:
             raise SystemExit(f"{MODELE} : {trou} attendu une fois")
     # Ni apostrophe ni antislash dans ce JSON (noms filtres, empreintes
     # bcrypt) : il tient tel quel entre les apostrophes du PHP.
     utilisateurs = json.dumps(empreintes, ensure_ascii=False)
-    empreinte_lecture = "$2y$" + bcrypt.hashpw(
-        lecture.encode(), bcrypt.gensalt(12)).decode()[4:]
+    # La lecture : les mots de passe de tout xiom.be (outils/acces.py).
+    import acces
     php = (modele.replace("__UTILISATEURS__", utilisateurs)
-           .replace("__LECTURE__", empreinte_lecture).replace("__SEL__", sel))
+           .replace("__EMPREINTES__", acces.php_empreintes())
+           .replace("__VERIFIE__", acces.PHP_VERIFIE).replace("__SEL__", sel))
     with open(os.path.join(DOSSIER, "mp.php"), "w", encoding="utf-8") as fh:
         fh.write(php)
     print("→ mp.php : lecture + écriture pour", ", ".join(empreintes))

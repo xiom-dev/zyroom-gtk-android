@@ -1474,6 +1474,8 @@
 </head>
 
 <body>
+<!-- Retour au sommaire de xiom.be, le meme sur chaque page. -->
+<a class="xiom-retour" href="/index/" style="position:fixed;left:12px;bottom:12px;z-index:900;padding:6px 14px;border-radius:999px;background:rgba(16,23,26,.88);border:1px solid #4bbf72;color:#e2e8e6;font:600 13px/1.4 system-ui,sans-serif;text-decoration:none">← Sommaire</a>
     <div id="voile" hidden>
         <form id="porte">
             <h2>Guerre d'OP</h2>
@@ -3859,6 +3861,10 @@
         peindreFiche();
         relire().then(ok => { if (ok) reprendreAncienTri(); });
     </script>
+<!-- La musique de l'accueil de xiom.be, reprise la ou elle en etait (../musique.js). -->
+<audio id="musique" src="https://xiom-dev.github.io/zyroom-gtk-android/sielu-cuovggas.mp3"
+       loop preload="auto"></audio>
+<script src="../musique.js"></script>
 </body>
 
 </html>

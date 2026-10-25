@@ -5,7 +5,8 @@
 // y met l'empreinte du mot de passe et le sel, et ecrit `releve.php` -- le
 // seul a deposer sur le serveur, et le seul que git ignore.
 //
-// GET  : rend l'etat entier, a qui a le jeton.
+// GET  : rend l'etat entier, a qui est entre par xiom.be (index/porte.php)
+//        ou a qui a le jeton.
 // POST : entrer (mot de passe -> jeton), ranger un nom, ajouter des /who,
 //        restaurer une sauvegarde, oublier le tri.
 //
@@ -13,8 +14,12 @@
 // navigateur de chacun : seuls montent les /who -- heure, region, noms. Les
 // tells et le canal de guilde ne quittent jamais le PC de celui qui depose.
 declare(strict_types=1);
+require __DIR__ . '/../index/porte.php';
 
-const EMPREINTE = '__EMPREINTE__';
+// Les empreintes de ce qui ouvre la page : les six codes personnels et le mot
+// de passe commun de xiom.be (outils/acces.py).
+const EMPREINTES = __EMPREINTES__;
+__VERIFIE__
 const SEL = '__SEL__';
 const COOKIE = 'op';
 // Trente jours, comme le releve du forage : assez pour ne pas le retaper a
@@ -82,6 +87,10 @@ function jeton_valide(string $recu): bool
 
 function connecte(): bool
 {
+    // Entre par xiom.be (le laissez-passer de index/porte.php) : c'est ouvert.
+    if (porte_ouverte()) {
+        return true;
+    }
     foreach ([$_SERVER['HTTP_X_OP'] ?? '', $_COOKIE[COOKIE] ?? ''] as $candidat) {
         if ($candidat !== '' && jeton_valide((string) $candidat)) {
             return true;
@@ -470,7 +479,7 @@ if ($action === 'entrer') {
     // Une seconde de retard : les essais successifs deviennent interminables,
     // et un Kami qui se trompe ne le remarque pas.
     usleep(1000000);
-    if (!password_verify((string) ($demande['mdp'] ?? ''), EMPREINTE)) {
+    if (!mdp_ok((string) ($demande['mdp'] ?? ''))) {
         repond(403, ['erreur' => 'mot de passe']);
     }
     $expire = time() + DUREE;

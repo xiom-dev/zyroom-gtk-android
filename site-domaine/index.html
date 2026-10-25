@@ -50,39 +50,163 @@
   @media (orientation: portrait) {
     img { object-fit: contain; }
   }
+
+  /* Le bouton vers le sommaire (xiom.be/index/, mot de passe) : discret,
+     en bas au centre, au-dessus des images. */
+  #entrer { position: fixed; left: 50%; bottom: 28px; bottom: calc(28px + env(safe-area-inset-bottom));
+            transform: translateX(-50%); z-index: 1; padding: 10px 28px; border-radius: 999px;
+            font: 600 15px system-ui, sans-serif; letter-spacing: .04em; color: #e2e8e6;
+            text-decoration: none; background: rgba(16, 23, 26, .55); border: 1px solid #8fbfae;
+            backdrop-filter: blur(4px); }
+  #entrer:hover, #entrer:focus-visible { background: rgba(63, 122, 104, .8); }
+
+  /* La porte, par-dessus l'image : la page ne change pas, la musique continue
+     pendant la saisie. Sans JavaScript, le bouton mene a index/ comme avant. */
+  #porte { border: 1px solid #3f7a68; border-radius: 12px; padding: 24px; width: min(360px, calc(100vw - 32px));
+           background: #172226; color: #e2e8e6; font: 15px/1.5 system-ui, sans-serif; }
+  #porte, #porte * { box-sizing: border-box; }
+  #porte::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(3px); }
+  #porte h1 { font-size: 1.3rem; margin: 0 0 6px; color: #e8c15a; }
+  #porte p { margin: 0 0 16px; color: #9aa8a5; }
+  #porte fieldset { border: 0; padding: 0; margin: 0 0 16px; }
+  #porte legend { padding: 0; margin-bottom: 8px; }
+  #porte label { display: flex; gap: 8px; align-items: center; padding: 4px 0; cursor: pointer; }
+  #porte input[type=radio] { accent-color: #3f7a68; margin: 0; }
+  #porte input.mdp, #porte button { width: 100%; font: inherit; border-radius: 8px; padding: 10px 12px; }
+  #porte input.mdp { background: #10171a; color: #e2e8e6; border: 1px solid #24343a; margin-bottom: 16px; }
+  #porte input.mdp:focus { outline: 2px solid #3f7a68; outline-offset: 1px; }
+  #porte button { background: #3f7a68; color: #e2e8e6; border: 0; cursor: pointer; font-weight: 600; }
+  #porte button:disabled { opacity: .5; cursor: wait; }
+  #porte .non { color: #e07a6a; }
+  #porte .fermer { position: absolute; top: 8px; right: 10px; width: auto; padding: 2px 8px;
+                   background: none; color: #9aa8a5; font-size: 1.3rem; font-weight: normal; }
+  #porte .pied { margin: 14px 0 0; font-size: .82rem; text-align: center; }
 </style>
 </head>
 <body>
 <img id="eau" src="xiom.webp" alt="Xiom" width="1672" height="941">
 <img id="feu" src="xiom-feu3.webp" alt="" width="1360" height="768">
 <img id="glace" src="xiom-glace.webp" alt="" width="1672" height="940">
+<a id="entrer" href="index/">Entrer</a>
+<dialog id="porte">
+  <form id="porte-form">
+    <button type="button" class="fermer" aria-label="Fermer">×</button>
+    <h1>Sommaire</h1>
+    <p>Accès réservé. Le mot de passe et la réponse sont demandés ensemble.</p>
+    <p class="non" id="porte-message" role="alert" hidden></p>
+    <input class="mdp" type="password" name="mdp" autocomplete="current-password" placeholder="Mot de passe"
+           maxlength="200" required>
+    <fieldset id="porte-question"><legend></legend></fieldset>
+    <button type="submit">Entrer</button>
+    <p class="pied">Connexion chiffrée · 5 essais ratés ferment la porte</p>
+  </form>
+</dialog>
 <!-- Le morceau de la page des applis de la Lune, en boucle, sans lecteur
      visible : la page reste l'image seule. -->
 <audio id="musique" src="https://xiom-dev.github.io/zyroom-gtk-android/sielu-cuovggas.mp3"
        loop preload="auto"></audio>
 <script>
-  // Un navigateur refuse qu'une page joue du son avant le moindre geste du
-  // visiteur : play() rend alors une promesse rejetee. Dans ce cas, le
-  // premier clic, touche, molette ou toucher lance le morceau -- une fois ;
-  // les ecouteurs se retirent ensuite.
+  // La porte du sommaire. La question vient du serveur (index/, en JSON) :
+  // elle n'est ecrite qu'a un seul endroit, garde.php. La verification aussi
+  // se fait la-bas ; ici, on ne fait que montrer et envoyer.
   (function () {
-    var audio = document.getElementById("musique");
-    var GESTES = ["pointerdown", "keydown", "wheel", "touchstart"];
-    function auPremierGeste() {
-      GESTES.forEach(function (nom) {
-        document.removeEventListener(nom, auPremierGeste);
-      });
-      audio.play().catch(function () {});
+    var lien = document.getElementById("entrer");
+    var porte = document.getElementById("porte");
+    var form = document.getElementById("porte-form");
+    var message = document.getElementById("porte-message");
+    var question = document.getElementById("porte-question");
+    var bouton = form.querySelector("button[type=submit]");
+    if (!porte.showModal || !window.fetch) return;   // le lien suffit
+
+    // Renvoye ici par une page protegee (?retour=/forage/...) : une fois
+    // entre, on y retourne. Seulement une adresse de ce site.
+    var retour = new URLSearchParams(location.search).get("retour") || "";
+    // "/\\..." vaut "//..." pour un navigateur : ni l'un ni l'autre.
+    if (!/^\/(?![\/\\])/.test(retour) || /[\\\s]/.test(retour)) retour = "";
+    var apres = retour || "index/";
+
+    // Garde-fou : si la page ou l'on renvoie nous renvoie aussitot ici (son
+    // laissez-passer n'est pas reconnu), on ne tourne pas en rond -- on le
+    // dit et on redemande d'entrer.
+    function boucle(cible) {
+      try {
+        var d = JSON.parse(sessionStorage.getItem("xiom-renvoi") || "null");
+        if (d && d.cible === cible && Date.now() - d.quand < 20000) return true;
+        sessionStorage.setItem("xiom-renvoi", JSON.stringify({ cible: cible, quand: Date.now() }));
+      } catch (e) { /* sans stockage, pas de garde-fou */ }
+      return false;
     }
-    var depart = audio.play();
-    if (depart) {
-      depart.catch(function () {
-        GESTES.forEach(function (nom) {
-          document.addEventListener(nom, auPremierGeste, { passive: true });
+
+    function dire(texte) {
+      message.textContent = texte;
+      message.hidden = !texte;
+    }
+
+    function fermee(attente) {
+      bouton.disabled = attente > 0;
+      if (attente > 0) {
+        dire("Trop d\u2019essais : la porte est ferm\u00e9e encore "
+             + Math.max(1, Math.ceil(attente / 60)) + " min.");
+      }
+    }
+
+    lien.addEventListener("click", function (e) {
+      e.preventDefault();
+      fetch("index/", { headers: { Accept: "application/json" }, credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.entre && !(retour && boucle(retour))) { location.href = apres; return; }
+          if (d.entre) {
+            dire("Cette page ne reconnaît pas ton entrée : entre à nouveau.");
+          }
+          question.querySelector("legend").textContent = d.question;
+          question.querySelectorAll("label").forEach(function (l) { l.remove(); });
+          d.choix.forEach(function (c, i) {
+            var label = document.createElement("label");
+            var radio = document.createElement("input");
+            radio.type = "radio"; radio.name = "choix"; radio.value = c; radio.required = true;
+            label.append(radio, " " + (i + 1) + "/ le " + c);
+            question.append(label);
+          });
+          if (!d.entre) dire("");
+          fermee(d.attente);
+          porte.showModal();
+          form.mdp.focus();
+        })
+        .catch(function () { location.href = "index/"; });
+    });
+
+    form.querySelector(".fermer").addEventListener("click", function () { porte.close(); });
+
+    // Arrive par une page protegee : la porte s'ouvre d'elle-meme.
+    if (retour) lien.click();
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      bouton.disabled = true;
+      dire("");
+      fetch("index/", {
+        method: "POST", credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        body: new URLSearchParams(new FormData(form))
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.ok) { location.href = apres; return; }
+          form.mdp.value = "";
+          bouton.disabled = false;
+          dire(d.message || "Mot de passe ou r\u00e9ponse incorrects.");
+          fermee(d.attente || 0);
+          form.mdp.focus();
+        })
+        .catch(function () {
+          bouton.disabled = false;
+          dire("Le serveur ne r\u00e9pond pas. R\u00e9essaie.");
         });
-      });
-    }
+    });
   })();
 </script>
+<script src="musique.js"></script>
+<script src="oeil.js"></script>
 </body>
 </html>

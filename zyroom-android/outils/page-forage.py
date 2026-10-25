@@ -56,17 +56,21 @@ CIBLE = os.path.join(_DEPOT, "site-domaine", "forage", "index.html")
 #: recopiee dans `releve.php`, que le serveur execute et ne montre jamais.
 CLE_FICHIER = os.path.expanduser("~/.config/zyroom/forage.cle")
 
-#: Le mot de passe de lecture, et le sel du jeton de session.
+#: Le sel du jeton de session.
 #:
 #: **Pourquoi un mot de passe.** Le relevé dit où et quand sortent les
 #: suprêmes des Primes : c'est le travail de plusieurs mois de foreuses, et
 #: les guildes concurrentes forent les mêmes spots. La grille vide reste
-#: publique — elle n'apprend rien — mais les croix passent derrière un mot
-#: de passe partagé.
+#: publique — elle n'apprend rien — mais les croix passent derrière les mots
+#: de passe de xiom.be (outils/acces.py, voir `empreintes_mot_de_passe`).
 #:
-#: Les deux fichiers restent hors du dépôt, comme la clef d'écriture.
-MOT_DE_PASSE_FICHIER = os.path.expanduser("~/.config/zyroom/forage.motdepasse")
+#: `forage.motdepasse` n'est plus lu ici : ZyRoom-GTK (dev) y prend le mot de
+#: passe qu'il présente au site pour relire le relevé.
 SEL_FICHIER = os.path.expanduser("~/.config/zyroom/forage.sel")
+
+#: Ceux qui cochent le relevé, avec leur code personnel (outils/acces.py).
+#: Les autres le lisent, une fois entrés par xiom.be.
+ECRIVAINS = ("Xiom", "Yamaa", "Yzatis")
 
 ONGLET = "Original vierge"
 
@@ -118,23 +122,17 @@ def clef() -> str:
         return fh.read().strip()
 
 
-def empreinte_mot_de_passe() -> str:
-    """L'empreinte bcrypt du mot de passe de lecture.
+def empreintes_mot_de_passe() -> str:
+    """Les empreintes bcrypt des codes personnels des écrivains du relevé :
+    Xiom, Yamaa et Yzatis (outils/acces.py). La lecture, elle, passe par
+    l'entrée de xiom.be (index/porte.php).
 
-    Le mot de passe en clair ne quitte jamais la machine : c'est son empreinte
-    qui part sur le serveur, et `password_verify` fait le reste. Douze tours,
-    de quoi rendre une attaque hors ligne coûteuse si le fichier PHP fuyait.
+    Les codes en clair ne quittent jamais la machine : ce sont leurs
+    empreintes qui partent sur le serveur, et `password_verify` fait le reste.
     """
-    if not os.path.isfile(MOT_DE_PASSE_FICHIER):
-        raise SystemExit(
-            f"Mot de passe absent : {MOT_DE_PASSE_FICHIER}\n"
-            "En poser un : echo 'ma-phrase' > " + MOT_DE_PASSE_FICHIER)
-    import bcrypt
-    with open(MOT_DE_PASSE_FICHIER, encoding="utf-8") as fh:
-        phrase = fh.read().strip()
-    # PHP attend le prefixe « $2y$ » ; c'est le meme algorithme que « $2b$ ».
-    return "$2y$" + bcrypt.hashpw(phrase.encode(),
-                                  bcrypt.gensalt(12)).decode()[4:]
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "outils"))
+    import acces
+    return acces.php_empreintes(noms=ECRIVAINS)
 
 
 def sel() -> str:
@@ -241,8 +239,11 @@ def grille(familles: list) -> str:
 PHP = """<?php
 // Le releve commun du forage des Primes, tenu dans un simple fichier JSON.
 //
-// GET  : rend l'etat entier. Lecture libre.
-// POST : une case a la fois, et seulement avec la bonne clef.
+// GET  : rend l'etat entier, a qui est entre sur xiom.be (le laissez-passer
+//        de index/porte.php) ou a un ecrivain connecte.
+// POST : une case a la fois, avec la clef du lien de saisie (?k=...) ou le
+//        jeton d'un ecrivain -- Xiom, Yamaa et Yzatis, entres avec leur code
+//        personnel (action "entrer").
 //
 // Trois valeurs : « x » vu sur place, « - » vu absent, « ? » donne par une
 // autre source et pas encore confirme en jeu.
@@ -252,11 +253,13 @@ PHP = """<?php
 // cloche, et il se sauvegarde en le recopiant. Une base pour cela couterait
 // plus d'ennuis qu'elle n'en eviterait.
 declare(strict_types=1);
+require __DIR__ . '/../index/porte.php';
 
 const CLE = '__CLE__';
-// L'empreinte du mot de passe de lecture, et le secret qui signe le jeton.
-// Le mot de passe en clair n'est jamais monte ici.
-const EMPREINTE = '__EMPREINTE__';
+// Les empreintes des codes personnels des ecrivains (Xiom, Yamaa, Yzatis,
+// outils/acces.py), et le secret qui signe leur jeton. Aucun mot de passe en
+// clair n'est monte ici.
+const EMPREINTES = __EMPREINTES__;
 const SEL = '__SEL__';
 const COOKIE = 'forage';
 // Trente jours : assez pour ne pas le retaper a chaque session, assez court
@@ -326,9 +329,12 @@ header('Cache-Control: no-store');
 // d'expiration et une signature HMAC, que le serveur revalide. Rien a ecrire,
 // rien a nettoyer, et deux hebergements se comportent pareil.
 
+__VERIFIE__
+// "ecrire|" : un jeton d'ecrivain. Les jetons de lecture d'avant (sans ce
+// prefixe) ne valent plus rien -- ils ne donnaient pas le droit d'ecrire.
 function jeton(int $expire): string
 {
-    return $expire . '.' . hash_hmac('sha256', (string) $expire, SEL);
+    return $expire . '.' . hash_hmac('sha256', 'ecrire|' . $expire, SEL);
 }
 
 function jeton_valide(string $recu): bool
@@ -397,11 +403,10 @@ function repond(int $code, array $corps): never
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    // **La clef n'ouvre plus la porte, elle ne donne que le droit d'ecrire.**
-    // Le but de cette page est d'encoder le tableau, pas de l'admirer : les
-    // deux adresses -- avec clef ou sans -- demandent donc le mot de passe.
-    if (!connecte()) {
-        repond(401, ['erreur' => 'mot de passe']);
+    // La lecture : qui est entre par xiom.be, ou un ecrivain connecte (c'est
+    // ainsi que ZyRoom-GTK relit le releve).
+    if (!connecte() && !porte_ouverte()) {
+        repond(401, ['erreur' => 'entree']);
     }
     repond(200, etat());
 }
@@ -420,7 +425,7 @@ if (($demande['action'] ?? '') === 'entrer') {
     // Une seconde de retard : une attaque par essais successifs devient
     // interminable, et une foreuse qui se trompe ne le remarque pas.
     usleep(1000000);
-    if (!password_verify($mdp, EMPREINTE)) {
+    if (!mdp_ok($mdp)) {
         repond(403, ['erreur' => 'mot de passe']);
     }
     $expire = time() + DUREE;
@@ -435,9 +440,10 @@ if (($demande['action'] ?? '') === 'entrer') {
     // navigateurs qui ne conservent pas les cookies.
     repond(200, ['ok' => true, 'jeton' => jeton($expire)]);
 }
-// hash_equals plutot que == : la comparaison ne doit pas fuir la clef par le
-// temps qu'elle met a echouer.
-if (!hash_equals(CLE, (string) ($demande['cle'] ?? ''))) {
+// Ecrire : la clef du lien de saisie, ou le jeton d'un ecrivain. hash_equals
+// plutot que == : la comparaison ne doit pas fuir la clef par le temps
+// qu'elle met a echouer.
+if (!hash_equals(CLE, (string) ($demande['cle'] ?? '')) && !connecte()) {
     repond(403, ['erreur' => 'clef']);
 }
 
@@ -558,7 +564,24 @@ fclose($fh);
 repond(200, ['ok' => true, 'case' => $case, 'valeur' => $valeur]);
 """
 
-HTACCESS = """# Le releve et ses sauvegardes ne se lisent que par releve.php, jamais en
+# La page derriere la porte de xiom.be : sans le laissez-passer de l'entree,
+# retour a l'accueil (index/porte.php), qui ramene ici une fois entre.
+ENTREE = """<?php
+// La page du releve, derriere la porte de xiom.be (index/porte.php) : ecrit
+// par zyroom-android/outils/page-forage.py.
+declare(strict_types=1);
+require __DIR__ . '/../index/porte.php';
+porte_page(__DIR__ . '/index.html');
+"""
+
+HTACCESS = """# La page ne s'ouvre que par entree.php, qui verifie le laissez-passer de
+# l'entree de xiom.be ; index.html ne se lit pas en direct.
+DirectoryIndex entree.php
+<Files "index.html">
+    Require all denied
+</Files>
+
+# Le releve et ses sauvegardes ne se lisent que par releve.php, jamais en
 # direct : le fichier porte le nom des foreuses, et les sauvegardes
 # s'enumereraient une a une.
 <FilesMatch "\\.json$">
@@ -784,20 +807,17 @@ GABARIT = """<!DOCTYPE html>
 </style>
 </head>
 <body>
+<!-- Retour au sommaire de xiom.be, le meme sur chaque page. -->
+<a class="xiom-retour" href="/index/" style="position:fixed;left:12px;bottom:12px;z-index:900;padding:6px 14px;border-radius:999px;background:rgba(16,23,26,.88);border:1px solid #4bbf72;color:#e2e8e6;font:600 13px/1.4 system-ui,sans-serif;text-decoration:none">← Sommaire</a>
 <!-- Le voile : tant que le relevé n'est pas ouvert, la grille reste vide
      derrière. Elle ne contient aucune croix, donc rien ne fuit. -->
 <div id="voile" hidden>
-  <form id="porte">
+  <div id="porte">
     <h2>Relevé de la guilde</h2>
-    <p>Le relevé des Primes n'est pas public. Demande le mot de passe à un
-       officier de <b>La Lune Éternelle</b>.</p>
-    <p id="rappel-clef" hidden>Ta clef d'écriture est reconnue : une fois
-       entrée, tu pourras cocher.</p>
-    <input type="password" id="mdp" autocomplete="current-password"
-           placeholder="mot de passe" required>
-    <button type="submit">Entrer</button>
-    <span id="refus"></span>
-  </form>
+    <p>Le relevé des Primes n'est pas public : on y entre par l'accueil de
+       xiom.be.</p>
+    <a id="vers-entree" href="/">Entrer par xiom.be</a>
+  </div>
 </div>
 
 <!-- L'en-tete coiffe les deux colonnes et defile avec la page. Le panneau,
@@ -831,8 +851,14 @@ GABARIT = """<!DOCTYPE html>
     <input id="nom" maxlength="24" size="12" placeholder="Xiom" spellcheck="false">
   </label>
   <span class="compte" id="compte">chargement…</span>
-  <p id="lecture" hidden>Lecture seule&nbsp;: demande le lien de saisie dans
-     le canal de guilde pour pouvoir cocher.</p>
+  <form id="lecture" hidden>
+    <p>Lecture seule. Pour cocher&nbsp;: ton code personnel (Xiom, Yamaa,
+       Yzatis).</p>
+    <input type="password" id="code" autocomplete="current-password"
+           placeholder="code personnel" maxlength="100" required>
+    <button type="submit">Cocher</button>
+    <span id="refus"></span>
+  </form>
 </aside>
 
 <div class="defilant">
@@ -895,6 +921,13 @@ GABARIT = """<!DOCTYPE html>
     font-weight: 600;
   }
   #porte button:hover { background: #3f7a68; }
+  #vers-entree { display: block; text-align: center; padding: 10px 12px; border-radius: 8px;
+                 background: #3f7a68; color: #e2e8e6; text-decoration: none; font-weight: 600; }
+  #lecture input, #lecture button { font: inherit; width: 100%; margin-top: 6px; padding: 6px 10px;
+                                    border-radius: 6px; }
+  #lecture input { background: #10171a; color: #e2e8e6; border: 1px solid #24343a; }
+  #lecture button { background: #3f7a68; color: #e2e8e6; border: 0; cursor: pointer; }
+  #lecture #refus { display: block; color: #e07a6a; font-size: .85rem; margin-top: 4px; }
   #refus { color: #d97a6c; min-height: 1.2em; font-size: .9rem; }
 </style>
 <script>
@@ -915,10 +948,14 @@ GABARIT = """<!DOCTYPE html>
   const compte = document.getElementById("compte");
   const nom = document.getElementById("nom");
 
-  if (!CLE) {
-    document.getElementById("lecture").hidden = false;
-    document.getElementById("bloc-nom").hidden = true;
-    document.body.classList.add("lecture-seule");
+  // Ecrire : le lien de saisie (?k=...), ou le jeton d'un ecrivain entre
+  // avec son code personnel (Xiom, Yamaa, Yzatis).
+  function ecrivain() { return !!CLE || !!jeton(); }
+  function mode() {
+    const seul = !ecrivain();
+    document.getElementById("lecture").hidden = !seul;
+    document.getElementById("bloc-nom").hidden = seul;
+    document.body.classList.toggle("lecture-seule", seul);
   }
   try { nom.value = localStorage.getItem("forage-nom") || ""; } catch (e) {}
   nom.addEventListener("change", () => {
@@ -946,17 +983,18 @@ GABARIT = """<!DOCTYPE html>
     }
     const n = Object.keys(cases).length;
     compte.textContent = n + " case" + (n > 1 ? "s" : "") + " cochée"
-                         + (n > 1 ? "s" : "") + (CLE ? "" : " · lecture seule");
+                         + (n > 1 ? "s" : "") + (ecrivain() ? "" : " · lecture seule");
   }
 
-  // Le jeton de lecture, garde en second recours : certains navigateurs
-  // n'ecrivent pas les cookies (effacement a la fermeture, navigation privee),
-  // et la connexion reussissait sans que la lecture suivante passe.
+  // Le jeton d'ecrivain, garde en second recours : certains navigateurs
+  // n'ecrivent pas les cookies (effacement a la fermeture, navigation privee).
+  // "forage-ecrire" et non plus "forage" : les jetons de lecture d'avant ne
+  // donnent pas le droit d'ecrire, la page ne doit pas le croire.
   function jeton() {
-    try { return localStorage.getItem("forage") || ""; } catch (e) { return ""; }
+    try { return localStorage.getItem("forage-ecrire") || ""; } catch (e) { return ""; }
   }
   function garderJeton(v) {
-    try { localStorage.setItem("forage", v); } catch (e) { /* tant pis */ }
+    try { localStorage.setItem("forage-ecrire", v); } catch (e) { /* tant pis */ }
   }
   function entetes(base) {
     const h = Object.assign({}, base || {});
@@ -965,23 +1003,22 @@ GABARIT = """<!DOCTYPE html>
     return h;
   }
 
+  mode();
   const voile = document.getElementById("voile");
-  if (CLE) {
-    const rappel = document.getElementById("rappel-clef");
-    if (rappel) { rappel.hidden = false; }
-  }
-  const porte = document.getElementById("porte");
+  const lecture = document.getElementById("lecture");
   const refus = document.getElementById("refus");
+  // Sans laissez-passer, l'entree de xiom.be, qui ramene ici une fois entre.
+  document.getElementById("vers-entree").href =
+    "/?retour=" + encodeURIComponent(location.pathname + location.search);
 
   async function charger() {
     try {
-      // La clef ne sert plus a entrer : elle donne le droit d'ecrire, et
-      // le mot de passe ouvre la porte -- sur les deux adresses.
+      // La lecture : le laissez-passer de l'entree (cookie), ou le jeton
+      // d'un ecrivain.
       const r = await fetch("releve.php", { cache: "no-store",
                                             headers: entetes() });
       if (r.status === 401) {
         voile.hidden = false;
-        document.getElementById("mdp").focus();
         return;
       }
       const d = await r.json();
@@ -993,11 +1030,11 @@ GABARIT = """<!DOCTYPE html>
     }
   }
 
-  porte.addEventListener("submit", async (e) => {
+  lecture.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const champ = document.getElementById("mdp");
+    const champ = document.getElementById("code");
     refus.textContent = "";
-    const bouton = porte.querySelector("button");
+    const bouton = lecture.querySelector("button");
     bouton.disabled = true;
     bouton.textContent = "…";
     try {
@@ -1007,7 +1044,7 @@ GABARIT = """<!DOCTYPE html>
         body: JSON.stringify({ action: "entrer", mdp: champ.value })
       });
       if (!r.ok) {
-        refus.textContent = "Mot de passe refusé.";
+        refus.textContent = "Code refusé.";
         champ.select();
         return;
       }
@@ -1015,16 +1052,14 @@ GABARIT = """<!DOCTYPE html>
       if (d.jeton) {
         garderJeton(d.jeton);
       }
-      await charger();
-      if (!voile.hidden) {
-        refus.textContent =
-          "Mot de passe accepté, mais ce navigateur n'en garde pas la trace.";
-      }
+      champ.value = "";
+      mode();
+      peindre();
     } catch (err) {
       refus.textContent = "Serveur injoignable.";
     } finally {
       bouton.disabled = false;
-      bouton.textContent = "Entrer";
+      bouton.textContent = "Cocher";
     }
   });
 
@@ -1051,7 +1086,7 @@ GABARIT = """<!DOCTYPE html>
   }
 
   corps.addEventListener("click", async (e) => {
-    if (!CLE) return;
+    if (!ecrivain()) return;
     const td = e.target.closest(".case");
     if (!td) return;
     const k = cle(td);
@@ -1107,6 +1142,11 @@ GABARIT = """<!DOCTYPE html>
   peindre();
   charger();
 </script>
+<!-- La musique de l'accueil de xiom.be, reprise la ou elle en etait (../musique.js). -->
+<audio id="musique" src="https://xiom-dev.github.io/zyroom-gtk-android/sielu-cuovggas.mp3"
+       loop preload="auto"></audio>
+<script src="../musique.js"></script>
+<script src="../oeil.js"></script>
 </body>
 </html>
 """
@@ -1140,7 +1180,8 @@ def main() -> int:
             .replace("__SAISONS__", repr(list(SAISONS)).replace("'", '"')))
     php = (PHP
            .replace("__CLE__", clef())
-           .replace("__EMPREINTE__", empreinte_mot_de_passe())
+           .replace("__EMPREINTES__", empreintes_mot_de_passe())
+           .replace("__VERIFIE__", __import__("acces").PHP_VERIFIE)
            .replace("__SEL__", sel())
            .replace("__ZONES__", _liste_php(ZONES))
            .replace("__SAISONS__", _liste_php(SAISONS))
@@ -1165,7 +1206,7 @@ def main() -> int:
     os.makedirs(dossier, exist_ok=True)
     ecrits = []
     for nom, contenu in (("index.html", page), ("releve.php", php),
-                         (".htaccess", HTACCESS)):
+                         ("entree.php", ENTREE), (".htaccess", HTACCESS)):
         chemin = os.path.join(dossier, nom)
         with open(chemin, "w", encoding="utf-8") as fh:
             fh.write(contenu)

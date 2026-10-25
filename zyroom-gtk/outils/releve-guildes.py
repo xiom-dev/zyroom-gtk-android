@@ -77,6 +77,47 @@ def tenues(entite) -> dict[str, int]:
     return dict(sorted(compte.items()))
 
 
+def usure(entite) -> dict[str, list[int]]:
+    """La piece la plus usee de chaque pile, "fiche|qualite|bonus" -> [hp, max].
+
+    Un fichier a part de `tenues` : la page xiom.be/mp affiche la durabilite
+    d'une armure ou d'une parure a cote de sa qualite. On garde la piece la
+    plus entamee (le rapport hp / max le plus bas), c'est elle qui lachera
+    la premiere.
+    """
+    pire: dict[str, list[int]] = {}
+    for inventaire in entite.inventories:
+        for objet in inventaire.items:
+            if not ARMURE_OU_BIJOU.match(objet.sheet) or not objet.hp_max:
+                continue
+            bonus = "".join(l for l, attr in BONUS if getattr(objet, attr, 0))
+            cle = f"{objet.sheet}|{objet.quality}|{bonus}"
+            avant = pire.get(cle)
+            if avant is None or objet.hp * avant[1] < avant[0] * objet.hp_max:
+                pire[cle] = [objet.hp, objet.hp_max]
+    return dict(sorted(pire.items()))
+
+
+def entamees(entite) -> dict[str, list[list[int]]]:
+    """Chaque objet entame hors armures et bijoux, "fiche|qualite" -> [[hp, max, n]].
+
+    Pour l'onglet Armes de xiom.be/mp : un site de gestion des stocks, donc
+    toutes les pieces entamees, une par une, et non la seule plus usee. Une
+    pile identique (meme durabilite) ne fait qu'une entree, avec son nombre.
+    """
+    compte: dict[str, dict[tuple[int, int], int]] = {}
+    for inventaire in entite.inventories:
+        for objet in inventaire.items:
+            if (ARMURE_OU_BIJOU.match(objet.sheet) or not objet.hp_max
+                    or objet.hp >= objet.hp_max):
+                continue
+            pile = compte.setdefault(f"{objet.sheet}|{objet.quality}", {})
+            hp = (objet.hp, objet.hp_max)
+            pile[hp] = pile.get(hp, 0) + max(1, objet.stack)
+    return {cle: [[hp, mx, n] for (hp, mx), n in sorted(pile.items())]
+            for cle, pile in sorted(compte.items())}
+
+
 def relever(cle: str) -> tuple[str, int]:
     """Relève une guilde et verse ce qui a bougé dans son journal.
 
@@ -93,6 +134,14 @@ def relever(cle: str) -> tuple[str, int]:
     with open(chemin(f"guild-{entite.entity_id}-tenues.json"), "w",
               encoding="utf-8") as fh:
         json.dump(tenues(entite), fh, separators=(",", ":"))
+        fh.write("\n")
+    with open(chemin(f"guild-{entite.entity_id}-usure.json"), "w",
+              encoding="utf-8") as fh:
+        json.dump(usure(entite), fh, separators=(",", ":"))
+        fh.write("\n")
+    with open(chemin(f"guild-{entite.entity_id}-entamees.json"), "w",
+              encoding="utf-8") as fh:
+        json.dump(entamees(entite), fh, separators=(",", ":"))
         fh.write("\n")
 
     # Le premier releve n'a rien a comparer : on pose l'etat et on se tait.

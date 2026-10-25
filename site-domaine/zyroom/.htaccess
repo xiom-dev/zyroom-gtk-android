@@ -1,3 +1,9 @@
+# La page ne s'ouvre que par entree.php, qui verifie le laissez-passer de
+# l'entree de xiom.be (index/porte.php) ; index.html ne se lit pas en direct.
+DirectoryIndex entree.php
+<Files "index.html">
+    Require all denied
+</Files>
 # Le modele du PHP n'a rien a faire en ligne ; s'il y etait depose par
 # megarde, il ne doit ni s'executer ni se lire.
 <Files "zyroom.modele.php">

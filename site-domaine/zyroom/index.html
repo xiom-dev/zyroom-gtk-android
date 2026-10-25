@@ -70,6 +70,14 @@
   .nav > .menu > button { border-radius: 0 6px 6px 0; }
   .nav > button + button, .nav > .menu > button { border-left: 1px solid var(--bande); }
   .nav button[aria-pressed="true"] { background: var(--sarcelle); }
+  /* Gestion : un lien vers la page des MP du hall, dans le meme onglet
+     (KipeeCraft et les listes des Mobs veulent toute la place), habille
+     comme les autres onglets. La connexion est commune
+     (meme jeton dans le navigateur) : on y arrive deja connecte. */
+  .nav a.gestion { display: flex; gap: 6px; align-items: center; padding: 2.5px 10px;
+                   background: var(--variante); color: var(--texte); text-decoration: none;
+                   border: 1px solid transparent; border-left: 1px solid var(--bande); }
+  .nav a.gestion:hover { background: var(--sarcelle-sombre); }
   .nav img { width: 26px; height: 26px; }
   .menu { position: relative; }
   .pop { position: absolute; z-index: 20; top: calc(100% + 6px); background: var(--variante);
@@ -83,6 +91,10 @@
 
   /* --- la ligne de l'entite --- */
   .barre-etat { background: var(--bande); padding: 4px 8px; }
+  /* Le bouton "Sommaire" (en bas a gauche, comme sur les autres pages) se
+     loge en bas du bandeau, sous le portrait, l'etat et le logo : le
+     bandeau grandit d'autant, sans rien recouvrir. */
+  footer.barre-etat { padding-bottom: 46px; }
   .ligne1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .ligne1 .espace { flex: 1; }
   .reboot { color: var(--vert-fini); margin-right: 18px; }
@@ -275,6 +287,8 @@
 </style>
 </head>
 <body>
+<!-- Retour au sommaire de xiom.be, le meme sur chaque page. -->
+<a class="xiom-retour" href="/index/" style="position:fixed;left:12px;bottom:12px;z-index:900;padding:6px 14px;border-radius:999px;background:rgba(16,23,26,.88);border:1px solid #4bbf72;color:#e2e8e6;font:600 13px/1.4 system-ui,sans-serif;text-decoration:none">← Sommaire</a>
 <header class="titre">
   <div class="gauche">
     <button class="ico" id="b-ajout" title="Clés API : ajouter un personnage">
@@ -288,6 +302,7 @@
   <nav class="nav" aria-label="Pages">
     <button data-page="inventaire" aria-pressed="true"><img src="symboles/inventaire.png" alt="">Inventaire</button>
     <button data-page="journal" aria-pressed="false"><img src="symboles/journal.png" alt="">Journal</button>
+    <a class="gestion" href="/mp/" title="Gestion des MP du hall (xiom.be/mp)"><img src="/mp/favicon.png" alt="">Gestion</a>
     <span class="menu"><button id="b-bonus" data-page="bonus" aria-pressed="false"><img src="symboles/bonus.png" alt="">Bonus
       <svg class="chevron" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
       <div class="pop" id="pop-bonus" hidden>
@@ -341,9 +356,9 @@
 <dialog id="porte">
   <form method="dialog" id="porte-form">
     <strong>Connexion</strong>
-    <p>Réservé à La Lune Éternelle : ton pseudo et le mot de passe de la guilde. La même connexion vaut pour la page des MP.</p>
+    <p>Réservé à La Lune Éternelle : ton pseudo suffit. Le mot de passe, seulement pour les éditeurs. La même connexion vaut pour la page des MP.</p>
     <input id="porte-nom" autocomplete="username" placeholder="Pseudo" required>
-    <input id="porte-mdp" type="password" autocomplete="current-password" placeholder="Mot de passe" required>
+    <input id="porte-mdp" type="password" autocomplete="current-password" placeholder="Mot de passe (éditeurs seulement)">
     <div class="message" id="porte-message"></div>
     <div class="boutons"><button type="submit" class="principal">Entrer</button></div>
   </form>
@@ -420,5 +435,9 @@
 </dialog>
 
 <script src="zr.js"></script>
+<!-- La musique de l'accueil de xiom.be, reprise la ou elle en etait (../musique.js). -->
+<audio id="musique" src="https://xiom-dev.github.io/zyroom-gtk-android/sielu-cuovggas.mp3"
+       loop preload="auto"></audio>
+<script src="../musique.js"></script>
 </body>
 </html>

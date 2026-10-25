@@ -105,6 +105,10 @@
   /* L'import des recettes a droite, sous l'onglet KipeeCraft */
   #choisir-kc { margin-left: auto; }
   .compte { color: var(--faible); font-size: .85rem; font-weight: 400; }
+  /* le hall affiche, choisi dans le menu a cote du titre */
+  .titre-gh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #gh-titre { color: var(--sarcelle); }
+  #choix-gh { font: inherit; padding: 4px 8px; }
   [aria-pressed="true"] .compte { color: #08120f; }
 
   /* Le tableau deborde volontiers en largeur sur un telephone : il defile
@@ -146,6 +150,10 @@
                white-space: nowrap; }
   tbody tr:hover { background: #142024; }
   .faible { color: var(--faible); }
+  /* "Q130 x2" ne se coupe jamais : la ligne passe a la suivante entre deux
+     piles, pas entre la qualite et sa quantite. Le point separateur reste en
+     fin de ligne, avec la pile qui le precede. */
+  .pile { white-space: nowrap; }
   .inconnue { color: var(--alerte); font-style: italic; }
   /* La sorte a gauche (nom en vert, etoiles dessous), le nom de la MP et
      sa ligne de detail a droite. Largeur fixe : les noms restent alignes. */
@@ -164,6 +172,7 @@
   .etat.forer { background: var(--rupture); }
   .etat.ok { background: var(--oui); }
   .etat.stop { background: var(--stop); }
+  .etat.bas { background: var(--non); color: var(--texte); }
   /* Armures et bijoux : la piece la moins nombreuse en jaune, la plus
      nombreuse en bleu, ce qui manque pour egaler celle-ci en blanc, les
      ensembles complets en vert ; une goutte par bonus, comme dans ZyRoom. */
@@ -174,6 +183,9 @@
   /* Les titres alignes par le bas : les totaux tombent tous sur la meme
      ligne, meme sous un titre de deux lignes ("Crafts possibles"). */
   table.types thead th { vertical-align: bottom; }
+  /* Armures et bijoux : le "(x2)" sous le nom de la piece tombe sur la
+     meme ligne pour toutes les colonnes. */
+  table.ensembles thead th { vertical-align: bottom; }
   td.complets { color: var(--sarcelle); }
   .goutte { display: inline-block; width: 10px; height: 10px; border-radius: 50%;
             margin-left: 3px; vertical-align: middle; }
@@ -188,6 +200,19 @@
   .edition { display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
              margin: 10px 0 0; color: var(--faible); }
   .edition label { display: flex; gap: 6px; align-items: center; }
+
+  /* Onglet Mobs : un boss par ligne, ses MP en dessous de son etat */
+  .qualites { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
+  .deux h3 { font-size: .95rem; color: var(--clair); margin: 18px 0 6px; }
+  .deux h3:first-of-type { margin-top: 4px; }
+  .nom-mob { color: var(--oui); }
+  .copier-mobs { font-size: .8rem; padding: 2px 10px; margin-left: 10px; vertical-align: middle; }
+  .qmob { color: var(--or); font-size: .85rem; font-weight: 600; margin-left: 6px; }
+  /* Toutes les sections ont les memes colonnes : le boss sur 55 %, ses MP
+     sur le reste ; dans les MP, le nom puis la quantite, alignes en grille. */
+  table.mobs { table-layout: fixed; }
+  table.mobs td:first-child { width: 55%; }
+  .butin { display: grid; grid-template-columns: 8em auto; white-space: nowrap; }
 
   section.panneau { background: var(--surface); border: 1px solid var(--trait);
                     border-radius: 10px; padding: 12px 16px; margin: 0 0 14px; }
@@ -211,11 +236,23 @@
 </style>
 </head>
 <body>
+<!-- Retour au sommaire de xiom.be, le meme sur chaque page. -->
+<a class="xiom-retour" href="/index/" style="position:fixed;left:12px;bottom:12px;z-index:900;padding:6px 14px;border-radius:999px;background:rgba(16,23,26,.88);border:1px solid #4bbf72;color:#e2e8e6;font:600 13px/1.4 system-ui,sans-serif;text-decoration:none">← Sommaire</a>
 <header>
-  <h1>MP du hall de guilde</h1>
+  <!-- Le hall affiche : celui de La Lune, ou un GH personnel dont la cle
+       n'existe que dans ce navigateur -->
+  <div class="titre-gh">
+    <h1>MP du hall de guilde<span id="gh-titre"></span></h1>
+    <select id="choix-gh" aria-label="Hall de guilde affiché" hidden></select>
+    <button type="button" id="retirer-gh" hidden title="Oublier ce GH : sa clé est effacée de ce navigateur">Retirer ce GH</button>
+  </div>
   <div>
     <!-- Reglages : une roue dentee devant le pseudo, aux editeurs seulement -->
     <button type="button" data-onglet="reglages" title="Réglages : objectif, qualité et seuils communs ; import des recettes KipeeCraft" aria-label="Réglages" aria-pressed="false" hidden id="onglet-reglages"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 2h-3.84a.5.5 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.67 8.48a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.12.22.39.3.6.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.04.24.25.42.49.42h3.84c.24 0 .45-.18.49-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.48 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg></button>
+    <!-- Retour a ZyRoom-web : venue de son onglet Gestion, la page revient
+         en arriere (le navigateur peut la rendre sans tout recharger) ;
+         ouverte directement, elle y va -->
+    <button type="button" id="vers-zyroom" title="Revenir à ZyRoom-web">ZyRoom</button>
     <span id="connecte" class="faible"></span>
     <button id="entrer" type="button">Se connecter pour modifier</button>
     <button id="sortir" type="button" hidden>Se déconnecter</button>
@@ -233,6 +270,7 @@
         <button type="button" data-onglet="forer" title="MP qui manquent pour atteindre l'objectif de crafts de chaque recette" aria-pressed="true">À stocker <span class="compte" id="n-forer"></span></button>
         <button type="button" data-onglet="stop" title="MP dont le stock dépasse le maximum de crafts : le surplus peut sortir du hall" aria-pressed="false">Ne plus stocker <span class="compte" id="n-stop"></span></button>
         <button type="button" data-onglet="op" title="MP d'OP, cristaux de Maraudeur et larves de Kitin, comptées à part" aria-pressed="false">MP d'OP <span class="compte" id="n-op"></span></button>
+        <button type="button" data-onglet="nexus" title="MP suprêmes du Nexus, seulement ici : stock voulu de chacune et seuil de rupture dans les réglages ; le compteur dit combien sont à forer" aria-pressed="false">MP Nexus <span class="compte" id="n-nexus"></span></button>
         <button type="button" data-onglet="inutiles" title="MP du hall qui ne font partie d'aucune recette" aria-pressed="false">MP inutilisées <span class="compte" id="n-inutiles"></span></button>
         <button type="button" data-onglet="coffre" title="MP génériques molles et dures, pièces de fabrication des coffres" aria-pressed="false">MP de coffre <span class="compte" id="n-coffre"></span></button>
         <button type="button" data-onglet="toutes" title="Toutes les MP demandées par les recettes, avec leur stock" aria-pressed="false">Toutes les MP <span class="compte" id="n-toutes"></span></button>
@@ -256,6 +294,7 @@
         <button type="button" data-onglet="divers" title="Tout le reste du hall : fleurs, recharges, cristaux, plans…" aria-pressed="false">Autres <span class="compte" id="n-divers"></span></button>
       </div>
     </div>
+    <button type="button" data-onglet="mobs" title="Rois et nommés qui lâchent les MP des recettes : à looter, bientôt en rupture, à ne plus looter" aria-pressed="false">Mobs <span class="compte" id="n-mobs"></span></button>
     <button type="button" data-onglet="recettes" title="Les recettes suivies : état, crafts possibles et MP qui bloque" aria-pressed="false" hidden id="onglet-recettes">Recettes <span class="compte" id="n-recettes"></span></button>
     <button type="button" data-onglet="kc" title="KipeeCraft dans le navigateur, pour composer une recette" aria-pressed="false" id="onglet-kc">KipeeCraft</button>
   </div>
@@ -279,11 +318,26 @@
   <form method="dialog" id="porte-form">
     <strong>Connexion</strong>
     <input id="porte-nom" autocomplete="username" placeholder="Nom du joueur" required>
-    <input id="porte-mdp" type="password" autocomplete="current-password" placeholder="Mot de passe" required autofocus>
+    <input id="porte-mdp" type="password" autocomplete="current-password" placeholder="Mot de passe (éditeurs seulement)">
     <div id="message"></div>
     <div class="boutons">
       <button type="button" id="porte-annuler">Annuler</button>
       <button type="submit" class="principal">Entrer</button>
+    </div>
+  </form>
+</dialog>
+<dialog id="ajout-gh">
+  <form method="dialog" id="ajout-form">
+    <strong>Ajouter un GH personnel</strong>
+    <p class="faible">Colle la clé API de la guilde (elle commence par « g »), créée sur
+      <a href="https://app.ryzom.com/app_ryzomapi" target="_blank" rel="noopener">app.ryzom.com</a>.
+      Elle reste dans ce navigateur : la page ne l'envoie qu'à l'API de Ryzom, jamais à xiom.be.
+      Personne d'autre ne voit ce GH.</p>
+    <input id="ajout-cle" placeholder="Clé API de guilde" autocomplete="off" spellcheck="false" required>
+    <div id="ajout-message"></div>
+    <div class="boutons">
+      <button type="button" id="ajout-annuler">Annuler</button>
+      <button type="submit" class="principal">Ajouter</button>
     </div>
   </form>
 </dialog>
@@ -303,16 +357,50 @@ const ETATS = { rupture: "Bientôt en rupture", forer: "À forer", ok: "Suffisan
                 stop: "Ne plus forer" };
 
 let noms = { mp: {}, plans: {} };
+let mobs = [];            // rois et nommes, de mobs.json (outils/page-mobs.py)
+let qualiteMob = 0;       // onglet Mobs : 0 = toutes les qualites
 let etat = null;          // reponse de mp.php
 let stock = new Map();    // fiche -> [[qualite, quantite], ...]
+// Les MP des recettes de La Lune comparees au stock du GH affiche, pour
+// l'onglet Mobs : sur Rod Of Heaven, le stock et le manque de Rod seul.
+let mpsMobs = [];
 let releve = null;        // date du releve du hall
 let equipement = new Map(); // "fiche|qualite|bonus" -> nombre (armures et bijoux)
+let usure = new Map();      // "fiche|qualite|bonus" -> [hp, max] de la piece la plus usee
+let entamees = new Map();   // "fiche|qualite" -> [[hp, max, nombre]], chaque arme entamee
 let calcul = null;
+// L'onglet ouvert survit a un rafraichissement de la page (F5) : il est
+// garde pour cet onglet du navigateur (sessionStorage), pas au-dela.
 let onglet = "forer";
+try {
+  const garde = sessionStorage.getItem("mp-onglet");
+  if (garde && document.querySelector('[data-onglet="' + garde + '"]')) onglet = garde;
+} catch (e) {}
 let eco = "";
 let ouvertes = new Set();
 let jeton = "";
 try { jeton = localStorage.getItem("mp-jeton") || ""; } catch (e) {}
+
+// **Les GH personnels ne quittent pas le navigateur.** Leur cle est gardee
+// ici (localStorage) et ne part que vers l'API de Ryzom, qui accepte les
+// appels des pages web : ni xiom.be ni personne d'autre ne voit ce hall.
+// Sans les recettes de la guilde (elles restent sur le serveur), un GH
+// personnel n'a que les onglets du contenu du hall.
+const LUNE = "La Lune Éternelle";
+// Les GH que ZyRoom-web sert (comme GUILDES dans zyroom/zr.js, hors La
+// Lune) : leur cle reste sur le serveur, le flux vient de zyroom.php avec le
+// jeton commun. "zr:" + numero de guilde tient lieu de cle.
+const GH_ZYROOM = [{ cle: "zr:105908280", nom: "Rod Of Heaven" }];
+let ghPerso = [];   // [{ cle, nom }]
+let ghCourant = ""; // "" : La Lune ; sinon la cle du GH personnel affiche
+try {
+  ghPerso = JSON.parse(localStorage.getItem("mp-gh") || "[]");
+  ghCourant = localStorage.getItem("mp-gh-courant") || "";
+} catch (e) {}
+if (!Array.isArray(ghPerso)) ghPerso = [];
+if (!ghConnus().some((g) => g.cle === ghCourant)) ghCourant = "";
+// Les onglets qui comparent le hall aux recettes de la guilde.
+const ONGLETS_RECETTES = ["forer", "stop", "toutes", "recettes"];
 
 const $ = (s) => document.querySelector(s);
 function esc(s) {
@@ -341,6 +429,9 @@ async function charger() {
       // une ancienne table, sans les noms ajoutes depuis.
       fetch("noms.json", { cache: "no-cache" }).then((r) => r.json()),
       lireEtat(),
+      // Sans la liste des boss, seul l'onglet Mobs reste vide.
+      fetch("mobs.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : []))
+        .catch(() => []).then((m) => { mobs = m; }),
     ]);
     noms = n;
     etat = e;
@@ -379,6 +470,7 @@ async function lireEtat() {
 }
 
 async function chargerStock() {
+  if (ghCourant) return chargerGhPerso(ghCourant);
   const g = etat.reglages.guilde;
   const [s, t] = await Promise.all([
     fetch(DEPOT + "guild-" + g + "-etat.json", { cache: "no-store" })
@@ -389,21 +481,167 @@ async function chargerStock() {
     fetch(DEPOT + "guild-" + g + "-tenues.json", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
       .then((e) => { equipement = new Map(Object.entries(e)); }),
+    // La durabilite de la piece la plus usee de chaque pile.
+    fetch(DEPOT + "guild-" + g + "-usure.json", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
+      .then((e) => { usure = new Map(Object.entries(e)); }),
+    // Les armes entamees, toutes, une par une.
+    fetch(DEPOT + "guild-" + g + "-entamees.json", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : {})).catch(() => ({}))
+      .then((e) => { entamees = new Map(Object.entries(e)); }),
   ]);
-  // Le releve range le hall coffre par coffre, "fiche|qualite" -> quantite.
-  // On additionne tous les coffres : une MP compte ou qu'elle soit rangee.
-  // Le numero du coffre suit, pour KipeeCraft qui dit ou aller la prendre.
-  stock = new Map();
+  stock = lireCoffres(s);
+  const secondes = parseInt(t, 10);
+  releve = secondes > 0 ? new Date(secondes * 1000) : null;
+}
+
+// Le releve range le hall coffre par coffre, "fiche|qualite" -> quantite.
+// On additionne tous les coffres : une MP compte ou qu'elle soit rangee.
+// Le numero du coffre suit, pour KipeeCraft qui dit ou aller la prendre.
+function lireCoffres(s) {
+  const m = new Map();
   for (const [coffre, contenu] of Object.entries(s)) {
     if (!coffre.startsWith("chest") || typeof contenu !== "object") continue;
     for (const [cle, quantite] of Object.entries(contenu)) {
       const [fiche, q] = cle.split("|");
-      if (!stock.has(fiche)) stock.set(fiche, []);
-      stock.get(fiche).push([Number(q), Number(quantite), Number(coffre.slice(5))]);
+      if (!m.has(fiche)) m.set(fiche, []);
+      m.get(fiche).push([Number(q), Number(quantite), Number(coffre.slice(5))]);
     }
   }
-  const secondes = parseInt(t, 10);
-  releve = secondes > 0 ? new Date(secondes * 1000) : null;
+  return m;
+}
+
+// ------------------------------------------------------------ GH personnels
+//
+// Le flux guild.php lu ici, comme le releve le lit (releve-guildes.py et
+// ryzom_api.parse_guild) : memes cles, memes regles, pour que tous les
+// onglets fonctionnent sans changer.
+
+// Le nom saisi en jeu arrive en UTF-8 relu comme du latin-1 (ryzom_api.repare_accents).
+function repareAccents(t) {
+  try { return decodeURIComponent(escape(t)); } catch (e) { return t; }
+}
+
+// Ceux de ZyRoom-web, puis ceux que ce navigateur garde.
+function ghConnus() { return [...GH_ZYROOM, ...ghPerso]; }
+
+async function lireGuilde(cle) {
+  const r = cle.startsWith("zr:")
+    ? await fetch("/zyroom/zyroom.php?guilde=" + encodeURIComponent(cle.slice(3)),
+                  { cache: "no-store", headers: { "X-MP": jeton } })
+    : await fetch("https://api.ryzom.com/guild.php?apikey=" + encodeURIComponent(cle),
+                  { cache: "no-store" });
+  if (!r.ok) throw new Error((cle.startsWith("zr:") ? "zyroom.php " : "API de Ryzom ") + r.status);
+  const xml = new DOMParser().parseFromString(await r.text(), "application/xml");
+  const erreur = xml.querySelector("error");
+  if (erreur) throw new Error("API de Ryzom : " + (erreur.textContent.trim() || erreur.getAttribute("code")));
+  const g = xml.querySelector("guild");
+  if (!g) throw new Error("flux de guilde illisible");
+  return g;
+}
+
+const ARMURE_OU_BIJOU = /^ic[a-z][aj]/;
+const BONUS_API = [["v", "hpbuff"], ["s", "sapbuff"], ["e", "stabuff"], ["c", "focusbuff"]];
+
+async function chargerGhPerso(cle) {
+  const g = await lireGuilde(cle);
+  const entree = ghPerso.find((x) => x.cle === cle);
+  const nom = repareAccents(g.querySelector(":scope > name")?.textContent || "");
+  if (entree && nom && entree.nom !== nom) { entree.nom = nom; enregistrerGh(); majChoixGh(); }
+  const texte = (n, sel) => (n.querySelector(sel)?.textContent || "").trim();
+  const piles = new Map();   // "fiche|qualite|coffre" -> quantite
+  const tenues = new Map(), pire = new Map(), usees = new Map();
+  for (const it of g.querySelectorAll(":scope > room > item")) {
+    const fiche = texte(it, "sheet");
+    if (!fiche) continue;
+    let q = parseInt(texte(it, "quality"), 10) || 0;
+    if (q === 1) q = 0;
+    const n = Math.max(1, parseInt(texte(it, ":scope > stack"), 10) || 0);
+    const coffre = Math.floor((parseInt(it.getAttribute("slot"), 10) || 0) / 500) + 1;
+    const cle3 = fiche + "|" + q + "|" + coffre;
+    piles.set(cle3, (piles.get(cle3) || 0) + n);
+    // La durabilite : l'API arrondit le maximum au-dessus, le jeu le
+    // tronque (ryzom_api._parse_craft).
+    const hp = parseInt(texte(it, "hp"), 10) || 0;
+    const annonce = parseInt(it.querySelector("craftparameters > durability")?.getAttribute("value"), 10) || 0;
+    const max = !annonce || hp >= annonce ? annonce : annonce - 1;
+    if (ARMURE_OU_BIJOU.test(fiche)) {
+      const bonus = BONUS_API.filter(([, b]) => parseInt(texte(it, "craftparameters > " + b), 10)).map(([l]) => l).join("");
+      const c = fiche + "|" + q + "|" + bonus;
+      tenues.set(c, (tenues.get(c) || 0) + n);
+      if (max) {
+        const avant = pire.get(c);
+        if (!avant || hp * avant[1] < avant[0] * max) pire.set(c, [hp, max]);
+      }
+    } else if (max && hp < max) {
+      const c = fiche + "|" + q;
+      if (!usees.has(c)) usees.set(c, new Map());
+      const parHp = usees.get(c), k = hp + "|" + max;
+      parHp.set(k, (parHp.get(k) || 0) + n);
+    }
+  }
+  stock = new Map();
+  for (const [c, n] of piles) {
+    const [fiche, q, coffre] = c.split("|");
+    if (!stock.has(fiche)) stock.set(fiche, []);
+    stock.get(fiche).push([Number(q), n, Number(coffre)]);
+  }
+  equipement = tenues;
+  usure = pire;
+  entamees = new Map([...usees].map(([c, parHp]) => [c, [...parHp].map(([k, n]) =>
+    [...k.split("|").map(Number), n]).sort((a, b) => a[0] - b[0] || a[1] - b[1])]));
+  const cree = parseInt(g.getAttribute("created"), 10);
+  releve = cree > 0 ? new Date(cree * 1000) : new Date();
+}
+
+function enregistrerGh() {
+  try {
+    localStorage.setItem("mp-gh", JSON.stringify(ghPerso));
+    localStorage.setItem("mp-gh-courant", ghCourant);
+  } catch (e) {}
+}
+
+function nomGh() {
+  return ghCourant ? (ghConnus().find((x) => x.cle === ghCourant) || {}).nom || "GH personnel" : LUNE;
+}
+
+// Le menu : La Lune, les GH de ce navigateur, puis l'ajout. Seulement une
+// fois connecte : les GH personnels sont reserves aux membres de La Lune.
+function majChoixGh() {
+  const menu = $("#choix-gh");
+  menu.hidden = !etat;
+  menu.innerHTML = '<option value="">' + esc(LUNE) + "</option>"
+    + ghConnus().map((x) => '<option value="' + esc(x.cle) + '">' + esc(x.nom) + "</option>").join("")
+    + '<option value="+">+ Ajouter un GH…</option>';
+  menu.value = ghCourant;
+  // Un GH de ZyRoom-web ne se retire pas d'ici : sa cle est au serveur.
+  $("#retirer-gh").hidden = !etat || !ghCourant || ghCourant.startsWith("zr:");
+  $("#gh-titre").textContent = etat ? " · " + nomGh() : "";
+  // Sans recettes, "MP inutilisees" est tout simplement toutes les MP du hall.
+  const inutiles = $('[data-onglet="inutiles"]');
+  inutiles.firstChild.textContent = ghCourant ? "MP du hall " : "MP inutilisées ";
+  inutiles.title = ghCourant ? "Toutes les MP de ce hall" : "MP du hall qui ne font partie d'aucune recette";
+  for (const o of ONGLETS_RECETTES) {
+    const b = o === "recettes" ? $("#onglet-recettes") : $('[data-onglet="' + o + '"]');
+    if (ghCourant) b.hidden = true;
+    else if (o !== "recettes") b.hidden = false;
+  }
+  if (ghCourant && ONGLETS_RECETTES.includes(onglet)) onglet = "inutiles";
+}
+
+async function changerGh(cle) {
+  ghCourant = cle;
+  enregistrerGh();
+  afficherConnexion();
+  $("#resume").textContent = "Lecture du hall « " + nomGh() + " »…";
+  $("#vue").innerHTML = "";
+  try {
+    await chargerStock();
+  } catch (souci) {
+    $("#resume").textContent = "Lecture impossible : " + souci.message;
+    return;
+  }
+  recalculer();
 }
 
 // ------------------------------------------------------------ calcul
@@ -472,32 +710,35 @@ function calculer() {
   }
 
   const mps = [];
-  for (const [mp, liste] of demandes) {
-    // **Le manque, qualite par qualite.** Une pile en 250 sert aussi bien
-    // une recette en 210, l'inverse non. Pour chaque seuil, ce que demandent
-    // les recettes au moins aussi exigeantes doit tenir dans les piles au
-    // moins aussi hautes : le pire ecart est ce qu'il faut forer.
-    const seuils = [...new Set(liste.map((d) => d.min))].sort((a, b) => a - b);
-    let manque = 0;
-    for (const t of seuils) {
-      const voulu = liste.filter((d) => d.min >= t)
-                         .reduce((s, d) => s + d.besoin, 0);
-      manque = Math.max(manque, voulu - utile(mp, t));
-    }
-    const qmin = seuils[0];
-    const s = utile(mp, qmin);
-    const besoin = liste.reduce((t, d) => t + d.besoin, 0);
-    const parCraft = liste.reduce((t, d) => t + d.parCraft, 0);
-    const couverture = parCraft ? Math.floor(s / parCraft) : Infinity;
-    const statut = presqueVide(couverture, reg) ? "rupture"
-                 : manque > 0 || couverture === 0 ? "forer"
-                 : besoin > 0 && s > reg.stop * besoin ? "stop" : "ok";
-    mps.push({ mp, nom: (noms.mp[mp] || {}).nom, eco: mp.split("_")[1],
-               qmin, stock: s, besoin, manque,
-               couverture, statut, nbRecettes: liste.length,
-               recettes: liste.map((d) => d.recette.nom) });
-  }
+  for (const [mp, liste] of demandes) mps.push(etatMp(mp, liste, reg));
   return { recettes, mps };
+}
+
+// Une MP : ses demandes [{min, besoin, parCraft, recette?}] face au stock.
+function etatMp(mp, liste, reg) {
+  // **Le manque, qualite par qualite.** Une pile en 250 sert aussi bien
+  // une recette en 210, l'inverse non. Pour chaque seuil, ce que demandent
+  // les recettes au moins aussi exigeantes doit tenir dans les piles au
+  // moins aussi hautes : le pire ecart est ce qu'il faut forer.
+  const seuils = [...new Set(liste.map((d) => d.min))].sort((a, b) => a - b);
+  let manque = 0;
+  for (const t of seuils) {
+    const voulu = liste.filter((d) => d.min >= t)
+                       .reduce((s, d) => s + d.besoin, 0);
+    manque = Math.max(manque, voulu - utile(mp, t));
+  }
+  const qmin = seuils[0];
+  const s = utile(mp, qmin);
+  const besoin = liste.reduce((t, d) => t + d.besoin, 0);
+  const parCraft = liste.reduce((t, d) => t + d.parCraft, 0);
+  const couverture = parCraft ? Math.floor(s / parCraft) : Infinity;
+  const statut = presqueVide(couverture, reg) ? "rupture"
+               : manque > 0 || couverture === 0 ? "forer"
+               : besoin > 0 && s > reg.stop * besoin ? "stop" : "ok";
+  return { mp, nom: (noms.mp[mp] || {}).nom, eco: mp.split("_")[1],
+           qmin, stock: s, besoin, manque,
+           couverture, statut, nbRecettes: liste.length,
+           recettes: liste.filter((d) => d.recette).map((d) => d.recette.nom) };
 }
 
 // ------------------------------------------------------------ affichage
@@ -543,9 +784,18 @@ function retenue(texte) {
 }
 
 // Pour une MP de boss, on la loote au lieu de la forer.
+// Au survol d'un etat, son seuil et ou il se regle.
+const REGLAGE = "\nSe règle dans les options (roue dentée ⚙ à côté du pseudo).";
+function aideEtat(statut) {
+  const reg = etat.reglages;
+  return { rupture: "Moins de " + reg.rupture + " crafts possibles : bientôt en rupture." + REGLAGE,
+           forer: "Stock sous l'objectif de " + reg.objectif + " crafts par recette : à forer, ou à looter sur les boss." + REGLAGE,
+           stop: "Plus de " + reg.stop + " crafts en stock : ne plus stocker." + REGLAGE }[statut] || "";
+}
 function badge(statut, boss) {
   const texte = boss ? ETATS[statut].replace("forer", "looter") : ETATS[statut];
-  return '<span class="etat ' + statut + '">' + texte + "</span>";
+  const aide = aideEtat(statut);
+  return '<span class="etat ' + statut + '"' + (aide ? ' title="' + esc(aide) + '"' : "") + ">" + texte + "</span>";
 }
 
 function recalculer() {
@@ -554,13 +804,24 @@ function recalculer() {
   // Un editeur autre que Xiom recoit en plus le resume de chaque recette,
   // sans sa composition -- sauf pour celles qu'il a ajoutees lui-meme.
   const siennes = (x) => (etat.recettes || []).find((r) => r.id === x.r.id);
-  calcul = etat.resultats
+  calcul = ghCourant ? { recettes: [], mps: [] }
+    : etat.resultats
     ? { recettes: (etat.resumes || []).map((x) => siennes(x) ? calculerRecette(siennes(x), etat.reglages) : x),
         mps: etat.resultats }
     : calculer();
+  // L'onglet Mobs : les besoins de La Lune, compares au stock du GH
+  // affiche. Un editeur a les recettes ; un joueur a les quantites
+  // demandees de chaque MP (mp.php, "demandes"), sans les recettes.
+  if (!ghCourant) mpsMobs = calcul.mps;
+  else if (etat.recettes) mpsMobs = calculer().mps;
+  else mpsMobs = (etat.resultats || []).map((m) =>
+    m.demandes ? Object.assign(etatMp(m.mp, m.demandes, etat.reglages), { nom: m.nom }) : m);
   const reg = etat.reglages;
-  const forer = calcul.mps.filter((m) => m.statut === "rupture" || m.statut === "forer");
-  const stop = calcul.mps.filter((m) => m.statut === "stop");
+  // Les MP du Nexus n'ont que leur onglet : hors de A stocker, Ne plus
+  // stocker et Toutes les MP (les recettes les comptent toujours).
+  calcul.vues = calcul.mps.filter((m) => !mpNexus(m.mp));
+  const forer = calcul.vues.filter((m) => m.statut === "rupture" || m.statut === "forer");
+  const stop = calcul.vues.filter((m) => m.statut === "stop");
   // Des pieces, et non un nombre de lignes : A stocker donne ce qu'il reste
   // a forer pour l'objectif, les autres onglets leur stock.
   const pieces = (liste) => nf.format(liste.reduce((t, m) => t + m.stock, 0));
@@ -578,10 +839,11 @@ function recalculer() {
                                         .reduce((t, m) => t + enTrop(m), 0));
   $("#n-stop").parentElement.title = aide("#n-stop") + "\n"
     + trop(false) + " forées en trop · " + trop(true) + " lootées en trop";
-  $("#n-toutes").textContent = pieces(calcul.mps);
+  $("#n-toutes").textContent = pieces(calcul.vues);
   $("#n-inutiles").textContent = pieces(inutilisees().filter((m) => !m.speciale));
   const autres = autresDuHall();
   $("#n-op").textContent = pieces(inutilisees().filter((m) => m.speciale));
+  $("#n-nexus").textContent = nf.format(mpsNexus().filter((m) => m.statut === "forer" || m.statut === "rupture").length);
   for (const [id, categorie] of [["coffre", "coffre"], ["outils", "outil"], ["armes", "arme"], ["plans", "plan"],
                                  ["potions", "potion"], ["feux", "feu"], ["divers", "divers"]])
     $("#n-" + id).textContent = pieces(autres.filter((m) => m.categorie === categorie));
@@ -590,27 +852,34 @@ function recalculer() {
   $("#n-tenues").textContent = complets(false);
   $("#n-bijoux").textContent = complets(true);
   $("#n-recettes").textContent = calcul.recettes.length;
+  // Les boss qui ont au moins une MP a looter ou bientot en rupture.
+  $("#n-mobs").textContent = mobs.filter((b) => butin(b).some((m) =>
+    !tropBas(b, m) && (m.statut === "forer" || m.statut === "rupture"))).length;
   let quand = "date du relevé inconnue";
   if (releve) {
     const min = Math.round((Date.now() - releve) / 60000);
     quand = "relevé du hall " + (min < 60 ? "il y a " + min + " min"
       : "du " + releve.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }));
   }
-  $("#resume").innerHTML =
+  $("#resume").innerHTML = ghCourant ? esc(nomGh()) + " · " + esc(quand)
+    + (ghCourant.startsWith("zr:") ? " · GH de ZyRoom-web" : " · GH personnel, visible seulement dans ce navigateur") :
     "La Lune Éternelle · " + esc(quand) + " · objectif <b>" + reg.objectif
-    + " crafts</b> par recette, <b>" + reg.rupture + " crafts</b> minimum, <b>" + reg.stop
-    + " crafts</b> maximum";
+    + " crafts</b> par recette, "
+    + '<span title="' + esc(aideEtat("forer")) + '"><b>0 craft</b> = à forer / à looter</span>, '
+    + '<span title="' + esc(aideEtat("rupture")) + '"><b>' + reg.rupture + " crafts</b> = bientôt en rupture</span>, "
+    + '<span title="' + esc(aideEtat("stop")) + '"><b>' + reg.stop + " crafts</b> = ne plus stocker</span>";
   afficher();
 }
 
 function afficher() {
+  try { sessionStorage.setItem("mp-onglet", onglet); } catch (e) {}
   document.querySelectorAll("[data-onglet]").forEach((b) =>
     b.setAttribute("aria-pressed", String(b.dataset.onglet === onglet)));
   $("#filtres").hidden = onglet === "reglages" || onglet === "kc";
   $("#choisir-kc").hidden = onglet !== "recettes";
   // Les ecosystemes ne disent rien d'une armure ni d'un bijou.
   document.querySelectorAll("[data-eco]").forEach((b) =>
-    { b.hidden = !["forer", "stop", "op", "inutiles", "toutes"].includes(onglet); });
+    { b.hidden = !["forer", "stop", "op", "nexus", "inutiles", "toutes", "mobs"].includes(onglet); });
   // Le menu de l'onglet ouvert s'allume et dit lequel : "MP : A stocker".
   document.querySelectorAll(".menu").forEach((m) => {
     const choisi = m.querySelector('[data-onglet][aria-pressed="true"]');
@@ -625,7 +894,9 @@ function afficher() {
   }
   else if (onglet === "reglages") { vue.innerHTML = vueReglages(); brancherReglages(); }
   else if (onglet === "inutiles") vue.innerHTML = vueInutiles();
+  else if (onglet === "mobs") vue.innerHTML = vueMobs();
   else if (onglet === "op") vue.innerHTML = vueOp();
+  else if (onglet === "nexus") vue.innerHTML = vueNexus();
   else if (onglet === "armes") vue.innerHTML = vueArmes();
   else if (onglet === "coffre") vue.innerHTML = vueCategorie("coffre", "MP fabrication coffre");
   else if (onglet === "outils") vue.innerHTML = vueCategorie("outil", "Outils");
@@ -670,12 +941,115 @@ const LETTRES_ECO = { c: "none", d: "Desert", f: "Forest", j: "Jungle", l: "Lake
 const SORTES_FORAGE = { b: "Basic", c: "Fine", d: "Choice", e: "Excellent", f: "Supreme" };
 const SORTES_BETES = { a: "Basic", b: "Fine", c: "Choice", d: "Excellent", e: "Supreme" };
 
+// Les MP du Nexus : forees, supremes (f), d'un ecosysteme de surface (Desert,
+// Foret, Jungle, Lacs). Ailleurs, une supreme ne vient que des Primes (p).
+// Elles servent (recettes de Nizyros) : jamais rangees parmi les inutilisees.
+const MP_NEXUS = /^m\d{4}dxa[dfjl]f01\.sitem$/;
+
+// L'onglet MP Nexus : 30 de chaque MP en stock, toutes qualites confondues.
+// Sous 30 : a forer ; sous 10 : bientot en rupture ; au-dessus de 30 : ne
+// plus forer ; 30 tout juste : rien a dire.
+// Les deux seuils se reglent dans les options (roue dentee) ; un mp.json
+// d'avant ces reglages prend 30 et 10.
+const NEXUS_DEFAUT = { nexus_voulu: 30, nexus_rupture: 10 };
+function seuilsNexus() {
+  const r = (etat && etat.reglages) || {};
+  return [r.nexus_voulu ?? NEXUS_DEFAUT.nexus_voulu, r.nexus_rupture ?? NEXUS_DEFAUT.nexus_rupture];
+}
+function aideNexus(statut) {
+  const [voulu, rupture] = seuilsNexus();
+  return { rupture: "Moins de " + rupture + " en stock : bientôt en rupture.",
+           forer: "Moins de " + voulu + " en stock : à forer au Nexus.",
+           stop: "Plus de " + voulu + " en stock : ne plus forer." }[statut] + REGLAGE;
+}
+// Une MP des recettes dont toutes les fiches sont des MP du Nexus.
+function mpNexus(mp) {
+  const f = fiches(mp);
+  return f.length > 0 && f.every((x) => MP_NEXUS.test(x));
+}
+
+// Toutes les MP du Nexus que le jeu connait, meme absentes du hall.
+function mpsNexus() {
+  const [voulu, rupture] = seuilsNexus();
+  const liste = [];
+  for (const [fiche, info] of Object.entries(noms.fiches || {})) {
+    if (!MP_NEXUS.test(fiche)) continue;
+    const parQualite = new Map();
+    for (const [q, n] of stock.get(fiche) || []) parQualite.set(q, (parQualite.get(q) || 0) + n);
+    const total = [...parQualite.values()].reduce((t, n) => t + n, 0);
+    liste.push({
+      fiche, nom: info[0], anglais: info[1], sorte: SORTES_FORAGE[fiche[9]] || "",
+      eco: LETTRES_ECO[fiche[8]] || "", type: typeDuNom(info[0]), stock: total,
+      piles: [...parQualite].sort((a, b) => b[0] - a[0]),
+      statut: total < rupture ? "rupture" : total < voulu ? "forer" : total > voulu ? "stop" : "",
+    });
+  }
+  return liste;
+}
+
+function vueNexus() {
+  const liste = mpsNexus().filter((m) => (!eco || m.eco === eco) && retenue(m.nom + " " + m.anglais));
+  const titre = "MP du Nexus · " + seuilsNexus()[0] + " de chaque";
+  // Deux colonnes de meme hauteur, sans jamais couper une matiere : parmi
+  // toutes les facons de repartir les matieres, celle ou les colonnes ont le
+  // plus pres le meme nombre de lignes (une de titre par matiere, plus ses
+  // MP) ; chaque colonne reste dans l'ordre alphabetique. Au-dela de 16
+  // matieres, une seule coupure dans l'ordre, pour rester rapide.
+  const types = [...new Set(liste.map((m) => m.type))].sort((a, b) => a.localeCompare(b));
+  if (liste.length < 25 || types.length < 2) return '<div class="deux">' + tableNexus(liste, titre) + "</div>";
+  const lignes = types.map((t) => 1 + liste.filter((m) => m.type === t).length);
+  const total = lignes.reduce((x, y) => x + y, 0);
+  let choix = 1, ecart = Infinity;
+  if (types.length <= 16) {
+    // La premiere matiere toujours a gauche : chaque repartition une seule fois.
+    for (let masque = 1; masque < (1 << types.length); masque += 2) {
+      let gauche = 0;
+      for (let i = 0; i < types.length; i++) if (masque >> i & 1) gauche += lignes[i];
+      if (Math.abs(total - 2 * gauche) < ecart) { ecart = Math.abs(total - 2 * gauche); choix = masque; }
+    }
+  } else {
+    let gauche = 0;
+    for (let k = 1; k < types.length; k++) {
+      gauche += lignes[k - 1];
+      if (Math.abs(total - 2 * gauche) < ecart) { ecart = Math.abs(total - 2 * gauche); choix = (1 << k) - 1; }
+    }
+  }
+  const moitie = new Set(types.filter((t, i) => choix >> i & 1));
+  return '<div class="deux">' + tableNexus(liste.filter((m) => moitie.has(m.type)), titre)
+    + tableNexus(liste.filter((m) => !moitie.has(m.type)), titre + " (suite)") + "</div>";
+}
+
+function tableNexus(liste, nom) {
+  const titre = "<h2>" + nom + "</h2>";
+  if (!liste.length) return "<div>" + titre + "<p>Aucune MP.</p></div>";
+  const groupes = new Map();
+  for (const m of liste) {
+    if (!groupes.has(m.type)) groupes.set(m.type, []);
+    groupes.get(m.type).push(m);
+  }
+  const lignes = [...groupes.keys()].sort((a, b) => a.localeCompare(b)).map((t) => {
+    const membres = groupes.get(t).sort(parProvenance);
+    const symbole = '<span class="symbole" style="background-image:url(\''
+      + "https://api.ryzom.com/item_icon.php?sheetid=" + encodeURIComponent(membres[0].fiche)
+      + '&c=1\')"></span>';
+    return '<tr class="type"><td colspan="4">' + symbole + esc(t) + "</td></tr>"
+      + membres.map((m) => "<tr><td>" + etiquette(m.sorte, enCouleur(m.eco, esc(m.nom)), ECOS[m.eco] || "")
+        + '</td><td class="n"><b>' + nombre(m.stock) + "</b></td>"
+        + '<td class="faible">' + m.piles.map(([q, n]) => '<span class="pile">Q' + q + " ×" + nombre(n) + "</span>").join(" · ")
+        + "</td><td>" + (m.statut ? '<span class="etat ' + m.statut + '" title="' + esc(aideNexus(m.statut)) + '">'
+          + ETATS[m.statut] + "</span>" : "") + "</td></tr>").join("");
+  }).join("");
+  return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP'
+    + VIDE + '</th><th class="n">Stock</th><th>Qualités</th><th>État</th></tr></thead><tbody>' + lignes
+    + "</tbody></table></div></div>";
+}
+
 function inutilisees() {
   const utilisees = new Set(calcul.mps.flatMap((m) => fiches(m.mp)));
   const liste = [];
   for (const [fiche, piles] of stock) {
     const info = (noms.fiches || {})[fiche];
-    if (!info || utilisees.has(fiche)) continue;
+    if (!info || utilisees.has(fiche) || MP_NEXUS.test(fiche)) continue;
     const foree = fiche.slice(5, 8) === "dxa";
     const parQualite = new Map();
     for (const [q, n] of piles) parQualite.set(q, (parQualite.get(q) || 0) + n);
@@ -803,7 +1177,17 @@ function tableInutiles(liste, nom) {
     return '<tr class="type"><td colspan="3">' + symbole + esc(t) + "</td></tr>"
       + membres.map((m) => "<tr><td>" + etiquette(m.sorte, enCouleur(m.eco, esc(m.nom)), ECOS[m.eco] || "")
         + '</td><td class="n"><b>' + nombre(m.stock) + "</b></td>"
-        + '<td class="faible">' + m.piles.map(([q, n]) => "Q" + q + " ×" + nombre(n)).join(" · ")
+        + '<td class="faible">' + m.piles.map(([q, n], i, tout) => {
+          const fin = i < tout.length - 1 ? " ·" : "";
+          // Les armes entamees de la pile, chacune avec sa durabilite ; une
+          // pile en parfait etat reste nue. Chaque valeur est insecable, la
+          // liste peut passer a la ligne entre deux valeurs.
+          const usees = m.categorie === "arme" ? entamees.get(m.fiche + "|" + q) || [] : [];
+          if (!usees.length) return '<span class="pile">Q' + q + " ×" + nombre(n) + fin + "</span>";
+          return '<span class="pile">Q' + q + " ×" + nombre(n) + "</span> ("
+            + usees.map(([hp, max, x], j) => '<span class="pile">' + hp + "/" + max + (x > 1 ? " ×" + x : "")
+              + (j < usees.length - 1 ? "," : ")" + fin) + "</span>").join(" ");
+        }).join(" ")
         + "</td></tr>").join("");
   }).join("");
   return "<div>" + titre + '<div class="cadre collant"><table class="types"><thead><tr><th>MP' + VIDE + "</th>"
@@ -862,6 +1246,9 @@ function ensembles(bijoux) {
     }
     const g = groupes.get(id);
     g.pieces[piece] = (g.pieces[piece] || 0) + n;
+    // La durabilite d'un ensemble : celle de sa piece la plus entamee.
+    const u = usure.get(cle);
+    if (u && (!g.usure || u[0] * g.usure[1] < g.usure[0] * u[1])) g.usure = u;
     if (robe) g.robes += n;
     g.fiches.push(fiche);
   }
@@ -916,7 +1303,9 @@ function vueEnsembles(bijoux) {
   const resume = (paires) => paires.map(([p, x]) => x + " " + motDe[p][x > 1 ? 1 : 0]).join(", ");
   const lignes = liste.map((g) => "<tr><td>"
       + (bijoux ? esc(g.nom) : '<span class="poids-' + g.poids + '">' + esc(g.nom) + "</span>")
-      + '<div class="faible">Q' + g.q + " " + gouttes(g.bonus) + "</div></td>"
+      + '<div class="faible">Q' + g.q
+      + (g.usure ? ' <span title="Durabilité de la pièce la plus usée">· ' + g.usure[0] + "/" + g.usure[1] + "</span>" : "")
+      + " " + gouttes(g.bonus) + "</div></td>"
       + '<td class="n complets"><b>' + g.complets + "</b></td>"
       + pieces.map(([p]) => {
         const voulu = g.besoin.find(([b]) => b === p);
@@ -932,10 +1321,10 @@ function vueEnsembles(bijoux) {
       }).join("")
       + "<td>" + (g.manque.length ? '<div class="manque">Manque : ' + esc(resume(g.manque)) + "</div>" : "")
       + "</td></tr>").join("");
-  return '<div class="cadre collant"><table><thead><tr><th>' + (bijoux ? "Parure" : "Armure") + "</th>"
+  return '<div class="cadre collant"><table class="ensembles"><thead><tr><th>' + (bijoux ? "Parure" : "Armure") + "</th>"
     + '<th class="n" title="Ensembles complets">Complets<br><span class="total">'
     + nombre(liste.reduce((t, g) => t + g.complets, 0)) + "</span></th>"
-    + pieces.map(([, nom, n]) => '<th class="n">' + nom + (n > 1 ? " (×" + n + ")" : "") + "</th>").join("")
+    + pieces.map(([, nom, n]) => '<th class="n">' + nom + (n > 1 ? "<br>(×" + n + ")" : "") + "</th>").join("")
     + "<th></th></tr></thead><tbody>" + lignes + "</tbody></table></div>";
 }
 
@@ -947,7 +1336,7 @@ function enTrop(m) {
 
 function vueMps(quoi) {
   const ORDRE = { rupture: 0, forer: 1, ok: 2, stop: 3 };
-  let liste = calcul.mps.filter((m) =>
+  let liste = (calcul.vues || calcul.mps).filter((m) =>
     (!eco || m.eco === eco) && retenue((m.nom || m.mp) + " " + m.mp.replace(/_/g, " ") + " " + (m.recettes || []).join(" ")));
   if (quoi === "forer") {
     liste = liste.filter((m) => m.statut === "rupture" || m.statut === "forer");
@@ -983,12 +1372,13 @@ function deBoss(mp) {
 // Le nom francais du type de MP, d'apres le dernier mot du nom KipeeCraft.
 const TYPES = {
   Amber: "Ambre", Bark: "Écorce", Beak: "Bec", Bone: "Os", Bud: "Bourgeon",
-  Claw: "Griffe", Eye: "Œil", Fang: "Croc", Fiber: "Fibre", Horn: "Corne",
+  Claw: "Griffe", Eye: "Œil", Fang: "Croc", Fiber: "Fibre", Hoof: "Sabot", Horn: "Corne",
   Leather: "Cuir", Ligament: "Ligament", Mandible: "Mandibule", Moss: "Mousse",
   Mushroom: "Champignon", Nail: "Ongle", Oil: "Huile", Pelvis: "Bassin",
-  Resin: "Résine", Sap: "Sève", Secretion: "Sécrétion", Seed: "Graine",
+  Resin: "Résine", Rostrum: "Rostre", Sap: "Sève", Secretion: "Sécrétion", Seed: "Graine",
   Shell: "Carapace", Skin: "Peau", Spine: "Épine", Sting: "Dard", Tail: "Queue",
-  Tooth: "Dent", Trunk: "Trompe", Wing: "Aile", Wood: "Bois", WoodNode: "Nœud de bois",
+  Tooth: "Dent", Trunk: "Trompe", Whiskers: "Moustaches", Wing: "Aile", Wood: "Bois",
+  WoodNode: "Nœud de bois",
 };
 function typeFr(t) { return TYPES[t] || t; }
 
@@ -1051,6 +1441,113 @@ function tableMps(liste, quoi, boss) {
                + ' fois le besoin : à supprimer ou à écouler, à voir avec Nizyros">MP en trop<br>'
                + total(enTrop) + "</th>" : "")
     + "</tr></thead><tbody>" + lignes + "</tbody></table></div></div>";
+}
+
+// ------------------------------------------------------------ Mobs
+//
+// Un roi lache les MP supremes de son espece, un nomme les excellentes, dans
+// l'ecosysteme de sa region et a sa qualite (roi 220 ou 270, nomme 210 ou
+// 260). Une MP ne compte que si une recette la demande.
+
+function debutMp(b) {
+  return (b.roi ? "Supreme" : "Excellent") + "_" + b.eco + "_" + b.espece + "_";
+}
+function butin(b) {
+  return mpsMobs.filter((m) => m.mp.startsWith(debutMp(b)));
+}
+// Un boss dont aucune recette ne demande les MP : toutes ses MP, tirees des
+// noms du jeu par outils/page-mobs.py ([fiche, type]), avec le stock du hall
+// toutes qualites confondues. "mp" garde la forme Grade_Eco_Espece_Type.
+function butinLibre(b) {
+  return (b.mps || []).map(([fiche, type]) => ({
+    mp: debutMp(b) + type, nom: fiche,
+    stock: (stock.get(fiche) || []).reduce((t, [, n]) => t + n, 0) }));
+}
+// Un nomme en 210 ne sert pas une recette en 250 : ses MP vont a part,
+// dans la derniere section, et ne comptent pas dans l'etat du hall.
+function tropBas(b, m) { return m.qmin > b.q; }
+
+// Les sections, de la plus pressante a la plus tranquille, puis les boss
+// trop bas. Un boss dont les MP n'ont pas toutes le meme etat parait dans
+// plusieurs sections, avec chaque fois les MP de cet etat.
+const SECTIONS_MOBS = ["forer", "rupture", "stop", "ok", "bas"];
+function dansSection(b, m, section) {
+  return section === "bas" ? tropBas(b, m) : !tropBas(b, m) && m.statut === section;
+}
+
+// Les boss affiches : filtres de qualite, d'ecosysteme et recherche.
+function mobsRetenus() {
+  return mobs.filter((b) => (!qualiteMob || b.q === qualiteMob) && (!eco || b.eco === eco))
+    .map((b) => ({ b, mps: butin(b) }))
+    .filter((x) => retenue(x.b.nom + " " + x.b.espece + " " + x.b.lieu + " "
+      + x.mps.map((m) => (m.nom || m.mp) + " " + typeFr(m.mp.split("_")[3])).join(" ")));
+}
+
+// Les noms seuls des rois (ou des nommes) affiches qui ont une MP a looter
+// ou bientot en rupture, chacun une seule fois.
+function nomsALooter(roi) {
+  const urgent = (x) => x.mps.some((m) => dansSection(x.b, m, "forer") || dansSection(x.b, m, "rupture"));
+  const liste = mobsRetenus().filter((x) => x.b.roi === roi && urgent(x))
+    .sort((a, b) => b.b.q - a.b.q || a.b.nom.localeCompare(b.b.nom));
+  return [...new Set(liste.map((x) => x.b.nom))];
+}
+
+function vueMobs() {
+  if (!mobs.length) return '<p class="inconnue">Liste des boss introuvable (mobs.json).</p>';
+  const qualites = [0, 210, 220, 260, 270].map((q) =>
+    '<button type="button" data-qmob="' + q + '" aria-pressed="' + (q === qualiteMob) + '">'
+    + (q ? "Q" + q : "Toutes") + "</button>").join("");
+  const retenus = mobsRetenus();
+  const colonne = (roi) => {
+    const liste = retenus.filter((x) => x.b.roi === roi);
+    // Le bouton de copie a cote du titre de sa colonne.
+    const titre = "<h2>" + (roi ? "Rois" : "Nommés") + ' <span class="compte">'
+      + new Set(liste.map((x) => x.b.nom)).size + "</span>"
+      + ' <button type="button" class="principal copier-mobs" data-copier="' + (roi ? "rois" : "nommes")
+      + '" title="Copie les noms des ' + (roi ? "rois" : "nommés") + " affichés qui ont une MP à looter "
+      + 'ou bientôt en rupture, un par ligne">Copier les ' + (roi ? "rois" : "nommés") + " à looter</button></h2>";
+    if (!liste.length) return "<div>" + titre + "<p>Aucun boss utile.</p></div>";
+    return "<div>" + titre + SECTIONS_MOBS.map((statut) => {
+      const lignes = liste.map((x) => ({ b: x.b, mps: x.mps.filter((m) => dansSection(x.b, m, statut)) }))
+        .filter((x) => x.mps.length)
+        .sort((a, b) => b.b.q - a.b.q || a.b.nom.localeCompare(b.b.nom));
+      // Les boss dont aucune recette ne demande les MP : en bas de Suffisant.
+      if (statut === "ok") lignes.push(...liste.filter((x) => !x.mps.length)
+        .sort((a, b) => b.b.q - a.b.q || a.b.nom.localeCompare(b.b.nom)));
+      if (!lignes.length) return "";
+      const titre = statut === "bas"
+        ? '<span class="etat bas" title="Le boss lâche ses MP en qualité plus basse que celle demandée par les recettes">Qualité trop basse</span>'
+        : badge(statut, true);
+      return "<h3>" + titre + ' <span class="compte">' + lignes.length + "</span></h3>"
+        + '<div class="cadre"><table class="mobs"><tbody>' + lignes.map(ligneMob).join("") + "</tbody></table></div>";
+    }).join("") + "</div>";
+  };
+  // Un autre GH affiche : on le dit, les chiffres restent ceux de La Lune.
+  return (ghCourant ? '<p class="faible">Besoins des recettes de ' + esc(LUNE)
+          + ", comparés au stock de " + esc(nomGh()) + " seul.</p>" : "")
+    + '<div class="qualites">' + qualites + "</div>"
+    + '<div class="deux">' + colonne(true) + colonne(false) + "</div>";
+}
+
+// Le boss a gauche (nom, qualite, lieu dans la couleur de son ecosysteme),
+// ses MP a droite : le type, le stock du hall et ce qu'il manque.
+function ligneMob(x) {
+  const b = x.b;
+  const mps = x.mps.sort((m, n) => typeFr(m.mp.split("_")[3]).localeCompare(typeFr(n.mp.split("_")[3])))
+    .map((m) => '<div class="butin" title="' + esc(m.nom || m.mp) + '"><b>'
+      + esc(typeFr(m.mp.split("_")[3])) + '</b><span class="faible">stock ' + nombre(m.stock)
+      + (tropBas(b, m) ? " · Q" + b.q + ", recettes en Q" + m.qmin + "+"
+         : m.manque > 0 ? " · manque " + nombre(m.manque) : "")
+      + (m.statut === "stop" ? " · en trop " + nombre(enTrop(m)) : "") + "</span></div>").join("")
+    || butinLibre(b).sort((m, n) => typeFr(m.mp.split("_")[3]).localeCompare(typeFr(n.mp.split("_")[3])))
+      .map((m) => '<div class="butin" title="Aucune recette ne la demande"><b>'
+        + esc(typeFr(m.mp.split("_")[3])) + '</b><span class="faible">stock ' + nombre(m.stock)
+        + "</span></div>").join("")
+    || '<span class="faible">Aucune MP connue</span>';
+  return '<tr><td><b class="nom-mob">' + esc(b.nom) + '</b><span class="qmob">Q' + b.q + "</span>"
+    + '<div class="faible">' + esc(b.espece) + " · " + enCouleur(b.eco, esc(ECOS[b.eco])) + "</div>"
+    + (b.lieu ? b.lieu.split(" · ").map((l) => '<div class="faible">' + esc(l) + "</div>").join("")
+       : '<div class="faible"><i>lieu non relevé</i></div>') + "</td><td>" + mps + "</td></tr>";
 }
 
 function vueRecettes() {
@@ -1117,14 +1614,23 @@ function detail(x) {
 
 function vueReglages() {
   const r = etat.reglages;
-  const champ = (cle, texte, min, max) => "<label for=\"r-" + cle + "\">" + texte
+  // Au survol, une phrase simple dit a quoi sert le reglage (title).
+  const champ = (cle, texte, min, max, aide) => "<label for=\"r-" + cle + "\" title=\"" + aide + "\">" + texte
     + '</label><input type="number" id="r-' + cle + '" min="' + min + '" max="' + max
-    + '" value="' + r[cle] + '">';
+    + '" title="' + aide + '" value="' + (r[cle] ?? NEXUS_DEFAUT[cle]) + '">';
   return '<section class="panneau"><h2>Réglages communs</h2><div class="grille">'
-    + champ("objectif", "Objectif (crafts par recette)", 0, 100000)
-    + champ("qualite", "Qualité de craft", 1, 300)
-    + champ("stop", "Ne plus forer au-delà de (× le besoin)", 1, 100)
-    + champ("rupture", "Bientôt en rupture sous (crafts)", 0, 100000)
+    + champ("objectif", "Objectif (crafts par recette)", 0, 100000,
+      "Combien de fois chaque recette doit pouvoir être faite avec le stock du hall. En dessous, la page dit quelles MP forer ou looter.")
+    + champ("qualite", "Qualité de craft", 1, 300,
+      "Qualité minimale des MP comptées pour les recettes. Les MP de qualité plus basse sont ignorées. Une recette peut avoir sa propre qualité.")
+    + champ("stop", "Ne plus forer au-delà de (× le besoin)", 1, 100,
+      "Quand le stock d’une MP dépasse ce nombre de fois le besoin, elle est en trop : on arrête de la forer.")
+    + champ("rupture", "Bientôt en rupture sous (crafts)", 0, 100000,
+      "Quand le stock ne permet plus que moins de crafts que ce nombre, la MP est signalée « bientôt en rupture ».")
+    + champ("nexus_voulu", "MP Nexus : stock voulu de chacune", 1, 100000,
+      "Stock visé pour chaque MP du Nexus : en dessous, elle est à forer ; au-dessus, on arrête de la forer.")
+    + champ("nexus_rupture", "MP Nexus : bientôt en rupture sous", 0, 100000,
+      "Sous ce stock, une MP du Nexus est signalée « bientôt en rupture ».")
     + '</div><button type="button" class="principal" id="r-enregistrer">Enregistrer</button></section>'
     + vueImport();
 }
@@ -1173,7 +1679,7 @@ let aImporter = [];
 function brancherReglages() {
   $("#r-enregistrer").addEventListener("click", async () => {
     const r = { guilde: etat.reglages.guilde };
-    for (const cle of ["objectif", "qualite", "stop", "rupture"]) {
+    for (const cle of ["objectif", "qualite", "stop", "rupture", "nexus_voulu", "nexus_rupture"]) {
       r[cle] = Number($("#r-" + cle).value);
     }
     if (await envoyer({ action: "reglages", reglages: r })) bandeau("Réglages enregistrés");
@@ -1276,6 +1782,7 @@ function afficherConnexion() {
   $("#onglet-reglages").hidden = !editeur;
   $("#onglet-recettes").hidden = !etat;
   if ((!editeur && onglet === "reglages") || (!etat && onglet === "recettes")) onglet = "forer";
+  majChoixGh();
 }
 
 $("#entrer").addEventListener("click", ouvrirPorte);
@@ -1342,6 +1849,19 @@ $("#cherche").addEventListener("input", afficher);
 $("#choisir-kc").addEventListener("click", () => { const f = $("#fichiers"); if (f) f.click(); });
 
 $("#vue").addEventListener("click", async (ev) => {
+  const q = ev.target.closest("[data-qmob]");
+  if (q) { qualiteMob = Number(q.dataset.qmob); afficher(); return; }
+  const copier = ev.target.closest("[data-copier]");
+  if (copier) {
+    const rois = copier.dataset.copier === "rois";
+    const noms = nomsALooter(rois);
+    if (!noms.length) { bandeau(rois ? "Aucun roi à looter" : "Aucun nommé à looter"); return; }
+    try {
+      await navigator.clipboard.writeText(noms.join("\n"));
+      bandeau(noms.length + " nom" + (noms.length > 1 ? "s" : "") + " copié" + (noms.length > 1 ? "s" : ""));
+    } catch (e) { bandeau("Copie impossible : " + e.message, true); }
+    return;
+  }
   const bouton = ev.target.closest("[data-action]");
   if (bouton) {
     const id = bouton.closest("[data-edition]").dataset.edition;
@@ -1360,7 +1880,52 @@ $("#vue").addEventListener("click", async (ev) => {
   }
 });
 
+$("#choix-gh").addEventListener("change", (ev) => {
+  const v = ev.target.value;
+  if (v === "+") {
+    ev.target.value = ghCourant;
+    $("#ajout-cle").value = "";
+    $("#ajout-message").textContent = "";
+    $("#ajout-gh").showModal();
+    return;
+  }
+  changerGh(v);
+});
+$("#vers-zyroom").addEventListener("click", () => {
+  let depuisZyroom = false;
+  try { depuisZyroom = new URL(document.referrer).pathname.startsWith("/zyroom/"); } catch (e) {}
+  if (depuisZyroom && history.length > 1) history.back();
+  else location.href = "/zyroom/";
+});
+$("#retirer-gh").addEventListener("click", () => {
+  if (!confirm("Retirer « " + nomGh() + " » ? Sa clé sera effacée de ce navigateur.")) return;
+  ghPerso = ghPerso.filter((x) => x.cle !== ghCourant);
+  changerGh("");
+});
+$("#ajout-annuler").addEventListener("click", () => $("#ajout-gh").close());
+$("#ajout-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const cle = $("#ajout-cle").value.trim();
+  // La forme d'une cle de guilde (ryzom_api.is_api_key) : sans ce controle,
+  // une cle tronquee au copier-coller part quand meme vers Ryzom.
+  if (!/^g[a-z0-9]{40}$/i.test(cle)) {
+    $("#ajout-message").textContent = "Ce n'est pas une clé de guilde : 41 lettres et chiffres, commençant par « g ».";
+    return;
+  }
+  if (ghPerso.some((x) => x.cle === cle)) { $("#ajout-gh").close(); changerGh(cle); return; }
+  $("#ajout-message").textContent = "Vérification auprès de Ryzom…";
+  let g;
+  try { g = await lireGuilde(cle); } catch (souci) { $("#ajout-message").textContent = souci.message; return; }
+  ghPerso.push({ cle, nom: repareAccents(g.querySelector(":scope > name")?.textContent || "") || "GH personnel" });
+  $("#ajout-gh").close();
+  changerGh(cle);
+});
+
 charger();
 </script>
+<!-- La musique de l'accueil de xiom.be, reprise la ou elle en etait (../musique.js). -->
+<audio id="musique" src="https://xiom-dev.github.io/zyroom-gtk-android/sielu-cuovggas.mp3"
+       loop preload="auto"></audio>
+<script src="../musique.js"></script>
 </body>
 </html>

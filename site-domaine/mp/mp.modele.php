@@ -40,12 +40,15 @@
 // premiere modification ecrit `mp.json`, et c'est lui qui fait foi ensuite :
 // redeposer `mp.depart.json` n'efface donc rien.
 declare(strict_types=1);
+require __DIR__ . '/../index/porte.php';
 
 const UTILISATEURS = '__UTILISATEURS__';
 // Le seul editeur qui recoit la composition des recettes.
 const PROPRIETAIRE = 'Xiom';
-// L'empreinte du mot de passe de lecture, commun a la guilde.
-const LECTURE = '__LECTURE__';
+// Les empreintes de ce qui ouvre la lecture : les six codes personnels et le
+// mot de passe commun de xiom.be (outils/acces.py).
+const EMPREINTES = __EMPREINTES__;
+__VERIFIE__
 const SEL = '__SEL__';
 // Trente jours, comme le releve du forage.
 const DUREE = 30 * 24 * 3600;
@@ -323,7 +326,10 @@ function resultats(array $etat): array
                   'eco' => explode('_', $mp)[1] ?? '', 'qmin' => $qmin,
                   'stock' => $s, 'besoin' => $besoin, 'manque' => $manque,
                   'couverture' => $couverture, 'statut' => $statut,
-                  'nbRecettes' => count($liste)];
+                  'nbRecettes' => count($liste),
+                  // Les quantites demandees, sans les recettes : la page
+                  // refait le calcul sur le stock d'un autre GH (onglet Mobs).
+                  'demandes' => $liste];
     }
     return $mps;
 }
@@ -382,8 +388,9 @@ if (($demande['action'] ?? '') === 'entrer') {
                          'jeton' => jeton($connu, 'e', time() + DUREE)]);
         }
     }
-    // Un joueur de la guilde et le mot de passe de la guilde.
-    if (!password_verify($mdp, LECTURE)) {
+    // Un joueur de la guilde, entre par xiom.be (le laissez-passer de
+    // index/porte.php) : son nom suffit. Sinon, un mot de passe de xiom.be.
+    if (!porte_ouverte() && !mdp_ok($mdp)) {
         repond(403, ['erreur' => 'nom ou mot de passe']);
     }
     $effectif = effectif();
@@ -483,6 +490,9 @@ function reglages_valides($r): ?array
         'qualite' => entier($r['qualite'] ?? null, 1, 300),
         'stop' => entier($r['stop'] ?? null, 1, 100),
         'rupture' => entier($r['rupture'] ?? null, 0, 100000),
+        // Les seuils de l'onglet MP Nexus (30 et 10 tant qu'on ne les a pas regles).
+        'nexus_voulu' => entier($r['nexus_voulu'] ?? 30, 1, 100000),
+        'nexus_rupture' => entier($r['nexus_rupture'] ?? 10, 0, 100000),
         'guilde' => entier($r['guilde'] ?? null, 1, PHP_INT_MAX),
     ];
     return in_array(null, $sortie, true) ? null : $sortie;

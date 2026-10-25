@@ -22,7 +22,8 @@ from kipeecraft.core.craft import Ingredient, Recipe, compute_precraft, precraft
 from kipeecraft.core.enums import Color, Ecosystem, Grade, Origin, Part, Stat, Tier
 from kipeecraft.core.evolver import (Evolver, EvolverError, Score, Settings, build_pools,
                                      deficit, evaluate, tolerance_for)
-from kipeecraft.core.wizard import Choices, Level, Sources, Wish, Wizard, WizardError
+from kipeecraft.core.wizard import (MODIFIERS, Choices, Level, Sources, Wish, Wizard, WizardError,
+                                    target_bounds, target_range)
 from kipeecraft.core.jeweler import (Jeweler, JewelerError, JewelerSettings,
                                      shopping_list)
 from kipeecraft.core.materials import MaterialDatabase, type_label
@@ -84,6 +85,9 @@ def demarrer(retouches_json: str) -> str:
             "options": list(postcraft.options_of(p.id)) or [0],
             "pieces": [[pp.part.value, pp.quantity] for pp in p.parts],
             "stats": [s.value for s in p.stats],
+            # Les valeurs exactes qu'on peut viser pour ses modificateurs :
+            # {stat: [min, max]}, communes a toutes ses variantes.
+            "cibles": _cibles(p),
         } for p in plans],
         "materiaux": {part.value: [{
             "k": m.legacy_key, "n": m.name, "t": m.type, "tl": type_label(m.type),
@@ -94,6 +98,34 @@ def demarrer(retouches_json: str) -> str:
         "resume": (f"{len(database)} matériaux · {len(plans)} plans · "
                    f"{len(postcraft)} jeux de formules"),
     }, ensure_ascii=False)
+
+
+def _variantes(plan):
+    """Les formules de postcraft de chaque variante du plan."""
+    return [postcraft.get(plan.id, o) for o in (postcraft.options_of(plan.id) or (0,))]
+
+
+def _cibles(plan) -> dict:
+    cibles = {}
+    for stat in plan.stats:
+        if stat in MODIFIERS:
+            plage = target_range(_variantes(plan), stat)
+            if plage:
+                cibles[stat.value] = list(plage)
+    return cibles
+
+
+def _souhait(plan, w: dict) -> Wish:
+    """Un souhait de la page : un niveau (MAXIMUM...) ou une valeur exacte ("=1")."""
+    stat = Stat(int(w["stat"]))
+    niveau = str(w.get("niveau", "MAXIMUM"))
+    if not niveau.startswith("="):
+        return Wish(stat, Level[niveau])
+    cible = int(niveau[1:])
+    plage = target_bounds(_variantes(plan), stat, cible)
+    if plage is None:
+        raise WizardError(f"{stat.label} = {cible:+d} est impossible pour {plan.full_label}")
+    return Wish(stat, target=cible, bounds=plage)
 
 
 # ------------------------------------------------------------------ recettes
@@ -610,7 +642,7 @@ def assistant(demande: str) -> str:
     try:
         choix = Choices(
             plan=plans[int(d["plan"])],
-            wishes=tuple(Wish(Stat(int(w["stat"])), Level[w.get("niveau", "MAXIMUM")])
+            wishes=tuple(_souhait(plans[int(d["plan"])], w)
                          for w in d.get("souhaits", ()) if w.get("stat")),
             min_grade=Grade(int(d.get("grade", 1))),
             sources=Sources[d.get("sources", "ANY")],

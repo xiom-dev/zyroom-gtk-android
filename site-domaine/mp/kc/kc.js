@@ -110,11 +110,20 @@ const ICONES = new Set(("amber bark beak blank bone bud claw eye fang fiber fles
 // Dans les listes, l'ordre des filtres de la page : Primes, Desert, Foret...
 const ORDRE_E = [6, 4, 2, 5, 3, 7, 1];
 
+// Q des formules a 250 par defaut, comme l'objet : a 0, les protections
+// maximales restaient a zero. Les reglages gardes avant ce changement passent
+// une fois a 250 (marque v : 2) ; ce que le joueur choisit ensuite est garde.
+function prefsDeDepart() {
+  const gardees = lire("kc-prefs", {});
+  if (gardees.v !== 2) { gardees.qformule = 250; gardees.v = 2; }
+  return Object.assign({ qualite: 250, rite: false, qformule: 250, gauche: "precraft",
+                         droite: "postcraft", v: 2 }, gardees);
+}
+
 const S = {
   meta: null, erreur: "",
   sous: lire("kc-sous", "simu"),
-  prefs: Object.assign({ qualite: 250, rite: false, qformule: 0, gauche: "precraft",
-                         droite: "postcraft" }, lire("kc-prefs", {})),
+  prefs: prefsDeDepart(),
   palier: "HIGH",
   recette: null,
   resultat: null,
@@ -354,8 +363,8 @@ function vueSimu() {
     + "</div>"
     + '<div class="kc-barre kc-reglages">'
     + '<label title="Qualité visée de l\'objet ; les matériaux peuvent l\'abaisser">Qualité <input type="number" data-kc="pref" data-v="qualite" min="1" max="250" value="' + p.qualite + '"></label>'
-    + '<label title="Valeur de &lt;quality&gt; dans les formules (dégâts, protections maximales). 0 : part fixe seulement">Q des formules <input type="number" data-kc="pref" data-v="qformule" min="0" max="250" value="' + p.qformule + '"></label>'
-    + '<label title="Rite de durabilité : +20 % de durabilité"><input type="checkbox" data-kc="pref" data-v="rite"' + (p.rite ? " checked" : "") + "> Rite</label>"
+    + '<label title="Valeur de &lt;quality&gt; dans les formules (dégâts, protections maximales). 0 : part fixe seulement. 250 par défaut, comme l&#39;objet">Q des formules <input type="number" data-kc="pref" data-v="qformule" min="0" max="250" value="' + p.qformule + '"></label>'
+    + '<label title="Rite de durabilité : +20 % de durabilité"><input type="checkbox" data-kc="pref" data-v="rite"' + (p.rite ? " checked" : "") + "> Rite +20% durabilité</label>"
     + "</div>"
     + '<div class="kc-simu"><section class="panneau kc-gauche" id="kc-apercu">' + vueApercu() + "</section>"
     + '<section class="panneau kc-droite" id="kc-pieces">' + vuePieces() + "</section></div>";
@@ -408,7 +417,7 @@ function tableEnsemble(res, voulues) {
   const lignes = plan.stats.map((x) => '<tr class="' + (voulues && voulues.has(x) ? "kc-voulue" : "") + '">'
     + '<td class="kc-nomstat">' + esc(S.meta.stats[x][0]) + "</td>"
     + res.plans.map((p) => '<td class="n">' + (p.precraft[x] != null ? nfr(p.precraft[x], 2) : "") + "</td>").join("")
-    + pieces.map(([, pc]) => '<td class="n">' + (pc[x] != null ? nfr(pc[x], 2) : "") + "</td>").join("")
+    + pieces.map(([, pc]) => '<td class="n">' + postHtml(x, pc[x]) + "</td>").join("")
     + "</tr>").join("");
   // Le nom en premier : le tableau est large, il defile, les noms restent lisibles
   return '<div class="cadre"><table class="kc-stats"><thead><tr><th>Caractéristique</th>'
@@ -474,6 +483,16 @@ function texteIngredients() {
 }
 
 // Les colonnes arrondies tronquent, comme l'original : 94,77 s'y lit 94.
+// Les modificateurs d'esquive et de parade (et ceux de l'adversaire) : le jeu
+// tronque leur postcraft vers zero, (sint32) cote serveur ; 1,84 donne +1.
+const MODIFICATEURS = new Set([7, 8, 9, 10]);
+function postHtml(stat, v) {
+  if (v == null) return "";
+  if (!MODIFICATEURS.has(stat)) return nfr(v, 2);
+  const jeu = Math.trunc(v) || 0;
+  return nfr(v, 2) + ' <span class="faible" title="Valeur en jeu">(' + (jeu > 0 ? "+" : "") + jeu + ")</span>";
+}
+
 function valeur(r, stat, colonne) {
   if (!r || !colonne) return "";
   const exacte = colonne.endsWith("x");
@@ -665,6 +684,19 @@ function ouvrirChoix(i, j) {
     d.addEventListener("input", surSaisieChoix);
     d.addEventListener("change", surSaisieChoix);
     d.addEventListener("close", () => { S.choix.ouvert = false; });
+    // Fleches haut / bas (hors des champs de saisie) et molette sur la liste :
+    // le materiau precedent ou suivant, pour les parcourir d'un coup d'oeil.
+    d.addEventListener("keydown", (ev) => {
+      if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+      if (ev.target.closest("input, select, textarea")) return;
+      ev.preventDefault();
+      bougerChoix(ev.key === "ArrowDown" ? 1 : -1);
+    });
+    d.addEventListener("wheel", (ev) => {
+      if (!ev.target.closest(".kc-choix-liste") || !ev.deltaY) return;
+      ev.preventDefault();
+      bougerChoix(ev.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
   }
   dessinerChoix(true);
   d.showModal();
@@ -697,7 +729,7 @@ function dessinerChoix(tout) {
       + hallHtml(m.k, c.qmin) + "</td></tr>";
   }).join("");
   const tableau = '<table class="kc-liste"><thead><tr><th></th><th>Matériau</th><th class="n">Q</th>'
-    + '<th class="n" title="Moyenne de ses caractéristiques">moy.</th><th class="n" title="Au hall de guilde, qualité ≥ Q min">hall</th></tr></thead><tbody>'
+    + '<th class="n" title="Moyenne de ses caractéristiques">moy.</th><th class="n" title="Au hall de guilde, en qualité suffisante pour la Q max">hall</th></tr></thead><tbody>'
     + (lignes || '<tr><td colspan="5" class="faible">Aucun matériau.</td></tr>') + "</tbody></table>";
   if (!tout) {
     d.querySelector(".kc-choix-liste").innerHTML = tableau;
@@ -718,11 +750,11 @@ function dessinerChoix(tout) {
     + '<div class="kc-barre">'
     + '<input type="search" data-c="texte" placeholder="Chercher" value="' + esc(c.texte) + '">'
     + selecteur('data-c="eco"', ecos, c.eco)
-    + '<label>Q min <input type="number" data-c="qmin" min="0" max="300" step="10" value="' + c.qmin + '"></label>'
+    + '<label title="Qualité de l’objet à fabriquer : seules les MP qui existent au moins à cette qualité sont proposées. 0 : sans limite.">Q max <input type="number" data-c="qmin" min="0" max="300" step="10" value="' + c.qmin + '"></label>'
     + '<label><input type="checkbox" data-c="fores"' + (c.fores ? " checked" : "") + "> Foragé</label>"
     + '<label><input type="checkbox" data-c="lootes"' + (c.lootes ? " checked" : "") + "> Looté</label>"
     + '<label><input type="checkbox" data-c="ecartes"' + (c.ecartes ? " checked" : "") + "> Écartés</label>"
-    + '<label title="Seulement ce que le hall a, en qualité ≥ Q min"><input type="checkbox" data-c="hall"' + (c.hall ? " checked" : "") + "> Au hall</label>"
+    + '<label title="Seulement ce que le hall a, en qualité suffisante pour la Q max"><input type="checkbox" data-c="hall"' + (c.hall ? " checked" : "") + "> Au hall</label>"
     + "</div>"
     + '<div class="kc-choix-corps"><div class="kc-choix-liste cadre"></div><div class="kc-choix-stats"></div></div>';
   dessinerChoix(false);
@@ -766,6 +798,19 @@ function surClicChoix(ev) {
   } else if (quoi === "annuler") d.close();
   else if (quoi === "retirer") { retirer(c.i, c.j); d.close(); }
   else if (quoi === "ok") valider();
+}
+
+// Selectionne la ligne voisine (pas : +1 suivante, -1 precedente) de la liste.
+function bougerChoix(pas) {
+  const d = document.getElementById("kc-choix");
+  const lignes = [...d.querySelectorAll(".kc-choix-liste tr[data-k]")];
+  if (!lignes.length) return;
+  const i = lignes.findIndex((t) => t.dataset.k === S.choix.sel);
+  const ligne = lignes[i < 0 ? 0 : Math.max(0, Math.min(lignes.length - 1, i + pas))];
+  S.choix.sel = ligne.dataset.k;
+  lignes.forEach((t) => t.classList.toggle("kc-sel", t === ligne));
+  d.querySelector(".kc-choix-stats").innerHTML = statsChoix();
+  ligne.scrollIntoView({ block: "nearest" });
 }
 
 function surSaisieChoix(ev) {
@@ -1026,7 +1071,7 @@ function vueFormulaire() {
     + '<div class="kc-barre" style="margin-top:10px">'
     + choixRace(e)
     + '<label>Couleur imposée ' + selecteur('data-e="couleur"', couleurs, e.couleur) + "</label>"
-    + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
+    + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. Avec Q min = Q max, seules les MP qui existent à cette qualité. 0 : sans limite.")
     + champNombre(e, "e", "qmax", "Q max", 0, 500, 5, "Qualité maximale des matériaux. 0 : sans limite.")
     + "</div></section>"
     + '<section class="panneau"><h2>Panneau de commande</h2><div class="kc-barre">'
@@ -1051,6 +1096,19 @@ function vueFormulaire() {
 // reponses remplissent le formulaire complet, qui reste la pour affiner.
 
 const NIVEAUX = [["MAXIMUM", "au maximum"], ["HIGH", "élevée"], ["DECENT", "correcte"]];
+// Les niveaux d'une caracteristique ; pour un modificateur d'esquive ou de
+// parade, aussi les valeurs exactes en jeu que le plan permet ("=1" : +1).
+function niveauxDe(plan, stat) {
+  const plage = (plan.cibles || {})[stat];
+  if (!plage) return NIVEAUX;
+  const exactes = [];
+  for (let n = plage[1]; n >= plage[0]; n--) exactes.push(["=" + n, "= " + (n > 0 ? "+" : "") + n]);
+  return [...NIVEAUX, ...exactes];
+}
+// Un niveau que la caracteristique n'a pas (valeur exacte hors plage) : au maximum.
+function niveauValide(plan, w) {
+  if (!niveauxDe(plan, w.stat).some(([k]) => k === w.niveau)) w.niveau = "MAXIMUM";
+}
 const SOURCES = [["ANY", "toutes"], ["HARVESTED", "forage seulement"], ["LOOTED", "dépouille seulement"]];
 
 // Meme amorce que wizard.suggest : les premieres caracteristiques du plan,
@@ -1063,6 +1121,7 @@ function ajusterAssistant() {
   const plan = planDe(S.evo.plan);
   const gardes = S.assist.souhaits.filter((w) => w.stat && plan.stats.includes(w.stat));
   S.assist.souhaits = gardes.length ? gardes : suggerer(plan);
+  S.assist.souhaits.forEach((w) => niveauValide(plan, w));
   while (S.assist.souhaits.length < 5) S.assist.souhaits.push({ stat: 0, niveau: "MAXIMUM" });
   garder("kc-assistant", S.assist);
 }
@@ -1072,9 +1131,10 @@ function vueAssistant() {
   const a = S.assist;
   const plan = planDe(e.plan);
   const stats = [[0, "— aucune —"], ...plan.stats.map((x) => [x, S.meta.stats[x][0]])];
+  const couleurs = [[0, "Aucune"], ...Object.entries(S.meta.couleurs).map(([c, x]) => [c, x[0]])];
   const souhaits = a.souhaits.map((w, i) => '<div class="kc-barre"><span class="kc-rang">' + (i + 1) + "</span>"
     + selecteur('data-a="stat" data-i="' + i + '"', stats, w.stat)
-    + selecteur('data-a="niveau" data-i="' + i + '"', NIVEAUX, w.niveau) + "</div>").join("");
+    + selecteur('data-a="niveau" data-i="' + i + '"', niveauxDe(plan, w.stat), w.niveau) + "</div>").join("");
   return '<div class="kc-barre">' + boutonChercher("evo").replace('data-v="evo"', 'data-v="assist"')
     + avanceHtml("evo") + "</div>"
     + '<div class="kc-assistant">'
@@ -1092,9 +1152,11 @@ function vueAssistant() {
     + '<label><input type="checkbox" data-a="primes"' + (a.primes ? " checked" : "") + "> Primes Racines</label>"
     + choixRace(e)
     + "</div><div class=\"kc-barre\">"
-    + champNombre(e, "e", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
+    + champNombre(e, "e", "qmin", "Q max", 0, 500, 5, "Qualité de l’objet à fabriquer : seules les MP qui existent au moins à cette qualité sont proposées. 0 : sans limite.")
+    + '<label>Couleur ' + selecteur('data-e="couleur"', couleurs, e.couleur) + "</label>"
+    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité suffisante pour la Q max, sans jamais dépasser son stock")
+    + "</div><div class=\"kc-barre\">"
     + champNombre(e, "e", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
-    + champCoche(e, "e", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min, sans jamais dépasser son stock")
     + "</div></section></div>"
     + vueEvoResultat()
     + '<p class="faible">Tes réponses remplissent aussi le formulaire complet : passe dessus pour affiner.</p>';
@@ -1104,7 +1166,11 @@ async function lancerAssistant() {
   if (S.enCours) { chercher("evo"); return; }
   const r = await appelerJson("assistant", Object.assign({}, S.assist, { plan: S.evo.plan, qmin: S.evo.qmin }));
   if (r.erreur) { bandeau(r.erreur, true); return; }
+  // La couleur choisie dans l'assistant reste celle du joueur.
+  const couleur = S.evo.couleur;
   appliquerProjetEvo(r.projet);
+  S.evo.couleur = couleur;
+  sauverEvo();
   chercher("evo");
 }
 
@@ -1137,7 +1203,7 @@ function vueEvoResultatCorps() {
   const lignes = plan.stats.map((x) => {
     const pc = res.precraft ? res.precraft[x] : null;
     return '<tr class="' + (voulues.has(x) ? "kc-voulue" : "") + '"><td class="n">' + (pc != null ? nfr(pc, 2) : "")
-      + '</td><td class="n">' + (res.postcraft && res.postcraft[x] != null ? nfr(res.postcraft[x], 2) : "")
+      + '</td><td class="n">' + postHtml(x, res.postcraft ? res.postcraft[x] : null)
       + "</td><td>" + esc(S.meta.stats[x][0]) + "</td></tr>";
   }).join("");
   const ingredients = r.recette.cases.map((c, i) => '<div class="faible">' + esc(S.meta.pieces[plan.pieces[i][0]].nom) + "</div>"
@@ -1203,11 +1269,11 @@ function vueBij() {
     + '<div class="kc-bij"><div>'
     + '<section class="panneau"><h2>Panneau de commande</h2><div class="kc-barre">'
     + champNombre(b, "b", "nombre", "Bijoux", 1, 10, 1, "Ryzom compte dix emplacements")
-    + champNombre(b, "b", "qmin", "Q min", 0, 500, 5, "Qualité minimale des matériaux. 0 : sans limite.")
+    + champNombre(b, "b", "qmin", "Q max", 0, 500, 5, "Qualité de l’objet à fabriquer : seules les MP qui existent au moins à cette qualité sont proposées. 0 : sans limite.")
     + champNombre(b, "b", "variete", "Variété", 0, 12, 1, "Matériaux différents par pièce. 0 : sans limite.")
     + champNombre(b, "b", "duree", "Durée (s)", 0, 600, 5, "0 : jusqu'à l'arrêt")
     + "</div><div class=\"kc-barre\">"
-    + champCoche(b, "b", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité ≥ Q min, sans jamais dépasser son stock")
+    + champCoche(b, "b", "hall", "Seulement le stock du hall", "Seulement les MP que le hall a, en qualité suffisante pour la Q max, sans jamais dépasser son stock")
     + champCoche(b, "b", "ecartes", "Employer les matériaux écartés")
     + champCoche(b, "b", "tot", "S'arrêter dès que les conditions sont tenues", "Sinon la recherche emploie tout son temps à les dépasser")
     + "</div><details><summary>Race de chaque bijou</summary><div class=\"kc-races\">"
@@ -1555,7 +1621,15 @@ function surChangement(ev) {
   else if (d.e) surEvo(ev, t, d, v);
   else if (d.a) {
     const x = S.assist;
-    if (d.a === "stat") x.souhaits[Number(d.i)].stat = Number(v);
+    if (d.a === "stat") {
+      // Ses niveaux changent avec la caracteristique : la liste est redessinee.
+      const w = x.souhaits[Number(d.i)];
+      w.stat = Number(v);
+      niveauValide(planDe(S.evo.plan), w);
+      garder("kc-assistant", x);
+      dessiner();
+      return;
+    }
     else if (d.a === "niveau") x.souhaits[Number(d.i)].niveau = v;
     else if (d.a === "grade") x.grade = Number(v);
     else if (d.a === "sources") x.sources = v;

@@ -1,3 +1,9 @@
+# La page ne s'ouvre que par entree.php, qui verifie le laissez-passer de
+# l'entree de xiom.be (index/porte.php) ; index.html ne se lit pas en direct.
+DirectoryIndex entree.php
+<Files "index.html">
+    Require all denied
+</Files>
 # Le tri et ses sauvegardes ne se lisent que par releve.php, jamais en
 # direct : le fichier porte les noms des joueurs, et les sauvegardes
 # s'enumereraient une a une. Meme regle que le releve du forage.
