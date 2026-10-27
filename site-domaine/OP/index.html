@@ -1073,9 +1073,14 @@
             color: var(--eux);
         }
 
+        #compte-neutres {
+            color: var(--faible);
+        }
+
         /* Un clic sur un compteur ouvre la liste de ses noms. */
         #compte-kamis,
-        #compte-opposants {
+        #compte-opposants,
+        #compte-neutres {
             cursor: pointer;
             border-radius: 6px;
             padding: 1px 4px;
@@ -1083,7 +1088,8 @@
         }
 
         #compte-kamis:hover,
-        #compte-opposants:hover {
+        #compte-opposants:hover,
+        #compte-neutres:hover {
             background: var(--trait);
         }
 
@@ -1187,6 +1193,10 @@
 
         #noms-camp.opposants h2 {
             color: var(--eux);
+        }
+
+        #noms-camp.neutres h2 {
+            color: var(--faible);
         }
 
         #noms-camp-liste {
@@ -1517,6 +1527,7 @@
                 <h3>Total des joueurs</h3>
                 <div id="compte-kamis" role="button" tabindex="0" title="Voir la liste des Kamis">Kamis <b>0</b></div>
                 <div id="compte-opposants" role="button" tabindex="0" title="Voir la liste des opposants">Opposants <b>0</b></div>
+                <div id="compte-neutres" role="button" tabindex="0" title="Voir la liste des neutres">Neutres <b>0</b></div>
             </div>
         </aside>
 
@@ -1777,8 +1788,9 @@
                 (camps[n] ? camps[n].c : fige) === camp).map(([n]) => n);
         }
 
+        const NOMS_CAMPS = { kamis: "Kamis", opposants: "Opposants", neutres: "Neutres" };
         function peindreCompteurs() {
-            for (const camp of ["kamis", "opposants"]) {
+            for (const camp of Object.keys(NOMS_CAMPS)) {
                 document.querySelector("#compte-" + camp + " b").textContent =
                     nomsDuCamp(camp).length;
             }
@@ -1791,7 +1803,7 @@
                 a.localeCompare(b, "fr", { sensitivity: "base" }));
             nomsCamp.className = camp;
             document.getElementById("noms-camp-titre").textContent =
-                (camp === "kamis" ? "Kamis" : "Opposants") + " · " + noms.length;
+                NOMS_CAMPS[camp] + " · " + noms.length;
             const liste = document.getElementById("noms-camp-liste");
             liste.replaceChildren(...noms.map(n => {
                 const li = document.createElement("li");
@@ -1800,7 +1812,7 @@
             }));
             nomsCamp.showModal();
         }
-        for (const camp of ["kamis", "opposants"]) {
+        for (const camp of Object.keys(NOMS_CAMPS)) {
             const bouton = document.getElementById("compte-" + camp);
             bouton.addEventListener("click", () => montrerNoms(camp));
             bouton.addEventListener("keydown", e => {
