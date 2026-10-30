@@ -47,6 +47,20 @@ PAGES = (
      "\U0001F50D"),
     ("OP", "Guerre d'OP",
      "Trier ensemble les participants des guerres d'avant-poste", "\u2694"),
+    # Une image a la place de l'emoji : un couteau suisse, detoure.
+    ("padui", "PadUI de la Lune",
+     "L'interface PadUI modifiée et son installateur",
+     os.path.join(RACINE, "outils", "couteau-suisse.png")),
+    # Une sous-page : sa vignette a cote de celle de PadUI, sous un autre nom.
+    ("padui", "Déposer mes drapeaux",
+     "Forage et rois/nommés partagés aux Luneux, code personnel",
+     "\u26F3", "apercu-deposer.png", "padui/deposer.php"),
+    # Pour le sommaire seulement : Lune-eternelle/apercu.png est copie depuis
+    # pages/ par site-domaine.py (la vignette de la page GitHub), on n'y
+    # touche pas.
+    ("index", "Applications de la Lune",
+     "ZyRoom Linux et Windows, V-RyLune Android, KipeeCraft",
+     "\U0001F312", "apercu-lune.png", "Lune-eternelle"),
 )
 
 
@@ -66,6 +80,14 @@ def emoji(car: str, taille: int) -> Image.Image:
                      Image.LANCZOS)
 
 
+def image_fichier(chemin: str, taille: int) -> Image.Image:
+    """Une image (PNG transparent) a la place de l'emoji, a la meme taille."""
+    im = Image.open(chemin).convert("RGBA")
+    echelle = taille / max(im.size)
+    return im.resize((round(im.width * echelle), round(im.height * echelle)),
+                     Image.LANCZOS)
+
+
 def lignes(texte: str, fonte, largeur: int, d: ImageDraw.ImageDraw) -> list:
     """Coupe le texte en lignes qui tiennent dans la largeur."""
     sortie, courante = [], ""
@@ -79,12 +101,13 @@ def lignes(texte: str, fonte, largeur: int, d: ImageDraw.ImageDraw) -> list:
     return sortie + [courante]
 
 
-def carte(dossier: str, titre: str, sous: str, icone) -> None:
+def carte(dossier: str, titre: str, sous: str, icone,
+          fichier: str = "apercu.png", adresse: str = "") -> None:
     im = Image.new("RGB", (LARGEUR, HAUTEUR), FOND)
     d = ImageDraw.Draw(im)
     d.rounded_rectangle((40, 40, LARGEUR - 40, HAUTEUR - 40), 28,
                         fill=SURFACE, outline=(50, 66, 70), width=2)
-    image = emoji(icone, 240)
+    image = emoji(icone, 240) if len(icone) <= 2 else image_fichier(icone, 240)
     im.paste(image, (110 + (260 - image.width) // 2,
                      (HAUTEUR - image.height) // 2), image)
 
@@ -101,15 +124,15 @@ def carte(dossier: str, titre: str, sous: str, icone) -> None:
     for l in l_sous:
         d.text((x, y), l, font=f_sous, fill=FAIBLE)
         y += 46
-    d.text((LARGEUR - 90, HAUTEUR - 80), "xiom.be/" + dossier,
+    d.text((LARGEUR - 90, HAUTEUR - 80), "xiom.be/" + (adresse or dossier),
            font=police(NORMAL, 26), fill=SARCELLE, anchor="rs")
-    im.save(os.path.join(SITE, dossier, "apercu.png"), optimize=True)
+    im.save(os.path.join(SITE, dossier, fichier), optimize=True)
 
 
 def favicon(dossier: str, icone: str) -> None:
     """L'onglet porte le meme emoji que la vignette. ZyRoom garde le sien :
     l'icone de l'application, posee par outils/page-zyroom.py."""
-    if dossier == "zyroom":
+    if dossier in ("zyroom", "padui", "index"):
         return
     image = emoji(icone, 64)
     carre = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
