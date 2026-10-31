@@ -29,6 +29,15 @@ def lire():
         return json.load(f)
 
 
+def texte_html(texte):
+    """Le texte, avec en gras (en or sur la page) ce qui precede le premier
+    « : », la partie du site concernee (« Guerre d'OP : ... »)."""
+    sujet, deux_points, reste = texte.partition(" : ")
+    if not deux_points:
+        return html.escape(texte, quote=False)
+    return f"<b>{html.escape(sujet, quote=False)}</b> : {html.escape(reste, quote=False)}"
+
+
 def ecrire_page(liste):
     with open(PAGE, encoding="utf-8") as f:
         page = f.read()
@@ -36,7 +45,7 @@ def ecrire_page(liste):
         sys.exit(f"{PAGE} : marques {DEBUT.strip()} et {FIN.strip()} introuvables")
     lignes = "".join(
         f'    <li><time datetime="{n["date"]}">{datetime.date.fromisoformat(n["date"]).strftime("%d/%m")}</time>'
-        f'{html.escape(n["texte"], quote=False)}</li>\n' for n in liste[:NOMBRE])
+        f'{texte_html(n["texte"])}</li>\n' for n in liste[:NOMBRE])
     avant, reste = page.split(DEBUT)
     apres = reste.split(FIN, 1)[1]
     with open(PAGE, "w", encoding="utf-8") as f:
