@@ -87,7 +87,11 @@ function lancer() {
   travail = nouveauWorker(0);
   travail.onerror = (ev) => { S.erreur = ev.message || "worker en panne"; abandonner(travail, S.erreur); dessiner(); };
   appeler("demarrer", lire("kc-retouches", {}))
-    .then((texte) => { preparer(JSON.parse(texte)); dessiner(); recalculer(); })
+    .then((texte) => {
+      preparer(JSON.parse(texte));
+      if (aOuvrir) ouvrirEnAttente();
+      else { dessiner(); recalculer(); }
+    })
     .catch((souci) => { S.erreur = souci.message; dessiner(); });
 }
 
@@ -170,6 +174,42 @@ function preparer(meta) {
   if (!ensEvo || ensEvo.grande !== S.evo.plan) S.evo.ensemble = null;
   if (!S.assist) S.assist = { souhaits: [], grade: 1, sources: "ANY", primes: true };
   ajusterAssistant();
+}
+
+// Une recette de l'onglet Recettes (mp.json) : le plan et ses MP, avec le
+// rang de leur piece (r) quand l'import l'a garde. Sans rang, la piece est
+// celle qui accepte la MP ; si deux l'acceptent (massues), la premiere, et
+// le bandeau le dit : il faut alors reimporter le .kc.
+let aOuvrir = null;
+function ouvrirEnAttente() {
+  const r = aOuvrir;
+  aOuvrir = null;
+  const plan = planDe(r.plan);
+  if (!plan) { bandeau(r.nom + " : plan " + r.plan + " inconnu de KipeeCraft", true); return; }
+  const cases = plan.pieces.map(() => []);
+  let doutes = 0, absentes = 0;
+  for (const p of r.pieces) {
+    const possibles = plan.pieces.map(([piece], i) => (index.has(piece + "|" + p.mp) ? i : -1))
+      .filter((i) => i >= 0);
+    let rang = p.r ? p.r - 1 : -1;
+    if (!possibles.includes(rang)) {
+      if (possibles.length > 1) doutes++;
+      rang = possibles.length ? possibles[0] : -1;
+    }
+    if (rang < 0) { absentes++; continue; }
+    cases[rang].push([p.mp, p.n]);
+  }
+  S.recette = { plan: plan.id, option: plan.options[0] || 0, commentaire: r.nom, cases };
+  S.palier = plan.palier;
+  S.sous = "simu";
+  S.choix = null;
+  garder("kc-sous", S.sous);
+  sauverRecette();
+  dessiner();
+  recalculer();
+  if (absentes) bandeau(r.nom + " : " + absentes + " MP inconnue(s) de KipeeCraft, laissée(s) de côté", true);
+  else if (doutes) bandeau(r.nom + " : pièce incertaine pour " + doutes + " MP, réimporte le .kc pour la corriger", true);
+  else bandeau(r.nom + " ouverte dans le Simulateur");
 }
 
 function planDe(id) { return S.meta.plans.find((p) => p.id === Number(id)); }
@@ -1684,6 +1724,12 @@ function surMenu(ev) {
 // ------------------------------------------------------------ entree
 
 window.KC = {
+  // Appele par index.html : une recette de l'onglet Recettes, ouverte
+  // des que KipeeCraft est pret.
+  ouvrirRecette(recette) {
+    aOuvrir = recette;
+    if (S.meta) ouvrirEnAttente();
+  },
   // Appele par index.html quand on ouvre l'onglet ; `vue` est vide.
   afficher(vue) {
     racine = document.createElement("div");

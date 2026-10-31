@@ -916,6 +916,15 @@ function afficher() {
 // du navigateur ne le croit.
 
 let kcCharge = null;
+// Une recette de l'onglet Recettes a ouvrir dans le Simulateur.
+let kcAOuvrir = null;
+function ouvrirDansKc(recette) {
+  kcAOuvrir = recette;
+  onglet = "kc";
+  fermerMenus();
+  afficher();
+  window.scrollTo(0, 0);
+}
 function vueKc(vue) {
   vue.innerHTML = "";
   kcCharge = kcCharge || new Promise((ok, ko) => {
@@ -925,7 +934,12 @@ function vueKc(vue) {
     s.onerror = () => { kcCharge = null; ko(new Error("kc/kc.js introuvable")); };
     document.head.appendChild(s);
   });
-  kcCharge.then(() => { if (onglet === "kc") { vue.innerHTML = ""; window.KC.afficher(vue); } })
+  kcCharge.then(() => {
+    if (onglet !== "kc") return;
+    vue.innerHTML = "";
+    window.KC.afficher(vue);
+    if (kcAOuvrir) { window.KC.ouvrirRecette(kcAOuvrir); kcAOuvrir = null; }
+  })
     .catch((souci) => { vue.innerHTML = '<p class="inconnue">' + esc(souci.message) + "</p>"; });
 }
 
@@ -1597,7 +1611,9 @@ function detail(x) {
   }).join("");
   let html = "<table><thead><tr><th>MP</th><th class=\"n\">Par craft</th>"
     + "<th>Qualité mini</th><th class=\"n\">Stock</th><th class=\"n\">Crafts</th>"
-    + "</tr></thead><tbody>" + lignes + "</tbody></table>";
+    + "</tr></thead><tbody>" + lignes + "</tbody></table>"
+    + '<p><button type="button" data-kc-ouvrir="' + esc(x.r.id) + '" title="La recette dans le Simulateur de KipeeCraft">'
+    + "Ouvrir dans KipeeCraft</button></p>";
   if (!connecte) {
     return html + (Object.keys(x.r.minimums || {}).length
       ? '<p class="faible">* qualité relevée pour cette MP dans cette recette.</p>' : "");
@@ -1667,8 +1683,10 @@ function identifiant(nom) {
 function lireKc(nomFichier, texte) {
   texte = texte.replace(/\r\n/g, "\n");
   const plan = /^PatternID=(\d+)/m.exec(texte);
-  const pieces = [...texte.matchAll(/^slot(\d+)=(\d+)x\s+(\S+)/gm)]
-    .map((m) => ({ n: Number(m[2]), mp: m[3] }));
+  // Le dernier nombre est le rang de la piece dans le plan : une meme MP
+  // peut aller dans deux pieces (massues), KipeeCraft en a besoin.
+  const pieces = [...texte.matchAll(/^slot(\d+)=(\d+)x\s+(\S+)(?:[ \t]+(\d+))?/gm)]
+    .map((m) => Object.assign({ n: Number(m[2]), mp: m[3] }, m[4] ? { r: Number(m[4]) } : {}));
   if (!plan || !pieces.length) return null;
   const nom = nomFichier.replace(/\.kc$/i, "").slice(0, 80);
   return { id: identifiant(nom), nom, plan: Number(plan[1]), pieces, minimums: {} };
@@ -1860,6 +1878,12 @@ $("#vue").addEventListener("click", async (ev) => {
       await navigator.clipboard.writeText(noms.join("\n"));
       bandeau(noms.length + " nom" + (noms.length > 1 ? "s" : "") + " copié" + (noms.length > 1 ? "s" : ""));
     } catch (e) { bandeau("Copie impossible : " + e.message, true); }
+    return;
+  }
+  const kc = ev.target.closest("[data-kc-ouvrir]");
+  if (kc) {
+    const x = calcul.recettes.find((y) => y.r.id === kc.dataset.kcOuvrir);
+    if (x) ouvrirDansKc(x.r);
     return;
   }
   const bouton = ev.target.closest("[data-action]");

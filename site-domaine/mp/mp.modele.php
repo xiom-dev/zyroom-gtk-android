@@ -452,7 +452,12 @@ function recette_valide($r): ?array
         if ($n === null || !preg_match(FORME_MP, $mp)) {
             return null;
         }
-        $pieces[] = ['n' => $n, 'mp' => $mp];
+        // Le rang de la piece dans le plan (KipeeCraft), quand l'import l'a.
+        $r = array_key_exists('r', $p) ? entier($p['r'], 1, 20) : null;
+        if (array_key_exists('r', $p) && $r === null) {
+            return null;
+        }
+        $pieces[] = $r === null ? ['n' => $n, 'mp' => $mp] : ['n' => $n, 'mp' => $mp, 'r' => $r];
     }
     if (!$pieces || count($pieces) > MAX_PIECES) {
         return null;

@@ -55,6 +55,13 @@ PAGES = (
     ("padui", "Déposer mes drapeaux",
      "Forage et rois/nommés partagés aux Luneux, code personnel",
      "\u26F3", "apercu-deposer.png", "padui/deposer.php"),
+    ("utilitaire", "Utilitaires de la Lune",
+     "Chrono et Clicker, pour Windows et Linux", "\U0001F6E0"),
+    ("utilitaire/chrono", "Chrono",
+     "Chronomètre et compte à rebours, pour Windows et Linux", "\u23F1"),
+    ("utilitaire/clicker", "Clicker",
+     "Auto-clic piloté par la touche ², pour Windows et Linux",
+     "\U0001F5B1"),
     # Pour le sommaire seulement : Lune-eternelle/apercu.png est copie depuis
     # pages/ par site-domaine.py (la vignette de la page GitHub), on n'y
     # touche pas.
@@ -132,7 +139,8 @@ def carte(dossier: str, titre: str, sous: str, icone,
 def favicon(dossier: str, icone: str) -> None:
     """L'onglet porte le meme emoji que la vignette. ZyRoom garde le sien :
     l'icone de l'application, posee par outils/page-zyroom.py."""
-    if dossier in ("zyroom", "padui", "index"):
+    if dossier in ("zyroom", "padui", "index", "utilitaire",
+                   "utilitaire/chrono", "utilitaire/clicker"):
         return
     image = emoji(icone, 64)
     carre = Image.new("RGBA", (64, 64), (0, 0, 0, 0))

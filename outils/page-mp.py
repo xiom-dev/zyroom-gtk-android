@@ -216,9 +216,10 @@ def identifiant(nom: str) -> str:
 
 
 #: Une ligne de piece d'un `.kc` : "slot3=3x Choice_PrimeRoots_Dzao_Fiber 2".
-#: Le dernier nombre est la colonne de la base de KipeeCraft ; il ne sert pas
-#: au compte des MP.
-LIGNE_SLOT = re.compile(r"^slot(\d+)=(\d+)x\s+(\S+)", re.M)
+#: Le dernier nombre est le rang de la piece dans le plan : il ne sert pas au
+#: compte des MP, mais le bouton « Ouvrir dans KipeeCraft » en a besoin (une
+#: meme MP peut aller dans deux pieces d'une massue).
+LIGNE_SLOT = re.compile(r"^slot(\d+)=(\d+)x\s+(\S+)(?:[ \t]+(\d+))?", re.M)
 
 
 def lire_recette(chemin: str) -> dict | None:
@@ -226,8 +227,8 @@ def lire_recette(chemin: str) -> dict | None:
     with open(chemin, encoding="latin-1") as fh:
         texte = fh.read().replace("\r\n", "\n")
     plan = re.search(r"^PatternID=(\d+)", texte, re.M)
-    pieces = [{"n": int(q), "mp": mp}
-              for _, q, mp in LIGNE_SLOT.findall(texte)]
+    pieces = [{"n": int(q), "mp": mp, **({"r": int(r)} if r else {})}
+              for _, q, mp, r in LIGNE_SLOT.findall(texte)]
     if not plan or not pieces:
         return None
     nom = os.path.splitext(os.path.basename(chemin))[0]
