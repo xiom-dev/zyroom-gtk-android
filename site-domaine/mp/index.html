@@ -1758,6 +1758,10 @@ async function envoyer(corps, relireApres = true) {
     const reponse = await r.json().catch(() => ({}));
     if (r.status === 401) { verrouiller(); bandeau("Connexion expirée : reconnecte-toi", true); return false; }
     if (!r.ok) { bandeau("Refusé : " + (reponse.erreur || r.status), true); return false; }
+    // Seul {"ok": true} dit que mp.php a enregistre. Une erreur PHP peut
+    // revenir en 200 avec du texte : l'import du 31/10 se croyait reussi
+    // sans rien ecrire.
+    if (reponse.ok !== true) { bandeau("Échec : réponse illisible du serveur, rien n'est enregistré", true); return false; }
   } catch (souci) {
     bandeau("Envoi impossible : " + souci.message, true);
     return false;

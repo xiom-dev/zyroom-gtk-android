@@ -453,11 +453,13 @@ function recette_valide($r): ?array
             return null;
         }
         // Le rang de la piece dans le plan (KipeeCraft), quand l'import l'a.
-        $r = array_key_exists('r', $p) ? entier($p['r'], 1, 20) : null;
-        if (array_key_exists('r', $p) && $r === null) {
+        // $rang, pas $r : $r est la recette, relue plus bas (objectif,
+        // qualite) ; l'ecraser faisait echouer tout import (01/11).
+        $rang = array_key_exists('r', $p) ? entier($p['r'], 1, 20) : null;
+        if (array_key_exists('r', $p) && $rang === null) {
             return null;
         }
-        $pieces[] = $r === null ? ['n' => $n, 'mp' => $mp] : ['n' => $n, 'mp' => $mp, 'r' => $r];
+        $pieces[] = $rang === null ? ['n' => $n, 'mp' => $mp] : ['n' => $n, 'mp' => $mp, 'r' => $rang];
     }
     if (!$pieces || count($pieces) > MAX_PIECES) {
         return null;
