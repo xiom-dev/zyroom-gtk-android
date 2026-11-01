@@ -274,6 +274,14 @@ def _matieres() -> dict:
 
 def prises() -> list:
     """Les prises du journal, chacune ramenée à une case du relevé."""
+    return list(dict.fromkeys(case for case, _quand in prises_datees()))
+
+
+def prises_datees() -> list:
+    """Les prises du journal, dans l'ordre : (case du relevé, moment où la
+    source a été trouvée). Une case revient autant de fois qu'elle a été
+    prise ; le moment sert à savoir si une prise est plus récente que ce que
+    le site dit de la case (`_a_reconfirmer`)."""
     conditions, reperes, ancres, valeurs = _carnet()
     if not ancres:
         return []
@@ -347,12 +355,12 @@ def prises() -> list:
             condition = meteo.condition_de(taux)
         if condition is None or not 0 <= saison < 4:
             continue            # hors du carnet : on n'approxime pas
-        sortie.append("|".join((zone, SAISONS_PAGE[saison],
-                                matiere, qualite,
-                                CONDITIONS_PAGE[condition])))
+        sortie.append(("|".join((zone, SAISONS_PAGE[saison],
+                                 matiere, qualite,
+                                 CONDITIONS_PAGE[condition])), quand))
     if zone:
         _ecrire("zone.json", zone)
-    return list(dict.fromkeys(sortie))
+    return sortie
 
 
 # ------------------------------------------------------------------- le site
@@ -566,6 +574,28 @@ def partager_drapeaux() -> int:
     return int(retour.get("drapeaux", 0))
 
 
+def _a_reconfirmer(actuel, derniere) -> bool:
+    """Vrai si une case déjà envoyée doit l'être de nouveau : le site ne la
+    montre pas cochée (orange « ? », ou « − ») et une prise **plus récente**
+    que son dernier changement sur le site la confirme.
+
+    Une case passée en orange par une correction restait sinon orange pour
+    toujours : `posees.json` la disait cochée, et l'Irin forée deux fois le
+    1er novembre aux Sources Interdites (Automne, Bad) ne la confirmait
+    jamais. Une case effacée du site n'est pas renvoyée, ni une case changée
+    après la dernière prise : c'est une décision humaine, on la respecte.
+    """
+    if not isinstance(actuel, dict) or actuel.get("v") == "x" or derniere is None:
+        return False
+    try:
+        change = datetime.datetime.fromisoformat(str(actuel.get("quand", "")))
+    except ValueError:
+        return False
+    if change.tzinfo is None:
+        change = change.replace(tzinfo=datetime.timezone.utc)
+    return derniere > change
+
+
 def envoyer() -> dict:
     """Coche sur le relevé commun ce que le journal confirme.
 
@@ -574,17 +604,26 @@ def envoyer() -> dict:
     observation humaine passe avant la nôtre.
     """
     lues = moissonner()
-    cases = prises()
+    datees = prises_datees()
+    cases = list(dict.fromkeys(case for case, _quand in datees))
+    derniere = {}
+    for case, quand in datees:
+        if case not in derniere or quand > derniere[case]:
+            derniere[case] = quand
     connues = set(_lire("posees.json", []))
-    neuves = [c for c in cases if c not in connues]
     bilan = {"lignes": lues, "prises": len(cases), "posees": 0,
-             "deja": len(cases) - len(neuves), "erreur": "", "cochees": []}
+             "deja": 0, "erreur": "", "cochees": []}
     try:
         tableau = _lire_le_site()
         cle = _secret(CLE_FICHIER)
     except (OSError, ValueError) as souci:
         bilan["erreur"] = str(souci)
         return bilan
+    # Les nouvelles, et celles deja envoyees que le site ne montre plus
+    # cochees alors qu'une prise plus recente les confirme.
+    neuves = [c for c in cases if c not in connues
+              or _a_reconfirmer(tableau.get(c), derniere.get(c))]
+    bilan["deja"] = len(cases) - len(neuves)
 
     vues = set(connues)
     for case in neuves:

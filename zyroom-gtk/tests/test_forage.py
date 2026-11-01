@@ -258,5 +258,27 @@ class LesDrapeauxPartagésPourPadUI(unittest.TestCase):
         self.assertEqual(titres, ["oath XL", "spot colle", "pop Mukah"])
 
 
+
+class UneOrangeConfirméeEstRenvoyée(unittest.TestCase):
+    """Une case passée en orange par une correction, que posees.json dit
+    cochée : renvoyée seulement si une prise plus récente la confirme (l'Irin
+    du 1er novembre). Effacée du site, ou changée après la prise : laissée."""
+
+    def test_reconfirmer(self):
+        import datetime
+        from zyroom import forage_releve
+        prise = datetime.datetime(2026, 11, 1, 21, 19, 51).astimezone()
+        orange = {"v": "?", "qui": "relevé auto corrigé", "quand": "2026-10-03T22:21:26+00:00"}
+        self.assertTrue(forage_releve._a_reconfirmer(orange, prise))
+        # Une vieille prise, d'avant la correction : la correction tient.
+        vieille = datetime.datetime(2026, 9, 27, 7, 40, 38).astimezone()
+        self.assertFalse(forage_releve._a_reconfirmer(orange, vieille))
+        # Effacée du site, deja verte, ou sans prise : rien.
+        self.assertFalse(forage_releve._a_reconfirmer(None, prise))
+        self.assertFalse(forage_releve._a_reconfirmer({"v": "x", "quand": "2026-10-03T22:21:26+00:00"}, prise))
+        self.assertFalse(forage_releve._a_reconfirmer(orange, None))
+        self.assertFalse(forage_releve._a_reconfirmer({"v": "?"}, prise))
+
+
 if __name__ == "__main__":
     unittest.main()
