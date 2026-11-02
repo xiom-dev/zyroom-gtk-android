@@ -92,9 +92,9 @@
   <form id="porte-form">
     <button type="button" class="fermer" aria-label="Fermer">×</button>
     <h1>Sommaire</h1>
-    <p>Accès réservé. Le mot de passe et la réponse sont demandés ensemble.</p>
+    <p>Accès réservé. Ton code personnel et la réponse sont demandés ensemble.</p>
     <p class="non" id="porte-message" role="alert" hidden></p>
-    <input class="mdp" type="password" name="mdp" autocomplete="current-password" placeholder="Mot de passe"
+    <input class="mdp" type="password" name="mdp" autocomplete="current-password" placeholder="Code personnel"
            maxlength="200" required>
     <fieldset id="porte-question"><legend></legend></fieldset>
     <button type="submit">Entrer</button>
@@ -195,7 +195,7 @@
           if (d.ok) { location.href = apres; return; }
           form.mdp.value = "";
           bouton.disabled = false;
-          dire(d.message || "Mot de passe ou r\u00e9ponse incorrects.");
+          dire(d.message || "Code ou r\u00e9ponse incorrects.");
           fermee(d.attente || 0);
           form.mdp.focus();
         })

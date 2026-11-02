@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Écrit le garde de la page https://xiom.be/padui/ (site-domaine/padui/garde.php).
 
-La page s'ouvre avec les mots de passe de tout le site (outils/acces.py) :
-le code personnel des six joueurs de confiance, ou le mot de passe commun.
-garde.php n'en garde que les empreintes bcrypt, et le secret qui signe le
+La page s'ouvre avec les codes personnels de tout le site (outils/acces.py).
+garde.php n'en garde que les empreintes, et le secret qui signe le
 cookie d'entrée — comme le relevé du forage (forage/releve.php).
 
 Les codes personnels des joueurs autorisés à déposer leurs drapeaux
@@ -94,7 +93,7 @@ def main() -> int:
     # PHP lit les empreintes $2y$, bcrypt en Python rend $2b$ : même calcul.
     empreintes = ",\n".join("    '%s' => '$2y$%s'" % (nom, bcrypt.hashpw(code.encode(), bcrypt.gensalt(12)).decode()[4:])
                             for nom, code in deposants.items())
-    # La page : les six codes personnels ou le mot de passe commun (acces.py).
+    # La page : les codes personnels de tout le site (acces.py).
     empreinte_page = acces.php_empreintes()
     php = f"""<?php
 // Le garde de https://xiom.be/padui/ : ecrit par outils/page-padui.py, ne pas
@@ -102,8 +101,8 @@ def main() -> int:
 // la page elle-meme passe par la porte de xiom.be (index/porte.php).
 //
 // Les empreintes de ce qui ouvre la mise a jour des drapeaux de
-// l'installateur (donnees.php) : les six codes personnels et le mot de passe
-// commun (outils/acces.py). Et le secret des pages a code. Aucun mot de passe
+// l'installateur (donnees.php) : les codes personnels de tout le site
+// (outils/acces.py). Et le secret des pages a code. Aucun mot de passe
 // en clair n'est monte ici.
 declare(strict_types=1);
 const EMPREINTES = {empreinte_page};
@@ -120,7 +119,7 @@ const DEPOSANTS = [
     php += "\n" + acces.PHP_VERIFIE
     with open(GARDE, "w", encoding="utf-8") as f:
         f.write(php)
-    print(f"{GARDE} écrit (codes et mot de passe commun : outils/acces.py)")
+    print(f"{GARDE} écrit (codes personnels : outils/acces.py)")
     return 0
 
 

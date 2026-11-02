@@ -16,8 +16,8 @@
 declare(strict_types=1);
 require __DIR__ . '/../index/porte.php';
 
-// Les empreintes de ce qui ouvre la page : les six codes personnels et le mot
-// de passe commun de xiom.be (outils/acces.py).
+// Les empreintes de ce qui ouvre la page : les codes personnels de xiom.be,
+// un par joueur (outils/acces.py).
 const EMPREINTES = __EMPREINTES__;
 __VERIFIE__
 const SEL = '__SEL__';

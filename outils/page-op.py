@@ -3,7 +3,7 @@
 
 Le modèle (`releve.modele.php`) est versionné **sans aucun secret**. Cet outil
 y met les empreintes bcrypt des mots de passe de xiom.be (`outils/acces.py` :
-les six codes personnels et le mot de passe commun) et le sel qui signe les
+les codes personnels) et le sel qui signe les
 jetons, gardé hors du dépôt dans `~/.config/zyroom/`. Le `releve.php` produit est ignoré par git : c'est lui, et lui seul,
 qu'on dépose sur xiom.be avec `index.html` et `.htaccess`.
 

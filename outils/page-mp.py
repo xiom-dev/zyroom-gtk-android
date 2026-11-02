@@ -17,7 +17,7 @@ Trois sorties, toutes à déposer sur xiom.be avec `index.html` et `.htaccess` :
 Deux sortes de mots de passe, dans `~/.config/zyroom/` :
 
 - la lecture seule s'ouvre avec les mots de passe de tout xiom.be
-  (`outils/acces.py` : six codes personnels, mot de passe commun) et un nom
+  (`outils/acces.py` : les codes personnels) et un nom
   de la guilde.
 - `mp.motsdepasse` : un par personne qui modifie, une ligne `Nom: phrase`.
   Ajouter quelqu'un : une ligne de plus, relancer, redéposer `mp.php`.

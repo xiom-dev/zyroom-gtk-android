@@ -45,8 +45,8 @@ require __DIR__ . '/../index/porte.php';
 const UTILISATEURS = '__UTILISATEURS__';
 // Le seul editeur qui recoit la composition des recettes.
 const PROPRIETAIRE = 'Xiom';
-// Les empreintes de ce qui ouvre la lecture : les six codes personnels et le
-// mot de passe commun de xiom.be (outils/acces.py).
+// Les empreintes de ce qui ouvre la lecture : les codes personnels de
+// xiom.be, un par joueur (outils/acces.py).
 const EMPREINTES = __EMPREINTES__;
 __VERIFIE__
 const SEL = '__SEL__';

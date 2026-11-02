@@ -1,27 +1,33 @@
 """Les mots de passe de xiom.be, en un seul endroit.
 
-Deux sortes d'accès, les mêmes sur toutes les pages protégées (sommaire,
-padui, forage, OP, applis de la Lune, MP du hall, ZyRoom web) :
+Une seule sorte d'accès, la même sur toutes les pages protégées (sommaire,
+padui, forage, OP, applis de la Lune, MP du hall, ZyRoom web) : **le code
+personnel** de chaque officier, officier supérieur et du chef de la guilde
+(plus Luz et Cibou), dans ~/.config/zyroom/acces.codes ({joueur: code}).
+Plus de mot de passe commun depuis le 02/11/2026 : il passait de main en main.
 
-- **le code personnel** des six joueurs de confiance (Xiom, Yamaa, Yzatis,
-  Thysela, Arudy, Azileth) : ~/.config/zyroom/padui.deposants, écrit par
-  outils/page-padui.py. Le même sert à déposer ses drapeaux ;
-- **le mot de passe commun** des autres joueurs de la guilde :
-  ~/.config/zyroom/commun.motdepasse.
+Le droit de déposer ses drapeaux sur PadUI est une autre liste, plus courte :
+~/.config/zyroom/padui.deposants (outils/page-padui.py).
 
-Les pages ne gardent que les empreintes bcrypt (EMPREINTES) et essaient
-chacune. Changer un code ou le mot de passe commun : modifier le fichier,
-relancer l'outil de chaque page, redéposer ses fichiers PHP.
+Les pages ne gardent qu'une empreinte par joueur (HMAC-SHA256 du code) : les
+codes sont tirés au hasard, seize caractères, introuvables par essais ; pas
+besoin de bcrypt, qui coûterait des secondes à trente joueurs. Et l'empreinte
+dit **qui** entre : la porte le met dans le laissez-passer et le journal.
+
+Donner, changer ou retirer un code : modifier acces.codes, relancer l'outil
+de chaque page (page-index, page-padui, page-mp, page-op, page-forage),
+redéposer ses fichiers PHP. Seul le joueur dont le code change est déconnecté.
 """
 
+import hashlib
+import hmac
 import json
 import os
 
-import bcrypt
-
 SECRETS = os.path.expanduser("~/.config/zyroom")
-CODES = os.path.join(SECRETS, "padui.deposants")
-COMMUN = os.path.join(SECRETS, "commun.motdepasse")
+CODES = os.path.join(SECRETS, "acces.codes")
+# Fixed label of the HMAC: the same in PHP (PHP_VERIFIE).
+EPICE = "xiom.be|acces|v1"
 
 
 def codes() -> dict:
@@ -30,46 +36,49 @@ def codes() -> dict:
         return json.load(f)
 
 
-def commun() -> str:
-    with open(COMMUN, encoding="utf-8") as f:
-        return f.read().strip()
-
-
 def phrases() -> list:
-    """Tout ce qui ouvre une page : les six codes, puis le mot de passe commun."""
-    return list(codes().values()) + [commun()]
+    """Tout ce qui ouvre une page : les codes personnels."""
+    return list(codes().values())
 
 
-def empreintes(cout: int = 10) -> list:
-    """Les empreintes bcrypt ($2y$, lues par PHP) de chaque phrase.
-
-    Coût 10 et non 12 : une page en essaie jusqu'à sept, il faut que le
-    tout reste sous la seconde.
-    """
-    return ["$2y$" + bcrypt.hashpw(p.encode(), bcrypt.gensalt(cout)).decode()[4:] for p in phrases()]
+def empreinte(code: str) -> str:
+    return hmac.new(EPICE.encode(), code.encode(), hashlib.sha256).hexdigest()
 
 
 def php_empreintes(cout: int = 10, noms=None) -> str:
-    """Le tableau PHP des empreintes, à coller dans un modèle : ['$2y$...', ...].
+    """Le tableau PHP des empreintes, à coller dans un modèle :
+    ['Joueur' => 'hex', ...].
 
-    Avec noms, seulement les codes personnels de ces joueurs (sans le mot de
-    passe commun) : l'écriture du forage, réservée à trois d'entre eux."""
-    phrases_ = [codes()[n] for n in noms] if noms else phrases()
-    return "[" + ", ".join("'$2y$%s'" % bcrypt.hashpw(p.encode(), bcrypt.gensalt(cout)).decode()[4:]
-                           for p in phrases_) + "]"
+    Avec noms, seulement les codes de ces joueurs : l'écriture du forage,
+    réservée à trois d'entre eux. cout ne sert plus (ancien bcrypt), gardé
+    pour les appels existants."""
+    tous = codes()
+    choisis = noms or list(tous)
+    for n in choisis:
+        if not n.isalnum():
+            raise SystemExit(f"Nom de joueur illisible dans {CODES} : {n!r}")
+    return "[" + ", ".join("'%s' => '%s'" % (n, empreinte(tous[n])) for n in choisis) + "]"
 
 
-# La fonction PHP qui essaie chaque empreinte. Toutes sont toujours essayées,
-# pour que la durée ne dise pas laquelle a réussi.
-PHP_VERIFIE = """function mdp_ok(string $mdp): bool
+# The PHP functions that check a code against EMPREINTES. Every entry is
+# always compared, so the time taken does not tell which one matched.
+PHP_VERIFIE = """function mdp_qui(string $mdp): ?string
 {
-    if (strlen($mdp) > 200) {
-        return false;
+    if ($mdp === '' || strlen($mdp) > 200) {
+        return null;
     }
-    $ok = false;
-    foreach (EMPREINTES as $e) {
-        $ok = password_verify($mdp, $e) || $ok;
+    $e = hash_hmac('sha256', $mdp, 'xiom.be|acces|v1');
+    $qui = null;
+    foreach (EMPREINTES as $nom => $ref) {
+        if (hash_equals($ref, $e)) {
+            $qui = (string) $nom;
+        }
     }
-    return $ok;
+    return $qui;
+}
+
+function mdp_ok(string $mdp): bool
+{
+    return mdp_qui($mdp) !== null;
 }
 """
