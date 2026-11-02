@@ -8,8 +8,9 @@ une exception. Les deux moitiés sont donc réunies ici, ce qui ramène le table
 à **quatre colonnes par saison**, celles que le jeu rend lui-même — et divise
 par deux le nombre de cases à cocher sur le terrain.
 
-La page se coche d'un clic : vide → `x` (ça sort) → vide ; une case
-orange `?` (à confirmer) passe à `x` d'un clic, puis vide, puis `?`. Et **tout le monde voit les croix de tout le monde** — le relevé vit sur
+La page se coche d'un clic : vide → `x` (ça sort) → `-` rouge (le jeu a dit
+« pas à cette saison ») → vide ; une case orange `?` (à confirmer) passe à
+`x` d'un clic, puis rouge, puis vide, puis `?`. Et **tout le monde voit les croix de tout le monde** — le relevé vit sur
 le serveur, dans un fichier JSON que `releve.php` tient à jour.
 
 **Lecture libre, écriture sur adresse secrète.** Sans clef dans l'adresse, la
@@ -630,7 +631,7 @@ GABARIT = """<!DOCTYPE html>
     color-scheme: dark;
     --fond: #10171a; --surface: #172226; --sarcelle: #3f7a68;
     --clair: #8fbfae; --or: #e8c15a; --texte: #e2e8e6; --faible: #9aa8a5;
-    --oui: #4bbf72; --non: #55605e; --dedu: #e8a13a;
+    --oui: #4bbf72; --non: #55605e; --dedu: #e8a13a; --rouge: #e05a4a;
   }
   * { box-sizing: border-box; }
   body {
@@ -778,11 +779,12 @@ GABARIT = """<!DOCTYPE html>
      ne depend pas de la grille du tableau. */
   .case[data-v="x"] { color: var(--oui); background: rgba(75,191,114,.13);
                       box-shadow: inset 0 0 0 1px rgba(75,191,114,.5); }
-  /* Meme soin pour le tiret, dont le fond ne change pas mais qui doit se lire
-     comme une reponse et non comme une case oubliee. */
-  .case[data-v="-"] { box-shadow: inset 0 0 0 1px rgba(150,160,158,.28); }
+  /* **Le rouge : le jeu a dit "pas a cette saison".** Pose a la main, case
+     par case (02/11/2026) : le message ne nomme pas la matiere cherchee,
+     aucun journal ne peut le poser seul. Meme contour que le vert. */
+  .case[data-v="-"] { color: var(--rouge); background: rgba(224,90,74,.14);
+                      box-shadow: inset 0 0 0 1px rgba(224,90,74,.55); }
   .case[data-v="x"]::after { content: "x"; }
-  .case[data-v="-"] { color: var(--non); }
   .case[data-v="-"]::after { content: "\\2212"; }
   /* **L'orange, c'est ce qu'on n'a pas vu soi-meme.** Il vient des landmarks
      des foreuses, de la cartographie du tutoriel ou de Ballistic Mystix. Un
@@ -827,7 +829,9 @@ GABARIT = """<!DOCTYPE html>
 <header>
   <h1>Relevé de forage des Primes</h1>
   <p>Quand on fore une source dans les Primes, on coche ici. Un clic&nbsp;:
-     <b style="color:var(--oui)">x</b> ça sort, un clic de plus efface. Utilisez une stanza précise —
+     <b style="color:var(--oui)">x</b> ça sort, un deuxième&nbsp;:
+     <b style="color:var(--rouge)">&minus;</b> rouge, le jeu a dit <i>pas à cette saison</i>,
+     un troisième efface. Utilisez une stanza précise —
      suprême seulement, ou excellent seulement — et lisez le
      message du jeu&nbsp;: <i>pas à cette saison</i>, <i>vidé</i>,
      <i>mauvaises conditions climatiques</i>.</p>
@@ -1094,14 +1098,15 @@ GABARIT = """<!DOCTYPE html>
     // **Deux cycles, selon ce qu'etait la case au premier clic.** Un seul ne
     // peut pas tout faire : si l'orange passe au vert et le vert a l'orange,
     // une orange ne se vide plus jamais. Une case vide va et vient entre vide
-    // et vert ; une orange se confirme d'un clic, se vide au deuxieme, et
-    // redevient orange au troisieme -- une orange quittee par erreur peut
-    // toujours y revenir. Plus de tiret : personne ne s'en servait ; les
-    // rares deja poses repartent dans le cycle des vides.
+    // et vert ; une orange se confirme d'un clic, puis passe au rouge, se
+    // vide, et redevient orange -- une orange quittee par erreur peut
+    // toujours y revenir. Le rouge (le jeu a dit "pas a cette saison") se
+    // place apres le vert dans les deux cycles : vide, vert, rouge, vide ;
+    // orange, vert, rouge, vide, orange.
     if (!(k in origine)) origine[k] = avant ? avant.v : undefined;
     const suite = origine[k] === "?"
-      ? { "?": "x", "x": undefined, undefined: "?" }
-      : { undefined: "x", "x": undefined, "-": "x", "?": "x" };
+      ? { "?": "x", "x": "-", "-": undefined, undefined: "?" }
+      : { undefined: "x", "x": "-", "-": undefined, "?": "x" };
     const v = suite[avant ? avant.v : undefined];
     // On peint d'abord et on demande ensuite : le clic doit repondre tout de
     // suite. Si le serveur refuse, on remet ce qui etait la.
