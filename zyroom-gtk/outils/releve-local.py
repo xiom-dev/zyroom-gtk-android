@@ -201,7 +201,7 @@ Description=Relevé des guildes Ryzom, toutes les quinze minutes
 
 [Timer]
 # Deux minutes après l'ouverture de session : le temps que le réseau soit là.
-OnBootSec=2min
+OnStartupSec=2min
 OnUnitActiveSec=15min
 # Rattrape le relevé manqué quand la machine était éteinte, au lieu
 # d'attendre le prochain quart d'heure.
