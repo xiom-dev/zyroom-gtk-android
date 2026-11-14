@@ -25,8 +25,8 @@ import unicodedata
 from datetime import datetime
 
 from PySide6.QtCore import QEvent, QSize, Qt, QObject, QTimer, Signal
-from PySide6.QtGui import (QAction, QColor, QFont, QGuiApplication, QIcon,
-                           QKeySequence, QShortcut,
+from PySide6.QtGui import (QAction, QColor, QFont, QFontMetrics,
+                           QGuiApplication, QIcon, QKeySequence, QShortcut,
                            QPainter, QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
                                QSizePolicy,
@@ -1358,8 +1358,33 @@ class FenetrePrincipale(QMainWindow):
             # le journal. On mesure donc une fois, la derniere ligne posee, et
             # l'on garde ces largeurs.
             self._table.resizeColumnsToContents()
+            self._marge_quantites()
             entete.setStretchLastSection(True)
             self._table.setUpdatesEnabled(True)
+
+    def _marge_quantites(self) -> None:
+        """**La place de trois chiffres de plus** dans la colonne des
+        quantites (Ludo, 11/11) : un tresor de -19 999 888 laisse la place de
+        -19 999 888 000, separateur des milliers compris. La meme marge que la
+        version GTK (`_caler_colonnes_journal`).
+
+        Mesuree avec la police de la cellule elle-meme : a chasse fixe, le
+        texte le plus long en signes est aussi le plus large."""
+        plus_long = None
+        for rang in range(self._table.rowCount()):
+            item = self._table.item(rang, 2)
+            if item is not None and (plus_long is None
+                                     or len(item.text()) > len(plus_long.text())):
+                plus_long = item
+        if plus_long is None:
+            return
+        texte = plus_long.text()
+        marge = " 000" if " " in texte else "000"
+        mesure = QFontMetrics(plus_long.font())
+        entete = self._table.horizontalHeader()
+        entete.resizeSection(2, entete.sectionSize(2)
+                             + mesure.horizontalAdvance(texte + marge)
+                             - mesure.horizontalAdvance(texte))
 
     def _remplir_journal(self) -> None:
         """Les lignes du journal, posees une a une.
