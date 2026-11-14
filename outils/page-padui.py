@@ -40,7 +40,7 @@ DEPOSANTS = os.path.join(SECRETS, "padui.deposants")
 NOMS_DEPOSANTS = ("Xiom", "Yamaa", "Yzatis", "Thysela", "Arudy", "Azileth", "Nizyros", "Luz", "Ciboulette", "Cibou", "Deborat")
 # Le filtre des depots : quelles matieres et quels rois/nommes reconnaitre,
 # tire des donnees de l'installateur PadUI (le meme tri que lui).
-INSTALLATEUR = os.path.expanduser("~/jeu/ryzom/padui-installeur")
+INSTALLATEUR = os.path.expanduser("~/jeu/padui/installeur")
 FILTRE = os.path.join(RACINE, "site-domaine", "padui", "filtre.json")
 # Comme les mots de passe de la page mp : douze lettres et chiffres melanges.
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"

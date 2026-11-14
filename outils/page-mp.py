@@ -43,7 +43,7 @@ SECRETS = os.path.expanduser("~/.config/zyroom")
 MOTS_DE_PASSE = os.path.join(SECRETS, "mp.motsdepasse")
 SEL = os.path.join(SECRETS, "mp.sel")
 
-KIPEECRAFT = os.path.expanduser("~/jeu/ryzom/KipeeCraft")
+KIPEECRAFT = os.path.expanduser("~/jeu/kipeecraft")
 BASE_KC = os.path.join(KIPEECRAFT, "kipeecraft-py", "src", "kipeecraft",
                        "resources", "defaults", "DB", "Ryzom.json")
 RECETTES = os.path.join(KIPEECRAFT, "Recipes")

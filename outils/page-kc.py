@@ -26,7 +26,7 @@ import zipfile
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SORTIE = os.path.join(RACINE, "site-domaine", "mp", "kc")
 PONT = os.path.join(RACINE, "outils", "kc_web.py")
-PAQUET = os.path.expanduser("~/jeu/ryzom/KipeeCraft/kipeecraft-py/src/kipeecraft")
+PAQUET = os.path.expanduser("~/jeu/kipeecraft/kipeecraft-py/src/kipeecraft")
 
 #: Ce qui part dans le zip, relativement au paquet.
 GARDES = ("__init__.py", "paths.py", "core/", "formats/", "resources/patterns.json",
