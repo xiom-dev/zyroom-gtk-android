@@ -15403,3 +15403,7 @@
 {"ts": 1794631917.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0756dxacc01.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 401, "new": 402}
 {"ts": 1794656374.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ipoc_int.sitem", "q": 250, "kind": "modified", "delta": 1, "old": 173, "new": 174}
 {"ts": 1794656374.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0747dxacc01.sitem", "q": 250, "kind": "modified", "delta": 1, "old": 222, "new": 223}
+{"ts": 1794661266.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ipoc_wil.sitem", "q": 250, "kind": "modified", "delta": 1, "old": 95, "new": 96}
+{"ts": 1794661266.0, "inv": "chest1", "label": "Coffre 1", "sheet": "ipoc_bal.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 133, "new": 134}
+{"ts": 1794661266.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0747dxacc01.sitem", "q": 150, "kind": "modified", "delta": 1, "old": 489, "new": 490}
+{"ts": 1794661266.0, "inv": "chest17", "label": "Coffre 17 — La Lune Des OPs 1/1", "sheet": "m0754dxacc01.sitem", "q": 250, "kind": "modified", "delta": 1, "old": 262, "new": 263}
