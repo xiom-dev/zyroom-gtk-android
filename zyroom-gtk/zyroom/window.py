@@ -78,7 +78,7 @@ NOM_GRAVE = "ZyRoom"
 
 #: Numéro de la variante lancée. Écrit par `livraison.sh`, jamais à la main :
 #: c'est `version.properties` qui fait foi.
-VERSION = "2.28" if _DEV else "1.49"
+VERSION = "2.29" if _DEV else "1.50"
 
 #: Signature affichée en bas de la fenêtre principale. Cliquable : elle ouvre
 #: l'À propos, où vivent le copyright et la licence.
@@ -868,14 +868,20 @@ class MainWindow(PageAlertes, PageBetes, PageGisements, PageMeteo,
             if colonne is None:
                 continue
             candidats = sorted(set(textes), key=len, reverse=True)[:10]
+            if nom == "quantite":
+                # **La place de trois chiffres de plus** (Ludo, 11/11) : un
+                # tresor de -19 999 888 laisse la place de -19 999 888 000,
+                # separateur des milliers compris. Meme marge cote Qt.
+                candidats = [t + (" 000" if " " in t else "000") for t in candidats]
             largeur = 0
             for texte in candidats:
                 mise = self._log_vue.create_pango_layout(texte)
-                # **L'horodatage est a chasse fixe.** Mesure avec la police du
-                # tableau, il sortait neuf pixels trop etroit et toutes les
-                # colonnes suivantes remontaient d'autant : le journal ne se
-                # superposait plus a celui de la version Qt.
-                if nom == "date":
+                # **L'horodatage et les quantites sont a chasse fixe.**
+                # Mesures avec la police du tableau, l'horodatage sortait neuf
+                # pixels trop etroit (le journal ne se superposait plus a
+                # celui de la version Qt), et le tresor perdait son dernier
+                # chiffre, qui mordait sur "Dappers" (11/11).
+                if nom in ("date", "quantite"):
                     police = mise.get_context().get_font_description().copy()
                     police.set_family("monospace")
                     mise.set_font_description(police)
