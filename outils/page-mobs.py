@@ -49,7 +49,7 @@ import unicodedata
 import urllib.request
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DOSSIER = os.path.join(RACINE, "site-domaine", "mp")
+DOSSIER = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/mp")
 SORTIE = os.path.join(DOSSIER, "mobs.json")
 NOMS = os.path.join(DOSSIER, "noms.json")
 

@@ -19,7 +19,7 @@ import sys
 import acces
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DOSSIER = os.path.join(RACINE, "site-domaine", "OP")
+DOSSIER = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/OP")
 MODELE = os.path.join(DOSSIER, "releve.modele.php")
 CIBLE = os.path.join(DOSSIER, "releve.php")
 SECRETS = os.path.expanduser("~/.config/zyroom")

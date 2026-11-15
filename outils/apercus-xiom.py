@@ -19,7 +19,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SITE = os.path.join(RACINE, "site-domaine")
+SITE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine")
 
 LARGEUR, HAUTEUR = 1200, 630
 FOND = (16, 23, 26)

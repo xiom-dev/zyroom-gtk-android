@@ -33,7 +33,7 @@ import sys
 import zipfile
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DOSSIER = os.path.join(RACINE, "site-domaine", "zyroom")
+DOSSIER = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/zyroom")
 MODELE = os.path.join(DOSSIER, "zyroom.modele.php")
 PONT = os.path.join(RACINE, "outils", "zr_web.py")
 PAQUET = os.path.join(RACINE, "zyroom-gtk", "zyroom")

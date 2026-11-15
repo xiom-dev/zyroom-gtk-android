@@ -24,13 +24,17 @@ import sys
 import zipfile
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SORTIE = os.path.join(RACINE, "site-domaine", "mp", "kc")
+SORTIE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/mp/kc")
 PONT = os.path.join(RACINE, "outils", "kc_web.py")
-PAQUET = os.path.expanduser("~/jeu/kipeecraft/kipeecraft-py/src/kipeecraft")
+PAQUET = os.path.expanduser("~/jeu/ryzom/kipeecraft/kipeecraft-py/src/kipeecraft")
 
 #: Ce qui part dans le zip, relativement au paquet.
 GARDES = ("__init__.py", "paths.py", "core/", "formats/", "resources/patterns.json",
           "resources/defaults/")
+#: Jamais dans le zip public, que tout membre de xiom.be/mp telecharge : la
+#: recherche exacte (le solveur) est reservee a Xiom et Nizyros, pour que les
+#: recettes ne fuient pas (Ludo, 09/11/2026).
+EXCLUS = ("core/exact.py",)
 #: Une date fixe : deux fabrications du meme code donnent le meme zip.
 DATE = (2026, 1, 1, 0, 0, 0)
 
@@ -41,7 +45,7 @@ def fichiers():
         for nom in sorted(noms):
             chemin = os.path.join(dossier, nom)
             relatif = os.path.relpath(chemin, PAQUET).replace(os.sep, "/")
-            if nom.endswith(".pyc"):
+            if nom.endswith(".pyc") or relatif in EXCLUS:
                 continue
             if any(relatif == g or (g.endswith("/") and relatif.startswith(g))
                    for g in GARDES):

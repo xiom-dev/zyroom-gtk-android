@@ -18,17 +18,19 @@ import time
 from pathlib import Path
 
 from kipeecraft.core import audit as _audit
+from kipeecraft.core import avant_poste
 from kipeecraft.core.craft import Ingredient, Recipe, compute_precraft, precraft_boost, craft as _craft
+from kipeecraft.core.craft import JEWEL_GROUPS
 from kipeecraft.core.enums import Color, Ecosystem, Grade, Origin, Part, Stat, Tier
-from kipeecraft.core.evolver import (Evolver, EvolverError, Score, Settings, build_pools,
-                                     deficit, evaluate, tolerance_for)
+from kipeecraft.core.evolver import (TOLERANCE, Evolver, EvolverError, Memo, Score, Settings,
+                                     build_pools, deficit, evaluate, tolerance_for)
 from kipeecraft.core.wizard import (MODIFIERS, Choices, Level, Sources, Wish, Wizard, WizardError,
                                     target_bounds, target_range)
 from kipeecraft.core.jeweler import (Jeweler, JewelerError, JewelerSettings,
                                      shopping_list)
 from kipeecraft.core.materials import MaterialDatabase, type_label
 from kipeecraft.core.patterns import PlanBook
-from kipeecraft.core.postcraft import (PostcraftError, PostcraftLibrary,
+from kipeecraft.core.postcraft import (RITE_BONUS, PostcraftError, PostcraftLibrary,
                                        filename_for, load_file)
 from kipeecraft.formats import project as proj
 from kipeecraft.formats import recipe as kc
@@ -134,7 +136,7 @@ def _recette(d: dict) -> Recipe:
     """Une recette depuis la page : le plan, et par piece [[cle, nombre], ...]."""
     plan = plans[int(d["plan"])]
     recette = Recipe(plan=plan, option=int(d.get("option", 0)),
-                     comment=d.get("commentaire", ""))
+                     comment=d.get("commentaire", ""), bonus=_bonus(plan, d))
     for rang, pieces in enumerate(d["cases"]):
         part = plan.parts[rang].part
         recette.slots[rang] = [Ingredient(_materiau(part, cle), int(n))
@@ -142,9 +144,16 @@ def _recette(d: dict) -> Recipe:
     return recette
 
 
+def _bonus(plan, d: dict) -> str:
+    """La MP d'OP demandee (d["bonus"], une fiche du jeu), seulement si le plan
+    l'accepte (ampli : Maga ou Cheng ; arme : Tekorn ou Vedice) ; sinon ""."""
+    fiche = d.get("bonus") or ""
+    return fiche if fiche in {f for f, _, _ in avant_poste.variantes(plan)} else ""
+
+
 def _vers_page(recette: Recipe) -> dict:
     return {"plan": recette.plan.id, "option": recette.option,
-            "commentaire": recette.comment,
+            "commentaire": recette.comment, "bonus": recette.bonus,
             "cases": [[[i.material.legacy_key, i.quantity] for i in case]
                       for case in recette.slots]}
 
@@ -173,6 +182,8 @@ def calculer(demande: str) -> str:
         "boost": r.boost, "perdu": r.wasted,
         "complete": recette.is_complete, "vide": recette.is_empty,
         "formules": formules is not None, "erreur": d.get("erreur"),
+        # Bijou : ce que le jeu met a zero (pas parmi les 3 meilleures)
+        "perdues": sorted(s.value for s in r.dropped),
     })
 
 
@@ -226,8 +237,9 @@ def _petite(grande: Recipe, plan) -> Recipe:
 
 
 def _pieces_ensemble(grande: Recipe, petite: Recipe, qualite=250, rite=False,
-                     qformule=0) -> list:
-    """Chaque plan avec son precraft, et le postcraft de chacune de ses pieces."""
+                     qformule=0, d: dict | None = None) -> list:
+    """Chaque plan avec son precraft, et le postcraft de chacune de ses pieces
+    (en % de la meilleure valeur aussi, quand la page est dans cette echelle)."""
     sortie = []
     for recette in (grande, petite):
         options = list(postcraft.options_of(recette.plan.id)) or [0]
@@ -248,7 +260,9 @@ def _pieces_ensemble(grande: Recipe, petite: Recipe, qualite=250, rite=False,
             "qualite": r.quality, "grade": r.grade.value if r.grade else None,
             "couleur": r.color.value if r.color else None, "cout": r.cost,
             "complete": recette.is_complete, "vide": recette.is_empty,
-            "pieces": [{"option": o, "postcraft": _nombres(x.postcraft)}
+            "pieces": [{"option": o, "postcraft": _nombres(x.postcraft),
+                        "pourcent": _nombres(_pourcents(recette.plan, x.precraft, dict(d, option=o)))
+                        if d and d.get("echelle") == "pct" else {}}
                        for o, x in resultats],
         })
     return sortie
@@ -477,7 +491,9 @@ def _penaliser(moteur, exces) -> None:
     compte en faute ; _measure rend un Score ou un couple (precraft, Score)
     selon le moteur."""
     mesure = moteur._measure
-    connus: dict = {}
+    # Memoire bornee, comme celle du moteur : sans borne, une recherche sans
+    # fin de duree remplissait la memoire du navigateur
+    connus = Memo()
 
     def _measure(x):
         r = connus.get(x)
@@ -596,10 +612,194 @@ def _conditions_vers_page(conditions) -> list:
              "op": int(c.operator), "valeur": c.value} for c in conditions]
 
 
+# ------------------------------------------------------------------ valeurs du jeu
+#
+# Le joueur pense en postcraft (« un ampli a 97 % ») ; l'Evolver cherche sur
+# les pourcentages de precraft (0 a 100). Trois echelles pour les conditions :
+#   - "precraft" : celle de l'original ;
+#   - "pct" : le postcraft en % de la meilleure valeur que l'objet peut avoir
+#     en jeu (celle d'un precraft de 100). Ampli : magie de 20 a 100, donc
+#     97 % = 97 ; durabilite max 300 : 95 % = 285 ; poids : 100 % = le plus
+#     leger possible. Monte toujours avec le precraft. Les modificateurs
+#     d'esquive et de parade (+1, -2... souvent negatifs) restent en valeur
+#     du jeu : un pourcentage n'y a pas de sens ;
+#   - "jeu" : la valeur du jeu brute (formulaires enregistres le 09/11).
+# Les formules de postcraft du plan font le lien : valeur du jeu =
+# formule(precraft, Q des formules, rite). Elles sont monotones ; on les
+# inverse par dichotomie. Une formule decroissante (le poids) retourne le
+# sens de la comparaison en valeur brute.
+
+class EchelleError(ValueError):
+    """Une condition hors precraft qui ne se convertit pas."""
+
+
+MODIFICATEURS = {Stat(7), Stat(8), Stat(9), Stat(10)}
+
+
+def _fonction_jeu(plan, stat: Stat, d: dict):
+    """precraft -> valeur du jeu pour cette caracteristique, ou None si le
+    plan n'a pas de formule pour elle."""
+    formules = postcraft.get(plan.id, int(d.get("option", 0)))
+    f = formules.formulas.get(stat) if formules is not None else None
+    if f is None:
+        return None
+    q = float(d.get("qformule", 250))
+    r = RITE_BONUS if d.get("rite") else 0.0
+    return lambda p: float(f(precraft=float(p), quality=q, rite=r))
+
+
+def _vers_precraft(g, valeur: float) -> float:
+    """Le precraft qui donne `valeur` en jeu. Hors de [g(0), g(100)], la droite
+    est prolongee : la condition reste impossible (ou toujours tenue), et son
+    ecart garde un sens."""
+    a, b = g(0.0), g(100.0)
+    pente = (b - a) / 100.0
+    if (b - valeur) * pente < 0:
+        return 100.0 + (valeur - b) / pente
+    if (valeur - a) * pente < 0:
+        return (valeur - a) / pente
+    bas, haut = 0.0, 100.0
+    for _ in range(60):
+        milieu = (bas + haut) / 2
+        if (g(milieu) - valeur) * pente < 0:
+            bas = milieu
+        else:
+            haut = milieu
+    return (bas + haut) / 2
+
+
+def _en_pct(stat: Stat, echelle: str) -> bool:
+    return echelle == "pct" and stat not in MODIFICATEURS
+
+
+def _croissant(g, stat: Stat, echelle: str) -> bool:
+    """La valeur dans cette echelle monte-t-elle avec le precraft ?"""
+    return echelle == "precraft" or _en_pct(stat, echelle) or g(100.0) > g(0.0)
+
+
+def _depuis_precraft(g, stat: Stat, p: float, echelle: str) -> float:
+    if echelle == "precraft":
+        return p
+    v = g(p)
+    if not _en_pct(stat, echelle):
+        return v
+    meilleure = g(100.0)
+    if g(100.0) > g(0.0):
+        return 100.0 * v / meilleure
+    return 100.0 * meilleure / v if v > 0 else 0.0
+
+
+def _vers_precraft_de(g, stat: Stat, x: float, echelle: str) -> float:
+    if echelle == "precraft":
+        return x
+    if _en_pct(stat, echelle):
+        meilleure = g(100.0)
+        if g(100.0) > g(0.0):
+            x = x * meilleure / 100.0
+        else:
+            # poids : 100 % = le plus leger ; 0 % ou moins, aucun poids ne convient
+            x = 100.0 * meilleure / x if x > 0 else 1e9
+    return _vers_precraft(g, x)
+
+
+def _utilisable(g, stat: Stat, echelle: str) -> bool:
+    """Une formule qui depend des MP, et un % qui a un sens (meilleure > 0)."""
+    if g is None or abs(g(100.0) - g(0.0)) < 1e-9:
+        return False
+    return not _en_pct(stat, echelle) or min(g(0.0), g(100.0)) >= 0 and max(g(0.0), g(100.0)) > 0
+
+
+_INVERSE = {proj.Operator.GREATER: proj.Operator.LESS, proj.Operator.LESS: proj.Operator.GREATER,
+            proj.Operator.EQUAL: proj.Operator.EQUAL}
+
+
+def _convertir(conditions, plan, d: dict, de: str, vers: str, marge: bool = False):
+    """Les conditions passees de l'echelle `de` a l'echelle `vers`.
+
+    `marge` (vers le precraft, pour chercher) ajoute la tolerance de l'Evolver
+    du bon cote : une condition dite tenue l'est alors aussi en jeu, sans
+    qu'un 97 tenu a 0,01 pres s'affiche 96,99. Rend (conditions, stats qui ne
+    se convertissent pas, laissees telles quelles)."""
+    sortie, figees = [], []
+    for c in conditions:
+        if not c.is_set or de == vers:
+            sortie.append(c)
+            continue
+        g = _fonction_jeu(plan, c.stat, d)
+        if not all(_utilisable(g, c.stat, e) for e in (de, vers) if e != "precraft"):
+            figees.append(c.stat.label)
+            sortie.append(c)
+            continue
+        p = _vers_precraft_de(g, c.stat, c.value, de)
+        op = c.operator if _croissant(g, c.stat, de) else _INVERSE[c.operator]
+        if vers == "precraft":
+            if marge and op is proj.Operator.GREATER:
+                p += TOLERANCE
+            elif marge and op is proj.Operator.LESS:
+                p -= TOLERANCE
+            valeur = round(p, 6 if marge else 4)
+        else:
+            valeur = round(_depuis_precraft(g, c.stat, p, vers), 4)
+            op = op if _croissant(g, c.stat, vers) else _INVERSE[op]
+        sortie.append(dataclasses.replace(c, operator=op, value=valeur))
+    return tuple(sortie), figees
+
+
+def _en_precraft(d: dict, plan, marge: bool = False):
+    """Les conditions de la page, en precraft. Erreur si l'une ne se convertit
+    pas (sa valeur en jeu ne depend pas des MP pour cet objet)."""
+    conditions = _conditions(d)
+    de = d.get("echelle") or "precraft"
+    if de == "precraft":
+        return conditions
+    conditions, figees = _convertir(conditions, plan, d, de, "precraft", marge)
+    if figees:
+        raise EchelleError(", ".join(figees) + " : la valeur en jeu ne dépend pas des MP pour "
+                           + plan.full_label + ". Retire cette condition, ou passe en précraft.")
+    return conditions
+
+
+def _ecart_echelle(plan, c, ecart: float, d: dict) -> float:
+    """L'ecart d'une condition (precraft) dans l'echelle de la page."""
+    echelle = d.get("echelle") or "precraft"
+    if echelle == "precraft":
+        return ecart
+    g = _fonction_jeu(plan, c.stat, d)
+    if not _utilisable(g, c.stat, echelle):
+        return ecart
+    obtenu = c.value + ecart if c.operator is proj.Operator.LESS else c.value - ecart
+    return abs(_depuis_precraft(g, c.stat, c.value, echelle)
+               - _depuis_precraft(g, c.stat, obtenu, echelle))
+
+
+def _pourcents(plan, precraft: dict, d: dict) -> dict:
+    """Le postcraft en % de la meilleure valeur, stat par stat (echelle pct)."""
+    sortie = {}
+    for stat, p in precraft.items():
+        g = _fonction_jeu(plan, stat, d)
+        if _utilisable(g, stat, "pct") and _en_pct(stat, "pct"):
+            sortie[stat] = _depuis_precraft(g, stat, p, "pct")
+    return sortie
+
+
+def convertir(demande: str) -> str:
+    """Le bouton d'echelle des conditions : memes conditions, autres valeurs.
+    {plan, conditions, de, vers ("precraft" | "pct" | "jeu"), qformule, rite}"""
+    d = json.loads(demande)
+    plan = plans[int(d["plan"])]
+    conditions, figees = _convertir(_conditions(d), plan, d, d.get("de") or "precraft",
+                                    d.get("vers") or "pct")
+    return json.dumps({"conditions": _conditions_vers_page(conditions), "figees": figees},
+                      ensure_ascii=False)
+
+
 # ------------------------------------------------------------------ evolver
 
-def _projet_evolver(d: dict) -> proj.EvolverProject:
-    p = proj.build_evolver(int(d["plan"]), _conditions(d), _filtres(d), _maitre(d),
+def _projet_evolver(d: dict, marge: bool = False) -> proj.EvolverProject:
+    """Le formulaire de la page en projet .kce : conditions en precraft, comme
+    l'original, meme saisies en valeurs du jeu (EchelleError sinon)."""
+    conditions = _en_precraft(d, plans[int(d["plan"])], marge)
+    p = proj.build_evolver(int(d["plan"]), conditions, _filtres(d), _maitre(d),
                            min_quality=int(d.get("qmin", 0)) or -1,
                            max_quality=int(d.get("qmax", 0)) or -1,
                            forced_color=int(d.get("couleur", 0)),
@@ -613,19 +813,32 @@ def projet_kce(demande: str) -> str:
     return proj.dumps(_projet_evolver(json.loads(demande)))
 
 
-def kce_vers_page(texte: str) -> str:
+def kce_vers_page(texte: str, options: str = "{}") -> str:
+    """Un .kce (conditions en precraft) pour la page ; `options` dit l'echelle
+    de la page ({echelle, qformule, rite}), vers laquelle on convertit."""
     try:
         p = proj.loads(texte)
     except proj.ProjectError as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
     if not isinstance(p, proj.EvolverProject):
         return json.dumps({"erreur": "projet Bijouterie, pas Armurerie"}, ensure_ascii=False)
-    return json.dumps({"projet": _evolver_vers_page(p)}, ensure_ascii=False)
+    return json.dumps({"projet": _evolver_vers_page(p, json.loads(options or "{}"))},
+                      ensure_ascii=False)
 
 
-def _evolver_vers_page(p: proj.EvolverProject) -> dict:
+def _evolver_vers_page(p: proj.EvolverProject, options: dict | None = None) -> dict:
+    """Un projet pour la page. Ses conditions sont en precraft ; si la page est
+    en valeurs du jeu (options["echelle"]), elles y sont converties, sauf
+    quand une condition ne s'y convertit pas : tout reste alors en precraft."""
+    options = options or {}
+    conditions, echelle = p.conditions, "precraft"
+    voulue = options.get("echelle") or "precraft"
+    if voulue != "precraft" and p.pattern_id in plans:
+        converties, figees = _convertir(p.conditions, plans[p.pattern_id], options, "precraft", voulue)
+        if not figees:
+            conditions, echelle = converties, voulue
     return {
-        "plan": p.pattern_id, "conditions": _conditions_vers_page(p.conditions),
+        "plan": p.pattern_id, "conditions": _conditions_vers_page(conditions), "echelle": echelle,
         "filtres": _filtres_vers_page(p.filters), "maitre": _maitre_vers_page(p.master_filter),
         "qmin": max(0, p.min_quality), "qmax": max(0, p.max_quality),
         "couleur": p.forced_color, "ecartes": p.use_ignored, "boost": p.prefer_boost,
@@ -650,7 +863,7 @@ def assistant(demande: str) -> str:
             min_quality=int(d.get("qmin", 0)) or -1)
     except (WizardError, ValueError, KeyError) as exc:
         return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
-    return json.dumps({"projet": _evolver_vers_page(Wizard(choix).to_project())},
+    return json.dumps({"projet": _evolver_vers_page(Wizard(choix).to_project(), d)},
                       ensure_ascii=False)
 
 
@@ -733,7 +946,10 @@ async def evoluer(demande: str, avancer) -> str:
     """Cherche une recette qui tient les conditions (pourcentages de precraft)."""
     d = json.loads(demande)
     plan = plans[int(d["plan"])]
-    projet = _projet_evolver(d)
+    try:
+        projet = _projet_evolver(d, marge=True)
+    except EchelleError as exc:
+        return json.dumps({"erreur": str(exc)}, ensure_ascii=False)
     reglages = Settings.from_project(
         projet, plan, max_distinct=int(d.get("variete", 0)),
         time_limit=float(d.get("duree", 20)), stop_when_satisfied=bool(d.get("tot")))
@@ -800,6 +1016,9 @@ def _rendu_evo(solution, d, plan, petit, projet, stock, choix) -> dict:
                 + " et ".join(sorted(e.label for e in melange)) + ") : choisis une race, "
                 "ou assouplis les conditions."}
     recette.comment = _signature("l'Armurerie", d)
+    # La MP d'OP choisie dans le formulaire, ajoutee telle quelle : son effet
+    # tient du hasard, la recherche n'en a pas tenu compte.
+    recette.bonus = "" if petit else _bonus(plan, d)
     if stock is not None:
         faites = ([(recette, _nb_pieces(plan)), (_petite(recette, petit), _nb_pieces(petit))]
                   if petit else [(recette, 1)])
@@ -808,7 +1027,8 @@ def _rendu_evo(solution, d, plan, petit, projet, stock, choix) -> dict:
             return json.loads(_hall_insuffisant(trop))
     if petit:
         petite = _petite(recette, petit)
-        ensemble_ = _pieces_ensemble(recette, petite)
+        ensemble_ = _pieces_ensemble(recette, petite, rite=bool(d.get("rite")),
+                                     qformule=int(d.get("qformule", 0)), d=d)
         manque = {}
         for x in ensemble_:
             for c in projet.conditions:
@@ -818,7 +1038,8 @@ def _rendu_evo(solution, d, plan, petit, projet, stock, choix) -> dict:
                 # Pas de NaN : JSON.parse le refuse
                 ecart = 100.0 if v is None else deficit(c, v)
                 if ecart > tolerance_for(c):
-                    manque[c.stat.label] = max(manque.get(c.stat.label, 0), ecart)
+                    manque[c.stat.label] = max(manque.get(c.stat.label, 0),
+                                               _ecart_echelle(plan, c, ecart, d))
         return {
             "verdict": solution.score.describe(), "cle": list(solution.score.key),
             "manque": [[k, v] for k, v in manque.items()],
@@ -828,15 +1049,23 @@ def _rendu_evo(solution, d, plan, petit, projet, stock, choix) -> dict:
             "kc": kc.dumps(recette), "kc_petit": kc.dumps(petite),
         }
     try:
-        r = _craft(recette, postcraft.get(plan.id, recette.option))
+        r = _craft(recette, postcraft.get(plan.id, recette.option),
+                   rite=bool(d.get("rite")), formula_quality=int(d.get("qformule", 0)))
     except PostcraftError:
         r = _craft(recette, None)
+    pourcent = _pourcents(plan, r.precraft, d) if d.get("echelle") == "pct" else {}
+    for s in r.dropped:
+        if s in pourcent:
+            pourcent[s] = 0.0
     return {
         "verdict": solution.score.describe(), "cle": list(solution.score.key),
-        "manque": [[c.stat.label, ecart] for c, ecart in solution.unmet(projet.conditions)],
+        "manque": [[c.stat.label, _ecart_echelle(plan, c, ecart, d)]
+                   for c, ecart in solution.unmet(projet.conditions)],
         "generations": solution.generation,
         "recette": _vers_page(recette),
-        "resultat": {"precraft": _nombres(r.precraft), "postcraft": _nombres(r.postcraft)},
+        "resultat": {"precraft": _nombres(r.precraft), "postcraft": _nombres(r.postcraft),
+                     "pourcent": _nombres(pourcent),
+                     "perdues": sorted(s.value for s in r.dropped)},
         "kc": kc.dumps(recette),
     }
 
@@ -920,6 +1149,9 @@ def _rendu_bij(parure, d, projet, stock, choix) -> dict:
         "totaux": _nombres(parure.totals),
         "bijoux": [_vers_page(r) for r in parure.jewels],
         "valeurs": [_nombres(v) for v in parure.per_jewel],
+        # Par bijou, ce que le jeu met a zero (3 meilleures gardees par groupe)
+        "perdues": [sorted(s.value for g in JEWEL_GROUPS for s in g if v.get(s, 0.0) == 0.0)
+                    for v in parure.per_jewel],
         "races": list(parure.races),
         "courses": shopping_list(parure),
         "kc": [kc.dumps(r) for r in parure.jewels],

@@ -51,7 +51,7 @@ _DEPOT = os.path.dirname(_ANDROID)
 #: Une coquille pour la carapace, une goutte pour la seve : l'oeil les
 #: reconnait plus vite qu'il ne lit « Carapace ».
 SYMBOLES = os.path.join(_DEPOT, "zyroom-gtk", "zyroom", "symboles")
-CIBLE = os.path.join(_DEPOT, "site-domaine", "forage", "index.html")
+CIBLE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/forage/index.html")
 
 #: La clef d'ecriture. Hors du depot, comme le jeton du tracker : elle finit
 #: recopiee dans `releve.php`, que le serveur execute et ne montre jamais.

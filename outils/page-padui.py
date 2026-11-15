@@ -29,7 +29,7 @@ import acces
 import bcrypt
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GARDE = os.path.join(RACINE, "site-domaine", "padui", "garde.php")
+GARDE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/padui/garde.php")
 SECRETS = os.path.expanduser("~/.config/zyroom")
 # La clef d'ecriture du releve du forage : la meme sert a ZyRoom-GTK (dev) pour
 # deposer les drapeaux partages de Xiom (donnees.php).
@@ -40,8 +40,8 @@ DEPOSANTS = os.path.join(SECRETS, "padui.deposants")
 NOMS_DEPOSANTS = ("Xiom", "Yamaa", "Yzatis", "Thysela", "Arudy", "Azileth", "Nizyros", "Luz", "Ciboulette", "Cibou", "Deborat")
 # Le filtre des depots : quelles matieres et quels rois/nommes reconnaitre,
 # tire des donnees de l'installateur PadUI (le meme tri que lui).
-INSTALLATEUR = os.path.expanduser("~/jeu/padui/installeur")
-FILTRE = os.path.join(RACINE, "site-domaine", "padui", "filtre.json")
+INSTALLATEUR = os.path.expanduser("~/jeu/ryzom/padui/installeur")
+FILTRE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/padui/filtre.json")
 # Comme les mots de passe de la page mp : douze lettres et chiffres melanges.
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 

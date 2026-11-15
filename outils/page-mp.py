@@ -37,13 +37,13 @@ import sys
 import unicodedata
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DOSSIER = os.path.join(RACINE, "site-domaine", "mp")
+DOSSIER = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/mp")
 MODELE = os.path.join(DOSSIER, "mp.modele.php")
 SECRETS = os.path.expanduser("~/.config/zyroom")
 MOTS_DE_PASSE = os.path.join(SECRETS, "mp.motsdepasse")
 SEL = os.path.join(SECRETS, "mp.sel")
 
-KIPEECRAFT = os.path.expanduser("~/jeu/kipeecraft")
+KIPEECRAFT = os.path.expanduser("~/jeu/ryzom/kipeecraft")
 BASE_KC = os.path.join(KIPEECRAFT, "kipeecraft-py", "src", "kipeecraft",
                        "resources", "defaults", "DB", "Ryzom.json")
 RECETTES = os.path.join(KIPEECRAFT, "Recipes")

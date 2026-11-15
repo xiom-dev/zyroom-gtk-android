@@ -31,8 +31,8 @@ import sys
 import acces
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GARDE = os.path.join(RACINE, "site-domaine", "index", "garde.php")
-PORTE = os.path.join(RACINE, "site-domaine", "index", "porte.php")
+GARDE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/index/garde.php")
+PORTE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/index/porte.php")
 SECRETS = os.path.expanduser("~/.config/zyroom")
 # La question posee avec le mot de passe, ses trois choix, et le bon.
 QUESTION = "Quel est l'animal que je déteste ?"

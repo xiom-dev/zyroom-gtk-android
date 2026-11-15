@@ -19,7 +19,7 @@ import sys
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LISTE = os.path.join(RACINE, "outils", "nouveautes-site.json")
-PAGE = os.path.join(RACINE, "site-domaine", "index", "page.html")
+PAGE = os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine/index/page.html")
 NOMBRE = 10
 DEBUT, FIN = "    <!-- NOUVEAUTES -->\n", "    <!-- /NOUVEAUTES -->"
 

@@ -61,6 +61,10 @@ site-domaine/mp/mp.depart.json
 site-domaine/mp/sauvegardes/
 # Fabriques par outils/page-kc.py depuis kipeecraft-py
 site-domaine/mp/kc/kipeecraft.zip
+# La recherche exacte (le solveur), reservee a Xiom et Nizyros : jamais dans
+# ce depot public. Fabriquee depuis kipeecraft-py/web-exacte/fabriquer.py.
+site-domaine/mp/exacte/
+site-domaine/index/reserve.php
 site-domaine/mp/kc/icones/
 site-domaine/mp/kc/kipee.png
 # `zyroom/` : la version web de ZyRoom. `outils/page-zyroom.py` fabrique le

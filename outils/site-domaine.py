@@ -142,7 +142,7 @@ def porte() -> str:
 
 def main() -> int:
     sortie = (sys.argv[1] if len(sys.argv) > 1
-              else os.path.join(RACINE, "site-domaine"))
+              else os.path.expanduser("~/jeu/ryzom/xiom-dev/site-domaine"))
     source = os.path.join(PAGES, "index.html")
     if not os.path.isfile(source):
         print(f"Introuvable : {source}", file=sys.stderr)
