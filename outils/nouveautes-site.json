@@ -1,12 +1,66 @@
 [
- {"date": "2026-10-31", "texte": "PadUI : textures HD à télécharger dans l'installateur (essai)."},
- {"date": "2026-10-31", "texte": "PadUI : mod Marché et cadre Nouveautés dans l'installateur."},
- {"date": "2026-10-31", "texte": "MP : bouton « Ouvrir dans KipeeCraft » sur chaque recette."},
- {"date": "2026-10-30", "texte": "Nouvelle section Utilitaires : Chrono et Clicker."},
- {"date": "2026-10-30", "texte": "PadUI : Environs reconnaît de nouveau les rois et les nommés."},
- {"date": "2026-10-29", "texte": "PadUI : masquer un roi ou un nommé dans Environs."},
- {"date": "2026-10-27", "texte": "Guerre d'OP : compteur des neutres."},
- {"date": "2026-10-21", "texte": "PadUI : page Déposer mes drapeaux."},
- {"date": "2026-10-20", "texte": "Jeux : Mito – Les Flammes Éternelles."},
- {"date": "2026-10-15", "texte": "KipeeCraft web : boost calculé comme dans le jeu."}
+ {
+  "date": "2026-11-17",
+  "texte": "PadUI : dépôt du journal de jeu pour le relevé des rois (morts, rois vus, ossements), seuls les événements de rois sont envoyés"
+ },
+ {
+  "date": "2026-11-16",
+  "texte": "Ryzom-Godot : nouvelle version de la démo Silan."
+ },
+ {
+  "date": "2026-11-16",
+  "texte": "PadUI : nouveaux décors livrés aux joueurs (présentoirs d'armes et d'armures, cornes, cordes, rouleau)."
+ },
+ {
+  "date": "2026-11-15",
+  "texte": "PadUI : version 1.3.4."
+ },
+ {
+  "date": "2026-11-14",
+  "texte": "Ryzom-Godot : nouvelle page, la démo Silan à télécharger."
+ },
+ {
+  "date": "2026-11-02",
+  "texte": "Accès : code personnel, plus de mot de passe commun."
+ },
+ {
+  "date": "2026-10-31",
+  "texte": "PadUI : textures HD à télécharger dans l'installateur (essai)."
+ },
+ {
+  "date": "2026-10-31",
+  "texte": "PadUI : mod Marché et cadre Nouveautés dans l'installateur."
+ },
+ {
+  "date": "2026-10-31",
+  "texte": "MP : bouton « Ouvrir dans KipeeCraft » sur chaque recette."
+ },
+ {
+  "date": "2026-10-30",
+  "texte": "Nouvelle section Utilitaires : Chrono et Clicker."
+ },
+ {
+  "date": "2026-10-30",
+  "texte": "PadUI : Environs reconnaît de nouveau les rois et les nommés."
+ },
+ {
+  "date": "2026-10-29",
+  "texte": "PadUI : masquer un roi ou un nommé dans Environs."
+ },
+ {
+  "date": "2026-10-27",
+  "texte": "Guerre d'OP : compteur des neutres."
+ },
+ {
+  "date": "2026-10-21",
+  "texte": "PadUI : page Déposer mes drapeaux."
+ },
+ {
+  "date": "2026-10-20",
+  "texte": "Jeux : Mito – Les Flammes Éternelles."
+ },
+ {
+  "date": "2026-10-15",
+  "texte": "KipeeCraft web : boost calculé comme dans le jeu."
+ }
 ]
