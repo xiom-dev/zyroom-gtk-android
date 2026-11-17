@@ -15,6 +15,11 @@ en quittant :
   2  « Vous avez tue le <roi> » ;
   3  « Vous ciblez Ossements » (un roi mort la, le nom ne se lit que sur
      place : Ludo pose alors un drapeau a son nom).
+Le journal du jeu (log_<perso>.txt) donne en plus, depuis le 17/11/2026,
+  4  l'examen des ossements : « ces restes sont ceux d'un Timketh mort voici
+     environ 12 heure(s) » (le roi et l'heure de sa mort, a une heure pres).
+     Le jeu ne l'ecrit pas lui-meme : PadUI (padui_mobmap.lua) le recopie
+     dans le journal quand /chatLog est actif.
 Chaque note : l'heure, le nom, la position (celle de la creature ciblee ou
 vue, sinon du joueur).
 
@@ -38,7 +43,7 @@ RAPPORT = os.path.expanduser("~/jeu/ryzom/rois/repops.txt")
 DRAPEAUX_AUTRES = os.path.expanduser("~/jeu/ryzom/landmarks")
 CATALOGUE = os.path.expanduser("~/jeu/ryzom/padui/installeur/paquet/donnees/catalogue.json")
 PLACES = 48
-SORTES = {1: "vu", 2: "tué", 3: "ossements"}
+SORTES = {1: "vu", 2: "tué", 3: "ossements", 4: "mort (examen des ossements, à 1 h près)"}
 PROCHE = 200.0           # m : un drapeau de pop plus loin ne nomme pas l'endroit
 
 
@@ -110,8 +115,13 @@ GROUPE = 300             # s : deux lignes de combat plus espacees = deux combat
 APRES_MORT = 180         # s : signe de mort au plus tard apres le dernier coup
 LIGNE = re.compile(r"^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d) \(([^)]*)\) \* (.*)$")
 REGION = re.compile(r"^Vous êtes (?:dans|sur|à|au|aux|en) (.+?)\.")
-VERSION_CACHE = 2        # 2 : ossements et regions (17/11) ; autre = tout relire
+VERSION_CACHE = 3        # 2 : ossements et regions ; 3 : examen des ossements (17/11) ; autre = tout relire
 OS_APRES_MORT = 900      # s : des ossements si vite apres une mort sont les siens
+# L'examen des ossements (ligne recopiee par PadUI) : le roi et depuis quand
+# il est mort. Deux examens a moins de 2 h pour le meme roi = la meme mort.
+EXAMEN = re.compile(r"ces restes sont ceux d['\u2019]une? (.+?) morte? voici environ (\d+) (minute|heure|jour)")
+UNITES = {"minute": 60, "heure": 3600, "jour": 86400}
+MEME_MORT = 7200
 # Les depots de la guilde (xiom.be/padui/deposer.php), lus avec le code du
 # site garde par l'installateur PadUI ; derniere copie gardee hors ligne.
 DONNEES = "https://xiom.be/padui/donnees.php"
@@ -126,7 +136,7 @@ def rois_du_catalogue():
 
 
 def lire_journal(perso, rois):
-    """Les evenements du journal du perso : [{t, k, nom, lieu}] (k : 1 vu, 2 tue)."""
+    """Les evenements du journal du perso : [{t, k, nom, lieu}] (k : 1 vu, 2 tue, 3 ossements, 4 mort datee)."""
     chemin = os.path.join(PROFIL, "save", f"log_{perso}.txt")
     cache_f = os.path.join(os.path.dirname(HISTORIQUE), f"journal_{perso}.json")
     cache = json.load(open(cache_f, encoding="utf-8")) if os.path.isfile(cache_f) else {}
@@ -161,6 +171,16 @@ def lire_journal(perso, rois):
                 region = r.group(1)
             continue
         sous = canal.split("/")[1] if "/" in canal else ""
+        e = EXAMEN.search(txt) if canal.startswith("SYSTEM") else None
+        if e:
+            bas = e.group(1).lower()
+            nom = next((n for c, n in composes if c == bas), None) or simples.get(bas)
+            if nom:
+                t = time.mktime(time.strptime(m.group(1), "%Y/%m/%d %H:%M:%S"))
+                mort = t - int(e.group(2)) * UNITES[e.group(3)]
+                if not any(x["k"] == 4 and x["nom"] == nom and abs(x["t"] - mort) < MEME_MORT for x in evenements):
+                    evenements.append({"t": mort, "k": 4, "nom": nom, "lieu": region, "examen": t})
+            continue
         signe = canal == "SYSTEM/XP" or "sur un cadavre" in txt or (canal == "SYSTEM/ITMO" and "suprême" in txt)
         utile = signe or canal == "SYSTEM" or sous in COMBAT or canal in ANNONCES
         if not utile:
@@ -200,6 +220,9 @@ def lire_journal(perso, rois):
             if mort:
                 evenements.append({"t": mort, "k": 2, "nom": nom, "lieu": ""})
     evenements.sort(key=lambda e: e["t"])
+    # Les Ossements cibles pour l'examen : l'examen dit deja tout (le roi).
+    examens = [e["examen"] for e in evenements if e["k"] == 4 and "examen" in e]
+    evenements = [e for e in evenements if e["k"] != 3 or not any(0 <= x - e["t"] <= 120 for x in examens)]
     os.makedirs(os.path.dirname(cache_f), exist_ok=True)
     with open(cache_f, "w", encoding="utf-8") as f:
         json.dump({"version": VERSION_CACHE, "octet": debut + fin, "region": region, "evenements": evenements},
@@ -317,7 +340,7 @@ def main():
         return sum(1 for e in liste if e["k"] == k)
     lignes = [f"Relevé des rois, refait le {time.strftime('%d/%m/%Y %H:%M')} : {len(nouvelles)} notes nouvelles, "
               f"{len(historique)} en tout ; journal du jeu : {compte(journal, 2)} morts, "
-              f"{compte(journal, 1)} repérages, {compte(journal, 3)} ossements ; dépôts de la guilde ({etat}) : "
+              f"{compte(journal, 1)} repérages, {compte(journal, 3)} ossements, {compte(journal, 4)} examens ; dépôts de la guilde ({etat}) : "
               f"{len(ajoutes)} événements en plus."]
     tout = sorted(historique + journal + ajoutes, key=lambda n: n["t"])
     if not tout:
@@ -342,7 +365,7 @@ def rapport(historique, pops, rois=None):
     gardes = []
     for n in historique:
         source = n.get("de", "ici")
-        if n["k"] == 2:
+        if n["k"] in (2, 4):
             morts[source] = n["t"]
         if n["k"] == 3 and n["t"] - morts.get(source, -1e12) < OS_APRES_MORT:
             continue
@@ -368,6 +391,12 @@ def rapport(historique, pops, rois=None):
         for n in groupes[cle]:
             if n["k"] == 1 and liste and n["t"] - liste[-1]["t"] < 1800:
                 continue
+            # Une mort datee par l'examen et une mort vue (ou un autre examen)
+            # a moins de 2 h : la meme mort ; la mort vue est plus precise.
+            if n["k"] in (2, 4) and liste and liste[-1]["k"] in (2, 4) and n["t"] - liste[-1]["t"] < MEME_MORT:
+                if n["k"] == 2 and liste[-1]["k"] == 4:
+                    liste[-1] = n
+                continue
             liste.append(n)
         groupes[cle] = liste
     for cle in sorted(groupes):
@@ -383,13 +412,13 @@ def rapport(historique, pops, rois=None):
         # Repops mesures : une mort (ou ses ossements), puis la premiere fois
         # qu'on le revoit.
         for i, n in enumerate(liste):
-            if n["k"] not in (2, 3) or cle.startswith("Ossements"):
+            if n["k"] not in (2, 3, 4) or cle.startswith("Ossements"):
                 continue
             revu = next((m for m in liste[i + 1:] if m["k"] == 1 and m["t"] - n["t"] > 600), None)
             if revu:
                 bornes.append((revu["t"] - n["t"], cle))
                 lignes.append(f"  -> repop observé : {duree(revu['t'] - n['t'])} au plus "
-                              f"(tué {time.strftime('%d/%m %H:%M', time.localtime(n['t']))}, "
+                              f"({'mort vers' if n['k'] == 4 else 'tué'} {time.strftime('%d/%m %H:%M', time.localtime(n['t']))}, "
                               f"revu {time.strftime('%d/%m %H:%M', time.localtime(revu['t']))})")
     if bornes:
         # En tete : les rois revus le plus vite apres une mort (un maximum :

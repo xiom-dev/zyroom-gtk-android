@@ -1,6 +1,10 @@
 [
  {
   "date": "2026-11-17",
+  "texte": "Relevé des rois : la dernière mort et la dernière fois vu de chaque roi, d'après les journaux déposés par la guilde ; le dépôt du journal y est maintenant."
+ },
+ {
+  "date": "2026-11-17",
   "texte": "PadUI : dépôt du journal de jeu pour le relevé des rois (morts, rois vus, ossements), seuls les événements de rois sont envoyés"
  },
  {
